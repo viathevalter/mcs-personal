@@ -3,8 +3,10 @@ import { useEffect } from 'react';
 import { LogOut, Briefcase } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export function WorkerPortalLayout() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -16,7 +18,7 @@ export function WorkerPortalLayout() {
 
     const handleLogout = () => {
         localStorage.removeItem('worker_session');
-        toast.info('Sessão encerrada');
+        toast.info(t('workerPortal.layout.logout.toast'));
         navigate('/portal/login');
     };
 
@@ -35,14 +37,14 @@ export function WorkerPortalLayout() {
                                 <Briefcase className="h-6 w-6 text-blue-600" />
                             </div>
                             <span className="font-semibold text-lg text-slate-900 hidden sm:block">
-                                Portal do Trabalhador
+                                {t('workerPortal.layout.title')}
                             </span>
                         </div>
                         <div className="flex items-center gap-4">
                             <span className="text-sm font-medium text-slate-700 truncate max-w-[120px] sm:max-w-[200px]">
                                 {workerAuth.nome.split(' ')[0]}
                             </span>
-                            <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
+                            <Button variant="ghost" size="icon" onClick={handleLogout} title={t('workerPortal.layout.logout.btn')}>
                                 <LogOut className="h-5 w-5 text-slate-500 hover:text-red-500" />
                             </Button>
                         </div>

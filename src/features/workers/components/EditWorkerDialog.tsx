@@ -30,6 +30,7 @@ import {
 import { Loader2, Edit2 } from 'lucide-react';
 import type { Worker } from '@/shared/types/corePersonal';
 import { useUpdateWorker } from '../hooks/useUpdateWorker';
+import { useTranslation } from 'react-i18next';
 
 const formSchema = z.object({
     nome: z.string().min(3, { message: "O nome deve ter no mínimo 3 caracteres." }),
@@ -55,6 +56,7 @@ interface EditWorkerDialogProps {
 }
 
 export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const { mutate: updateWorker, isPending } = useUpdateWorker();
 
@@ -128,16 +130,16 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden sm:flex" title="Editar informações básicas">
+                <Button variant="outline" size="sm" className="hidden sm:flex" title={t('editWorker.btnTooltip')}>
                     <Edit2 className="h-4 w-4 mr-2" />
-                    Editar Perfil
+                    {t('editWorker.btnLabel')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[700px] w-11/12 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Editar Trabalhador</DialogTitle>
+                    <DialogTitle>{t('editWorker.title')}</DialogTitle>
                     <DialogDescription>
-                        Preencha os dados abaixo para modificar as informações básicas do funcionário.
+                        {t('editWorker.desc')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -149,9 +151,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="nome"
                                 render={({ field }) => (
                                     <FormItem className="md:col-span-3">
-                                        <FormLabel>Nome Completo *</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.name')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Nome do trabalhador" {...field} />
+                                            <Input placeholder={t('editWorker.placeholders.name')} {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -163,17 +165,17 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="status_trabajador"
                                 render={({ field }) => (
                                     <FormItem className="md:col-span-1">
-                                        <FormLabel>Status Trabalhador</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.workerStatus')}</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Selecione..." />
+                                                    <SelectValue placeholder={t('editWorker.placeholders.select')} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="Ativo">Ativo</SelectItem>
-                                                <SelectItem value="Inativo">Inativo</SelectItem>
-                                                <SelectItem value="Pendente Ingresso">Pendente Ingresso</SelectItem>
+                                                <SelectItem value="Ativo">{t('editWorker.status.active')}</SelectItem>
+                                                <SelectItem value="Inativo">{t('editWorker.status.inactive')}</SelectItem>
+                                                <SelectItem value="Pendente Ingresso">{t('editWorker.status.pendingEntry')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -186,18 +188,18 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="status_seguridad"
                                 render={({ field }) => (
                                     <FormItem className="md:col-span-2">
-                                        <FormLabel>Status Seguridade</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.securityStatus')}</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Selecione..." />
+                                                    <SelectValue placeholder={t('editWorker.placeholders.select')} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="Alta">Alta</SelectItem>
-                                                <SelectItem value="Pendente Alta">Pendente Alta</SelectItem>
-                                                <SelectItem value="Baixa">Baixa</SelectItem>
-                                                <SelectItem value="Pendente Baixa">Pendente Baixa</SelectItem>
+                                                <SelectItem value="Alta">{t('editWorker.security.alta')}</SelectItem>
+                                                <SelectItem value="Pendente Alta">{t('editWorker.security.pendingAlta')}</SelectItem>
+                                                <SelectItem value="Baixa">{t('editWorker.security.baixa')}</SelectItem>
+                                                <SelectItem value="Pendente Baixa">{t('editWorker.security.pendingBaixa')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -211,9 +213,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="movil"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Telemóvel</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.mobile')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="+351 900 000 000" {...field} value={field.value || ''} />
+                                            <Input placeholder={t('editWorker.placeholders.mobile')} {...field} value={field.value || ''} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -224,9 +226,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.email')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="email@exemplo.com" {...field} value={field.value || ''} />
+                                            <Input placeholder={t('editWorker.placeholders.email')} {...field} value={field.value || ''} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -240,9 +242,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="nacionalidade"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nacionalidade</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.nationality')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Nacionalidade" {...field} value={field.value || ''} />
+                                            <Input placeholder={t('editWorker.placeholders.nationality')} {...field} value={field.value || ''} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -253,9 +255,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="fecha_nacimiento"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Data de Nascimento</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.birthDate')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="DD/MM/AAAA" {...field} value={field.value || ''} />
+                                            <Input placeholder={t('editWorker.placeholders.birthDate')} {...field} value={field.value || ''} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -264,7 +266,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                         </div>
 
                         <div>
-                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">Documentos Portugal</h4>
+                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsPt')}</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <FormField
                                     control={form.control}
@@ -273,7 +275,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         <FormItem>
                                             <FormLabel>NISS</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nº NISS" {...field} value={field.value || ''} />
+                                                <Input placeholder={t('editWorker.placeholders.niss')} {...field} value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -286,7 +288,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         <FormItem>
                                             <FormLabel>NIF</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nº NIF" {...field} value={field.value || ''} />
+                                                <Input placeholder={t('editWorker.placeholders.nif')} {...field} value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -296,7 +298,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                         </div>
 
                         <div>
-                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">Documentos Espanha</h4>
+                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsEs')}</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <FormField
                                     control={form.control}
@@ -305,7 +307,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         <FormItem>
                                             <FormLabel>DNI</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nº DNI" {...field} value={field.value || ''} />
+                                                <Input placeholder={t('editWorker.placeholders.dni')} {...field} value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -318,7 +320,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         <FormItem>
                                             <FormLabel>NIE</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nº NIE" {...field} value={field.value || ''} />
+                                                <Input placeholder={t('editWorker.placeholders.nie')} {...field} value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -331,7 +333,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         <FormItem>
                                             <FormLabel>NUSS</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nº NUSS" {...field} value={field.value || ''} />
+                                                <Input placeholder={t('editWorker.placeholders.nuss')} {...field} value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -346,9 +348,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="pasaporte"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Passaporte</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.passport')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Nº Passaporte" {...field} value={field.value || ''} />
+                                            <Input placeholder={t('editWorker.placeholders.passport')} {...field} value={field.value || ''} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -359,16 +361,16 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                 name="licencia_conducir"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Licença de Conduzir</FormLabel>
+                                        <FormLabel>{t('editWorker.fields.driversLicense')}</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Selecione" />
+                                                    <SelectValue placeholder={t('editWorker.placeholders.selectOption')} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="Si">Sim</SelectItem>
-                                                <SelectItem value="No">Não</SelectItem>
+                                                <SelectItem value="Si">{t('editWorker.options.yes')}</SelectItem>
+                                                <SelectItem value="No">{t('editWorker.options.no')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -379,16 +381,16 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
 
                         <div className="flex justify-end space-x-2 pt-2">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-                                Cancelar
+                                {t('editWorker.btnCancel')}
                             </Button>
                             <Button type="submit" disabled={isPending}>
                                 {isPending ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Salvando...
+                                        {t('editWorker.btnSaving')}
                                     </>
                                 ) : (
-                                    'Salvar'
+                                    t('editWorker.btnSave')
                                 )}
                             </Button>
                         </div>

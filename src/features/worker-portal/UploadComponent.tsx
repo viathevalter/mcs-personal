@@ -7,8 +7,9 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
 import { Upload, X, File as FileIcon, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-interface UploadComponentProps {
+export interface UploadComponentProps {
     worker: any; // Using any for simplicity here
     period: WorkerHour;
     onCancel: () => void;
@@ -16,12 +17,14 @@ interface UploadComponentProps {
 }
 
 export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadComponentProps) {
+    const { t, i18n } = useTranslation();
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
 
     const getMonthName = (month: number) => {
         const date = new Date(2000, month - 1, 1);
-        return date.toLocaleString('pt-BR', { month: 'long' }).toUpperCase();
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        return date.toLocaleString(locale, { month: 'long' }).toUpperCase();
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,7 +35,7 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
 
     const handleUpload = async () => {
         if (!file) {
-            toast.error('Por favor, selecione um arquivo primeiro.');
+            toast.error(t('workerPortal.upload.error.noFile'));
             return;
         }
 
@@ -62,7 +65,7 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
 
             if (uploadError) {
                 console.error('Upload error:', uploadError);
-                throw new Error('Falha ao enviar arquivo');
+                throw new Error(t('workerPortal.upload.error.uploadFailed'));
             }
 
             // Get Public URL (if bucket is public later, otherwise just store the path)
@@ -81,14 +84,14 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
 
             if (dbError) {
                 console.error('DB Update error:', dbError);
-                throw new Error('Falha ao atualizar status');
+                throw new Error(t('workerPortal.upload.error.updateFailed'));
             }
 
-            toast.success('Folha enviada com sucesso!');
+            toast.success(t('workerPortal.upload.success'));
             onSuccess();
 
         } catch (error: any) {
-            toast.error(error.message || 'Erro inesperado ao enviar arquivo');
+            toast.error(error.message || t('workerPortal.upload.error.unexpected'));
         } finally {
             setLoading(false);
         }
@@ -99,19 +102,19 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
             <CardHeader className="bg-blue-50/50 border-b">
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardTitle className="text-xl">Enviar Folha de Horas</CardTitle>
+                        <CardTitle className="text-xl">{t('workerPortal.upload.title')}</CardTitle>
                         <CardDescription className="mt-1 text-sm text-slate-600">
-                            Mês de Referência: <strong className="text-slate-900">{getMonthName(period.period_month)} {period.period_year}</strong>
+                            {t('workerPortal.upload.monthRef')} <strong className="text-slate-900">{getMonthName(period.period_month)} {period.period_year}</strong>
                         </CardDescription>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={onCancel} title="Cancelar">
+                    <Button variant="ghost" size="icon" onClick={onCancel} title={t('workerPortal.upload.btnCancel')}>
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="arquivo">Selecione o PDF ou Foto da sua folha de horas assinada</Label>
+                    <Label htmlFor="arquivo">{t('workerPortal.upload.fileLabel')}</Label>
                     <Input
                         id="arquivo"
                         type="file"
@@ -134,11 +137,11 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
             </CardContent>
             <CardFooter className="flex justify-end gap-3 bg-slate-50/50 border-t pt-4">
                 <Button variant="outline" onClick={onCancel} disabled={loading}>
-                    Cancelar
+                    {t('workerPortal.upload.btnCancel')}
                 </Button>
                 <Button onClick={handleUpload} disabled={!file || loading} className="gap-2">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    Confirmar Envio
+                    {t('workerPortal.upload.btnConfirm')}
                 </Button>
             </CardFooter>
         </Card>

@@ -7,8 +7,10 @@ import type { WorkerHour } from '../../shared/types/corePersonal';
 import { toast } from 'sonner';
 import { UploadComponent } from './UploadComponent';
 import { CalendarDays, CheckCircle2, Clock, UploadCloud, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export function WorkerDashboardPage() {
+    const { t, i18n } = useTranslation();
     const { workerAuth } = useOutletContext<{ workerAuth: any }>();
     const [pendingMonths, setPendingMonths] = useState<WorkerHour[]>([]);
     const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export function WorkerDashboardPage() {
             setPendingMonths(allRecords);
         } catch (error) {
             console.error('Error fetching hours:', error);
-            toast.error('Erro ao buscar pendências');
+            toast.error(t('workerPortal.dashboard.errorFetching'));
         } finally {
             setLoading(false);
         }
@@ -127,7 +129,8 @@ export function WorkerDashboardPage() {
 
     const getMonthName = (month: number) => {
         const date = new Date(2000, month - 1, 1);
-        return date.toLocaleString('pt-BR', { month: 'long' }).toUpperCase();
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        return date.toLocaleString(locale, { month: 'long' }).toUpperCase();
     };
 
     const profiles = workerAuth.profiles && workerAuth.profiles.length > 0 ? workerAuth.profiles : [workerAuth];
@@ -135,9 +138,9 @@ export function WorkerDashboardPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight">Suas Folhas de Horas</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{t('workerPortal.dashboard.title')}</h1>
                 <p className="text-muted-foreground mt-1">
-                    Visualize e envie suas folhas de horas assinadas referentes aos meses trabalhados.
+                    {t('workerPortal.dashboard.subtitle')}
                 </p>
             </div>
 
@@ -164,7 +167,7 @@ export function WorkerDashboardPage() {
                                             {getMonthName(period.period_month)} {period.period_year}
                                         </CardTitle>
                                         <CardDescription>
-                                            Cliente: {profiles.find((p: any) => p.id === period.worker_id)?.cliente_nombre || 'N/A'}
+                                            {t('workerPortal.dashboard.clientLabel')} {profiles.find((p: any) => p.id === period.worker_id)?.cliente_nombre || 'N/A'}
                                         </CardDescription>
                                     </div>
                                     <StatusBadge status={period.status} />
@@ -174,25 +177,26 @@ export function WorkerDashboardPage() {
                                 {period.status === 'pendente' && (
                                     <p className="text-sm text-amber-700 bg-amber-100/50 p-2 border border-amber-200 rounded-md flex items-center gap-2">
                                         <AlertCircle className="h-4 w-4" />
-                                        Você precisa enviar a folha de horas assinada deste mês.
+                                        {t('workerPortal.dashboard.statusInfo.pending')}
                                     </p>
                                 )}
                                 {period.status === 'enviado' && (
                                     <p className="text-sm text-blue-700 bg-blue-100/50 p-2 border border-blue-200 rounded-md flex items-center gap-2">
                                         <CheckCircle2 className="h-4 w-4" />
-                                        Arquivo enviado. Aguardando validação do escritório.
+                                        {t('workerPortal.dashboard.statusInfo.sent')}
                                     </p>
                                 )}
                                 {period.status === 'validado' && (
-                                    <p className="text-sm text-green-700 bg-green-100/50 p-2 border border-green-200 rounded-md">
-                                        Folha de horas validada. Tudo certo!
+                                    <p className="text-sm text-green-700 bg-green-100/50 p-2 border border-green-200 rounded-md gap-2 flex items-center">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        {t('workerPortal.dashboard.statusInfo.validated')}
                                     </p>
                                 )}
                             </CardContent>
                             {period.status === 'pendente' && (
                                 <CardFooter>
                                     <Button onClick={() => setSelectedPeriod(period)} className="w-full gap-2">
-                                        <UploadCloud className="h-4 w-4" /> Enviar Arquivo
+                                        <UploadCloud className="h-4 w-4" /> {t('workerPortal.dashboard.btnUpload')}
                                     </Button>
                                 </CardFooter>
                             )}
@@ -202,8 +206,8 @@ export function WorkerDashboardPage() {
                     {pendingMonths.length === 0 && (
                         <div className="col-span-full text-center py-12 px-4 border border-dashed rounded-lg bg-slate-50">
                             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                            <h3 className="text-lg font-medium">Tudo em dia!</h3>
-                            <p className="text-muted-foreground">Você não possui meses pendentes de envio.</p>
+                            <h3 className="text-lg font-medium">{t('workerPortal.dashboard.empty.title')}</h3>
+                            <p className="text-muted-foreground">{t('workerPortal.dashboard.empty.desc')}</p>
                         </div>
                     )}
                 </div>
@@ -213,23 +217,24 @@ export function WorkerDashboardPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+    const { t } = useTranslation();
     switch (status) {
         case 'pendente':
             return (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
-                    <Clock className="h-3 w-3" /> Pendente
+                    <Clock className="h-3 w-3" /> {t('workerPortal.dashboard.badge.pending')}
                 </span>
             );
         case 'enviado':
             return (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
-                    <CheckCircle2 className="h-3 w-3" /> Enviado
+                    <CheckCircle2 className="h-3 w-3" /> {t('workerPortal.dashboard.badge.sent')}
                 </span>
             );
         case 'validado':
             return (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 border border-green-200">
-                    <CheckCircle2 className="h-3 w-3" /> Validado
+                    <CheckCircle2 className="h-3 w-3" /> {t('workerPortal.dashboard.badge.validated')}
                 </span>
             );
         default:

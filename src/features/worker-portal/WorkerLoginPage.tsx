@@ -7,8 +7,10 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../components/ui/card';
 import { Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export function WorkerLoginPage() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -27,7 +29,7 @@ export function WorkerLoginPage() {
         e.preventDefault();
 
         if (!formData.nome.trim() || !formData.pasaporte.trim()) {
-            toast.error('Preencha o Nome e o Número do Passaporte');
+            toast.error(t('workerPortal.login.error.emptyFields'));
             return;
         }
 
@@ -45,7 +47,7 @@ export function WorkerLoginPage() {
 
             if (error || !data || data.length === 0) {
                 console.error('Login error:', error);
-                toast.error('Credenciais inválidas. Verifique seu nome e passaporte.');
+                toast.error(t('workerPortal.login.error.invalidCredentials'));
                 return;
             }
 
@@ -57,12 +59,12 @@ export function WorkerLoginPage() {
             };
             localStorage.setItem('worker_session', JSON.stringify(sessionData));
 
-            toast.success(`Bem-vindo, ${mainProfile.nome.split(' ')[0]}!`);
+            toast.success(t('workerPortal.login.success', { name: mainProfile.nome.split(' ')[0] }));
             navigate('/portal/dashboard');
 
         } catch (err) {
             console.error('Unexpected error:', err);
-            toast.error('Ocorreu um erro ao tentar fazer login.');
+            toast.error(t('workerPortal.login.error.generic'));
         } finally {
             setLoading(false);
         }
@@ -77,10 +79,10 @@ export function WorkerLoginPage() {
                     </div>
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-                    Portal do Trabalhador
+                    {t('workerPortal.login.title')}
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
-                    Acesso exclusivo para envio de folhas de horas
+                    {t('workerPortal.login.subtitle')}
                 </p>
             </div>
 
@@ -88,31 +90,31 @@ export function WorkerLoginPage() {
                 <Card>
                     <form onSubmit={handleLogin}>
                         <CardHeader>
-                            <CardTitle>Acessar sua conta</CardTitle>
+                            <CardTitle>{t('workerPortal.login.cardTitle')}</CardTitle>
                             <CardDescription>
-                                Informe seu Nome Completo e o número do seu Passaporte para entrar.
+                                {t('workerPortal.login.cardDesc')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="nome">Nome Completo</Label>
+                                <Label htmlFor="nome">{t('workerPortal.login.nameLabel')}</Label>
                                 <Input
                                     id="nome"
                                     name="nome"
                                     type="text"
-                                    placeholder="Ex: João da Silva"
+                                    placeholder={t('workerPortal.login.namePlaceholder')}
                                     value={formData.nome}
                                     onChange={handleChange}
                                     required
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="pasaporte">Número do Passaporte</Label>
+                                <Label htmlFor="pasaporte">{t('workerPortal.login.passportLabel')}</Label>
                                 <Input
                                     id="pasaporte"
                                     name="pasaporte"
                                     type="text"
-                                    placeholder="Digite o número exato"
+                                    placeholder={t('workerPortal.login.passportPlaceholder')}
                                     value={formData.pasaporte}
                                     onChange={handleChange}
                                     required
@@ -121,7 +123,7 @@ export function WorkerLoginPage() {
                         </CardContent>
                         <CardFooter>
                             <Button type="submit" className="w-full" disabled={loading}>
-                                {loading ? 'Entrando...' : 'Entrar no Portal'}
+                                {loading ? t('workerPortal.login.btnEntering') : t('workerPortal.login.btnEnter')}
                             </Button>
                         </CardFooter>
                     </form>

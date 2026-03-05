@@ -25,6 +25,7 @@ i18n
         resources,
         fallbackLng: 'pt', // fallback to Portuguese
         supportedLngs: ['pt', 'es', 'en'],
+        load: 'languageOnly', // helps map 'es-ES' -> 'es' automatically
         interpolation: {
             escapeValue: false, // react already safes from xss
         },

@@ -12,8 +12,10 @@ import { DocumentsTab } from './components/DocumentsTab';
 import { VidaLaboralTab } from './components/VidaLaboralTab';
 import { AlocacoesTab } from './components/AlocacoesTab';
 import { EditWorkerDialog } from './components/EditWorkerDialog';
+import { useTranslation } from 'react-i18next';
 
 export function WorkerDetailsPage() {
+    const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
 
@@ -39,7 +41,7 @@ export function WorkerDetailsPage() {
         return (
             <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p>Carregando perfil do trabalhador...</p>
+                <p>{t('workerDetails.loading')}</p>
             </div>
         );
     }
@@ -48,11 +50,11 @@ export function WorkerDetailsPage() {
         return (
             <div className="mx-auto max-w-5xl px-4 py-8">
                 <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                    <ArrowLeft className="mr-2 h-4 w-4" /> {t('workerDetails.back')}
                 </Button>
                 <div className="rounded-md bg-destructive/15 p-4 text-destructive border border-destructive/20">
-                    <h2 className="text-lg font-semibold">Erro ao carregar o trabalhador</h2>
-                    <p>{error?.message || 'Trabalhador não encontrado.'}</p>
+                    <h2 className="text-lg font-semibold">{t('workerDetails.error.title')}</h2>
+                    <p>{error?.message || t('workerDetails.error.notFound')}</p>
                 </div>
             </div>
         );
@@ -61,7 +63,7 @@ export function WorkerDetailsPage() {
     return (
         <div className="space-y-6">
             <Button variant="ghost" onClick={() => navigate('/workers')} className="mb-6 -ml-3">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para lista
+                <ArrowLeft className="mr-2 h-4 w-4" /> {t('workerDetails.backToList')}
             </Button>
 
             <header className="mb-8 flex items-start justify-between">
@@ -78,7 +80,7 @@ export function WorkerDetailsPage() {
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">{worker.nome}</h1>
                         <p className="text-muted-foreground mt-1 text-lg">
-                            Cód: <span className="font-semibold">{worker.cod_colab}</span>
+                            {t('workerDetails.code')} <span className="font-semibold">{worker.cod_colab}</span>
                         </p>
                     </div>
                 </div>
@@ -86,7 +88,7 @@ export function WorkerDetailsPage() {
                     <EditWorkerDialog worker={worker} />
                     {worker.status_seguridad && (
                         <div className="flex flex-col items-end gap-1">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status Legal</span>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('workerDetails.legalStatus')}</span>
                             <div className={`px-3 py-1 rounded-full text-sm font-medium ${worker.status_seguridad.toLowerCase().includes('alta') ? 'bg-primary/20 text-primary' : 'bg-destructive/20 text-destructive'}`}>
                                 {worker.status_seguridad}
                             </div>
@@ -97,12 +99,12 @@ export function WorkerDetailsPage() {
 
             <Tabs defaultValue="overview" className="space-y-6">
                 <TabsList className="bg-muted/50 border overflow-x-auto flex w-full justify-start h-12">
-                    <TabsTrigger value="overview" className="flex-1 whitespace-nowrap">Visão Geral</TabsTrigger>
-                    <TabsTrigger value="vida_laboral" className="flex-1 whitespace-nowrap">Vida Laboral</TabsTrigger>
-                    <TabsTrigger value="alocacoes" className="flex-1 whitespace-nowrap">Alocações</TabsTrigger>
-                    <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">Benefícios</TabsTrigger>
-                    <TabsTrigger value="ledger" className="flex-1 whitespace-nowrap">Conta Corrente</TabsTrigger>
-                    <TabsTrigger value="documents" className="flex-1 whitespace-nowrap">Documentos</TabsTrigger>
+                    <TabsTrigger value="overview" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.overview')}</TabsTrigger>
+                    <TabsTrigger value="vida_laboral" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.vidaLaboral')}</TabsTrigger>
+                    <TabsTrigger value="alocacoes" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.allocations')}</TabsTrigger>
+                    <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.benefits')}</TabsTrigger>
+                    <TabsTrigger value="ledger" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.ledger')}</TabsTrigger>
+                    <TabsTrigger value="documents" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.documents')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview">

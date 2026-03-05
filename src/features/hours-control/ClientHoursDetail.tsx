@@ -12,6 +12,7 @@ import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Co
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { useRole } from '../../app/providers/RoleProvider';
+import { useTranslation } from 'react-i18next';
 
 interface WorkerDetail {
     worker_id: string;
@@ -33,6 +34,7 @@ export function ClientHoursDetail() {
     const navigate = useNavigate();
     const { selectedEmpresaId } = useEmpresa();
     const { role } = useRole();
+    const { t, i18n } = useTranslation();
 
     const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
     const month = parseInt(searchParams.get('month') || (new Date().getMonth() + 1).toString());
@@ -110,7 +112,7 @@ export function ClientHoursDetail() {
 
         } catch (error) {
             console.error('Error fetching client details:', error);
-            toast.error('Erro ao carregar os dados dos trabalhadores.');
+            toast.error(t('clientHoursDetail.messages.loadError'));
         } finally {
             setLoading(false);
         }
@@ -118,7 +120,7 @@ export function ClientHoursDetail() {
 
     const handleViewFile = async (filePath: string) => {
         try {
-            toast.loading('Gerando link seguro...', { id: 'view_file' });
+            toast.loading(t('clientHoursDetail.messages.generatingLink'), { id: 'view_file' });
             const { data, error } = await supabase.storage
                 .from('horas_trabalhadores')
                 .createSignedUrl(filePath, 60); // 60 seconds validity
@@ -126,22 +128,22 @@ export function ClientHoursDetail() {
             if (error) throw error;
             if (data?.signedUrl) {
                 window.open(data.signedUrl, '_blank');
-                toast.success('Arquivo aberto!', { id: 'view_file' });
+                toast.success(t('clientHoursDetail.messages.fileOpened'), { id: 'view_file' });
             }
         } catch (error) {
             console.error('Error opening file:', error);
-            toast.error('Erro ao abrir o arquivo.', { id: 'view_file' });
+            toast.error(t('clientHoursDetail.messages.openError'), { id: 'view_file' });
         }
     };
 
     const handleDownloadFile = async (filePath: string | undefined, fileName: string | undefined, recordId: string) => {
         if (!filePath || !fileName) {
-            toast.error('Arquivo não disponível para download.');
+            toast.error(t('clientHoursDetail.messages.notAvailable'));
             return;
         }
         try {
             setActionLoading(recordId + '-dl');
-            toast.loading('Gerando link seguro para download...', { id: 'download_file' });
+            toast.loading(t('clientHoursDetail.messages.generatingDl'), { id: 'download_file' });
             const { data, error } = await supabase.storage
                 .from('horas_trabalhadores')
                 .createSignedUrl(filePath, 60); // 60 seconds validity
@@ -154,11 +156,11 @@ export function ClientHoursDetail() {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                toast.success('Download iniciado!', { id: 'download_file' });
+                toast.success(t('clientHoursDetail.messages.dlStarted'), { id: 'download_file' });
             }
         } catch (error) {
             console.error('Error downloading file:', error);
-            toast.error('Erro ao baixar o arquivo.', { id: 'download_file' });
+            toast.error(t('clientHoursDetail.messages.dlError'), { id: 'download_file' });
         } finally {
             setActionLoading(null);
         }
@@ -174,18 +176,18 @@ export function ClientHoursDetail() {
                 .eq('id', recordId);
 
             if (error) throw error;
-            toast.success('Folha validada com sucesso!');
+            toast.success(t('clientHoursDetail.messages.validated'));
             fetchClientWorkers(); // Refresh
         } catch (error) {
             console.error('Error validating:', error);
-            toast.error('Erro ao validar a folha.');
+            toast.error(t('clientHoursDetail.messages.validateError'));
         } finally {
             setActionLoading(null);
         }
     };
 
     const handleRejectFile = async (recordId: string, filePath: string) => {
-        if (!confirm('Tem certeza que deseja REJEITAR esta folha? O arquivo será apagado e o trabalhador precisará enviar novamente.')) {
+        if (!confirm(t('clientHoursDetail.messages.confirmReject'))) {
             return;
         }
 
@@ -210,11 +212,11 @@ export function ClientHoursDetail() {
                 .eq('id', recordId);
 
             if (error) throw error;
-            toast.success('Folha rejeitada. O trabalhador foi liberado para reenviar.');
+            toast.success(t('clientHoursDetail.messages.rejected'));
             fetchClientWorkers(); // Refresh
         } catch (error) {
             console.error('Error rejecting:', error);
-            toast.error('Erro ao rejeitar a folha.');
+            toast.error(t('clientHoursDetail.messages.rejectError'));
         } finally {
             setActionLoading(null);
         }
@@ -223,7 +225,7 @@ export function ClientHoursDetail() {
     const handleSyncSharePoint = async (recordId: string) => {
         try {
             setActionLoading(recordId + '-sp');
-            toast.loading('Iniciando sincronização com Microsoft SharePoint...', { id: 'sharepoint_sync' });
+            toast.loading(t('clientHoursDetail.messages.syncStarted'), { id: 'sharepoint_sync' });
 
             const { data, error } = await supabase.functions.invoke('sync-to-sharepoint', {
                 body: { hour_id: recordId },
@@ -232,14 +234,14 @@ export function ClientHoursDetail() {
             if (error) throw error;
 
             if (data?.success) {
-                toast.success('Arquivo sincronizado com SharePoint!', { id: 'sharepoint_sync' });
+                toast.success(t('clientHoursDetail.messages.syncSuccess'), { id: 'sharepoint_sync' });
             } else {
-                throw new Error(data?.error || 'Erro desconhecido na sincronização com SharePoint.');
+                throw new Error(data?.error || t('clientHoursDetail.messages.syncUnknownError'));
             }
             fetchClientWorkers(); // Refresh status
         } catch (error: any) {
             console.error('Error syncing to SharePoint:', error);
-            toast.error(`Erro ao sincronizar com SharePoint: ${error.message || error.toString()}`, { id: 'sharepoint_sync' });
+            toast.error(t('clientHoursDetail.messages.syncError', { error: error.message || error.toString() }), { id: 'sharepoint_sync' });
             fetchClientWorkers(); // Refresh status to show error
         } finally {
             setActionLoading(null);
@@ -247,7 +249,8 @@ export function ClientHoursDetail() {
     };
 
     const getMonthName = (m: number) => {
-        return new Date(2000, m - 1, 1).toLocaleString('pt-BR', { month: 'long' }).toUpperCase();
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        return new Date(2000, m - 1, 1).toLocaleString(locale, { month: 'long' }).toUpperCase();
     };
 
     return (
@@ -268,14 +271,14 @@ export function ClientHoursDetail() {
                 <div>
                     <h2 className="text-lg font-semibold">{getMonthName(month)} {year}</h2>
                     <p className="text-sm text-muted-foreground">
-                        {workers.length} Trabalhadores ativos no período
+                        {workers.length} {t('clientHoursDetail.activeWorkers')}
                     </p>
                 </div>
                 <div className="flex gap-2">
                     {(role === 'super_admin' || role === 'admin_rh') && (
-                        <Button variant="outline" className="gap-2" onClick={() => toast.info('Sincronização em massa não implementada ainda.')}>
+                        <Button variant="outline" className="gap-2" onClick={() => toast.info(t('clientHoursDetail.messages.massSyncNotImpl'))}>
                             <DownloadCloud className="h-4 w-4" />
-                            Sincronizar com SharePoint
+                            {t('clientHoursDetail.btnSyncSharePoint')}
                         </Button>
                     )}
                 </div>
@@ -286,12 +289,12 @@ export function ClientHoursDetail() {
                     <Table>
                         <TableHeader className="sticky top-0 bg-muted/50 shadow-sm backdrop-blur-md z-10">
                             <TableRow>
-                                <TableHead className="font-semibold text-foreground">Trabalhador</TableHead>
-                                <TableHead className="font-semibold text-foreground">Passaporte</TableHead>
-                                <TableHead className="font-semibold text-foreground">Telefone</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Status</TableHead>
-                                <TableHead className="font-semibold text-foreground">Arquivo</TableHead>
-                                <TableHead className="w-[180px] text-right">Ações</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.worker')}</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.passport')}</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.phone')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('clientHoursDetail.table.status')}</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.file')}</TableHead>
+                                <TableHead className="w-[180px] text-right">{t('clientHoursDetail.table.actions')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -305,7 +308,7 @@ export function ClientHoursDetail() {
                             {!loading && workers.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                                        Nenhum trabalhador encontrado para este cliente.
+                                        {t('clientHoursDetail.emptyWorkers')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -321,9 +324,9 @@ export function ClientHoursDetail() {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     navigator.clipboard.writeText(worker.worker_name);
-                                                    toast.success('Nome copiado!');
+                                                    toast.success(t('clientHoursDetail.copied.name'));
                                                 }}
-                                                title="Copiar Nome"
+                                                title={t('clientHoursDetail.tooltips.copyName')}
                                             >
                                                 <Copy className="h-3 w-3" />
                                             </Button>
@@ -331,7 +334,7 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
                                         <div className="flex items-center gap-2">
-                                            <span>{worker.pasaporte || '-'}</span>
+                                            <span>{worker.pasaporte || t('clientHoursDetail.notInformed')}</span>
                                             {worker.pasaporte && (
                                                 <Button
                                                     variant="ghost"
@@ -340,9 +343,9 @@ export function ClientHoursDetail() {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         navigator.clipboard.writeText(worker.pasaporte!);
-                                                        toast.success('Passaporte copiado!');
+                                                        toast.success(t('clientHoursDetail.copied.passport'));
                                                     }}
-                                                    title="Copiar Passaporte"
+                                                    title={t('clientHoursDetail.tooltips.copyPassport')}
                                                 >
                                                     <Copy className="h-3 w-3" />
                                                 </Button>
@@ -351,7 +354,7 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
                                         <div className="flex items-center gap-2">
-                                            <span>{worker.movil || '-'}</span>
+                                            <span>{worker.movil || t('clientHoursDetail.notInformed')}</span>
                                             {worker.movil && (
                                                 <Button
                                                     variant="ghost"
@@ -360,16 +363,20 @@ export function ClientHoursDetail() {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         const cleanPhone = worker.movil?.replace(/\D/g, '') || '';
-                                                        const textToCopy = `Nome: ${worker.worker_name}\nPassaporte: ${worker.pasaporte || 'Não informado'}\nTelefone: ${worker.movil || 'Não informado'}`;
+                                                        const textToCopy = t('clientHoursDetail.copyData', {
+                                                            name: worker.worker_name,
+                                                            passport: worker.pasaporte || t('clientHoursDetail.notInformed'),
+                                                            phone: worker.movil || t('clientHoursDetail.notInformed')
+                                                        });
                                                         navigator.clipboard.writeText(textToCopy);
-                                                        toast.success('Telefone copiado!', {
+                                                        toast.success(t('clientHoursDetail.copied.phone'), {
                                                             action: {
-                                                                label: 'Abrir WhatsApp',
+                                                                label: t('clientHoursDetail.copied.openWhatsApp'),
                                                                 onClick: () => window.open(`https://wa.me/${cleanPhone}`, '_blank')
                                                             }
                                                         });
                                                     }}
-                                                    title="Copiar dados do trabalhador e abrir WhatsApp"
+                                                    title={t('clientHoursDetail.tooltips.copyPhoneWhatsApp')}
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
@@ -377,15 +384,9 @@ export function ClientHoursDetail() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        {worker.status === 'pendente' && (
-                                            <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Pendente</Badge>
-                                        )}
-                                        {worker.status === 'enviado' && (
-                                            <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">Enviado</Badge>
-                                        )}
-                                        {worker.status === 'validado' && (
-                                            <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Validado</Badge>
-                                        )}
+                                        {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
+                                        {worker.status === 'enviado' && <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100">{t('clientHoursDetail.badges.submitted')}</Badge>}
+                                        {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
                                     </TableCell>
                                     <TableCell>
                                         {worker.file_name && worker.file_url ? (
@@ -413,7 +414,7 @@ export function ClientHoursDetail() {
                                                         workerName: worker.worker_name,
                                                         hourRecordId: worker.hour_record_id
                                                     })}
-                                                    title="Enviar folha pelo trabalhador"
+                                                    title={t('clientHoursDetail.tooltips.sendSheet')}
                                                 >
                                                     <Upload className="h-4 w-4" />
                                                 </Button>
@@ -453,12 +454,12 @@ export function ClientHoursDetail() {
 
                                                     {worker.status === 'enviado' && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-muted-foreground hover:text-green-600"
                                                             onClick={() => handleValidateFile(worker.hour_record_id!)}
                                                             disabled={actionLoading === worker.hour_record_id + '-ap'}
-                                                            title="Validar Arquivo"
+                                                            title={t('clientHoursDetail.tooltips.validate')}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-ap' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                                                         </Button>
@@ -470,9 +471,9 @@ export function ClientHoursDetail() {
                                                             className="h-8 text-red-600 border-red-200 hover:bg-red-50"
                                                             onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url!)}
                                                             disabled={actionLoading === worker.hour_record_id + '-rj'}
-                                                            title="Excluir Arquivo / Rejeitar"
+                                                            title={t('clientHoursDetail.tooltips.reject')}
                                                         >
-                                                            {actionLoading === worker.hour_record_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                                                            {actionLoading === worker.hour_record_id + '-rj' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                                                         </Button>
                                                     )}
                                                 </>

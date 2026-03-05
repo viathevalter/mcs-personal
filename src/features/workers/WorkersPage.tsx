@@ -25,10 +25,12 @@ import {
     CardContent,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useTranslation } from 'react-i18next';
 
 export function WorkersPage() {
     const navigate = useNavigate();
     const { selectedEmpresaId } = useEmpresa();
+    const { t } = useTranslation();
 
     const [search, setSearch] = useState('');
     const [searchMode, setSearchMode] = useState<'worker' | 'client'>('worker');
@@ -102,8 +104,8 @@ export function WorkersPage() {
         <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3">
             {portalNode && createPortal(
                 <div className="flex flex-col">
-                    <h1 className="text-xl font-bold tracking-tight">Trabalhadores</h1>
-                    <span className="text-sm font-medium text-muted-foreground">Gestão de recursos humanos</span>
+                    <h1 className="text-xl font-bold tracking-tight">{t('workersPage.title')}</h1>
+                    <span className="text-sm font-medium text-muted-foreground">{t('workersPage.subtitle')}</span>
                 </div>,
                 portalNode
             )}
@@ -118,16 +120,16 @@ export function WorkersPage() {
                                 setSearch('');
                                 setPage(1);
                             }}
-                            title="Alternar filtro de busca"
+                            title={t('workersPage.filters.toggle')}
                         >
                             {searchMode === 'worker' ? <Users className="h-4 w-4 mr-2" /> : <Building className="h-4 w-4 mr-2" />}
-                            <span className="text-xs font-medium w-[75px] text-center">{searchMode === 'worker' ? 'Trabalhador' : 'Cliente'}</span>
+                            <span className="text-xs font-medium w-[75px] text-center">{searchMode === 'worker' ? t('workersPage.filters.worker') : t('workersPage.filters.client')}</span>
                         </div>
                         <div className="relative flex-1 flex items-center h-9 sm:h-full w-full">
                             <Search className="h-4 w-4 ml-3 text-muted-foreground shrink-0" />
                             <input
                                 type="text"
-                                placeholder={searchMode === 'worker' ? "Buscar trabalhador..." : "Buscar cliente..."}
+                                placeholder={searchMode === 'worker' ? t('workersPage.filters.searchWorker') : t('workersPage.filters.searchClient')}
                                 value={search}
                                 onChange={(e) => {
                                     setSearch(e.target.value);
@@ -140,32 +142,32 @@ export function WorkersPage() {
                     <div className="w-full">
                         <MultiSelect
                             options={[
-                                { value: 'ativos', label: 'Ativos' },
-                                { value: 'inativos', label: 'Inativos' },
-                                { value: 'pendentes_ingreso', label: 'Pendentes Ingresso' },
+                                { value: 'ativos', label: t('workersPage.filters.statusTrabOptions.ativos') },
+                                { value: 'inativos', label: t('workersPage.filters.statusTrabOptions.inativos') },
+                                { value: 'pendentes_ingreso', label: t('workersPage.filters.statusTrabOptions.pendentes_ingresso') },
                             ]}
                             selected={statusTrabajador}
                             onChange={(newStatus) => {
                                 setStatusTrabajador(newStatus);
                                 setPage(1);
                             }}
-                            placeholder="Status Trab..."
+                            placeholder={t('workersPage.filters.statusTrab')}
                         />
                     </div>
                     <div className="w-full">
                         <MultiSelect
                             options={[
-                                { value: 'alta', label: 'Alta' },
-                                { value: 'pendentes_alta', label: 'Pendentes Alta' },
-                                { value: 'baixa', label: 'Baixa' },
-                                { value: 'pendentes_baixa', label: 'Pendentes Baixa' },
+                                { value: 'alta', label: t('workersPage.filters.securityOptions.alta') },
+                                { value: 'pendentes_alta', label: t('workersPage.filters.securityOptions.pendentes_alta') },
+                                { value: 'baixa', label: t('workersPage.filters.securityOptions.baixa') },
+                                { value: 'pendentes_baixa', label: t('workersPage.filters.securityOptions.pendentes_baixa') },
                             ]}
                             selected={statusSeguridad}
                             onChange={(newStatus) => {
                                 setStatusSeguridad(newStatus);
                                 setPage(1);
                             }}
-                            placeholder="Seguridade..."
+                            placeholder={t('workersPage.filters.security')}
                         />
                     </div>
 
@@ -177,8 +179,8 @@ export function WorkersPage() {
                                 setContratante(val);
                                 setPage(1);
                             }}
-                            placeholder="Empresa"
-                            emptyText="Nenhuma empresa"
+                            placeholder={t('workersPage.filters.company')}
+                            emptyText={t('workersPage.filters.noCompany')}
                         />
                     </div>
                     <div className="w-full">
@@ -189,8 +191,8 @@ export function WorkersPage() {
                                 setFuncion(val);
                                 setPage(1);
                             }}
-                            placeholder="Perfil"
-                            emptyText="Nenhum perfil"
+                            placeholder={t('workersPage.filters.profile')}
+                            emptyText={t('workersPage.filters.noProfile')}
                         />
                     </div>
                 </div>
@@ -199,9 +201,9 @@ export function WorkersPage() {
             {/* KPI Banner */}
             {selectedEmpresaId && kpisIsError && (
                 <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-md shrink-0">
-                    <h3 className="font-semibold">Erro ao carregar os KPIs</h3>
-                    <p className="text-sm mt-1">{kpisError?.message || 'Falha ao processar os indicadores.'}</p>
-                    <p className="text-xs mt-2 opacity-80">Por favor, verifique se o script "update_kpi_rpc.sql" foi executado corretamente no banco de dados.</p>
+                    <h3 className="font-semibold">{t('workersPage.kpi.errorTitle')}</h3>
+                    <p className="text-sm mt-1">{kpisError?.message || t('workersPage.kpi.errorMsg')}</p>
+                    <p className="text-xs mt-2 opacity-80">{t('workersPage.kpi.errorAction')}</p>
                 </div>
             )}
             {selectedEmpresaId && kpis && (
@@ -209,13 +211,13 @@ export function WorkersPage() {
                     {/* Bloco 1: Status do Trabalhador */}
                     <div className="flex flex-col gap-2 flex-1">
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <Users className="w-4 h-4" /> Status do Trabalhador
+                            <Users className="w-4 h-4" /> {t('workersPage.kpi.statusTitle')}
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Card className="border-emerald-200/50 dark:border-emerald-900/30">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block">ATIVOS</span>
+                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block">{t('workersPage.kpi.active')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.ativos}</span>
                                     </div>
                                 </CardContent>
@@ -223,7 +225,7 @@ export function WorkersPage() {
                             <Card className="border-rose-200/50 dark:border-rose-900/30">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate block">INATIVOS</span>
+                                        <span className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate block">{t('workersPage.kpi.inactive')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.inativos}</span>
                                     </div>
                                 </CardContent>
@@ -231,7 +233,7 @@ export function WorkersPage() {
                             <Card className="border-amber-200/50 dark:border-amber-900/30">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-500 truncate block" title="PENDENTES DE INGRESSO">PENDENTES INGRESSO</span>
+                                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-500 truncate block" title={t('workersPage.kpi.pendingEntry')}>{t('workersPage.kpi.pendingEntry')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.pendentes_ingreso}</span>
                                     </div>
                                 </CardContent>
@@ -242,13 +244,13 @@ export function WorkersPage() {
                     {/* Bloco 2: Seguridade (Alta/Baixa) */}
                     <div className="flex flex-col gap-2 flex-[1.3]">
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <ShieldAlert className="w-4 h-4" /> Seguridade Social
+                            <ShieldAlert className="w-4 h-4" /> {t('workersPage.kpi.securityTitle')}
                         </h3>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block">Alta</span>
+                                        <span className="text-xs font-medium text-muted-foreground truncate block">{t('workersPage.kpi.alta')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-500">{kpisLoading ? '-' : kpis.seguridade_alta}</span>
                                     </div>
                                 </CardContent>
@@ -256,7 +258,7 @@ export function WorkersPage() {
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Pendente Alta">Pendente Alta</span>
+                                        <span className="text-xs font-medium text-muted-foreground truncate block" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-500">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
                                     </div>
                                 </CardContent>
@@ -264,7 +266,7 @@ export function WorkersPage() {
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block">Baixa</span>
+                                        <span className="text-xs font-medium text-muted-foreground truncate block">{t('workersPage.kpi.baixa')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-500">{kpisLoading ? '-' : kpis.seguridade_baixa}</span>
                                     </div>
                                 </CardContent>
@@ -272,7 +274,7 @@ export function WorkersPage() {
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Pendente Baixa">Pendente Baixa</span>
+                                        <span className="text-xs font-medium text-muted-foreground truncate block" title={t('workersPage.kpi.pendingBaixa')}>{t('workersPage.kpi.pendingBaixa')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-500">{kpisLoading ? '-' : kpis.seguridade_pendente_baixa}</span>
                                     </div>
                                 </CardContent>
@@ -289,25 +291,25 @@ export function WorkersPage() {
                         <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-md">
                             <TableRow className="border-b-0">
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cod_colab')}>
-                                    <div className="flex items-center">Cód. Colab {renderSortIcon('cod_colab')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.cod')} {renderSortIcon('cod_colab')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('nome')}>
-                                    <div className="flex items-center">Nome {renderSortIcon('nome')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.name')} {renderSortIcon('nome')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('contratante')}>
-                                    <div className="flex items-center">Contratante {renderSortIcon('contratante')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.contractor')} {renderSortIcon('contratante')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('funcion')}>
-                                    <div className="flex items-center">Função {renderSortIcon('funcion')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.role')} {renderSortIcon('funcion')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cliente_nombre')}>
-                                    <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.client')} {renderSortIcon('cliente_nombre')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('status_trabajador')}>
-                                    <div className="flex items-center">Status Trab. {renderSortIcon('status_trabajador')}</div>
+                                    <div className="flex items-center">{t('workersPage.table.statusTrab')} {renderSortIcon('status_trabajador')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors text-center" onClick={() => handleSort('status_seguridad')}>
-                                    <div className="flex items-center justify-center">Seguridade {renderSortIcon('status_seguridad')}</div>
+                                    <div className="flex items-center justify-center">{t('workersPage.table.security')} {renderSortIcon('status_seguridad')}</div>
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
@@ -315,7 +317,7 @@ export function WorkersPage() {
                             {!selectedEmpresaId && (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                                        Selecione uma empresa para carregar os trabalhadores.
+                                        {t('workersPage.messages.selectCompany')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -324,7 +326,7 @@ export function WorkersPage() {
                                     <TableCell colSpan={6} className="h-32 text-center">
                                         <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
                                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                            <span>Carregando trabalhadores...</span>
+                                            <span>{t('workersPage.messages.loading')}</span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -332,14 +334,14 @@ export function WorkersPage() {
                             {selectedEmpresaId && !isLoading && isError && (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-32 text-center text-destructive">
-                                        Falha ao carregar os dados. {error?.message}
+                                        {t('workersPage.messages.loadError', { error: error?.message })}
                                     </TableCell>
                                 </TableRow>
                             )}
                             {selectedEmpresaId && !isLoading && !isError && data?.data.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        Nenhum trabalhador encontrado.
+                                        {t('workersPage.messages.noWorkers')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -356,7 +358,7 @@ export function WorkersPage() {
                                     <TableCell className="text-sm truncate max-w-[150px]" title={worker.cliente_nombre || undefined}>{worker.cliente_nombre || '-'}</TableCell>
                                     <TableCell>
                                         <span className="text-xs truncate max-w-[120px] inline-block">
-                                            {worker.status_trabajador || '-'}
+                                            {worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`) : '-'}
                                         </span>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -367,7 +369,7 @@ export function WorkersPage() {
                                                         worker.status_seguridad.toLowerCase().includes('baja') ? 'destructive' : 'secondary'
                                                 }
                                             >
-                                                {worker.status_seguridad}
+                                                {t(`workersPage.statusValues.seguridad.${worker.status_seguridad.toLowerCase().replace(/ /g, '_')}`)}
                                             </Badge>
                                         ) : (
                                             <span className="text-muted-foreground">-</span>
@@ -384,11 +386,11 @@ export function WorkersPage() {
             {selectedEmpresaId && !isLoading && !isError && totalCount > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between mt-2 gap-4 shrink-0 pb-1">
                     <p className="text-sm text-muted-foreground">
-                        Mostrando {(page - 1) * pageSize + 1} até {Math.min(page * pageSize, totalCount)} de <span className="font-medium text-foreground">{totalCount}</span> resultados
+                        {t('workersPage.pagination.showing', { start: (page - 1) * pageSize + 1, end: Math.min(page * pageSize, totalCount) })} <span className="font-medium text-foreground">{totalCount}</span> {t('workersPage.pagination.results')}
                     </p>
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>Exibir:</span>
+                            <span>{t('workersPage.pagination.show')}</span>
                             <select
                                 className="h-8 w-[70px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 value={pageSize}
@@ -412,7 +414,7 @@ export function WorkersPage() {
                                 className="h-8"
                             >
                                 <ChevronLeft className="h-4 w-4 mr-1" />
-                                Anterior
+                                {t('workersPage.pagination.prev')}
                             </Button>
                             <div className="text-sm font-medium px-4 py-1.5 rounded-md bg-muted/50 border">
                                 {page} / {totalPages}
@@ -424,7 +426,7 @@ export function WorkersPage() {
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 className="h-8"
                             >
-                                Próximo
+                                {t('workersPage.pagination.next')}
                                 <ChevronRight className="h-4 w-4 ml-1" />
                             </Button>
                         </div>

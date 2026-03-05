@@ -12,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../../components/ui/input';
 import { useUniqueContratantes } from '../workers/hooks/useUniqueContratantes';
 import { Combobox } from '../../components/ui/combobox';
+import { useTranslation } from 'react-i18next';
 
 export function HoursControlPage() {
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { selectedEmpresaId } = useEmpresa();
 
@@ -36,10 +38,13 @@ export function HoursControlPage() {
 
     // Filter controls
     const years = [currentDate.getFullYear() - 1, currentDate.getFullYear(), currentDate.getFullYear() + 1];
-    const months = Array.from({ length: 12 }, (_, i) => ({
-        value: i + 1,
-        label: new Date(2000, i, 1).toLocaleString('pt-BR', { month: 'long' }).toUpperCase()
-    }));
+    const months = Array.from({ length: 12 }, (_, i) => {
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        return {
+            value: i + 1,
+            label: new Date(2000, i, 1).toLocaleString(locale, { month: 'long' }).toUpperCase()
+        };
+    });
 
     const filteredClients = (clients || []).filter(c =>
         c.cliente_nombre?.toLowerCase().includes(clientFilter.toLowerCase())
@@ -69,8 +74,8 @@ export function HoursControlPage() {
         <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3">
             {portalNode && createPortal(
                 <div className="flex flex-col">
-                    <h1 className="text-xl font-bold tracking-tight">Controle de Horas</h1>
-                    <span className="text-sm font-medium text-muted-foreground">Gestão de folhas de pagamento dos trabalhadores</span>
+                    <h1 className="text-xl font-bold tracking-tight">{t('hoursControl.title')}</h1>
+                    <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.subtitle')}</span>
                 </div>,
                 portalNode
             )}
@@ -79,7 +84,7 @@ export function HoursControlPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shrink-0 bg-card p-4 rounded-md border shadow-sm">
                 <div className="flex gap-4 items-center flex-wrap">
                     <div className="space-y-1">
-                        <label className="text-sm font-medium text-muted-foreground">Mês Referência</label>
+                        <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.month')}</label>
                         <Select value={periodMonth.toString()} onValueChange={(v) => setPeriodMonth(parseInt(v))}>
                             <SelectTrigger className="w-[180px]">
                                 <SelectValue />
@@ -92,7 +97,7 @@ export function HoursControlPage() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-sm font-medium text-muted-foreground">Ano</label>
+                        <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.year')}</label>
                         <Select value={periodYear.toString()} onValueChange={(v) => setPeriodYear(parseInt(v))}>
                             <SelectTrigger className="w-[120px]">
                                 <SelectValue />
@@ -112,15 +117,15 @@ export function HoursControlPage() {
                             options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             value={contratanteFilter}
                             onChange={(val) => setContratanteFilter(val)}
-                            placeholder="Filtrar por empresa..."
-                            emptyText="Nenhuma empresa"
+                            placeholder={t('hoursControl.filterCompany')}
+                            emptyText={t('hoursControl.noCompany')}
                         />
                     </div>
 
                     <div className="w-full sm:w-64 relative">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Filtrar por cliente..."
+                            placeholder={t('hoursControl.filterClient')}
                             className="pl-8"
                             value={clientFilter}
                             onChange={(e) => setClientFilter(e.target.value)}
@@ -134,28 +139,28 @@ export function HoursControlPage() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
                     <Card className="p-4 flex flex-col justify-center border-l-4 border-l-slate-400 border-t border-r border-b">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">Ativos no Mês</span>
+                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.active')}</span>
                             <Users className="h-4 w-4 text-slate-500" />
                         </div>
                         <span className="text-2xl font-bold">{kpis.ativos}</span>
                     </Card>
                     <Card className="p-4 flex flex-col justify-center border-l-4 border-l-amber-400 border-t border-r border-b">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">Faltam Enviar</span>
+                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.pending')}</span>
                             <Clock className="h-4 w-4 text-amber-500" />
                         </div>
                         <span className="text-2xl font-bold text-amber-600">{kpis.pendentes}</span>
                     </Card>
                     <Card className="p-4 flex flex-col justify-center border-l-4 border-l-blue-400 border-t border-r border-b">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">Para Validar</span>
+                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.toValidate')}</span>
                             <Upload className="h-4 w-4 text-blue-500" />
                         </div>
                         <span className="text-2xl font-bold text-blue-600">{kpis.enviadas}</span>
                     </Card>
                     <Card className="p-4 flex flex-col justify-center border-l-4 border-l-green-400 border-t border-r border-b">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">Validadas</span>
+                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.validated')}</span>
                             <CheckCircle className="h-4 w-4 text-green-500" />
                         </div>
                         <span className="text-2xl font-bold text-green-600">{kpis.validadas}</span>
@@ -169,12 +174,12 @@ export function HoursControlPage() {
                     <Table>
                         <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-md">
                             <TableRow className="border-b-0">
-                                <TableHead className="font-semibold text-foreground">Cliente</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Trabalhadores Ativos</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Horas Pendentes</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Enviadas (A Validar)</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Validadas</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Status Geral</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('hoursControl.table.client')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.activeWorkers')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.pending')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.submitted')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.validated')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.status')}</TableHead>
                                 <TableHead className="w-[100px]"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -182,7 +187,7 @@ export function HoursControlPage() {
                             {!selectedEmpresaId && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        Selecione uma empresa para visualizar os dados.
+                                        {t('hoursControl.empty.selectCompany')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -191,7 +196,7 @@ export function HoursControlPage() {
                                     <TableCell colSpan={7} className="h-32 text-center">
                                         <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
                                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                            <span>Carregando dados...</span>
+                                            <span>{t('hoursControl.empty.loading')}</span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -199,14 +204,14 @@ export function HoursControlPage() {
                             {selectedEmpresaId && !isLoading && isError && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-destructive">
-                                        Falha ao carregar os dados. {error?.message}
+                                        {t('hoursControl.empty.error')} {error?.message}
                                     </TableCell>
                                 </TableRow>
                             )}
                             {selectedEmpresaId && !isLoading && !isError && filteredClients.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        Nenhum cliente com trabalhadores ativos encontrado.
+                                        {t('hoursControl.empty.noClients')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -230,7 +235,7 @@ export function HoursControlPage() {
                                         <TableCell className="text-center">
                                             {client.pending_hours > 0 ? (
                                                 <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
-                                                    {client.pending_hours} faltam
+                                                    {client.pending_hours} {t('hoursControl.badges.missing')}
                                                 </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
@@ -239,7 +244,7 @@ export function HoursControlPage() {
                                         <TableCell className="text-center">
                                             {client.submitted_hours > 0 ? (
                                                 <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-                                                    {client.submitted_hours} p/ validar
+                                                    {client.submitted_hours} {t('hoursControl.badges.toValidate')}
                                                 </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
@@ -248,16 +253,16 @@ export function HoursControlPage() {
                                         <TableCell className="text-center">
                                             {client.validated_hours > 0 ? (
                                                 <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                                                    {client.validated_hours} prontas
+                                                    {client.validated_hours} {t('hoursControl.badges.ready')}
                                                 </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            {status === 'processing' && <Badge variant="secondary" className="bg-slate-100">Coletando</Badge>}
-                                            {status === 'review' && <Badge variant="default" className="bg-blue-500">Revisar</Badge>}
-                                            {status === 'completed' && <Badge variant="outline" className="border-green-500 text-green-600">Completo</Badge>}
+                                            {status === 'processing' && <Badge variant="secondary" className="bg-slate-100">{t('hoursControl.status.collecting')}</Badge>}
+                                            {status === 'review' && <Badge variant="default" className="bg-blue-500">{t('hoursControl.status.review')}</Badge>}
+                                            {status === 'completed' && <Badge variant="outline" className="border-green-500 text-green-600">{t('hoursControl.status.completed')}</Badge>}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="icon">
