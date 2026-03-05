@@ -36,13 +36,11 @@ export function WorkerLoginPage() {
         try {
             setLoading(true);
 
-            // Search in the database for the worker
-            // Using ilike for case-insensitive name match
+            // Search in the database for the worker by passport first
             // @ts-ignore - Supabase types might mark schema as protected depending on the generatord version
             const query = supabase.schema('core_personal').from('workers');
             const { data, error } = await query
                 .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador, cliente_nombre')
-                .ilike('nome', `%${formData.nome.trim()}%`)
                 .ilike('pasaporte', `${formData.pasaporte.trim()}%`);
 
             if (error || !data || data.length === 0) {
@@ -52,10 +50,30 @@ export function WorkerLoginPage() {
             }
 
             // Verify locally that the trimmed passport exactly matches, ignoring case
-            const normalizedInput = formData.pasaporte.trim().toLowerCase();
-            const validProfiles = data.filter(d =>
-                (d.pasaporte || '').trim().toLowerCase() === normalizedInput
-            );
+            const normalizedPassportInput = formData.pasaporte.trim().toLowerCase();
+
+            // Normalize name: remove extra spaces, accents, and convert to lowercase
+            const normalizedNameInput = formData.nome
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, " ");
+
+            const validProfiles = data.filter(d => {
+                const dbPassport = (d.pasaporte || '').trim().toLowerCase();
+                const dbName = (d.nome || '')
+                    .trim()
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/\s+/g, " ");
+
+                // We check if the database name INCLUDES the input name (or exact match)
+                // This helps if they omit a middle name or reverse the order potentially
+                // But let's require it to at least contain the typed string
+                return dbPassport === normalizedPassportInput && dbName.includes(normalizedNameInput);
+            });
 
             if (validProfiles.length === 0) {
                 toast.error(t('workerPortal.login.error.invalidCredentials'));
