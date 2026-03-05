@@ -8,9 +8,10 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
-import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy } from 'lucide-react';
+import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
+import { AdminNotesDialog } from './components/AdminNotesDialog';
 import { useRole } from '../../app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 
@@ -26,6 +27,7 @@ interface WorkerDetail {
     sharepoint_sync_status?: 'pending' | 'syncing' | 'success' | 'failed';
     sharepoint_sync_date?: string;
     sharepoint_error?: string;
+    observacoes?: string | null;
 }
 
 export function ClientHoursDetail() {
@@ -49,6 +51,13 @@ export function ClientHoursDetail() {
         workerName: string;
         hourRecordId?: string;
     }>({ open: false, workerId: '', workerName: '' });
+    const [notesDialogState, setNotesDialogState] = useState<{
+        open: boolean;
+        workerId: string;
+        workerName: string;
+        hourRecordId: string | null;
+        existingNote: string | null;
+    }>({ open: false, workerId: '', workerName: '', hourRecordId: null, existingNote: null });
 
     useEffect(() => {
         setPortalNode(document.getElementById('topbar-title-portal'));
@@ -104,7 +113,8 @@ export function ClientHoursDetail() {
                     hour_record_id: hr?.id,
                     sharepoint_sync_status: hr?.sharepoint_sync_status,
                     sharepoint_sync_date: hr?.sharepoint_sync_date,
-                    sharepoint_error: hr?.sharepoint_error
+                    sharepoint_error: hr?.sharepoint_error,
+                    observacoes: hr?.observacoes
                 };
             }) || [];
 
@@ -293,6 +303,7 @@ export function ClientHoursDetail() {
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.passport')}</TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.phone')}</TableHead>
                                 <TableHead className="font-semibold text-foreground text-center">{t('clientHoursDetail.table.status')}</TableHead>
+                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.notesTitle', 'Anotações')}</TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.file')}</TableHead>
                                 <TableHead className="w-[180px] text-right">{t('clientHoursDetail.table.actions')}</TableHead>
                             </TableRow>
@@ -387,6 +398,23 @@ export function ClientHoursDetail() {
                                         {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
                                         {worker.status === 'enviado' && <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100">{t('clientHoursDetail.badges.submitted')}</Badge>}
                                         {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={`h-8 w-8 ${worker.observacoes ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-muted-foreground hover:text-foreground'}`}
+                                            onClick={() => setNotesDialogState({
+                                                open: true,
+                                                workerId: worker.worker_id,
+                                                workerName: worker.worker_name,
+                                                hourRecordId: worker.hour_record_id || null,
+                                                existingNote: worker.observacoes || null
+                                            })}
+                                            title={worker.observacoes || t('clientHoursDetail.notesTitle', 'Anotações')}
+                                        >
+                                            <StickyNote className="h-4 w-4" />
+                                        </Button>
                                     </TableCell>
                                     <TableCell>
                                         {worker.file_name && worker.file_url ? (
@@ -495,10 +523,22 @@ export function ClientHoursDetail() {
                 clientXName={clientName || ''}
                 periodYear={year}
                 periodMonth={month}
-                hourRecordId={uploadDialogState.hourRecordId}
                 onSuccess={() => {
+                    setUploadDialogState(prev => ({ ...prev, open: false }));
                     fetchClientWorkers();
                 }}
+            />
+
+            <AdminNotesDialog
+                open={notesDialogState.open}
+                onOpenChange={(open) => setNotesDialogState(prev => ({ ...prev, open }))}
+                workerId={notesDialogState.workerId}
+                workerName={notesDialogState.workerName}
+                periodYear={year}
+                periodMonth={month}
+                existingNote={notesDialogState.existingNote}
+                hourRecordId={notesDialogState.hourRecordId}
+                onSuccess={fetchClientWorkers}
             />
         </div>
     );

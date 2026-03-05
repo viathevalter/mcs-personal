@@ -112,6 +112,7 @@ export interface WorkerHour {
     status: WorkerHourStatus;
     file_url: string | null;
     file_name: string | null;
+    observacoes: string | null;
     created_at: string;
     updated_at: string;
 }
