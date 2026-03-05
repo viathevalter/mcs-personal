@@ -11,7 +11,6 @@ async function simulateLogin(nomeInput: string, passportInput: string) {
     const query = supabase.from('workers');
     const { data, error } = await query
         .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador, cliente_nombre')
-        .ilike('nome', `%${nomeInput.trim()}%`)
         .ilike('pasaporte', `${passportInput.trim()}%`);
 
     if (error || !data || data.length === 0) {
@@ -19,22 +18,43 @@ async function simulateLogin(nomeInput: string, passportInput: string) {
         return;
     }
 
-    console.log(`Supabase returned ${data.length} matches.`);
+    console.log(`Supabase returned ${data.length} matches for passport pattern ${passportInput.trim()}%`);
+    console.log(data);
 
     // Verify locally that the trimmed passport exactly matches, ignoring case
-    const normalizedInput = passportInput.trim().toLowerCase();
-    const validProfiles = data.filter(d =>
-        (d.pasaporte || '').trim().toLowerCase() === normalizedInput
-    );
+    const normalizedPassportInput = passportInput.trim().toLowerCase();
+
+    const normalizedNameInput = nomeInput
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+
+    console.log(`Input normalized passport: "${normalizedPassportInput}"`);
+    console.log(`Input normalized name: "${normalizedNameInput}"`);
+
+    const validProfiles = data.filter(d => {
+        const dbPassport = (d.pasaporte || '').trim().toLowerCase();
+        const dbName = (d.nome || '')
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, " ");
+
+        console.log(`Comparing DB Passport "${dbPassport}" to "${normalizedPassportInput}"`);
+        console.log(`Comparing DB Name "${dbName}" includes "${normalizedNameInput}"`);
+
+        return dbPassport === normalizedPassportInput && dbName.includes(normalizedNameInput);
+    });
 
     if (validProfiles.length === 0) {
-        console.error('Login error: Client-side validation failed (passport mismatch)');
-        console.log('Normalized input:', `"${normalizedInput}"`);
-        console.log('Data passports returned from DB:', data.map(d => `"${d.pasaporte}"`));
+        console.error('Login error: Client-side validation failed (passport or name mismatch)');
         return;
     }
 
     console.log("LOGIN SUCCESS! Valid profiles:", validProfiles.length);
 }
 
-simulateLogin("ALIRIO ORTIZ MOLINA", "BE286208");
+simulateLogin("WILLIAM MORAIS DA SILVA", "GH281425");

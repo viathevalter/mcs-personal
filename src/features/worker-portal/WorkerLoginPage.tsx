@@ -40,7 +40,7 @@ export function WorkerLoginPage() {
             // @ts-ignore - Supabase types might mark schema as protected depending on the generatord version
             const query = supabase.schema('core_personal').from('workers');
             const { data, error } = await query
-                .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador, cliente_nombre')
+                .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador')
                 .ilike('pasaporte', `${formData.pasaporte.trim()}%`);
 
             if (error || !data || data.length === 0) {
