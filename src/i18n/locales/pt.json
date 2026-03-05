@@ -1,0 +1,34 @@
+{
+    "navigation": {
+        "dashboard": "Dashboard",
+        "workers": "Trabalhadores",
+        "socialSecurity": "Seguridade Social",
+        "benefits": "Benefícios",
+        "ledger": "Conta Corrente",
+        "settlements": "Settlements",
+        "documents": "Documentos",
+        "mainMenu": "Menu Principal",
+        "expand": "Expandir menu",
+        "collapse": "Recolher menu"
+    },
+    "topbar": {
+        "themeLight": "Claro",
+        "themeDark": "Escuro",
+        "themeSystem": "Sistema",
+        "language": "Idioma",
+        "profile": "Meu Perfil",
+        "logout": "Sair"
+    },
+    "common": {
+        "loading": "Carregando...",
+        "search": "Buscar...",
+        "next": "Próximo",
+        "previous": "Anterior",
+        "show": "Exibir:",
+        "actions": "Ações",
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "error": "Ocorreu um erro",
+        "success": "Operação realizada com sucesso"
+    }
+}

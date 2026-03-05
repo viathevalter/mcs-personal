@@ -1,0 +1,123 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../../shared/supabase/client';
+import { useEmpresa } from '../../../app/providers/EmpresaProvider';
+import { listWorkers } from '../../workers/api/workersApi';
+
+export interface ClientSummary {
+    cliente_nombre: string;
+    total_workers: number;
+    pending_hours: number;
+    submitted_hours: number;
+    validated_hours: number;
+}
+
+export function useClientHoursSummary(periodYear: number, periodMonth: number, contratante: string | null = null) {
+    const { selectedEmpresaId } = useEmpresa();
+    const [data, setData] = useState<ClientSummary[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchData = async () => {
+            if (!selectedEmpresaId) {
+                if (isMounted) {
+                    setData([]);
+                    setIsLoading(false);
+                }
+                return;
+            }
+
+            try {
+                setIsLoading(true);
+                setIsError(false);
+                setError(null);
+
+                console.log('Fetching workers...');
+                const { data: workers } = await listWorkers({
+                    empresaId: selectedEmpresaId,
+                    statusTrabajador: ['ativos'],
+                    contratante: contratante || undefined,
+                    page: 1,
+                    pageSize: 5000,
+                });
+                console.log('Workers fetched:', workers?.length);
+
+                // Fetch hours for the given period
+                const workerIds = workers?.map(w => w.id) || [];
+
+                let hoursData: any[] = [];
+                if (workerIds.length > 0) {
+                    console.log('Fetching worker hours...');
+                    const { data: hours, error: hoursError } = await supabase
+                        .schema('core_personal')
+                        .from('worker_hours')
+                        .select('worker_id, status')
+                        .eq('empresa_id', selectedEmpresaId)
+                        .eq('period_year', periodYear)
+                        .eq('period_month', periodMonth)
+                        .in('worker_id', workerIds);
+
+                    if (hoursError) {
+                        console.error('Hours fetch error:', hoursError);
+                        throw hoursError;
+                    }
+                    console.log('Hours fetched:', hours?.length);
+                    hoursData = hours || [];
+                }
+
+                if (!isMounted) return;
+
+                // Group by client
+                const summaryMap = new Map<string, ClientSummary>();
+
+                workers?.forEach(w => {
+                    const client = w.cliente_nombre || 'NÃO DEFINIDO';
+                    if (!summaryMap.has(client)) {
+                        summaryMap.set(client, {
+                            cliente_nombre: client,
+                            total_workers: 0,
+                            pending_hours: 0,
+                            submitted_hours: 0,
+                            validated_hours: 0,
+                        });
+                    }
+                    const summary = summaryMap.get(client)!;
+                    summary.total_workers++;
+
+                    // Check hours status
+                    const hourRecord = hoursData.find(h => h.worker_id === w.id);
+                    if (!hourRecord || hourRecord.status === 'pendente') {
+                        summary.pending_hours++;
+                    } else if (hourRecord.status === 'enviado') {
+                        summary.submitted_hours++;
+                    } else if (hourRecord.status === 'validado') {
+                        summary.validated_hours++;
+                    }
+                });
+
+                setData(Array.from(summaryMap.values()).sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre)));
+            } catch (err: any) {
+                console.error('Error fetching client summaries:', err);
+                if (isMounted) {
+                    setIsError(true);
+                    setError(err);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        fetchData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedEmpresaId, periodYear, periodMonth, contratante]);
+
+    return { data, isLoading, isError, error };
+}

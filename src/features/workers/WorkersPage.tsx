@@ -1,0 +1,436 @@
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useWorkersList } from './hooks/useWorkersList';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { Button } from '@/components/ui/button';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Search, ChevronLeft, ChevronRight, Loader2, Users, ShieldAlert, Building, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+
+import { useUniqueContratantes } from './hooks/useUniqueContratantes';
+import { useUniqueFunciones } from './hooks/useUniqueFunciones';
+import { useClientWorkerKpis } from './hooks/useClientWorkerKpis';
+import { Combobox } from '@/components/ui/combobox';
+import { MultiSelect } from '@/components/ui/multi-select';
+import {
+    Card,
+    CardContent,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
+export function WorkersPage() {
+    const navigate = useNavigate();
+    const { selectedEmpresaId } = useEmpresa();
+
+    const [search, setSearch] = useState('');
+    const [searchMode, setSearchMode] = useState<'worker' | 'client'>('worker');
+    const [contratante, setContratante] = useState<string | null>(null);
+    const [funcion, setFuncion] = useState<string | null>(null);
+    const [statusTrabajador, setStatusTrabajador] = useState<string[]>(['ativos']); // Default to 'ativos'
+    const [statusSeguridad, setStatusSeguridad] = useState<string[]>([]);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [sortColumn, setSortColumn] = useState<string>('nome');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalNode(document.getElementById('topbar-title-portal'));
+    }, []);
+
+    // 400ms debounce as per requirements
+    const debouncedSearch = useDebounce(search, 400);
+
+    const activeSearch = searchMode === 'worker' ? (debouncedSearch || undefined) : undefined;
+    const activeClienteNombre = searchMode === 'client' ? (debouncedSearch || undefined) : undefined;
+
+    const { data: contratantes } = useUniqueContratantes();
+    const { data: funciones } = useUniqueFunciones();
+    const { data: kpis, isLoading: kpisLoading, isError: kpisIsError, error: kpisError } = useClientWorkerKpis(
+        selectedEmpresaId || '',
+        activeSearch || null,
+        activeClienteNombre || null,
+        contratante,
+        funcion
+    );
+
+    const { data, isLoading, isError, error } = useWorkersList({
+        empresaId: selectedEmpresaId || '',
+        search: activeSearch,
+        clienteNombre: activeClienteNombre,
+        statusTrabajador: statusTrabajador,
+        statusSeguridad: statusSeguridad,
+        contratante: contratante || undefined,
+        funcion: funcion || undefined,
+        sortColumn,
+        sortDirection,
+        page,
+        pageSize
+    });
+
+    const handleRowClick = (id: string) => {
+        navigate(`/workers/${id}`);
+    };
+
+    const totalCount = data?.count || 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+    const handleSort = (column: string) => {
+        if (sortColumn === column) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+        setPage(1);
+    };
+
+    const renderSortIcon = (column: string) => {
+        if (sortColumn !== column) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-30" />;
+        return sortDirection === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />;
+    };
+
+    return (
+        <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3">
+            {portalNode && createPortal(
+                <div className="flex flex-col">
+                    <h1 className="text-xl font-bold tracking-tight">Trabalhadores</h1>
+                    <span className="text-sm font-medium text-muted-foreground">Gestão de recursos humanos</span>
+                </div>,
+                portalNode
+            )}
+
+            {/* Controls section */}
+            <div className="w-full mb-2 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full">
+                    <div className="relative w-full sm:col-span-2 flex flex-col sm:flex-row items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
+                        <div className="flex items-center justify-center px-3 h-9 sm:h-full w-full sm:w-auto text-muted-foreground border-b sm:border-b-0 sm:border-r border-input bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer select-none"
+                            onClick={() => {
+                                setSearchMode(prev => prev === 'worker' ? 'client' : 'worker');
+                                setSearch('');
+                                setPage(1);
+                            }}
+                            title="Alternar filtro de busca"
+                        >
+                            {searchMode === 'worker' ? <Users className="h-4 w-4 mr-2" /> : <Building className="h-4 w-4 mr-2" />}
+                            <span className="text-xs font-medium w-[75px] text-center">{searchMode === 'worker' ? 'Trabalhador' : 'Cliente'}</span>
+                        </div>
+                        <div className="relative flex-1 flex items-center h-9 sm:h-full w-full">
+                            <Search className="h-4 w-4 ml-3 text-muted-foreground shrink-0" />
+                            <input
+                                type="text"
+                                placeholder={searchMode === 'worker' ? "Buscar trabalhador..." : "Buscar cliente..."}
+                                value={search}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="flex-1 bg-transparent px-3 py-1 text-sm outline-none placeholder:text-muted-foreground w-full"
+                            />
+                        </div>
+                    </div>
+                    <div className="w-full">
+                        <MultiSelect
+                            options={[
+                                { value: 'ativos', label: 'Ativos' },
+                                { value: 'inativos', label: 'Inativos' },
+                                { value: 'pendentes_ingreso', label: 'Pendentes Ingresso' },
+                            ]}
+                            selected={statusTrabajador}
+                            onChange={(newStatus) => {
+                                setStatusTrabajador(newStatus);
+                                setPage(1);
+                            }}
+                            placeholder="Status Trab..."
+                        />
+                    </div>
+                    <div className="w-full">
+                        <MultiSelect
+                            options={[
+                                { value: 'alta', label: 'Alta' },
+                                { value: 'pendentes_alta', label: 'Pendentes Alta' },
+                                { value: 'baixa', label: 'Baixa' },
+                                { value: 'pendentes_baixa', label: 'Pendentes Baixa' },
+                            ]}
+                            selected={statusSeguridad}
+                            onChange={(newStatus) => {
+                                setStatusSeguridad(newStatus);
+                                setPage(1);
+                            }}
+                            placeholder="Seguridade..."
+                        />
+                    </div>
+
+                    <div className="w-full">
+                        <Combobox
+                            options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            value={contratante}
+                            onChange={(val) => {
+                                setContratante(val);
+                                setPage(1);
+                            }}
+                            placeholder="Empresa"
+                            emptyText="Nenhuma empresa"
+                        />
+                    </div>
+                    <div className="w-full">
+                        <Combobox
+                            options={funciones?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            value={funcion}
+                            onChange={(val) => {
+                                setFuncion(val);
+                                setPage(1);
+                            }}
+                            placeholder="Perfil"
+                            emptyText="Nenhum perfil"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* KPI Banner */}
+            {selectedEmpresaId && kpisIsError && (
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-md shrink-0">
+                    <h3 className="font-semibold">Erro ao carregar os KPIs</h3>
+                    <p className="text-sm mt-1">{kpisError?.message || 'Falha ao processar os indicadores.'}</p>
+                    <p className="text-xs mt-2 opacity-80">Por favor, verifique se o script "update_kpi_rpc.sql" foi executado corretamente no banco de dados.</p>
+                </div>
+            )}
+            {selectedEmpresaId && kpis && (
+                <div className="flex flex-col xl:flex-row gap-6 shrink-0">
+                    {/* Bloco 1: Status do Trabalhador */}
+                    <div className="flex flex-col gap-2 flex-1">
+                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <Users className="w-4 h-4" /> Status do Trabalhador
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Card className="border-emerald-200/50 dark:border-emerald-900/30">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block">ATIVOS</span>
+                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.ativos}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-rose-200/50 dark:border-rose-900/30">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate block">INATIVOS</span>
+                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.inativos}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-amber-200/50 dark:border-amber-900/30">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-500 truncate block" title="PENDENTES DE INGRESSO">PENDENTES INGRESSO</span>
+                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.pendentes_ingreso}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+
+                    {/* Bloco 2: Seguridade (Alta/Baixa) */}
+                    <div className="flex flex-col gap-2 flex-[1.3]">
+                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <ShieldAlert className="w-4 h-4" /> Seguridade Social
+                        </h3>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-muted-foreground truncate block">Alta</span>
+                                        <span className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-500">{kpisLoading ? '-' : kpis.seguridade_alta}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Pendente Alta">Pendente Alta</span>
+                                        <span className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-500">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-muted-foreground truncate block">Baixa</span>
+                                        <span className="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-500">{kpisLoading ? '-' : kpis.seguridade_baixa}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Pendente Baixa">Pendente Baixa</span>
+                                        <span className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-500">{kpisLoading ? '-' : kpis.seguridade_pendente_baixa}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Table section */}
+            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border">
+                <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
+                    <Table>
+                        <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-md">
+                            <TableRow className="border-b-0">
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cod_colab')}>
+                                    <div className="flex items-center">Cód. Colab {renderSortIcon('cod_colab')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('nome')}>
+                                    <div className="flex items-center">Nome {renderSortIcon('nome')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('contratante')}>
+                                    <div className="flex items-center">Contratante {renderSortIcon('contratante')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('funcion')}>
+                                    <div className="flex items-center">Função {renderSortIcon('funcion')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cliente_nombre')}>
+                                    <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('status_trabajador')}>
+                                    <div className="flex items-center">Status Trab. {renderSortIcon('status_trabajador')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors text-center" onClick={() => handleSort('status_seguridad')}>
+                                    <div className="flex items-center justify-center">Seguridade {renderSortIcon('status_seguridad')}</div>
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {!selectedEmpresaId && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                        Selecione uma empresa para carregar os trabalhadores.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {selectedEmpresaId && isLoading && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-32 text-center">
+                                        <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
+                                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                            <span>Carregando trabalhadores...</span>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {selectedEmpresaId && !isLoading && isError && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-32 text-center text-destructive">
+                                        Falha ao carregar os dados. {error?.message}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {selectedEmpresaId && !isLoading && !isError && data?.data.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                        Nenhum trabalhador encontrado.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {selectedEmpresaId && !isLoading && !isError && data?.data.map((worker) => (
+                                <TableRow
+                                    key={worker.id}
+                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                    onClick={() => handleRowClick(worker.id)}
+                                >
+                                    <TableCell className="font-medium text-muted-foreground">{worker.cod_colab}</TableCell>
+                                    <TableCell className="font-medium text-sm w-48">{worker.nome}</TableCell>
+                                    <TableCell className="text-sm truncate max-w-[120px]">{worker.contratante || '-'}</TableCell>
+                                    <TableCell className="text-sm truncate max-w-[120px]">{worker.funcion || '-'}</TableCell>
+                                    <TableCell className="text-sm truncate max-w-[150px]" title={worker.cliente_nombre || undefined}>{worker.cliente_nombre || '-'}</TableCell>
+                                    <TableCell>
+                                        <span className="text-xs truncate max-w-[120px] inline-block">
+                                            {worker.status_trabajador || '-'}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        {worker.status_seguridad ? (
+                                            <Badge
+                                                variant={
+                                                    worker.status_seguridad.toLowerCase().includes('alta') ? 'default' :
+                                                        worker.status_seguridad.toLowerCase().includes('baja') ? 'destructive' : 'secondary'
+                                                }
+                                            >
+                                                {worker.status_seguridad}
+                                            </Badge>
+                                        ) : (
+                                            <span className="text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </Card>
+
+            {/* Pagination Controls */}
+            {selectedEmpresaId && !isLoading && !isError && totalCount > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between mt-2 gap-4 shrink-0 pb-1">
+                    <p className="text-sm text-muted-foreground">
+                        Mostrando {(page - 1) * pageSize + 1} até {Math.min(page * pageSize, totalCount)} de <span className="font-medium text-foreground">{totalCount}</span> resultados
+                    </p>
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>Exibir:</span>
+                            <select
+                                className="h-8 w-[70px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                            >
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={page <= 1}
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                className="h-8"
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-1" />
+                                Anterior
+                            </Button>
+                            <div className="text-sm font-medium px-4 py-1.5 rounded-md bg-muted/50 border">
+                                {page} / {totalPages}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={page >= totalPages}
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                className="h-8"
+                            >
+                                Próximo
+                                <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

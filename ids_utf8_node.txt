@@ -1,0 +1,18 @@
+﻿Obtendo Access Token do Microsoft Entra ID...
+Ô£à Token Obtido!
+
+Procurando Site 'CIERREDEHORAS'...
+Ô£à Site Encontrado! ID do Site: kotrik.sharepoint.com,49b24087-da96-45d1-a86c-cb637072580d,81df0e21-077d-4bee-9c65-31e593dfa17e
+
+Listando Drives (Bibliotecas) dentro do site...
+Drives encontrados:
+- Nome: Documents | ID: b!h0CySZba0UWobMtjcHJYDSEO34F9B-5LnGUx5ZPfoX4nFsnFE2TDTqPzTjqDstQ0
+
+Usando Drive Principal ID: b!h0CySZba0UWobMtjcHJYDSEO34F9B-5LnGUx5ZPfoX4nFsnFE2TDTqPzTjqDstQ0
+
+Listando pastas na raiz do Drive...
+- [Pasta] Geral | ID: 01Q5S7HIC5MGOMNNK4VVDKTHQKKIOFIN2G
+
+=== SALVE ESSES IDS PARA CONFIGURARMOS O SUPABASE ===
+SHAREPOINT_SITE_ID = kotrik.sharepoint.com,49b24087-da96-45d1-a86c-cb637072580d,81df0e21-077d-4bee-9c65-31e593dfa17e
+SHAREPOINT_DRIVE_ID = b!h0CySZba0UWobMtjcHJYDSEO34F9B-5LnGUx5ZPfoX4nFsnFE2TDTqPzTjqDstQ0

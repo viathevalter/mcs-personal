@@ -1,0 +1,10 @@
+src/features/admin/UsersPage.tsx(7,29): error TS6133: 'CardHeader' is declared but its value is never read.
+src/features/admin/UsersPage.tsx(7,41): error TS6133: 'CardTitle' is declared but its value is never read.
+src/features/admin/UsersPage.tsx(7,52): error TS6133: 'CardDescription' is declared but its value is never read.
+src/features/admin/UsersPage.tsx(16,1): error TS6133: 'AppRole' is declared but its value is never read.
+src/features/admin/UsersPage.tsx(17,23): error TS2307: Cannot find module '@/shared/hooks/use-toast' or its corresponding type declarations.
+src/features/dashboard/api/dashboardApi.ts(1,1): error TS6133: 'supabase' is declared but its value is never read.
+src/features/dashboard/api/dashboardApi.ts(2,1): error TS6133: 'mapSupabaseError' is declared but its value is never read.
+src/features/dashboard/api/dashboardApi.ts(17,45): error TS6133: 'empresaId' is declared but its value is never read.
+src/features/dashboard/api/dashboardApi.ts(17,64): error TS6133: 'year' is declared but its value is never read.
+src/features/dashboard/api/dashboardApi.ts(17,78): error TS6133: 'month' is declared but its value is never read.

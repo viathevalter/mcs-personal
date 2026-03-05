@@ -1,0 +1,39 @@
+
+> temp-app@0.0.0 lint
+> eslint .
+
+
+C:\Projetos IA\Kotrik\mcs-personal\src\app\providers\EmpresaProvider.tsx
+  39:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projetos IA\Kotrik\mcs-personal\src\app\providers\EmpresaProvider.tsx:39:13
+  37 |         // If there's only one membership, select it to save clicks
+  38 |         if (memberships.length === 1 && memberships[0].empresa_id !== selectedEmpresaId) {
+> 39 |             setSelectedEmpresaId(memberships[0].empresa_id);
+     |             ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  40 |         }
+  41 |         // If we have selected something invalid or have nothing selected, take the first valid one as fallback
+  42 |         else if (!validSelection && !selectedEmpresaId) {  react-hooks/set-state-in-effect
+
+C:\Projetos IA\Kotrik\mcs-personal\src\shared\ui\DataTable.tsx
+  41:19  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\Projetos IA\Kotrik\mcs-personal\src\shared\ui\DataTable.tsx:41:19
+  39 |     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  40 |
+> 41 |     const table = useReactTable({
+     |                   ^^^^^^^^^^^^^ TanStack Table's `useReactTable()` API returns functions that cannot be memoized safely
+  42 |         data,
+  43 |         columns,
+  44 |         getCoreRowModel: getCoreRowModel(),  react-hooks/incompatible-library
+
+✖ 2 problems (1 error, 1 warning)
+
