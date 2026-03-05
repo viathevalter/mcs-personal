@@ -43,7 +43,7 @@ export function WorkerLoginPage() {
             const { data, error } = await query
                 .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador, cliente_nombre')
                 .ilike('nome', `%${formData.nome.trim()}%`)
-                .eq('pasaporte', formData.pasaporte.trim());
+                .ilike('pasaporte', `${formData.pasaporte.trim()}%`);
 
             if (error || !data || data.length === 0) {
                 console.error('Login error:', error);
@@ -51,11 +51,22 @@ export function WorkerLoginPage() {
                 return;
             }
 
+            // Verify locally that the trimmed passport exactly matches, ignoring case
+            const normalizedInput = formData.pasaporte.trim().toLowerCase();
+            const validProfiles = data.filter(d =>
+                (d.pasaporte || '').trim().toLowerCase() === normalizedInput
+            );
+
+            if (validProfiles.length === 0) {
+                toast.error(t('workerPortal.login.error.invalidCredentials'));
+                return;
+            }
+
             // Save basic worker info plus ALL matching profiles to localStorage
-            const mainProfile = data[0];
+            const mainProfile = validProfiles[0];
             const sessionData = {
                 ...mainProfile,
-                profiles: data
+                profiles: validProfiles
             };
             localStorage.setItem('worker_session', JSON.stringify(sessionData));
 
