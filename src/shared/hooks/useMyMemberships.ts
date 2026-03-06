@@ -10,7 +10,7 @@ export interface MembershipsData {
 
 export function useMyMemberships() {
     const { user } = useAuth();
-    const { role: globalRole } = useRole();
+    const { role: globalRole, loadingRole } = useRole();
 
     return useQuery({
         queryKey: ['my_memberships', user?.id, globalRole],
@@ -31,10 +31,13 @@ export function useMyMemberships() {
                 }
 
                 const syntheticMemberships: UserMembership[] = (allEmpresas || []).map(e => ({
+                    id: `synthetic-${e.id}`, // Fake id to satisfy TS/React keys
+                    user_id: user.id,
                     empresa_id: e.id,
                     role: 'admin',
-                    is_active: true
-                }));
+                    is_active: true,
+                    created_at: new Date().toISOString()
+                } as UserMembership));
 
                 return { memberships: syntheticMemberships };
             }
@@ -56,7 +59,7 @@ export function useMyMemberships() {
                 memberships: (data || []) as UserMembership[]
             };
         },
-        enabled: !!user && globalRole !== undefined, // verify global role is loaded before querying
+        enabled: !!user && !loadingRole, // Wait until role is fully loaded
         staleTime: 5 * 60 * 1000,
     });
 }
