@@ -31,11 +31,11 @@ export function Sidebar() {
 
     return (
         <aside className={cn(
-            "fixed inset-y-0 left-0 z-10 hidden flex-col bg-slate-900 text-slate-300 sm:flex transition-all duration-300",
+            "fixed inset-y-0 left-0 z-10 hidden flex-col bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800 sm:flex transition-all duration-300",
             isExpanded ? "w-64" : "w-20"
         )}>
-            <div className={cn("flex h-[72px] items-center border-b border-slate-800", isExpanded ? "px-6" : "justify-center px-0")}>
-                <NavLink to="/" className="flex items-center gap-3 font-semibold text-white transition-opacity hover:opacity-90">
+            <div className={cn("flex h-[72px] items-center border-b border-slate-200 dark:border-slate-800", isExpanded ? "px-6" : "justify-center px-0")}>
+                <NavLink to="/" className="flex items-center gap-3 font-semibold text-slate-900 dark:text-white transition-opacity hover:opacity-90">
                     <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded bg-emerald-500 font-bold text-white text-lg leading-none">
                         M
                     </div>
@@ -45,7 +45,7 @@ export function Sidebar() {
             <div className="flex-1 py-6 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
                 <div>
                     {isExpanded && (
-                        <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             {t('navigation.mainMenu')}
                         </div>
                     )}
@@ -61,7 +61,7 @@ export function Sidebar() {
                                             isExpanded ? 'gap-3 px-3 py-2.5' : 'justify-center p-3 mb-1 mx-auto w-12',
                                             isActive
                                                 ? 'bg-primary/10 text-primary font-semibold'
-                                                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
                                         )
                                     }
                                 >
@@ -77,7 +77,7 @@ export function Sidebar() {
                     <button
                         onClick={toggleSidebar}
                         className={cn(
-                            "flex items-center text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-slate-800",
+                            "flex items-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800",
                             isExpanded ? "justify-end w-full" : "justify-center w-full mx-auto"
                         )}
                         title={isExpanded ? t('navigation.collapse') : t('navigation.expand')}
