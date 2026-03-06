@@ -295,14 +295,19 @@
         "statusValues": {
             "trabajador": {
                 "ativo": "Activo",
+                "activo": "Activo",
                 "inativo": "Inactivo",
-                "pendente_ingresso": "Pendiente de Ingreso"
+                "pendente_ingresso": "Pendiente de Ingreso",
+                "pendiente_ingreso": "Pendiente de Ingreso"
             },
             "seguridad": {
                 "alta": "Alta",
                 "pendente_alta": "Pendiente de Alta",
+                "pendiente_alta": "Pendiente de Alta",
                 "baixa": "Baja",
-                "pendente_baixa": "Pendiente de Baja"
+                "baja": "Baja",
+                "pendente_baixa": "Pendiente de Baja",
+                "pendiente_baja": "Pendiente de Baja"
             }
         },
         "kpi": {
