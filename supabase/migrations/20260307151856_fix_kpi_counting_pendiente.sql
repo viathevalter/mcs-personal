@@ -20,7 +20,7 @@ BEGIN
             w.nie,
             c.contratante,
             c.funcion,
-            public.fn_get_active_client_for_worker(w.cod_colab) as active_client
+            core_personal.fn_get_active_client_for_worker(w.cod_colab) as active_client
         FROM core_personal.workers w
         LEFT JOIN public.colaboradores c ON c.cod_colab = w.cod_colab
         WHERE w.empresa_id = p_empresa_id

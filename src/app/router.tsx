@@ -8,6 +8,7 @@ import { LedgerPage } from '../features/ledger/LedgerPage';
 import { SettlementsPage } from '../features/settlements/SettlementsPage';
 import { DocumentsPage } from '../features/documents/DocumentsPage';
 import { SeguridadePage } from '../features/seguridade/SeguridadePage';
+import { HoleritesPage } from '../features/holerites/HoleritesPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import UsersPage from '../features/admin/UsersPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
@@ -75,6 +76,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'seguridade',
                         element: <SeguridadePage />,
+                    },
+                    {
+                        path: 'holerites',
+                        element: <HoleritesPage />,
                     },
                     {
                         path: 'benefits',

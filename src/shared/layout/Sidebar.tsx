@@ -22,6 +22,7 @@ export function Sidebar() {
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
+        { to: '/holerites', tKey: 'Folha de Pagamento', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/benefits', tKey: 'navigation.benefits', icon: CarFront, roles: ['admin', 'rh'] },
         { to: '/ledger', tKey: 'navigation.ledger', icon: Landmark, roles: ['admin', 'finance'] },
         { to: '/settlements', tKey: 'navigation.settlements', icon: Banknote, roles: ['admin', 'finance'] },

@@ -1,0 +1,90 @@
+SHEETS FOUND: Colaboradores, Analises, Declaração salário, TotalHorasAjustadas (2), Tarifas dezembro att, Informações, Confirmaçoes, Hoja1, Kotrik Industrial, Kotrik Rosas, Wiseowe, Luminous, Adiantamentos, Outros descontos, Alojamentos, Carro, Altas Rosas, Altas Luminous, Altas Wiseowe, Altas Industrial, Iban
+
+--- SHEET: Kotrik Industrial ---
+Row 0:  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 116695.92888888888
+Row 1:  |  |  |  |  |  |  |  |  |  |  |  |  | CLIENTE |  |  |  |  |  |  | CLIENTE 2
+Row 2:  | Cod trabalhador | Status SS | KI | KR | WS | LN | Data admissão | Data cessação | Dias de alta | PUXADO | Colaborador | Columna6 | Nome cliente 1  | Tarifa cliente 1 | Hora por Previsão | Horas confirmadas cliente | Status confirmação client | Status revisão | Columna3 | Nome cliente 2 | Tarifa cliente 2 | Horas confirmadas cliente | Status confirmação client | Status revisão 2 | Columna32 | Auxilio alojamento | Outros acréscimos | Columna4 | Imposto ss | Adiantamento | Desconto Carro | MULTA TRANSITO | COMBUSTIBLE | PEAJES | SUMINISTROS | MULTA ALOJAMIENTO | LIMPIEZA O DAÑOS | EPIS | Outros  descontos | Taxa bancária | Columna2 | Valor previsão de folha | Liquido total | Columna5 | IBAN pagamento | Observações | Status pagamento cliente | Responsável pagamento | Status pagamento
+Row 3:  | E0166 | Ativo | KI |  |  |  | 45762 | 46053 | 31 | ALVARO ROJAS | ALVARO ENRIQUE ROJAS DE L |  | 43-CAM IMPIANTI INDUSTRIA | 17 | 144 | 144 | Confirmada |  |  |  |  |  |  |  |  |  |  |  | 218.798 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 2225.1220000000003 | 2225.1220000000003 |  | NL02 BUNQ 2185 0437 57 |  |  | Fernando 16-02 | Pago
+Row 4:  | E1590 | Não ativo |  |  |  |  |  |  | 0 | BAIRON BURBANO | BAIRON RENE BURBANO MORAL |  | 225-CARVISA CONTAINER SLU | 15 | 36 | 142 | Pendente |  |  |  |  |  |  |  |  |  |  |  | 0 | 200 |  |  |  |  |  |  |  |  |  | 4.08 |  | 335.92 | 1925.92 |  | ES54 0182 2270 0102 0248  |  |  | Fernando 16-02 | Pago
+Row 5:  | E0277 | Ativo | KI |  |  |  | 45762 | 46053 | 31 | CAMILO ANDRES VALERO PERE | CAMILO ANDRES VALERO PERE |  | 84-GRUPO LOAFA | 15 | 201 | 201 | Confirmada |  |  |  |  |  |  |  |  |  |  |  | 218.798 |  | 145 |  |  |  |  |  |  |  |  | 4.08 |  | 2647.1220000000003 | 2647.1220000000003 |  |  ES44 0182 4388 1902 0186 |  |  | Fernando 16-02 | Pago
+
+--- SHEET: Kotrik Rosas ---
+Row 0:  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |  | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42
+Row 1:  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | CLIENTE 2 |  |  |  |  |  |  |  |  | DESCONTAR
+Row 2: n | Cod trabalhador | Status SS | KI | KR | WS | LN | Data admissão | Data cessação | Dias de alta | PUXADO | Colaborador | Columna6 | Nome cliente 1  | Tarifa cliente 1 | Hora por Previsão | Horas confirmadas cliente | Status confirmação client | Status revisão | Columna3 | Nome cliente 2 | Tarifa cliente 2 | Horas confirmadas cliente | Status confirmação client | Status revisão 2 | Columna32 | Auxilio alojamento | Outros acréscimos | Columna4 | Imposto ss | Adiantamento | Desconto Carro | MULTA TRANSITO | COMBUSTIBLE | PEAJES | SUMINISTROS | MULTA ALOJAMIENTO | LIMPIEZA O DAÑOS | EPIS | Outros  descontos | Taxa bancária | Columna2 | Valor previsão de folha | Liquido total | Columna5 | IBAN pagamento | Observações | Status pagamento cliente | Responsável pagamento | Status pagamento
+Row 3:  | E0194 | Ativo |  | KR |  |  | 45761 | 46053 | 31 | ALAN NAVAS | ALAN FRANCISCO NAVAS DIAZ |  | 64-DOHERCO MIRANDA S.L | 13 | 144 | 144 | Pendente | Ok |  |  |  |  |  |  |  | 300 |  |  | 218.798 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 1949.122 | 1949.122 |  | ES43 0182 0706 1902 0164  |  |  | Brenda 16-02 | Pago
+Row 4:  | E0593 | Não ativo |  |  |  |  |  |  | 0 | ALEXANDRICO CARDONA RAMIR | ALEX MAURICIO CARDONA RAM |  | 205-TOKIO METAL SL | 15 | 150 | 150 | Confirmada | Ok |  |  |  |  |  |  |  |  |  |  | 0 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 2245.92 | 2245.92 |  | ES86 0182 8181 1602 0234  |  |  | Brenda 16-02 | Pago
+Row 5:  | E0195 | Ativo |  | KR |  |  | 45761 | 46053 | 31 | BLADIMIR DIAZ | BLADIMIRO DIAZ MARTINEZ |  | 64-DOHERCO MIRANDA S.L | 13 | 144 | 144 | Pendente | Ok |  |  |  |  |  |  |  | 300 |  |  | 218.798 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 1949.122 | 1949.122 |  | ES92 0182 0706 1502 0164  |  |  | Brenda 16-02 | Pago
+
+--- SHEET: Wiseowe ---
+Row 0:  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |  | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42
+Row 2: n | Cod trabalhador | Status SS | KI | KR | WS | LM | Data admissão | Data cessação | Dias de alta | PUXADO | Colaborador | Columna6 | Nome cliente 1  | Tarifa cliente 1 | Hora por Previsão | Horas confirmadas cliente | Status confirmação client | Status revisão | Columna3 | Nome cliente 2 | Tarifa cliente 2 | Horas confirmadas cliente | Status confirmação client | Status revisão 2 | Columna32 | Auxilio alojamento | Outros acréscimos | Columna4 | Imposto ss | Adiantamento | Desconto Carro | MULTA TRANSITO | COMBUSTIBLE | PEAJES | SUMINISTROS | MULTA ALOJAMIENTO | LIMPIEZA O DAÑOS | EPIS | Outros  descontos | Taxa bancária | Columna2 | Valor previsão de folha | Liquido total | Columna5 | IBAN pagamento | Observações | Status pagamento cliente | Responsável pagamento | Status pagamento
+Row 3:  | E0388 | Não ativo | KI |  |  |  |  |  | 0 | ALEX DAVID GOMEZ V. | ALEX DAVID GOMEZ VILLADA |  | 108-INSTALACIONES Y SISTE | 15 | 181 | 181 | Pendente |  |  |  |  |  |  |  |  |  |  |  | 0 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 2710.92 | 2710.92 |  | ES71 0182 1270 9602 0166  |  |  | Fernando 16-02 | Pago
+Row 4:  | E0386 | Ativo |  |  | WS |  | 45939 |  | 31 | ALEXANDER LOPEZ | ALEXANDER MANUEL LOPEZ RO |  | 108-INSTALACIONES Y SISTE | 12 | 188.5 | 182.5 | Pendente |  |  |  |  |  |  |  |  |  |  |  | 218.798 |  |  |  |  |  |  |  |  |  |  | 4.08 |  | 2039.122 | 1967.122 |  | BE28 9050 2145 7720 |  |  | Brenda 16-02 | Pago
+Row 5:  | E0359 | Não ativo |  | KR |  |  |  |  | 0 | ANDRES FELIPE GOMEZ | ANDRES FELIPE GOMEZ PUERT |  | 108-INSTALACIONES Y SISTE | 15 | 133 | 126 | Pendente |  |  |  |  |  |  |  |  | 300 |  |  | 0 |  |  |  |  |  |  |  |  |  | 18.75 | 4.08 |  | 2272.17 | 2167.17 |  | ES30 6893 0001 7900 0027  |  |  | Fernando 16-02 | Pago
+
+--- SHEET: Luminous ---
+Row 0:  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |  | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 4 | 41 | 42 | 43
+Row 1:  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 232659.2531111113
+Row 3: n | Cod trabalhador | Status SS | KI | KR | WS | LM | Data admissão | Data cessação | Dias de alta | PUXADO | Colaborador | Columna6 | Nome cliente 1  | Tarifa cliente 1 | Hora por Previsão | Horas confirmadas cliente | Status confirmação client | Status revisão | Columna3 | Nome cliente 2 | Tarifa cliente 2 | Horas confirmadas cliente | Status confirmação client | Status revisão 2 | Columna32 | Auxilio alojamento | Outros acréscimos | Columna4 | Imposto ss | Adiantamento | Desconto Carro | MULTA TRANSITO | COMBUSTIBLE | PEAJES | SUMINISTROS | MULTA ALOJAMIENTO | LIMPIEZA O DAÑOS | EPIS | OUTROS | Taxa bancária | Columna2 | Valor previsão de folha | Liquido total | Columna5 | IBAN pagamento | Observações | Status pagamento cliente | Responsável pagamento | Status pagamento
+Row 4:  | E0406 | Não ativo |  |  |  |  |  |  | 0 | ALAN GERSON RAMIREZ ACARO | ALAN GERSON RAMIREZ ACARO |  | 119-LASAFE SLU | 15 | 157 | 157 | Confirmada | OK |  |  |  |  |  |  |  |  |  |  | 0 |  | 106.66666666666667 |  |  |  |  |  |  |  |  | 4.08 |  | 2244.2533333333336 | 2244.2533333333336 |  | ES21 1576 1212 1910 1041  |  |  | Fernando 16-02 | Pago
+Row 5: 1 | E2098 | Ativo |  |  |  | LM | 46051 |  | 3 | ALEXANDER GUZMAN | ALEXANDER GUZMAN |  | 620-TALLERES CRANTE S.L | 15 | 23 | 23 | Confirmada | OK |  |  |  |  |  |  |  |  |  |  | 21.174 |  | 10 |  |  |  |  |  |  |  |  | 4.08 |  | 309.74600000000004 | 309.74600000000004 |  | ES29 6893 0001 7400 0036  |  |  | Fernando 16-02 | Pago
+
+--- SHEET: Adiantamentos ---
+Row 1: FECHA | ID TRABAJADOR | TRABAJADOR | IBAN | EMPRESA | PEDIDO | CLIENTE | ADELANTO | REEMBOLSO | AYUDA
+VIAJE | OTROS | TOTAL | ANEXO | STATUS APROBACION | OBSERVACIONES  STATUS  | STATUS REALIZACIÓN | FECHA DE REALIZACIÓN | FECHA DESCUENTO NOMINA | KI | KR | Columna1 | Columna2
+Row 2: 46051 | E0093 | JUAN CARLOS CHAPARRO QUIN | ES08 0182 5011 1002 0223  | LUMINOUS | 2025/007 | BACHILLER, SA | 200 |  |  |  | 200 |  | Aprobado |  | Realizado | 46058
+Row 3: 46052 | E1590 | BAIRON RENE BURBANO MORAL | ES54 0182 2270 0102 0248  | LUMINOUS | R2025/057 | CARVISA CONTAINER SLU | 200 |  |  |  | 200 |  | Aprobado |  | Realizado | 46058
+Row 4: 46055 | E0091 | WILLIAM MORAIS DA SILVA | PT50 0033 0000 4579 1848  | LUMINOUS | 2025 | BACHILLER SA | 300 |  |  |  | 300 |  | Aprobado |  | Realizado | 46057
+Row 5: 46055 | E0565 | ALVARO FIGUEROA ARANGO | ES09 0182 0702 3702 0164  | WISEOWE | R2025/169 | GRUPO FERRERAS SL | 200 |  |  |  | 200 |  | Aprobado |  | Realizado | 46058
+
+--- SHEET: Outros descontos ---
+Row 0:  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14
+Row 1: FECHA | ID TRABAJADOR | TRABAJADOR | MÓVIL | EMPRESA | PEDIDO | CLIENTE | MULTA TRANSITO | COMBUSTIBLE | PEAJES | SUMINISTROS | MULTA ALOJAMIENTO | LIMPIEZA O DAÑOS | EPIS | OUTROS | TOTAL | STATUS NOTIFICACIÓN | OBSERVACIONES | FECHA MES DESCUENTO | KI | KR | WS | LM | Columna22
+Row 2: 46064 | E0625 | ANSONY RODRIGUEZ PORRAS | +57 321 563 5065 | Kotrik & Rosas |  | REMOMEC |  |  |  |  |  | 21.74 |  |  | 21.74 |  |  |  |  |  |  |  | 
+Row 3: 46052 | E0784 | ELEOTERIO ESPINOZA HERRER | +51 928 757 698 | Kotrik & Rosas |  | DBIZ INSTALACIONES Y SERV |  |  |  | 97.9 |  |  |  |  | 97.9 |  | NO TIENE HORAS EN ENERO |  |  |  |  |  | 
+Row 4: 46064 | E1673 | CRISTIAN CAMILO CABALLERO | +57 317 837 0960 | Kotrik & Rosas |  |  |  |  |  |  |  | 21.74 |  |  | 21.74 |  |  |  |  |  |  | LM | 
+Row 5: 46052 | E0801 | CARLOS MITCHELL SANTOS RO | +34 666 49 02 43 | Kotrik & Rosas |  | ELYTT ENEGY S.L |  |  |  | 148.97 |  | 21.74 |  |  | 148.97 | SI |  |  |  |  | WS |  | 
+
+--- SHEET: Alojamentos ---
+Row 0: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |  | 12
+Row 1: COD | EMPRESA | COLABORADOR | PAIS | LOCALIDAD | Nº PEDIDO | CLIENTE | FECHA INICIO | FECHA FIN  | TOTAL DIAS PROYECTO | COSTO FIJO  | revisao | TIPO ALOJAMIENTO | OBSERVACIONES | ESTATUS | Revisao2 | Columna7 | KI | KR | WS | LM | Columna8
+Row 2: E0194 | LUMINOUS ALLEY LDA | ALAN FRANCISCO NAVAS DIAZ | ESPAÑA | BURGOS | 2024/219 | DOHERCO MIRANDA SL | 46023 | 46052 | 30 | 300 | PROPIO |  | EN CURSO |  |  |  |  | KR |  |  | 
+Row 3: E0272 | WISEOWE, LDA | ALBEIRO OBANDO MICOLTA | ESPAÑA | VALLADOLID | RU2025/017/2024/246 | GRUPO FERRERAS SL | 46023 | 46052 | 30 | 300 | PROPIO | Cuando tengan que permane | EN CURSO |  |  |  |  |  | Ws |  | 
+Row 4: E0254 | LUMINOUS ALLEY LDA | ALIRIO ORTIZ MOLINA | ESPAÑA | BARCELONA | 2026/671 | BACHILLER | 46029 | 46052 | 24 | 240 | PROPIO |  | EN CURSO |  |  |  |  |  |  | LM | 
+Row 5: E2079 | WISEOWE, LDA | ALVARO JAVIER NARVAEZ MUÑ | ESPAÑA  | VALLADOLID | 2025/333 | GRUPO FERRERAS SL | 46023 | 46052 | 30 | 300 | PROPIO |  | EN CURSO |  |  |  |  |  | Ws |  | 
+
+--- SHEET: Carro ---
+Row 1: Cod | Nome | Valor | Columna1 | Columna2 | Columna3 | Columna4
+Row 2: E0406 | ALAN GERSON RAMIREZ ACARO | 106.66666666666667 |  |  |  | LM
+Row 3: E2098 | ALEXANDER GUZMAN | 10 |  |  |  | LM
+Row 4: E2074 | ALEXIS ENRIQUE MORENO ARR | 84.44444444444444 |  |  |  | LM
+Row 5: E0565 | ALVARO FIGUEROA ARANGO | 111.11111111111111 |  |  | WS | 
+
+--- SHEET: Altas Rosas ---
+Row 0:  | Ativo Segurança Social Ko
+Row 1: Columna1 | Nombre | Columna2 | Início vínculo | Fim vínculo
+Row 2: E0194 | ALAN FRANCISCO NAVAS DIAZ |  | 45761 | 46053
+Row 3: E2079 | ALVARO JAVIER NARVAEZ MUÑ |  | 45827 | 46052
+Row 4: E0359 | ANDRES FELIPE GOMEZ PUERT |  | 45852 | 46052
+Row 5: E0195 | BLADIMIRO DIAZ MARTINEZ |  | 45761 | 46053
+
+--- SHEET: Altas Luminous ---
+Row 2: Columna1 | Nome trabalhador | Início vínculo | Fim vínculo
+Row 3: E2098 | ALEXANDER GUZMAN | 46051
+Row 4: E0254 | ALIRIO ORTIZ MOLINA | 46030
+Row 5: E0622 | BREINER MOLINA PELAEZ | 45942
+
+--- SHEET: Altas Wiseowe ---
+Row 2: Columna1 | Nome trabalhador | Início vínculo | Fim vínculo
+Row 3: E0272 | ALBEIRO OBANDO MICOLTA | 45945
+Row 4: E0386 | ALEXANDER MANUEL LOPEZ RO | 45939
+Row 5:  | ANA LUIZA TAVARES LARA | 45819
+
+--- SHEET: Altas Industrial ---
+Row 1: Columna1 | Nome trabalhador | Início vínculo | Fim vínculo
+Row 2: E0388 | ALEX DAVID GOMEZ VILLADA | 45762 | 46052
+Row 3: E0166 | ALVARO ENRIQUE ROJAS DE L | 45762 | 46053
+Row 4: E0277 | CAMILO ANDRES VALERO PERE | 45762 | 46053
+Row 5: E1895 | DAMIAN ZAMBRANO TULANDE | 45762 | 46052
+

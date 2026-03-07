@@ -11,6 +11,13 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import {
     Form,
     FormControl,
     FormField,
@@ -27,9 +34,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Edit2 } from 'lucide-react';
+import { Loader2, Edit2, Wallet } from 'lucide-react';
 import type { Worker } from '@/shared/types/corePersonal';
 import { useUpdateWorker } from '../hooks/useUpdateWorker';
+import { useWorkerBeneficios } from '../hooks/useWorkerBeneficios';
+import { useUpdateWorkerBeneficios } from '../hooks/useUpdateWorkerBeneficios';
 import { useTranslation } from 'react-i18next';
 
 const formSchema = z.object({
@@ -47,6 +56,11 @@ const formSchema = z.object({
     nuss: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     status_trabajador: z.string().optional().nullable(),
     status_seguridad: z.string().optional().nullable(),
+    // Beneficios fields
+    iban: z.string().optional().nullable(),
+    tarifa_hora: z.coerce.number().min(0).default(0),
+    recebe_auxilio_moradia: z.boolean().default(false),
+    auxilio_moradia_base: z.coerce.number().min(0).default(300),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -58,7 +72,13 @@ interface EditWorkerDialogProps {
 export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
-    const { mutate: updateWorker, isPending } = useUpdateWorker();
+    const [activeTab, setActiveTab] = useState("basico");
+
+    const { mutate: updateWorker, isPending: isUpdatingWorker } = useUpdateWorker();
+    const { mutate: updateBeneficios, fallsBase: isUpdatingBeneficios } = useUpdateWorkerBeneficios();
+    const { data: beneficios, isLoading: isLoadingBeneficios } = useWorkerBeneficios(worker.id);
+
+    const isPending = isUpdatingWorker; // We'll just track worker pending for the button state as it's the main action
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -77,8 +97,22 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nuss: worker.nuss || "",
             status_trabajador: worker.status_trabajador || "",
             status_seguridad: worker.status_seguridad || "",
+            iban: "",
+            tarifa_hora: 0,
+            recebe_auxilio_moradia: false,
+            auxilio_moradia_base: 300,
         },
     });
+
+    // Sync fetched beneficios into form when loaded
+    useEffect(() => {
+        if (beneficios && open) {
+            form.setValue('iban', beneficios.iban || "");
+            form.setValue('tarifa_hora', beneficios.tarifa_hora || 0);
+            form.setValue('recebe_auxilio_moradia', beneficios.recebe_auxilio_moradia || false);
+            form.setValue('auxilio_moradia_base', beneficios.auxilio_moradia_base ?? 300);
+        }
+    }, [beneficios, open, form]);
 
     // Reset values when opened with new external props
     useEffect(() => {
@@ -98,7 +132,12 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 nuss: worker.nuss || "",
                 status_trabajador: worker.status_trabajador || "",
                 status_seguridad: worker.status_seguridad || "",
+                iban: beneficios?.iban || "",
+                tarifa_hora: beneficios?.tarifa_hora || 0,
+                recebe_auxilio_moradia: beneficios?.recebe_auxilio_moradia || false,
+                auxilio_moradia_base: beneficios?.auxilio_moradia_base ?? 300,
             });
+            setActiveTab("basico");
         }
     }, [open, worker, form]);
 
@@ -122,7 +161,18 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             status_seguridad: values.status_seguridad || null,
         }, {
             onSuccess: () => {
-                setOpen(false);
+                // Now save Beneficios
+                updateBeneficios({
+                    worker_id: worker.id,
+                    iban: values.iban || null,
+                    tarifa_hora: values.tarifa_hora,
+                    recebe_auxilio_moradia: values.recebe_auxilio_moradia,
+                    auxilio_moradia_base: values.auxilio_moradia_base
+                }, {
+                    onSuccess: () => {
+                        setOpen(false);
+                    }
+                });
             }
         });
     };
@@ -145,241 +195,344 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
 
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="nome"
-                                render={({ field }) => (
-                                    <FormItem className="md:col-span-3">
-                                        <FormLabel>{t('editWorker.fields.name')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.name')} {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 mb-4">
+                                <TabsTrigger value="basico">Informações Básicas</TabsTrigger>
+                                <TabsTrigger value="beneficios">
+                                    <Wallet className="w-4 h-4 mr-2" />
+                                    Benefícios & Folha
+                                </TabsTrigger>
+                            </TabsList>
 
-                            <FormField
-                                control={form.control}
-                                name="status_trabajador"
-                                render={({ field }) => (
-                                    <FormItem className="md:col-span-1">
-                                        <FormLabel>{t('editWorker.fields.workerStatus')}</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('editWorker.placeholders.select')} />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Ativo">{t('editWorker.status.active')}</SelectItem>
-                                                <SelectItem value="Inativo">{t('editWorker.status.inactive')}</SelectItem>
-                                                <SelectItem value="Pendente Ingresso">{t('editWorker.status.pendingEntry')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <TabsContent value="basico" className="space-y-4 mt-0">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="nome"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-3">
+                                                <FormLabel>{t('editWorker.fields.name')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.name')} {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
-                            <FormField
-                                control={form.control}
-                                name="status_seguridad"
-                                render={({ field }) => (
-                                    <FormItem className="md:col-span-2">
-                                        <FormLabel>{t('editWorker.fields.securityStatus')}</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('editWorker.placeholders.select')} />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Alta">{t('editWorker.security.alta')}</SelectItem>
-                                                <SelectItem value="Pendente Alta">{t('editWorker.security.pendingAlta')}</SelectItem>
-                                                <SelectItem value="Baixa">{t('editWorker.security.baixa')}</SelectItem>
-                                                <SelectItem value="Pendente Baixa">{t('editWorker.security.pendingBaixa')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                    <FormField
+                                        control={form.control}
+                                        name="status_trabajador"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-1">
+                                                <FormLabel>{t('editWorker.fields.workerStatus')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.select')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="Ativo">{t('editWorker.status.active')}</SelectItem>
+                                                        <SelectItem value="Inativo">{t('editWorker.status.inactive')}</SelectItem>
+                                                        <SelectItem value="Pendente Ingresso">{t('editWorker.status.pendingEntry')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="status_seguridad"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel>{t('editWorker.fields.securityStatus')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.select')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="Alta">{t('editWorker.security.alta')}</SelectItem>
+                                                        <SelectItem value="Pendente Alta">{t('editWorker.security.pendingAlta')}</SelectItem>
+                                                        <SelectItem value="Baixa">{t('editWorker.security.baixa')}</SelectItem>
+                                                        <SelectItem value="Pendente Baixa">{t('editWorker.security.pendingBaixa')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
 
-                            <FormField
-                                control={form.control}
-                                name="movil"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.mobile')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.mobile')} {...field} value={field.value || ''} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.email')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.email')} {...field} value={field.value || ''} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                                    <FormField
+                                        control={form.control}
+                                        name="movil"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.mobile')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.mobile')} {...field} value={field.value || ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.email')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.email')} {...field} value={field.value || ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                            <FormField
-                                control={form.control}
-                                name="nacionalidade"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.nationality')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.nationality')} {...field} value={field.value || ''} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="fecha_nacimiento"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.birthDate')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.birthDate')} {...field} value={field.value || ''} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                                    <FormField
+                                        control={form.control}
+                                        name="nacionalidade"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.nationality')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.nationality')} {...field} value={field.value || ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="fecha_nacimiento"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.birthDate')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.birthDate')} {...field} value={field.value || ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
-                        <div>
-                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsPt')}</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="niss"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>NISS</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={t('editWorker.placeholders.niss')} {...field} value={field.value || ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="nif"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>NIF</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={t('editWorker.placeholders.nif')} {...field} value={field.value || ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        </div>
+                                <div>
+                                    <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsPt')}</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="niss"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>NISS</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder={t('editWorker.placeholders.niss')} {...field} value={field.value || ''} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="nif"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>NIF</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder={t('editWorker.placeholders.nif')} {...field} value={field.value || ''} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
 
-                        <div>
-                            <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsEs')}</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="dni"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>DNI</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={t('editWorker.placeholders.dni')} {...field} value={field.value || ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="nie"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>NIE</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={t('editWorker.placeholders.nie')} {...field} value={field.value || ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="nuss"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>NUSS</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={t('editWorker.placeholders.nuss')} {...field} value={field.value || ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        </div>
+                                <div>
+                                    <h4 className="text-sm font-medium text-muted-foreground mt-4 mb-2">{t('editWorker.fields.docsEs')}</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="dni"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>DNI</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder={t('editWorker.placeholders.dni')} {...field} value={field.value || ''} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="nie"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>NIE</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder={t('editWorker.placeholders.nie')} {...field} value={field.value || ''} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="nuss"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>NUSS</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder={t('editWorker.placeholders.nuss')} {...field} value={field.value || ''} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
-                            <FormField
-                                control={form.control}
-                                name="pasaporte"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.passport')}</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={t('editWorker.placeholders.passport')} {...field} value={field.value || ''} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
+                                    <FormField
+                                        control={form.control}
+                                        name="pasaporte"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.passport')}</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder={t('editWorker.placeholders.passport')} {...field} value={field.value || ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="licencia_conducir"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.driversLicense')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.selectOption')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="Si">{t('editWorker.options.yes')}</SelectItem>
+                                                        <SelectItem value="No">{t('editWorker.options.no')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                            </TabsContent>
+
+                            <TabsContent value="beneficios" className="space-y-4 mt-0">
+                                {isLoadingBeneficios ? (
+                                    <div className="flex justify-center items-center py-8">
+                                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Dados Bancários</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="iban"
+                                                    render={({ field }) => (
+                                                        <FormItem className="md:col-span-2">
+                                                            <FormLabel>IBAN (Para Pagamentos)</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="Ex: ES44 0182 4388 1902 0186" {...field} value={field.value || ''} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t">
+                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Parâmetros de Holerite</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="tarifa_hora"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Tarifa Base (€ / Hora)</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="number" step="0.01" placeholder="Ex: 10.50" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t">
+                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Auxílio Moradia</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="recebe_auxilio_moradia"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                            <div className="space-y-0.5">
+                                                                <FormLabel className="text-base">Mora em Alojamento Próprio</FormLabel>
+                                                                <DialogDescription>
+                                                                    Se ativo, o trabalhador receberá o auxílio moradia no holerite proporcional aos dias trabalhados.
+                                                                </DialogDescription>
+                                                            </div>
+                                                            <FormControl>
+                                                                <Switch
+                                                                    checked={field.value}
+                                                                    onCheckedChange={field.onChange}
+                                                                />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+
+                                                {form.watch('recebe_auxilio_moradia') && (
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="auxilio_moradia_base"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Valor Base Auxílio Moradia (€)</FormLabel>
+                                                                <FormControl>
+                                                                    <Input type="number" step="0.01" placeholder="300.00" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="licencia_conducir"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{t('editWorker.fields.driversLicense')}</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('editWorker.placeholders.selectOption')} />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Si">{t('editWorker.options.yes')}</SelectItem>
-                                                <SelectItem value="No">{t('editWorker.options.no')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                            </TabsContent>
+                        </Tabs>
 
-                        <div className="flex justify-end space-x-2 pt-2">
+                        <div className="flex justify-end space-x-2 pt-2 border-t mt-6">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
                                 {t('editWorker.btnCancel')}
                             </Button>

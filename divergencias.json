@@ -1,0 +1,20 @@
+{
+  "BACHILLER": {
+    "sistema_ativos": 0,
+    "excel_ativos": 0,
+    "no_excel_mas_sem_sistema": [],
+    "no_sistema_mas_sem_excel": []
+  },
+  "HGL": {
+    "sistema_ativos": 0,
+    "excel_ativos": 0,
+    "no_excel_mas_sem_sistema": [],
+    "no_sistema_mas_sem_excel": []
+  },
+  "CORDOBA": {
+    "sistema_ativos": 0,
+    "excel_ativos": 0,
+    "no_excel_mas_sem_sistema": [],
+    "no_sistema_mas_sem_excel": []
+  }
+}

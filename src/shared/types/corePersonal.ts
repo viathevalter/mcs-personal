@@ -23,6 +23,16 @@ export interface Worker {
     created_at: string;
 }
 
+export interface WorkerBeneficiosSettings {
+    worker_id: string;
+    iban: string | null;
+    tarifa_hora: number;
+    recebe_auxilio_moradia: boolean;
+    auxilio_moradia_base: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface HousingBenefit {
     id: string;
     empresa_id: string;

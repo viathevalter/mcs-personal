@@ -1,0 +1,15 @@
+{
+  "totalExcelActivos": 29,
+  "totalDB": 26,
+  "missingInSystem_Quantidade": 4,
+  "missingInSystem": [
+    "CARLOS JULIO LOZANO SIERRA",
+    "FREDDY ANDRES BAYONA CASTRO",
+    "LUIS ALFREDO MALAVER CARDENAS",
+    "REMY SENNDER FARIAS ACARO"
+  ],
+  "missingInExcel_Quantidade": 1,
+  "missingInExcel": [
+    "GONZALO QUINTANA PIMIENTO"
+  ]
+}
