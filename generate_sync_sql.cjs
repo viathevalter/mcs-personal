@@ -31,11 +31,11 @@ if (headerRowIndex === -1) {
 const headers = rawData[headerRowIndex];
 let sql = `
 -- Script to bulk update workers and seguridade_status
-BEGIN;
 
 `;
 
 let updateCount = 0;
+const workerUpdates = {};
 
 for (let i = headerRowIndex + 1; i < rawData.length; i++) {
     const row = rawData[i];
@@ -59,11 +59,24 @@ for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         newSeg = 'Anulado'; // Force out of pending status for inactive workers
     }
 
-    // Generate update statement for the worker
-    if (newTrab !== undefined || newSeg !== undefined) {
+    const isActive = newTrab && (newTrab.toLowerCase() === 'ativo' || newTrab.toLowerCase() === 'activo');
+
+    if (!workerUpdates[codColab]) {
+        workerUpdates[codColab] = { trab: newTrab, seg: newSeg, isActive: isActive };
+    } else {
+        // If this row is Activo and previous wasn't, override it completely
+        if (isActive && !workerUpdates[codColab].isActive) {
+            workerUpdates[codColab] = { trab: newTrab, seg: newSeg, isActive: isActive };
+        }
+    }
+}
+
+// Generate update statements for each unique worker
+for (const [codColab, updates] of Object.entries(workerUpdates)) {
+    if (updates.trab !== undefined || updates.seg !== undefined) {
         let sets = [];
-        if (newTrab !== undefined) sets.push(`status_trabajador = ${escapeSql(newTrab)}`);
-        if (newSeg !== undefined) sets.push(`status_seguridad = ${escapeSql(newSeg)}`);
+        if (updates.trab !== undefined) sets.push(`status_trabajador = ${escapeSql(updates.trab)}`);
+        if (updates.seg !== undefined) sets.push(`status_seguridad = ${escapeSql(updates.seg)}`);
 
         if (sets.length > 0) {
             sql += `UPDATE core_personal.workers SET ${sets.join(', ')} WHERE cod_colab = ${escapeSql(codColab)};\n`;
@@ -104,7 +117,6 @@ WHERE (w.status_seguridad ILIKE '%pendente baixa%' OR w.status_seguridad ILIKE '
       WHERE ss.worker_id = w.id AND ss.status = 'pendente' AND ss.tipo_evento = 'baixa'
   );
 
-COMMIT;
 `;
 
 fs.writeFileSync('sync.sql', sql);

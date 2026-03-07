@@ -6,14 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, ArrowRight, CheckCircle2, AlertCircle, LayoutGrid, List } from 'lucide-react';
+import { Loader2, Search, ArrowRight, CheckCircle2, AlertCircle, LayoutGrid, List, Users, ShieldCheck } from 'lucide-react';
 import type { SeguridadeStatusWithWorker } from '@/shared/types/corePersonal';
+import { useClientWorkerKpis } from '../workers/hooks/useClientWorkerKpis';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useDebounce } from '@/shared/hooks/useDebounce';
 
 export function SeguridadePage() {
+    const { selectedEmpresaId } = useEmpresa();
     const { data: statuses, isLoading, isError } = useSeguridadeList();
     const [searchTerm, setSearchTerm] = useState('');
     const [clienteFilter, setClienteFilter] = useState('all');
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+
+    // Debounce search term to avoid spamming the DB
+    const debouncedSearch = useDebounce(searchTerm, 400);
+
+    // Fetch KPIs using the same logic as the Workers page
+    const { data: kpis, isLoading: kpisLoading } = useClientWorkerKpis(
+        selectedEmpresaId || '',
+        debouncedSearch || null,
+        clienteFilter === 'all' ? null : clienteFilter,
+        null,
+        null
+    );
 
     if (isLoading) {
         return (
@@ -118,6 +134,43 @@ export function SeguridadePage() {
                         Lista
                     </Button>
                 </div>
+            </div>
+
+            {/* KPIs Section */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="shadow-sm border-l-4 border-l-primary hover:bg-muted/50 transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                        <CardTitle className="text-sm font-medium uppercase text-muted-foreground">
+                            Total Ativos
+                        </CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="text-2xl font-bold">
+                            {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : kpis?.ativos || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Trabalhadores na empresa
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="shadow-sm border-l-4 border-l-emerald-500 hover:bg-muted/50 transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                        <CardTitle className="text-sm font-medium uppercase text-muted-foreground">
+                            Ativos de Alta
+                        </CardTitle>
+                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="text-2xl font-bold text-emerald-600">
+                            {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-500/50" /> : kpis?.seguridade_alta || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Completamente regularizados
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             {viewMode === 'kanban' ? (
