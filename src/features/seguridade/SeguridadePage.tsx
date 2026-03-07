@@ -171,6 +171,23 @@ export function SeguridadePage() {
                         </p>
                     </CardContent>
                 </Card>
+
+                <Card className="shadow-sm border-l-4 border-l-amber-500 hover:bg-muted/50 transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                        <CardTitle className="text-sm font-medium uppercase text-muted-foreground" title="Pendente de Alta">
+                            Pendente de Alta
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="text-2xl font-bold text-amber-600">
+                            {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-amber-500/50" /> : kpis?.seguridade_pendente_alta || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Aguardando documentação (Alta ou Baixa)
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             {viewMode === 'kanban' ? (
