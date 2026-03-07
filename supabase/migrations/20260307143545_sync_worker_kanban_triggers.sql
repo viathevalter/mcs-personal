@@ -10,7 +10,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_tipo_evento core_personal.tipo_evento_seguridade;
+    v_tipo_evento text;
 BEGIN
     -- Se o status mudou para algo pendente
     IF NEW.status_seguridad IS DISTINCT FROM OLD.status_seguridad THEN
