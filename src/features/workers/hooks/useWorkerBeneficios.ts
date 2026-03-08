@@ -11,7 +11,8 @@ export function useWorkerBeneficios(workerId: string) {
             if (!workerId) return null;
 
             const { data, error } = await supabase
-                .from('core_personal.worker_beneficios_settings')
+                .schema('core_personal')
+                .from('worker_beneficios_settings')
                 .select('*')
                 .eq('worker_id', workerId)
                 .maybeSingle();

@@ -13,7 +13,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Search, ChevronLeft, ChevronRight, Loader2, Users, ShieldAlert, Building, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Loader2, Users, ShieldAlert, Building, ArrowUpDown, ArrowUp, ArrowDown, DownloadCloud } from 'lucide-react';
 
 import { useUniqueContratantes } from './hooks/useUniqueContratantes';
 import { useUniqueFunciones } from './hooks/useUniqueFunciones';
@@ -25,6 +25,7 @@ import {
     CardContent,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ImportTarifasDialog } from './components/ImportTarifasDialog';
 import { useTranslation } from 'react-i18next';
 
 export function WorkersPage() {
@@ -111,6 +112,17 @@ export function WorkersPage() {
             )}
 
             {/* Controls section */}
+            <div className="flex justify-between items-center w-full mb-3 shrink-0">
+                <h2 className="text-lg font-semibold">{t('workersPage.title')}</h2>
+                <div className="flex gap-2">
+                    <ImportTarifasDialog trigger={
+                        <Button variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                            <DownloadCloud className="mr-2 h-4 w-4" />
+                            Importar Tarifas (Excel)
+                        </Button>
+                    } />
+                </div>
+            </div>
             <div className="w-full mb-2 shrink-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full">
                     <div className="relative w-full sm:col-span-2 flex flex-col sm:flex-row items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">

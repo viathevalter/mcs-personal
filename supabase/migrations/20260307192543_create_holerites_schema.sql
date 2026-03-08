@@ -27,7 +27,7 @@ END $$;
 -- Holerites Table
 CREATE TABLE IF NOT EXISTS core_personal.holerites (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+    empresa_id BIGINT NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
     worker_id UUID NOT NULL REFERENCES core_personal.workers(id) ON DELETE CASCADE,
     mes_referencia DATE NOT NULL,
     horas_trabalhadas NUMERIC(10, 2) DEFAULT 0,
