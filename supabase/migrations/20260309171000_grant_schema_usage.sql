@@ -1,0 +1,14 @@
+GRANT USAGE ON SCHEMA core_personal TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA core_common TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA core_personal TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA core_personal TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA core_personal TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA core_common TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA core_common TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA core_common TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_personal GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_personal GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_personal GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_common GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_common GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA core_common GRANT ALL ON ROUTINES TO anon, authenticated, service_role;

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, CarFront, Landmark, Banknote, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Users, UserCog, LayoutDashboard, CarFront, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
@@ -24,8 +24,9 @@ export function Sidebar() {
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
         { to: '/holerites', tKey: 'Folha de Pagamento', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/benefits', tKey: 'navigation.benefits', icon: CarFront, roles: ['admin', 'rh'] },
-        { to: '/ledger', tKey: 'navigation.ledger', icon: Landmark, roles: ['admin', 'finance'] },
-        { to: '/settlements', tKey: 'navigation.settlements', icon: Banknote, roles: ['admin', 'finance'] },
+        { to: '/discounts', tKey: 'Gestão de Descontos', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
+        { to: '/taxes', tKey: 'Configuração de Impostos', icon: Calculator, roles: ['admin', 'finance'] },
+        { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
         { to: '/documents', tKey: 'navigation.documents', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/admin/users', tKey: 'navigation.access', icon: UserCog, roles: ['admin'] },
     ];

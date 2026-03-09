@@ -1,0 +1,1333 @@
+﻿
+> src/features/workers/components/EditWorkerDialog.tsx(90,9): 
+error TS2322: Type 'Resolver<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; auxilio_moradia_base?: 
+string | ... 1 more ... | undefined; }, any, { ...; }>' is not 
+assignable to type 'Resolver<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, { ...; }>'.
+    Types of parameters 'options' and 'options' are incompatible.
+      Type 'ResolverOptions<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }>' is not assignable to type 'ResolverOptions<{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; ... 9 more ...; 
+auxilio_moradia_base?: string | ... 1 more ... | undefined; }>'.
+        Type 'unknown' is not assignable to type 'number'.
+> src/features/workers/components/EditWorkerDialog.tsx(238,55): 
+error TS2345: Argument of type '(values: FormValues) => void' is 
+not assignable to parameter of type 'SubmitHandler<TFieldValues>'.
+    Types of parameters 'values' and 'data' are incompatible.
+      Type 'TFieldValues' is not assignable to type '{ nome: 
+string; email: string; movil: string | null; niss: string | null; 
+nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+        Type 'FieldValues' is missing the following properties 
+from type '{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; 
+tarifa_hora: number; ... 8 more ...; banco?: string | ... 1 more 
+... | undefined; }': nome, email, movil, niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(251,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(265,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(288,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(313,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(326,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(342,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(355,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(373,45): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(386,45): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(405,45): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(418,45): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(431,45): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(448,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(461,41): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(496,53): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(509,53): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(543,53): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(562,53): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+> src/features/workers/components/EditWorkerDialog.tsx(584,57): 
+error TS2322: Type 'Control<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Control<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+    The types of '_options.resolver' are incompatible between 
+these types.
+      Type 'Resolver<{ nome: string; email: string; movil: string 
+| null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, TFieldValues> | undefined' is not assignable 
+to type 'Resolver<{ nome: string; email: string; movil: string | 
+null; niss: string | null; nif: string | null; nie: string | 
+null; dni: string | null; pasaporte: string | null; nuss: string 
+| null; ... 9 more ...; banco?: string | ... 1 more ... | 
+undefined; }, any, { ...; }> | undefined'.
+        Type 'Resolver<{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, any, TFieldValues>' is not assignable to type 
+'Resolver<{ nome: string; email: string; movil: string | null; 
+niss: string | null; nif: string | null; nie: string | null; dni: 
+string | null; pasaporte: string | null; nuss: string | null; ... 
+9 more ...; banco?: string | ... 1 more ... | undefined; }, any, 
+{ ...; }>'.
+          Type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, TFieldValues> | Promise<...>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+            Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverResult<{ nome: string; email: string; 
+movil: string | null; niss: string | null; nif: string | null; 
+nie: string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; ... 9 more ...; banco?: string | ... 1 more 
+... | undefined; }, { ...; }> | Promise<...>'.
+              Type 'ResolverSuccess<TFieldValues>' is not 
+assignable to type 'ResolverSuccess<{ nome: string; email: 
+string; movil: string | null; niss: string | null; nif: string | 
+null; nie: string | null; dni: string | null; pasaporte: string | 
+null; nuss: string | null; ... 9 more ...; banco?: string | ... 1 
+more ... | undefined; }>'.
+                Type 'TFieldValues' is not assignable to type '{ 
+nome: string; email: string; movil: string | null; niss: string | 
+null; nif: string | null; nie: string | null; dni: string | null; 
+pasaporte: string | null; nuss: string | null; tarifa_hora: 
+number; ... 8 more ...; banco?: string | ... 1 more ... | 
+undefined; }'.
+                  Type 'FieldValues' is missing the following 
+properties from type '{ nome: string; email: string; movil: 
+string | null; niss: string | null; nif: string | null; nie: 
+string | null; dni: string | null; pasaporte: string | null; 
+nuss: string | null; tarifa_hora: number; ... 8 more ...; banco?: 
+string | ... 1 more ... | undefined; }': nome, email, movil, 
+niss, and 8 more.
+
+

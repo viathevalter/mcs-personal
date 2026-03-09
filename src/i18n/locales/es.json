@@ -4,7 +4,8 @@
         "workers": "Trabajadores",
         "socialSecurity": "Seguridad Social",
         "benefits": "Beneficios",
-        "ledger": "Cuenta Corriente",
+        "bankAccounts": "Cuenta Corriente",
+        "ledger": "Ledger / Cajas",
         "settlements": "Liquidaciones",
         "documents": "Documentos",
         "mainMenu": "Menú Principal",
@@ -166,7 +167,11 @@
         },
         "btnCancel": "Cancelar",
         "btnSave": "Guardar",
-        "btnSaving": "Guardando..."
+        "btnSaving": "Guardando...",
+        "messages": {
+            "success": "¡Trabajador actualizado con éxito!",
+            "error": "Error al actualizar trabajador."
+        }
     },
     "hoursControl": {
         "title": "Control de Horas",

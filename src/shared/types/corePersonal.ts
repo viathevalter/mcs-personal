@@ -23,13 +23,17 @@ export interface Worker {
     created_at: string;
 }
 
+export interface WorkerWithHousing extends Worker {
+    housing_benefit?: HousingBenefit | null;
+}
+
 export interface WorkerBeneficiosSettings {
     worker_id: string;
     iban: string | null;
     banco: string | null;
     tarifa_hora: number;
-    recebe_auxilio_moradia: boolean;
-    auxilio_moradia_base: number;
+    recebe_auxilio_moradia?: boolean;
+    auxilio_moradia_base?: number;
     created_at?: string;
     updated_at?: string;
 }

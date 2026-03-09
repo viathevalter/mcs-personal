@@ -6,7 +6,7 @@ import { BENEFICIOS_HISTORY_QUERY_KEY } from './useWorkerBeneficiosHistory';
 import { toast } from 'sonner';
 
 export type AuditPayload = {
-    change_type: 'iban_update' | 'tarifa_update';
+    change_type: 'iban_update' | 'tarifa_update' | 'auxilio_update' | 'auxilio_base_update' | string;
     old_value: string | null;
     new_value: string | null;
     documentFile?: File | null;
@@ -66,7 +66,8 @@ export function useUpdateWorkerBeneficios() {
 
                     // Insert History Log
                     const { error: historyError } = await supabase
-                        .from('core_personal.worker_beneficios_history')
+                        .schema('core_personal')
+                        .from('worker_beneficios_history')
                         .insert({
                             worker_id: settings.worker_id,
                             changed_by: userData.user.id,
@@ -87,9 +88,10 @@ export function useUpdateWorkerBeneficios() {
             queryClient.invalidateQueries({ queryKey: [BENEFICIOS_QUERY_KEY, vars.settings.worker_id] });
             queryClient.invalidateQueries({ queryKey: [BENEFICIOS_HISTORY_QUERY_KEY, vars.settings.worker_id] });
         },
-        onError: (error) => {
+        onError: (error: any) => {
             console.error('Error updating beneficios:', error);
-            toast.error('Erro ao guardar os benefícios.');
+            const errMsg = error?.message || error?.error_description || JSON.stringify(error) || 'Desconhecido';
+            toast.error(`Erro ao guardar: ${errMsg}`);
         }
     });
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +16,6 @@ import {
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import {
     Form,
     FormControl,
@@ -34,15 +33,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Edit2, Wallet, FileText, Download } from 'lucide-react';
+import { Loader2, Edit2, Wallet, FileText, BadgeDollarSign } from 'lucide-react';
 import type { Worker } from '@/shared/types/corePersonal';
 import { useUpdateWorker } from '../hooks/useUpdateWorker';
-import { useWorkerBeneficios } from '../hooks/useWorkerBeneficios';
-import { useWorkerBeneficiosHistory } from '../hooks/useWorkerBeneficiosHistory';
-import { useUpdateWorkerBeneficios, type AuditPayload } from '../hooks/useUpdateWorkerBeneficios';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { BenefitsTab, type BenefitsTabRef } from './BenefitsTab';
+import { BankTab, type BankTabRef } from './BankTab';
+import { DiscountsTab } from './tabs/DiscountsTab';
 
 const formSchema = z.object({
     nome: z.string().min(3, { message: "O nome deve ter no mínimo 3 caracteres." }),
@@ -59,12 +57,6 @@ const formSchema = z.object({
     nuss: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     status_trabajador: z.string().optional().nullable(),
     status_seguridad: z.string().optional().nullable(),
-    // Beneficios fields
-    iban: z.string().optional().nullable(),
-    banco: z.string().optional().nullable(),
-    tarifa_hora: z.coerce.number().min(0).default(0),
-    recebe_auxilio_moradia: z.boolean().default(false),
-    auxilio_moradia_base: z.coerce.number().default(300),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -77,14 +69,11 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("basico");
-    const [documentFile, setDocumentFile] = useState<File | null>(null);
+    const benefitsTabRef = useRef<BenefitsTabRef>(null);
+    const bankTabRef = useRef<BankTabRef>(null);
 
     const { mutate: updateWorker, isPending: isUpdatingWorker } = useUpdateWorker();
-    const { mutate: updateBeneficios, isPending: isUpdatingBeneficios } = useUpdateWorkerBeneficios();
-    const { data: beneficios, isLoading: isLoadingBeneficios } = useWorkerBeneficios(worker.id);
-    const { data: historyLogs, isLoading: isLoadingHistory } = useWorkerBeneficiosHistory(worker.id);
-
-    const isPending = isUpdatingWorker || isUpdatingBeneficios; // We'll just track worker pending for the button state as it's the main action
+    const isPending = isUpdatingWorker;
 
     const form = useForm({
         resolver: zodResolver(formSchema),
@@ -103,24 +92,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nuss: worker.nuss || "",
             status_trabajador: worker.status_trabajador || "",
             status_seguridad: worker.status_seguridad || "",
-            iban: "",
-            banco: "",
-            tarifa_hora: 0,
-            recebe_auxilio_moradia: false,
-            auxilio_moradia_base: 300,
         },
     });
-
-    // Sync fetched beneficios into form when loaded
-    useEffect(() => {
-        if (beneficios && open) {
-            form.setValue('iban', beneficios.iban || "");
-            form.setValue('banco', beneficios.banco || "");
-            form.setValue('tarifa_hora', beneficios.tarifa_hora || 0);
-            form.setValue('recebe_auxilio_moradia', beneficios.recebe_auxilio_moradia || false);
-            form.setValue('auxilio_moradia_base', beneficios.auxilio_moradia_base ?? 300);
-        }
-    }, [beneficios, open, form]);
 
     // Reset values when opened with new external props
     useEffect(() => {
@@ -140,14 +113,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 nuss: worker.nuss || "",
                 status_trabajador: worker.status_trabajador || "",
                 status_seguridad: worker.status_seguridad || "",
-                iban: beneficios?.iban || "",
-                banco: beneficios?.banco || "",
-                tarifa_hora: beneficios?.tarifa_hora || 0,
-                recebe_auxilio_moradia: beneficios?.recebe_auxilio_moradia || false,
-                auxilio_moradia_base: beneficios?.auxilio_moradia_base ?? 300,
             });
             setActiveTab("basico");
-            setDocumentFile(null);
         }
     }, [open, worker, form]);
 
@@ -171,49 +138,24 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             status_seguridad: values.status_seguridad || null,
         }, {
             onSuccess: () => {
-                const audits: AuditPayload[] = [];
-                const oldIban = beneficios?.iban || "";
-                const newIban = values.iban || "";
-                const oldTarifa = beneficios?.tarifa_hora || 0;
-                const newTarifa = values.tarifa_hora || 0;
-
-                if (newIban !== oldIban) {
-                    if (!documentFile && newIban !== "") {
-                        toast.error("Documento de autorização é obrigatório ao alterar o IBAN.");
-                        return; // Stop here if no document
-                    }
-                    audits.push({
-                        change_type: 'iban_update',
-                        old_value: oldIban,
-                        new_value: newIban,
-                        documentFile: documentFile
-                    });
-                }
-
-                if (newTarifa !== oldTarifa) {
-                    audits.push({
-                        change_type: 'tarifa_update',
-                        old_value: oldTarifa.toString(),
-                        new_value: newTarifa.toString()
-                    });
-                }
-
-                updateBeneficios({
-                    settings: {
-                        worker_id: worker.id,
-                        iban: values.iban || null,
-                        banco: values.banco || null,
-                        tarifa_hora: values.tarifa_hora,
-                        recebe_auxilio_moradia: values.recebe_auxilio_moradia,
-                        auxilio_moradia_base: values.auxilio_moradia_base
-                    },
-                    audits
-                }, {
-                    onSuccess: () => {
+                if (activeTab === "beneficios" && benefitsTabRef.current) {
+                    benefitsTabRef.current.save().then(() => {
+                        toast.success(t('editWorker.messages.success'));
                         setOpen(false);
-                        setDocumentFile(null);
-                    }
-                });
+                    }).catch((err) => {
+                        console.error('Failed to save benefits synchronously', err);
+                    });
+                } else if (activeTab === "banco" && bankTabRef.current) {
+                    bankTabRef.current.save().then(() => {
+                        toast.success(t('editWorker.messages.success'));
+                        setOpen(false);
+                    }).catch((err) => {
+                        console.error('Failed to save bank info synchronously', err);
+                    });
+                } else {
+                    toast.success(t('editWorker.messages.success'));
+                    setOpen(false);
+                }
             }
         });
     };
@@ -235,13 +177,21 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                            <TabsList className="grid w-full grid-cols-2 mb-4">
+                            <TabsList className="grid w-full grid-cols-4 mb-4">
                                 <TabsTrigger value="basico">Informações Básicas</TabsTrigger>
-                                <TabsTrigger value="beneficios">
+                                <TabsTrigger value="banco">
                                     <Wallet className="w-4 h-4 mr-2" />
-                                    Benefícios & Folha
+                                    Conta Corrente
+                                </TabsTrigger>
+                                <TabsTrigger value="beneficios">
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Benefícios
+                                </TabsTrigger>
+                                <TabsTrigger value="descontos">
+                                    <BadgeDollarSign className="w-4 h-4 mr-2" />
+                                    Descontos
                                 </TabsTrigger>
                             </TabsList>
 
@@ -482,177 +432,18 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
 
                             </TabsContent>
 
+                            <TabsContent value="banco" className="space-y-4 mt-0">
+                                <BankTab workerId={worker.id} ref={bankTabRef} />
+                            </TabsContent>
+
                             <TabsContent value="beneficios" className="space-y-4 mt-0">
-                                {isLoadingBeneficios ? (
-                                    <div className="flex justify-center items-center py-8">
-                                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                                    </div>
-                                ) : (
-                                    <div className="space-y-6">
-                                        <div>
-                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Dados Bancários</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="iban"
-                                                    render={({ field }) => (
-                                                        <FormItem className="md:col-span-2">
-                                                            <FormLabel>IBAN (Para Pagamentos)</FormLabel>
-                                                            <FormControl>
-                                                                <Input placeholder="Ex: ES44 0182 4388 1902 0186" {...field} value={field.value || ''} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="banco"
-                                                    render={({ field }) => (
-                                                        <FormItem className="md:col-span-2">
-                                                            <FormLabel>Banco</FormLabel>
-                                                            <FormControl>
-                                                                <Input placeholder="Ex: Santander / BBVA" {...field} value={field.value || ''} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                {form.watch('iban') !== (beneficios?.iban || "") && form.watch('iban') !== "" && (
-                                                    <div className="md:col-span-2 space-y-2 p-4 bg-muted/50 rounded-lg border-l-4 border-warning">
-                                                        <FormLabel className="flex items-center text-warning-foreground font-semibold">
-                                                            <FileText className="w-4 h-4 mr-2" />
-                                                            Autorização de Mudança de Conta
-                                                        </FormLabel>
-                                                        <p className="text-xs text-muted-foreground">O IBAN foi alterado. Faça o upload do documento assinado pelo trabalhador autorizando a mudança (PDF ou Imagem).</p>
-                                                        <Input
-                                                            type="file"
-                                                            accept=".pdf,image/*"
-                                                            onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
-                                                            className="cursor-pointer"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                <div className="space-y-4">
+                                    <BenefitsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={true} ref={benefitsTabRef} />
+                                </div>
+                            </TabsContent>
 
-                                        <div className="pt-4 border-t">
-                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Parâmetros de Holerite</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="tarifa_hora"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>Tarifa Base (€ / Hora)</FormLabel>
-                                                            <FormControl>
-                                                                <Input type="number" step="0.01" placeholder="Ex: 10.50" {...field} value={field.value === undefined ? '' : String(field.value)} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="pt-4 border-t">
-                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Auxílio Moradia</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="recebe_auxilio_moradia"
-                                                    render={({ field }) => (
-                                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                                            <div className="space-y-0.5">
-                                                                <FormLabel className="text-base">Mora em Alojamento Próprio</FormLabel>
-                                                                <DialogDescription>
-                                                                    Se ativo, o trabalhador receberá o auxílio moradia no holerite proporcional aos dias trabalhados.
-                                                                </DialogDescription>
-                                                            </div>
-                                                            <FormControl>
-                                                                <Switch
-                                                                    checked={field.value}
-                                                                    onCheckedChange={field.onChange}
-                                                                />
-                                                            </FormControl>
-                                                        </FormItem>
-                                                    )}
-                                                />
-
-                                                {form.watch('recebe_auxilio_moradia') && (
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="auxilio_moradia_base"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel>Valor Base Auxílio Moradia (€)</FormLabel>
-                                                                <FormControl>
-                                                                    <Input type="number" step="0.01" placeholder="300.00" {...field} value={field.value === undefined ? '' : String(field.value)} />
-                                                                </FormControl>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="pt-4 border-t">
-                                            <h4 className="text-sm font-medium text-muted-foreground mb-4">Histórico de Alterações (IBAN & Tarifa)</h4>
-                                            {isLoadingHistory ? (
-                                                <div className="flex justify-center items-center py-4">
-                                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                                </div>
-                                            ) : historyLogs && historyLogs.length > 0 ? (
-                                                <div className="overflow-x-auto border rounded-md">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="bg-muted text-xs uppercase text-muted-foreground">
-                                                            <tr>
-                                                                <th className="px-4 py-3">Data</th>
-                                                                <th className="px-4 py-3">Tipo</th>
-                                                                <th className="px-4 py-3">Anterior</th>
-                                                                <th className="px-4 py-3">Novo</th>
-                                                                <th className="px-4 py-3 text-center">Doc</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y">
-                                                            {historyLogs.map((log) => (
-                                                                <tr key={log.id} className="hover:bg-muted/50">
-                                                                    <td className="px-4 py-2 whitespace-nowrap">
-                                                                        {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}
-                                                                    </td>
-                                                                    <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
-                                                                        {log.change_type === 'iban_update' ? 'IBAN' : 'Tarifa'}
-                                                                    </td>
-                                                                    <td className="px-4 py-2 text-muted-foreground max-w-[120px] truncate" title={log.old_value || '-'}>
-                                                                        {log.old_value || '-'}
-                                                                    </td>
-                                                                    <td className="px-4 py-2 font-medium max-w-[120px] truncate" title={log.new_value || '-'}>
-                                                                        {log.new_value || '-'}
-                                                                    </td>
-                                                                    <td className="px-4 py-2 text-center">
-                                                                        {log.document_url ? (
-                                                                            <Button variant="ghost" size="icon" asChild title="Abrir Documento">
-                                                                                <a href={log.document_url} target="_blank" rel="noreferrer">
-                                                                                    <Download className="w-4 h-4 text-primary" />
-                                                                                </a>
-                                                                            </Button>
-                                                                        ) : (
-                                                                            <span className="text-muted-foreground text-xs">-</span>
-                                                                        )}
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm text-muted-foreground text-center py-2">Nenhum histórico de alteração registrado.</p>
-                                            )}
-                                        </div>
-
-                                    </div>
-                                )}
+                            <TabsContent value="descontos" className="space-y-4 mt-0">
+                                <DiscountsTab workerId={worker.id} />
                             </TabsContent>
                         </Tabs>
 

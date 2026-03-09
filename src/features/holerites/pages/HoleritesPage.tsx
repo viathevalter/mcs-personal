@@ -38,6 +38,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { useWorkersForHolerites } from '../hooks/useWorkersForHolerites';
 import { useHoleriteEventos } from '../hooks/useHoleriteEventos';
 import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
+import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { ImportHorasDialog } from '../components/ImportHorasDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -271,7 +272,7 @@ export function HoleritesPage() {
                                             <TableCell className="text-right text-red-600 dark:text-red-500">
                                                 {descontos > 0 ? `- € ${descontos.toFixed(2)}` : '-'}
                                             </TableCell>
-                                            <TableCell className="text-right pr-6">
+                                            <TableCell className="text-right pr-6 space-x-2">
                                                 <HoleriteLancamentosSheet
                                                     worker={worker}
                                                     mesReferencia={mesReferencia}
@@ -280,6 +281,16 @@ export function HoleritesPage() {
                                                         <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
                                                             <Plus className="mr-1 h-4 w-4" />
                                                             Lançamentos
+                                                        </Button>
+                                                    }
+                                                />
+                                                <PreviewHoleriteDialog
+                                                    worker={worker}
+                                                    mesReferencia={mesReferencia}
+                                                    eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
+                                                    trigger={
+                                                        <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                                                            Visualizar
                                                         </Button>
                                                     }
                                                 />

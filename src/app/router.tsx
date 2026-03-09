@@ -4,11 +4,12 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { WorkersPage } from '../features/workers/WorkersPage';
 import { WorkerDetailsPage } from '../features/workers/WorkerDetailsPage';
 import { BenefitsPage } from '../features/benefits/BenefitsPage';
-import { LedgerPage } from '../features/ledger/LedgerPage';
-import { SettlementsPage } from '../features/settlements/SettlementsPage';
+import { TaxesPage } from '../features/taxes/pages/TaxesPage';
+import { DiscountsPage } from '../features/discounts/pages/DiscountsPage';
 import { DocumentsPage } from '../features/documents/DocumentsPage';
 import { SeguridadePage } from '../features/seguridade/SeguridadePage';
 import { HoleritesPage } from '../features/holerites/pages/HoleritesPage';
+import { BankAccountsPage } from '../features/bank-accounts/pages/BankAccountsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import UsersPage from '../features/admin/UsersPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
@@ -86,12 +87,16 @@ export const router = createBrowserRouter([
                         element: <BenefitsPage />,
                     },
                     {
-                        path: 'ledger',
-                        element: <LedgerPage />,
+                        path: 'bank-accounts',
+                        element: <BankAccountsPage />,
                     },
                     {
-                        path: 'settlements',
-                        element: <SettlementsPage />,
+                        path: 'discounts',
+                        element: <DiscountsPage />,
+                    },
+                    {
+                        path: 'taxes',
+                        element: <TaxesPage />,
                     },
                     {
                         path: 'documents',
