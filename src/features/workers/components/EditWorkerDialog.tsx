@@ -64,7 +64,7 @@ const formSchema = z.object({
     banco: z.string().optional().nullable(),
     tarifa_hora: z.coerce.number().min(0).default(0),
     recebe_auxilio_moradia: z.boolean().default(false),
-    auxilio_moradia_base: z.coerce.number().min(0).default(300),
+    auxilio_moradia_base: z.coerce.number().default(300),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -86,7 +86,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
 
     const isPending = isUpdatingWorker || isUpdatingBeneficios; // We'll just track worker pending for the button state as it's the main action
 
-    const form = useForm<FormValues>({
+    const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
             nome: worker.nome,
@@ -546,7 +546,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                                         <FormItem>
                                                             <FormLabel>Tarifa Base (€ / Hora)</FormLabel>
                                                             <FormControl>
-                                                                <Input type="number" step="0.01" placeholder="Ex: 10.50" {...field} />
+                                                                <Input type="number" step="0.01" placeholder="Ex: 10.50" {...field} value={field.value === undefined ? '' : String(field.value)} />
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
@@ -587,7 +587,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                                             <FormItem>
                                                                 <FormLabel>Valor Base Auxílio Moradia (€)</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" step="0.01" placeholder="300.00" {...field} />
+                                                                    <Input type="number" step="0.01" placeholder="300.00" {...field} value={field.value === undefined ? '' : String(field.value)} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
