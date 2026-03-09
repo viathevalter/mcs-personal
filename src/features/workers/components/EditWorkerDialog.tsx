@@ -144,6 +144,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                         setOpen(false);
                     }).catch((err) => {
                         console.error('Failed to save benefits synchronously', err);
+                        toast.error(err.message || 'Erro ao salvar benefícios');
                     });
                 } else if (activeTab === "banco" && bankTabRef.current) {
                     bankTabRef.current.save().then(() => {
@@ -151,6 +152,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                         setOpen(false);
                     }).catch((err) => {
                         console.error('Failed to save bank info synchronously', err);
+                        toast.error(err.message || 'Erro ao salvar informações bancárias');
                     });
                 } else {
                     toast.success(t('editWorker.messages.success'));
