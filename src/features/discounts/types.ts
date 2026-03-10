@@ -17,11 +17,13 @@ export type DiscountStatus = 'Ativo' | 'Pausado' | 'Concluído';
 export interface WorkerDiscount {
     id: string;
     worker_id: string;
+    empresa_id: string;
     category: DiscountCategory;
     amount: number;
     description: string | null;
     reference_date: string;
     is_recurring: boolean;
+    import_batch_id?: string | null;
     status: DiscountStatus;
     created_at: string;
     updated_at: string;

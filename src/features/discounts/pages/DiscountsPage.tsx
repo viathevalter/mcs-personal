@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR, es } from 'date-fns/locale';
-import { Search, FileSpreadsheet } from 'lucide-react';
+import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -16,6 +16,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { ImportDiscountsDialog } from '../components/ImportDiscountsDialog';
+import { EditDiscountDialog } from '../components/EditDiscountDialog';
+import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountMutations';
 
 const CATEGORIES: DiscountCategory[] = [ // Added helper mapped array based on type
     'Imposto ss', 'Adiantamento', 'Desconto Carro',
@@ -61,6 +64,52 @@ export function DiscountsPage() {
         });
     }, [allDiscounts, searchTerm, selectedCategory, selectedStatus, monthFilter]);
 
+    const { mutate: deleteDiscount } = useDeleteDiscount();
+    const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteDiscountBatch();
+
+    const handleDelete = (id: string) => {
+        if (confirm('Tem certeza que deseja excluir este desconto?')) {
+            deleteDiscount(id);
+        }
+    };
+
+    const handleUndoBatch = (batchId: string) => {
+        if (confirm('Atenção: Você está prestes a excluir TODOS os descontos criados nesta importação. Continuar?')) {
+            deleteBatch(batchId);
+        }
+    };
+
+    const categoryStats = useMemo(() => {
+        if (!allDiscounts) return [];
+        const stats: Record<string, number> = {};
+        filteredDiscounts.forEach(d => {
+            stats[d.category] = (stats[d.category] || 0) + Number(d.amount);
+        });
+        return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    }, [filteredDiscounts, allDiscounts]);
+
+    const recentBatches = useMemo(() => {
+        if (!allDiscounts) return [];
+
+        const map = new Map<string, { time: number, count: number }>();
+        allDiscounts.forEach(d => {
+            if (d.import_batch_id) {
+                const time = new Date(d.created_at).getTime();
+                const existing = map.get(d.import_batch_id);
+                if (!existing) {
+                    map.set(d.import_batch_id, { time, count: 1 });
+                } else {
+                    map.set(d.import_batch_id, { time: Math.max(existing.time, time), count: existing.count + 1 });
+                }
+            }
+        });
+
+        return Array.from(map.entries())
+            .sort((a, b) => b[1].time - a[1].time)
+            .slice(0, 3)
+            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time) }));
+    }, [allDiscounts]);
+
     // Aggregate stats
     const totalAmount = filteredDiscounts.reduce((sum, d) => sum + Number(d.amount), 0);
 
@@ -103,15 +152,42 @@ export function DiscountsPage() {
 
             <div className="space-y-6">
                 {/* KPI / Stats Section */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
                         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total em Descontos</h3>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-gray-900">€ {totalAmount.toFixed(2)}</span>
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">Baseado nos filtros atuais ({filteredDiscounts.length} registros)</p>
+                        <div className="mt-2 text-3xl font-bold text-gray-900">€ {totalAmount.toFixed(2)}</div>
+                        <p className="mt-1 text-xs text-muted-foreground">{filteredDiscounts.length} registros no filtro</p>
                     </div>
+                    {categoryStats.map(([cat, val]) => (
+                        <div key={cat} className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
+                            <h3 className="text-sm font-bold text-blue-800 uppercase tracking-tight truncate" title={cat}>{cat}</h3>
+                            <div className="mt-2 text-2xl font-bold text-gray-700">€ {val.toFixed(2)}</div>
+                        </div>
+                    ))}
                 </div>
+
+                {/* Batch Revert Section */}
+                {recentBatches.length > 0 && (
+                    <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60">
+                        <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                            <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            {recentBatches.map(b => (
+                                <Button
+                                    key={b.id}
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleUndoBatch(b.id)}
+                                    disabled={isDeletingBatch}
+                                >
+                                    Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Filters bar */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-col md:flex-row gap-4 items-end">
@@ -167,10 +243,20 @@ export function DiscountsPage() {
                         </Select>
                     </div>
 
-                    <Button variant="outline" onClick={handleExportExcel} className="w-full md:w-auto">
-                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                        Exportar CSV
-                    </Button>
+                    <div className="flex w-full md:w-auto gap-2 mt-4 md:mt-0">
+                        <ImportDiscountsDialog
+                            trigger={
+                                <Button className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700">
+                                    <DownloadCloud className="mr-2 h-4 w-4" />
+                                    Importar
+                                </Button>
+                            }
+                        />
+                        <Button variant="outline" onClick={handleExportExcel} className="w-full md:w-auto">
+                            <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                            Exportar
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Data Table */}
@@ -185,6 +271,7 @@ export function DiscountsPage() {
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Valor (€)</th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Descrição</th>
+                                    <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -228,6 +315,26 @@ export function DiscountsPage() {
                                                 <p className="text-xs text-gray-500 truncate max-w-[250px]" title={discount.description || ''}>
                                                     {discount.description || '-'}
                                                 </p>
+                                            </td>
+                                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <EditDiscountDialog
+                                                        discount={discount}
+                                                        trigger={
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                                                <Edit className="h-4 w-4" />
+                                                            </Button>
+                                                        }
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleDelete(discount.id)}
+                                                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

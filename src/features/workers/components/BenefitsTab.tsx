@@ -23,7 +23,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
     ({ workerId, empresaId, isEmbedded }, ref) => {
         const { data: housingBenefits, isLoading, isError } = useHousingByWorker(workerId);
         const upsertHousing = useUpsertHousing();
-        const deleteHousing = useDeleteHousing(workerId);
+        const deleteHousing = useDeleteHousing(workerId, empresaId);
 
         // Simplification for prototype: Edit mode for the first benefit or create new
         const existingBenefit = housingBenefits?.[0];

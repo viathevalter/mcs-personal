@@ -22,6 +22,8 @@ export interface HoleriteEvento {
     tipo: EventoTipo;
     categoria: EventoCategoria;
     valor: number;
+    referencia_dias_horas?: number | null;
+    import_batch_id?: string | null;
     descricao?: string | null;
     created_at: string;
 }

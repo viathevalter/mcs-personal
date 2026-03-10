@@ -17,6 +17,7 @@ export function useCreateDiscount() {
         mutationFn: (input: CreateWorkerDiscountInput) => createWorkerDiscount(input),
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['worker-discounts', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
         },
     });
 }
@@ -31,6 +32,7 @@ export function useUpdateDiscount() {
             if (data?.worker_id) {
                 queryClient.invalidateQueries({ queryKey: ['worker-discounts', data.worker_id] });
             }
+            queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
         },
     });
 }

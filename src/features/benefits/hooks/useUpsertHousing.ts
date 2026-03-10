@@ -8,8 +8,9 @@ export function useUpsertHousing() {
     return useMutation({
         mutationFn: (variables: Partial<HousingBenefit> & { worker_id: string; empresa_id: string }) =>
             upsertHousing(variables),
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['housing_benefit', data.worker_id] });
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['housing_benefit', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['workers_with_housing', variables.empresa_id] });
         },
     });
 }

@@ -10,7 +10,9 @@ export interface InsertHoleriteEventoPayload {
     valor: number;
     horas_referencia?: number;
     descricao?: string;
+    import_batch_id?: string;
 }
+
 
 export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPayload[]): Promise<void> {
     if (!events || events.length === 0) return;
@@ -90,7 +92,8 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
             categoria: e.categoria,
             descricao: e.descricao || 'Adicionado via Sistema',
             valor: e.valor,
-            referencia_dias_horas: e.horas_referencia || null
+            referencia_dias_horas: e.horas_referencia || null,
+            import_batch_id: e.import_batch_id || null
         };
     });
 

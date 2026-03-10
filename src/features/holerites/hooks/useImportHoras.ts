@@ -8,7 +8,12 @@ export function useImportHoras() {
 
     return useMutation({
         mutationFn: async (events: InsertHoleriteEventoPayload[]) => {
-            await insertHoleriteEventosBatch(events);
+            const batchId = crypto.randomUUID();
+            const eventsWithBatch = events.map(e => ({
+                ...e,
+                import_batch_id: e.import_batch_id || batchId
+            }));
+            await insertHoleriteEventosBatch(eventsWithBatch);
         },
         onSuccess: (_, variables) => {
             // Recarregamos a query de eventos para qualquer mês afetado.

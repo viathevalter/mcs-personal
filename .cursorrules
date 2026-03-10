@@ -1,0 +1,21 @@
+Sempre que fores atuar no código deste projeto (Mastercorp / Kotrik), **DEVES** obediência cega a estas regras de negócio e arquiteturais.
+
+### 1. Regras de Interface (Frontend React/Vite)
+- A aplicação é construída com **React, TypeScript, TailwindCSS e shadcn/ui**.
+- As requisições de dados utilizam o padrão **React Query** (`@tanstack/react-query`). Nunca usar `useEffect` puro para fetch de dados críticos se o React Query for aplicável. Invalida as queries (`queryClient.invalidateQueries`) nas mutações (Posts/Puts/Deletes).
+- **Segurança Visual:** Bloqueadores de Google Pay e Autofill agressivo nos Forms. Usar `autoComplete="new-password"` em inputs não standard para evitar lixo do browser.
+
+### 2. Regras de Backend & Supabase (PostgREST)
+- **O Limite Mortal de 1000 Linhas:** O Supabase corta queries assíncronas padrão em 1000 linhas. **NUNCA** construas lógicas globais baseadas num "Get All Workers" simples, pois os trabalhadores a partir do #1001 ficarão invisíveis. **Padrão Obrigatório:** Puxar primeiro os IDs alvos estritamente necessários através de filtros e, de seguida, fazer uma Query Cirúrgica com `.in('id', arrayDeIds)`.
+- **Filtro de Empresa:** Todas e quaisquer queries na plataforma DEVEM verificar e filtrar o `empresa_id` associado ao utilizador ativo.
+- **Junções Complexas (JOINs):** O supabase rpc / views ou left joins (`!fkey`) devem ser validados. Se uma foreign key não existir no metadata, separar em duas queries independentes (ex: fetch `workers`, fetch `colaboradores` -> juntar no JS) em vez de comprometer o ecrã.
+
+### 3. Padrões de Domínio (Business Logic)
+- **Holerites e Impostos:** A retenção base de impostos encontra-se centralizada sob `tax_rules`. Fórmulas de cálculo de ordenados dependem do Bruto (Horas Trabalhadas × Preço/H) cruzado com Abonos e Descontos do mês de Referência.
+- **Pesquisas de Trabalhador:** Os trabalhadores dependem tipicamente do cruzamento de metadados externos (Cliente Ativo / Kanban Status / Security Status). Use os RPCs como `fn_get_active_client_for_worker` para obter o Cliente fiel de forma síncrona ou em batch.
+
+### 4. Gestão de Ficheiros (Storage & SharePoint)
+- Arquivos sensíveis que servem de prova (IBAN, Documentos Fiscais) exigem rastreio.
+- As integrações modernas de Storage usam **Edge Functions do Supabase** em ponte com as APIs de Autenticação M2M da Microsoft (SharePoint OAuth2, Drive IDs).
+
+Para criar ficheiros complexos e ecrãs completos, consulta imperativamente a documentação em `.agents/workflows/`.

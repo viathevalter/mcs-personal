@@ -12,6 +12,7 @@ import { DocumentsTab } from './components/DocumentsTab';
 import { VidaLaboralTab } from './components/VidaLaboralTab';
 import { AlocacoesTab } from './components/AlocacoesTab';
 import { EditWorkerDialog } from './components/EditWorkerDialog';
+import { DiscountsTab } from './components/tabs/DiscountsTab';
 import { useTranslation } from 'react-i18next';
 
 export function WorkerDetailsPage() {
@@ -103,6 +104,7 @@ export function WorkerDetailsPage() {
                     <TabsTrigger value="vida_laboral" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.vidaLaboral')}</TabsTrigger>
                     <TabsTrigger value="alocacoes" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.allocations')}</TabsTrigger>
                     <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.benefits')}</TabsTrigger>
+                    <TabsTrigger value="discounts" className="flex-1 whitespace-nowrap">Descontos</TabsTrigger>
                     <TabsTrigger value="ledger" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.ledger')}</TabsTrigger>
                     <TabsTrigger value="documents" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.documents')}</TabsTrigger>
                 </TabsList>
@@ -121,6 +123,10 @@ export function WorkerDetailsPage() {
 
                 <TabsContent value="benefits">
                     <BenefitsTab workerId={worker.id} empresaId={worker.empresa_id} />
+                </TabsContent>
+
+                <TabsContent value="discounts">
+                    <DiscountsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={false} />
                 </TabsContent>
 
                 <TabsContent value="ledger">

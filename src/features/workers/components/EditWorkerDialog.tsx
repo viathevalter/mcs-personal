@@ -445,25 +445,27 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                             </TabsContent>
 
                             <TabsContent value="descontos" className="space-y-4 mt-0">
-                                <DiscountsTab workerId={worker.id} />
+                                <DiscountsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={false} />
                             </TabsContent>
                         </Tabs>
 
-                        <div className="flex justify-end space-x-2 pt-2 border-t mt-6">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-                                Cancelar
-                            </Button>
-                            <Button type="submit" disabled={isPending}>
-                                {isPending ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Salvando...
-                                    </>
-                                ) : (
-                                    "Salvar"
-                                )}
-                            </Button>
-                        </div>
+                        {activeTab !== 'descontos' && (
+                            <div className="flex justify-end space-x-2 pt-2 border-t mt-6">
+                                <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" disabled={isPending}>
+                                    {isPending ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Salvando...
+                                        </>
+                                    ) : (
+                                        "Salvar"
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </form>
                 </Form>
             </DialogContent>

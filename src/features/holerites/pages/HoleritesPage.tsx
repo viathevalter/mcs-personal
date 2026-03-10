@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { es, pt } from 'date-fns/locale';
@@ -7,7 +7,8 @@ import {
     Search,
     Plus,
     DownloadCloud,
-    Calculator
+    Calculator,
+    Undo2
 } from 'lucide-react';
 import {
     Card,
@@ -42,6 +43,7 @@ import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { ImportHorasDialog } from '../components/ImportHorasDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
 
 export function HoleritesPage() {
     const { i18n } = useTranslation();
@@ -57,6 +59,35 @@ export function HoleritesPage() {
     const { data: workers, isLoading: isLoadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined);
     const { data: eventos, isLoading: isLoadingEventos } = useHoleriteEventos(mesReferencia);
     const { data: contratantesUnicos = [] } = useUniqueContratantes();
+    const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHorasBatch();
+
+    const handleUndoBatch = (batchId: string) => {
+        if (confirm('Atenção: Você está prestes a excluir TODAS as horas importadas neste lote. Continuar?')) {
+            deleteBatch(batchId);
+        }
+    };
+
+    const recentBatches = React.useMemo(() => {
+        if (!eventos) return [];
+
+        const map = new Map<string, { time: number, count: number }>();
+        eventos.forEach(e => {
+            if (e.import_batch_id && e.categoria === 'total_horas') {
+                const time = new Date(e.created_at || Date.now()).getTime();
+                const existing = map.get(e.import_batch_id);
+                if (!existing) {
+                    map.set(e.import_batch_id, { time, count: 1 });
+                } else {
+                    map.set(e.import_batch_id, { time: Math.max(existing.time, time), count: existing.count + 1 });
+                }
+            }
+        });
+
+        return Array.from(map.entries())
+            .sort((a, b) => b[1].time - a[1].time)
+            .slice(0, 3)
+            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time) }));
+    }, [eventos]);
 
     // List of last 12 months for the selector
     const monthOptions = Array.from({ length: 12 }).map((_, i) => {
@@ -125,6 +156,28 @@ export function HoleritesPage() {
             <p className="text-muted-foreground max-w-2xl">
                 Controle mensal de descontos (Adiantamentos, Multas, Sinistros) e proventos. Selecione o mês de competência para visualizar os trabalhadores.
             </p>
+
+            {recentBatches.length > 0 && (
+                <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60 max-w-3xl">
+                    <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                        <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                        {recentBatches.map(b => (
+                            <Button
+                                key={b.id}
+                                variant="outline"
+                                size="sm"
+                                className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleUndoBatch(b.id)}
+                                disabled={isDeletingBatch}
+                            >
+                                Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <Card className="border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                 <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20 pb-4 space-y-4">

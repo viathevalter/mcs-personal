@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { Plus, Pencil, Trash2, CheckCircle2, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 
 const DISCOUNT_CATEGORIES: DiscountCategory[] = [
     'Imposto ss', 'Adiantamento', 'Desconto Carro',
@@ -19,9 +20,11 @@ const DISCOUNT_CATEGORIES: DiscountCategory[] = [
 
 interface DiscountsTabProps {
     workerId: string;
+    empresaId: string;
+    isEmbedded?: boolean;
 }
 
-export function DiscountsTab({ workerId }: DiscountsTabProps) {
+export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: DiscountsTabProps) {
     const { data: discounts, isLoading } = useWorkerDiscounts(workerId);
     const { mutate: createDiscount } = useCreateDiscount();
     const { mutate: updateDiscount } = useUpdateDiscount();
@@ -61,7 +64,10 @@ export function DiscountsTab({ workerId }: DiscountsTabProps) {
     };
 
     const handleSave = () => {
-        if (!amount || isNaN(Number(amount))) return;
+        if (!amount || isNaN(Number(amount))) {
+            toast.error('O valor do desconto é inválido.');
+            return;
+        }
 
         if (editingDiscountId) {
             updateDiscount({
@@ -72,17 +78,36 @@ export function DiscountsTab({ workerId }: DiscountsTabProps) {
                 reference_date: format(referenceDate, 'yyyy-MM-dd'),
                 is_recurring: isRecurring,
                 status,
-            }, { onSuccess: resetForm });
+            }, {
+                onSuccess: () => {
+                    toast.success('Desconto atualizado com sucesso!');
+                    resetForm();
+                },
+                onError: (error: any) => {
+                    console.error("Erro no updateDiscount:", error);
+                    toast.error(`Falha ao gravar: ${error?.message || 'Erro desconhecido'}`);
+                }
+            });
         } else {
             createDiscount({
                 worker_id: workerId,
+                empresa_id: empresaId,
                 category,
                 amount: Number(amount),
                 description,
                 reference_date: format(referenceDate, 'yyyy-MM-dd'),
                 is_recurring: isRecurring,
                 status,
-            }, { onSuccess: resetForm });
+            }, {
+                onSuccess: () => {
+                    toast.success('Desconto adicionado com sucesso!');
+                    resetForm();
+                },
+                onError: (error: any) => {
+                    console.error("Erro no createDiscount:", error);
+                    toast.error(`Falha ao gravar: ${error?.message || 'Erro desconhecido. Verifique a consola (F12).'}`);
+                }
+            });
         }
     };
 
@@ -95,7 +120,7 @@ export function DiscountsTab({ workerId }: DiscountsTabProps) {
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Gestão de Descontos</h3>
                 {!isEditing && (
-                    <Button onClick={() => setIsEditing(true)} size="sm">
+                    <Button onClick={() => setIsEditing(true)} size="sm" type="button">
                         <Plus className="mr-2 h-4 w-4" />
                         Novo Desconto
                     </Button>
@@ -174,16 +199,18 @@ export function DiscountsTab({ workerId }: DiscountsTabProps) {
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 pt-2">
-                        <Button variant="outline" onClick={resetForm}>
-                            <X className="mr-2 h-4 w-4" />
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave} disabled={!amount}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Salvar Desconto
-                        </Button>
-                    </div>
+                    {!isEmbedded && (
+                        <div className="flex justify-end space-x-2 pt-2">
+                            <Button variant="outline" onClick={resetForm} type="button">
+                                <X className="mr-2 h-4 w-4" />
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleSave} disabled={!amount} type="button">
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Salvar Desconto
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
 
