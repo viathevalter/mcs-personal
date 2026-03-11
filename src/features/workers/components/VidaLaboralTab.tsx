@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { useVidaLaboral } from '../hooks/useVidaLaboral';
+import { useWorkerStatusHistory } from '../hooks/useWorkerStatus';
 import { format } from 'date-fns';
 
 interface VidaLaboralTabProps {
@@ -11,6 +12,7 @@ interface VidaLaboralTabProps {
 
 export function VidaLaboralTab({ workerId }: VidaLaboralTabProps) {
     const { data: history, isLoading, isError, error } = useVidaLaboral(workerId);
+    const { data: statusHistory, isLoading: isLoadingStatus } = useWorkerStatusHistory(workerId);
 
     if (isLoading) {
         return (
@@ -41,6 +43,7 @@ export function VidaLaboralTab({ workerId }: VidaLaboralTabProps) {
     }
 
     return (
+        <div className="space-y-6">
         <Card className="overflow-hidden">
             <CardHeader className="bg-muted/30">
                 <CardTitle>Histórico de Seguridade (Vida Laboral)</CardTitle>
@@ -93,5 +96,54 @@ export function VidaLaboralTab({ workerId }: VidaLaboralTabProps) {
                 </TableBody>
             </Table>
         </Card>
+
+        <Card className="overflow-hidden mt-6">
+            <CardHeader className="bg-muted/30">
+                <CardTitle>Linha do Tempo (Alterações Manuais de Status)</CardTitle>
+                <CardDescription>
+                    Histórico de mudanças manuais no status do trabalhador e seguridade.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+                {isLoadingStatus ? (
+                    <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                ) : !statusHistory || statusHistory.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4 text-sm">Nenhum registro de alteração manual encontrado.</p>
+                ) : (
+                    <div className="space-y-6 border-l-2 border-primary/20 ml-3 pl-6 relative">
+                        {statusHistory.map((item) => (
+                            <div key={item.id} className="relative">
+                                {/* Timeline Dot */}
+                                <div className="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full bg-background border-2 border-primary" />
+                                
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant="outline" className="font-semibold text-xs border-primary/50 text-foreground">
+                                            {item.change_type === 'TRABALHADOR' ? 'Status Trabalho' : 'Seguridade'}
+                                        </Badge>
+                                        <span className="text-sm font-medium">
+                                            Alterado para <span className="font-bold text-primary">{item.new_value}</span>
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="text-sm text-muted-foreground mt-1">
+                                        <p>Data Efetiva: <strong className="text-foreground">{format(new Date(item.effective_date), 'dd/MM/yyyy')}</strong></p>
+                                        <p className="mt-1">
+                                            Alterado por <strong className="text-foreground">{item.changed_by_name}</strong> em {format(new Date(item.created_at), 'dd/MM/yyyy HH:mm')}
+                                        </p>
+                                        {item.comments && (
+                                            <div className="mt-2 bg-muted p-2 rounded-md text-xs border italic">
+                                                "{item.comments}"
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+        </div>
     );
 }

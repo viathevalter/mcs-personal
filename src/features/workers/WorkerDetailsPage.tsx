@@ -12,6 +12,7 @@ import { DocumentsTab } from './components/DocumentsTab';
 import { VidaLaboralTab } from './components/VidaLaboralTab';
 import { AlocacoesTab } from './components/AlocacoesTab';
 import { EditWorkerDialog } from './components/EditWorkerDialog';
+import { WorkerStatusManagerDialog } from './components/WorkerStatusManagerDialog';
 import { DiscountsTab } from './components/tabs/DiscountsTab';
 import { useTranslation } from 'react-i18next';
 
@@ -86,6 +87,11 @@ export function WorkerDetailsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
+                    <WorkerStatusManagerDialog 
+                        workerId={worker.id} 
+                        currentTrabalhoStatus={worker.status_trabajador} 
+                        currentSeguridadeStatus={worker.status_seguridad} 
+                    />
                     <EditWorkerDialog worker={worker} />
                     {worker.status_seguridad && (
                         <div className="flex flex-col items-end gap-1">
