@@ -22,24 +22,24 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { format, parse } from 'date-fns';
-import type { WorkerWithHousing } from '@/shared/types/corePersonal';
-import { useImportHousing } from '../hooks/useImportHousing';
-import type { HousingBenefit } from '@/shared/types/corePersonal';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
+import { useImportBankAccounts } from '../hooks/useImportBankAccounts';
+import type { UpsertBankAccountInput } from '../api/bankAccountsApi';
 
-interface ImportHousingDialogProps {
-    workers: WorkerWithHousing[];
+interface ImportBankAccountsDialogProps {
     trigger: React.ReactNode;
 }
 
 interface ParsedRow {
     cod_colab: string;
     nome_planilha: string;
-    valor: number;
-    data_inicio: string;
+    banco: string;
+    iban: string;
+
     workerId?: string;
     empresaId?: string;
-    nomeBanco?: string;
+    nomeSistema?: string;
     status: 'ok' | 'not_found' | 'invalid_data';
     errorMessage?: string;
     originalRowData: any;
@@ -47,7 +47,42 @@ interface ParsedRow {
 
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
-export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogProps) {
+export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogProps) {
+    // Fetch workers for ID mapping
+    const { data: workersData } = useQuery({
+        queryKey: ['all-workers-for-import-bank'],
+        queryFn: async () => {
+            const allWorkers: any[] = [];
+            let from = 0;
+            const pageSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, cod_colab, empresa_id, nome')
+                    .range(from, from + pageSize - 1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allWorkers.push(...data);
+                    if (data.length < pageSize) {
+                        hasMore = false;
+                    } else {
+                        from += pageSize;
+                    }
+                } else {
+                    hasMore = false;
+                }
+            }
+            return allWorkers;
+        }
+    });
+
+    const workers = workersData || [];
+
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState<ImportStep>('UPLOAD');
     const [isParsing, setIsParsing] = useState(false);
@@ -59,32 +94,23 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
     // Mapping state
     const [colMapping, setColMapping] = useState({
         cod_colab: '',
-        valor: '',
-        data_inicio: '',
+        banco: '',
+        iban: '',
         nome: ''
     });
 
-    const [defaultDataInicio, setDefaultDataInicio] = useState(format(new Date(), 'yyyy-MM-01'));
-
-    // Preview
+    // Preview State
     const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
-    const { mutateAsync: importHousing, isPending: isImporting } = useImportHousing();
+
+    const { mutateAsync: importBankAccounts, isPending: isImporting } = useImportBankAccounts();
 
     const resetState = () => {
         setStep('UPLOAD');
         setRawHeaders([]);
         setRawRows([]);
         setParsedRows([]);
-        setColMapping({ cod_colab: '', valor: '', data_inicio: '', nome: '' });
+        setColMapping({ cod_colab: '', banco: '', iban: '', nome: '' });
         setIsParsing(false);
-    };
-
-    const findKeyIgnoreCase = (headers: string[], searchKeys: string[]): string | undefined => {
-        for (const search of searchKeys) {
-            const match = headers.find(h => h.trim().toLowerCase() === search.toLowerCase());
-            if (match) return match;
-        }
-        return undefined;
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,42 +131,29 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                 setRawHeaders(headers);
                 setRawRows(rawJson);
 
-                // Auto-guess mapping
+                // Auto-guess some mappings
                 const guessMapping = {
-                    cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'codigo', 'cod', 'cod_colab']) || '',
-                    valor: findKeyIgnoreCase(headers, ['valor', 'valor_mensal', 'mensalidade', 'amount']) || '',
-                    data_inicio: findKeyIgnoreCase(headers, ['data_inicio', 'inicio', 'data inicio', 'start']) || '',
-                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'nombre', 'colaborador']) || ''
+                    cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'cód trabalhador', 'codigo', 'cod', 'cod_colab']) || '',
+                    banco: findKeyIgnoreCase(headers, ['banco', 'bank', 'banco nome']) || '',
+                    iban: findKeyIgnoreCase(headers, ['iban', 'conta', 'account']) || '',
+                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'colaborador']) || ''
                 };
                 setColMapping(guessMapping);
                 setStep('MAPPING');
             }
         } catch (error) {
-            console.error('Error parsing Excel file:', error);
+            console.error('Error reading Excel file:', error);
         } finally {
             setIsParsing(false);
         }
     };
 
-    const parseDateValue = (val: any): string | null => {
-        if (!val) return null;
-        const strVal = String(val).trim();
-
-        // Handle DD/MM/YYYY
-        if (strVal.includes('/')) {
-            try {
-                const parsed = parse(strVal, 'dd/MM/yyyy', new Date());
-                if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
-            } catch (e) { }
+    const findKeyIgnoreCase = (headers: string[], searchKeys: string[]): string | undefined => {
+        for (const search of searchKeys) {
+            const match = headers.find(h => h.trim().toLowerCase() === search.toLowerCase());
+            if (match) return match;
         }
-        // Handle YYYY-MM-DD
-        if (strVal.includes('-')) {
-            try {
-                const parsed = new Date(strVal);
-                if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
-            } catch (e) { }
-        }
-        return null; // Invalid date
+        return undefined;
     };
 
     const generatePreview = () => {
@@ -148,27 +161,25 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
 
         for (const row of rawRows) {
             const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim().toUpperCase() : '';
-            const rawValor = colMapping.valor ? parseFloat(String(row[colMapping.valor] || '0').replace(',', '.')) : 0;
+            const rawBanco = colMapping.banco ? String(row[colMapping.banco] || '').trim() : '';
+            const rawIban = colMapping.iban ? String(row[colMapping.iban] || '').trim().toUpperCase() : '';
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '') : '';
-
-            let rawDataInicio = colMapping.data_inicio ? parseDateValue(row[colMapping.data_inicio]) : defaultDataInicio;
-            if (!colMapping.data_inicio) rawDataInicio = defaultDataInicio; // fallback to default
 
             if (!rawCod) continue;
 
-            const matchedWorker = workers?.find(w => w.cod_colab?.toUpperCase() === rawCod);
+            const matchedWorker = workers?.find(w => String(w.cod_colab || '').trim().toUpperCase() === rawCod);
 
             let status: ParsedRow['status'] = 'not_found';
             let errorMessage = '';
 
             if (!matchedWorker) {
                 errorMessage = `Trabalhador não encontrado (${rawCod}).`;
-            } else if (isNaN(rawValor) || rawValor <= 0) {
+            } else if (!rawIban) {
                 status = 'invalid_data';
-                errorMessage = 'Valor inválido ou zerado.';
-            } else if (!rawDataInicio) {
+                errorMessage = 'IBAN não informado.';
+            } else if (!rawBanco) {
                 status = 'invalid_data';
-                errorMessage = 'Data de início inválida.';
+                errorMessage = 'Banco não informado.';
             } else {
                 status = 'ok';
             }
@@ -176,11 +187,12 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
             rows.push({
                 cod_colab: rawCod,
                 nome_planilha: rawNome,
-                valor: isNaN(rawValor) ? 0 : rawValor,
-                data_inicio: rawDataInicio || '',
+                banco: rawBanco,
+                iban: rawIban,
+
                 workerId: matchedWorker?.id,
                 empresaId: matchedWorker?.empresa_id,
-                nomeBanco: matchedWorker?.nome,
+                nomeSistema: matchedWorker?.nome,
                 status,
                 errorMessage,
                 originalRowData: row
@@ -194,33 +206,31 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
     const handleImport = async () => {
         if (!parsedRows.length) return;
 
-        const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId && r.empresaId);
+        const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId);
+        if (validRows.length === 0) return;
+
         const batchId = crypto.randomUUID();
 
-        const eventsToInsert: Omit<HousingBenefit, 'id' | 'created_at'>[] = validRows.map(r => ({
+        const payloads: UpsertBankAccountInput[] = validRows.map(r => ({
             worker_id: r.workerId!,
-            empresa_id: r.empresaId!,
-            monthly_amount: Number(r.valor.toFixed(2)),
-            start_date: r.data_inicio,
-            end_date: null,
-            proration_method: 'daily_actual',
+            banco: r.banco,
+            iban: r.iban,
             import_batch_id: batchId
         }));
 
-        if (eventsToInsert.length === 0) return;
-
         try {
-            await importHousing(eventsToInsert);
+            await importBankAccounts(payloads);
             setIsOpen(false);
             resetState();
         } catch (error) {
-            // Handled in hook
+            // Error mapped in hook sonner toast
         }
     };
 
     const validCount = parsedRows.filter(r => r.status === 'ok').length;
     const errorCount = parsedRows.filter(r => r.status !== 'ok').length;
-    const isMappingValid = colMapping.cod_colab !== '' && colMapping.valor !== '';
+
+    const isMappingValid = colMapping.cod_colab !== '' && colMapping.iban !== '';
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => {
@@ -230,11 +240,11 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[850px] overflow-hidden flex flex-col max-h-[90vh]">
+            <DialogContent className="sm:max-w-[800px] overflow-hidden flex flex-col max-h-[90vh]">
                 <DialogHeader>
-                    <DialogTitle>Importar Moradia (Excel)</DialogTitle>
+                    <DialogTitle>Importar Contas Bancárias (IBAN)</DialogTitle>
                     <DialogDescription>
-                        {step === 'UPLOAD' && `Faça o upload da planilha contendo as parcelas de moradia.`}
+                        {step === 'UPLOAD' && 'Faça o upload de uma planilha (Excel ou CSV) contendo os IBANs e Bancos.'}
                         {step === 'MAPPING' && 'Associe as colunas do seu arquivo aos campos do sistema.'}
                         {step === 'PREVIEW' && 'Revise os dados antes de confirmar a importação.'}
                     </DialogDescription>
@@ -251,7 +261,7 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                 </div>
                             ) : (
                                 <div className="p-8">
-                                    <Label htmlFor="excel_file_moradia" className="cursor-pointer">
+                                    <Label htmlFor="excel_file_bancos" className="cursor-pointer">
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                                                 <DownloadCloud className="h-6 w-6" />
@@ -261,7 +271,7 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                         </div>
                                     </Label>
                                     <Input
-                                        id="excel_file_moradia"
+                                        id="excel_file_bancos"
                                         type="file"
                                         accept=".xlsx, .xls, .csv"
                                         onChange={handleFileChange}
@@ -278,7 +288,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                     {step === 'MAPPING' && (
                         <div className="space-y-6">
                             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-4 rounded-md">
-                                Mapeie as colunas da sua planilha. <strong>Código do Trabalhador e Valor Mensal são obrigatórios.</strong>
+                                Mapeie quais colunas da sua planilha correspondem aos dados necessários.
+                                <strong> Código do Trabalhador e IBAN são obrigatórios.</strong>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -294,8 +305,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-red-600">Valor Mensal (Obrigatório)</Label>
-                                    <Select value={colMapping.valor} onValueChange={(v) => setColMapping({ ...colMapping, valor: v })}>
+                                    <Label className="text-xs font-bold text-red-600">IBAN (Obrigatório)</Label>
+                                    <Select value={colMapping.iban} onValueChange={(v) => setColMapping({ ...colMapping, iban: v })}>
                                         <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value=" ">-- Ignorar --</SelectItem>
@@ -305,27 +316,18 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs">Data de Início (Planilha)</Label>
-                                    <Select value={colMapping.data_inicio} onValueChange={(v) => setColMapping({ ...colMapping, data_inicio: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione ou use data fixa..." /></SelectTrigger>
+                                    <Label className="text-xs">Banco Nome</Label>
+                                    <Select value={colMapping.banco} onValueChange={(v) => setColMapping({ ...colMapping, banco: v })}>
+                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value=" ">-- Usar Valor Fixo Abaixo --</SelectItem>
+                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
                                             {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className={`space-y-1.5 ${colMapping.data_inicio && colMapping.data_inicio !== ' ' ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <Label className="text-xs">Data de Início (Valor Fixo)</Label>
-                                    <Input
-                                        type="date"
-                                        value={defaultDataInicio}
-                                        onChange={(e) => setDefaultDataInicio(e.target.value)}
-                                    />
-                                </div>
-
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs">Nome (Opcional)</Label>
+                                    <Label className="text-xs">Nome do Trabalhador (Planilha)</Label>
                                     <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
                                         <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                         <SelectContent>
@@ -344,10 +346,10 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                             <div className="bg-muted px-4 py-2 flex justify-between items-center text-sm">
                                 <div>
                                     Total lido: <strong>{parsedRows.length}</strong> linhas.
-                                    {errorCount > 0 && <span className="text-destructive font-medium ml-2">({errorCount} erro(s))</span>}
+                                    {errorCount > 0 && <span className="text-destructive font-medium ml-2">({errorCount} com erros)</span>}
                                 </div>
                                 <Badge variant="secondary" className={validCount > 0 ? "bg-indigo-100 text-indigo-700" : ""}>
-                                    {validCount} Lançamento(s) Prontos
+                                    {validCount} Prontos para importar
                                 </Badge>
                             </div>
                             <ScrollArea className="h-[350px] w-full">
@@ -356,8 +358,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                         <tr>
                                             <th className="px-4 py-2 text-left font-medium w-16">Cód</th>
                                             <th className="px-4 py-2 text-left font-medium">Trabalhador</th>
-                                            <th className="px-4 py-2 text-center font-medium">Data Início</th>
-                                            <th className="px-4 py-2 text-right font-medium">Valor Mensal</th>
+                                            <th className="px-4 py-2 text-left font-medium">Banco</th>
+                                            <th className="px-4 py-2 text-left font-medium">IBAN</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
@@ -368,8 +370,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex flex-col">
-                                                        <span className={row.status === 'not_found' ? 'text-destructive font-medium' : 'font-medium text-gray-900'}>
-                                                            {row.nomeBanco || row.nome_planilha || 'Sem Nome'}
+                                                        <span className="font-medium text-gray-900">
+                                                            {row.nomeSistema || row.nome_planilha || 'Desconhecido'}
                                                         </span>
                                                         {row.errorMessage && (
                                                             <span className="text-xs text-destructive flex items-center mt-1">
@@ -379,11 +381,11 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 text-center whitespace-nowrap">
-                                                    {row.data_inicio ? format(new Date(row.data_inicio), 'dd/MM/yyyy') : '-'}
+                                                <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                                    {row.banco || '-'}
                                                 </td>
-                                                <td className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${row.status === 'invalid_data' ? 'text-red-500 font-bold' : 'text-emerald-600'}`}>
-                                                    € {row.valor.toFixed(2)}
+                                                <td className={`px-4 py-3 whitespace-nowrap font-mono ${row.status === 'invalid_data' && String(row.errorMessage).includes('IBAN') ? 'text-red-500' : 'text-gray-900'}`}>
+                                                    {row.iban || '-'}
                                                 </td>
                                             </tr>
                                         ))}
@@ -431,12 +433,12 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                 {isImporting ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Importando...
+                                        Salvando...
                                     </>
                                 ) : (
                                     <>
                                         <DownloadCloud className="mr-2 h-4 w-4" />
-                                        Importar {validCount} Lançamento(s)
+                                        Importar {validCount} Contas
                                     </>
                                 )}
                             </Button>

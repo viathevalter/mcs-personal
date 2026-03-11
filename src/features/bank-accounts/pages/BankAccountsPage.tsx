@@ -3,10 +3,14 @@ import { Loader2, Search, Wallet, Download, ChevronUp, ChevronDown } from 'lucid
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAllBankAccounts } from '../hooks/useAllBankAccounts';
+import { useDeleteBankBatch } from '../hooks/useDeleteBankBatch';
+import { ImportBankAccountsDialog } from '../components/ImportBankAccountsDialog';
 import { Link } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Combobox } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
+import { Undo } from 'lucide-react';
+import { useMemo } from 'react';
 
 export function BankAccountsPage() {
     const { selectedEmpresaId } = useEmpresa();
@@ -19,6 +23,7 @@ export function BankAccountsPage() {
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const { data: bankAccounts, isLoading } = useAllBankAccounts(selectedEmpresaId || undefined);
+    const { mutate: deleteBankBatch, isPending: isDeletingBatch } = useDeleteBankBatch();
 
     // Derive dropdown options
     const clientesUnicos = (Array.from(new Set(bankAccounts?.map(w => w.cliente_nome).filter(Boolean))) as string[])
@@ -82,6 +87,23 @@ export function BankAccountsPage() {
         alert("Exportar para Excel / SEPA: Em desenvolvimento");
     };
 
+    const recentBatches = useMemo(() => {
+        if (!bankAccounts) return [];
+        const batches = new Map<string, { count: number }>();
+        bankAccounts.forEach(d => {
+            if (d.import_batch_id) {
+                const existing = batches.get(d.import_batch_id) || { count: 0 };
+                existing.count += 1;
+                batches.set(d.import_batch_id, existing);
+            }
+        });
+        return Array.from(batches.entries())
+            // Only show latest 3 batches, sorting by uuid is not temporal but it's the only way for now
+            // or we could just list them since this is an undo queue.
+            .map(([id, data]) => ({ id, count: data.count }))
+            .slice(0, 3);
+    }, [bankAccounts]);
+
     return (
         <div className="p-8 max-w-7xl mx-auto flex flex-col h-full bg-slate-50">
             {/* Header Section */}
@@ -97,6 +119,12 @@ export function BankAccountsPage() {
                 </div>
 
                 <div className="flex gap-2">
+                    <ImportBankAccountsDialog trigger={
+                        <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border-0">
+                            <Download className="w-4 h-4 mr-2" />
+                            Importar Planilhas
+                        </Button>
+                    } />
                     <Button variant="outline" onClick={handleExport} className="bg-white hover:bg-slate-50">
                         <Download className="w-4 h-4 mr-2" />
                         Exportar SEPA / Excel
@@ -143,6 +171,38 @@ export function BankAccountsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Reverter Lote Section */}
+            {recentBatches.length > 0 && (
+                <div className="bg-amber-50/50 border border-amber-200 p-4 rounded-xl mb-6 shadow-sm flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-semibold text-amber-900 flex items-center">
+                            <Undo className="w-4 h-4 mr-2 text-amber-600" />
+                            Lotes Importados Recentemente
+                        </h3>
+                        <p className="text-xs text-amber-700/80 mt-1">Se você cometeu um erro na última importação, pode revertê-la aqui.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        {recentBatches.map(batch => (
+                            <Button
+                                key={batch.id}
+                                variant="outline"
+                                size="sm"
+                                className="border-amber-300 text-amber-800 hover:bg-amber-100 hover:text-amber-900 bg-white"
+                                onClick={() => {
+                                    if (confirm(`Tem certeza que deseja reverter o lote com ${batch.count} conta(s)?`)) {
+                                        deleteBankBatch(batch.id);
+                                    }
+                                }}
+                                disabled={isDeletingBatch}
+                            >
+                                <Undo className="h-3 w-3 mr-2" />
+                                Reverter {batch.count} IBANs
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Table Section */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 flex-1 overflow-hidden flex flex-col">

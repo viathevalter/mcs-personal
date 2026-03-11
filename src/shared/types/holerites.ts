@@ -1,6 +1,6 @@
 export type HoleriteStatus = 'rascunho' | 'revisado' | 'pago';
 export type EventoTipo = 'provento' | 'desconto';
-export type EventoCategoria = 'adiantamento' | 'multa_transito' | 'sinistro_carro' | 'dias_faltas' | 'bonus' | 'outros' | 'total_horas';
+export type EventoCategoria = string;
 
 export interface Holerite {
     id: string;
@@ -23,6 +23,7 @@ export interface HoleriteEvento {
     categoria: EventoCategoria;
     valor: number;
     referencia_dias_horas?: number | null;
+    quantidade?: number | null;
     import_batch_id?: string | null;
     descricao?: string | null;
     created_at: string;

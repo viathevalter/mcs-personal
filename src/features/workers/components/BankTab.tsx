@@ -106,7 +106,7 @@ export const BankTab = forwardRef<BankTabRef, BankTabProps>(({ workerId }, ref) 
         <Card className="border-0 shadow-none">
             <CardHeader className="px-0 pt-0">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    Conta Corrente e Pagamentos
+                    Contas Bancárias (IBAN)
                 </CardTitle>
                 <CardDescription>
                     Configure os dados bancários e a tarifa base (holerite) do trabalhador.

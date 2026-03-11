@@ -25,7 +25,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useImportDiscounts } from '../hooks/useImportDiscounts';
-import type { DiscountCategory, CreateWorkerDiscountInput } from '../types';
+import type { CreateWorkerDiscountInput } from '../types';
 import { isValid } from 'date-fns';
 
 interface ImportDiscountsDialogProps {
@@ -48,16 +48,16 @@ interface ParsedRow {
     originalRowData: any; // Keep original row for re-parsing
 }
 
-const VALID_CATEGORIES: DiscountCategory[] = [
-    'Imposto ss', 'Adiantamento', 'Desconto Carro',
-    'MULTA TRANSITO', 'COMBUSTIBLE', 'PEAJES',
-    'SUMINISTROS', 'MULTA ALOJAMIENTO', 'LIMPIEZA O DAÑOS',
-    'EPIS', 'OUTROS', 'Taxa bancária'
-];
-
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+
 export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
+    const { selectedEmpresaId } = useEmpresa();
+    const { data: discountCategoriesData } = useDiscountCategories(selectedEmpresaId || undefined);
+    const validCategories = discountCategoriesData?.map(c => c.name) || [];
+
     // Fetch all workers directly to avoid 'selectedEmpresaId' restrictions
     const { data: workersData } = useQuery({
         queryKey: ['all-workers-for-import-discounts'],
@@ -112,7 +112,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
     });
 
     // Defaults for mapping ("De->Para")
-    const [defaultCategory, setDefaultCategory] = useState<DiscountCategory | 'NONE'>('NONE');
+    const [defaultCategory, setDefaultCategory] = useState<string | 'NONE'>('NONE');
     const [defaultDate, setDefaultDate] = useState<string>('');
 
     // Preview State
@@ -238,7 +238,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
             } else if (isNaN(rawValor) || rawValor <= 0) {
                 status = 'invalid_data';
                 errorMessage = 'Valor inválido.';
-            } else if (!VALID_CATEGORIES.includes(rawCategoria as DiscountCategory)) {
+            } else if (!validCategories.includes(rawCategoria)) {
                 status = 'invalid_data';
                 errorMessage = `Categoria inválida. Preencha na planilha ou defina o padrão.`;
             } else if (!parsedDate) {
@@ -279,7 +279,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
         const payloads: CreateWorkerDiscountInput[] = validRows.map(r => ({
             worker_id: r.workerId!,
             empresa_id: r.empresaId!,
-            category: r.categoria as DiscountCategory,
+            category: r.categoria as any,
             amount: Number(r.valor.toFixed(2)),
             reference_date: r.data,
             description: r.descricao || null,
@@ -429,11 +429,11 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label className="text-xs text-indigo-700 font-medium">Ou Valor Fixo para Categoria:</Label>
-                                        <Select value={defaultCategory} onValueChange={(v: DiscountCategory | 'NONE') => setDefaultCategory(v)} disabled={!!colMapping.categoria && colMapping.categoria !== ' '}>
+                                        <Select value={defaultCategory} onValueChange={(v: string | 'NONE') => setDefaultCategory(v)} disabled={!!colMapping.categoria && colMapping.categoria !== ' '}>
                                             <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="NONE">-- Não usar fixo --</SelectItem>
-                                                {VALID_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                {validCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </div>

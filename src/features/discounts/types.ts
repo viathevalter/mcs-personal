@@ -1,16 +1,4 @@
-export type DiscountCategory =
-    | 'Imposto ss'
-    | 'Adiantamento'
-    | 'Desconto Carro'
-    | 'MULTA TRANSITO'
-    | 'COMBUSTIBLE'
-    | 'PEAJES'
-    | 'SUMINISTROS'
-    | 'MULTA ALOJAMIENTO'
-    | 'LIMPIEZA O DAÑOS'
-    | 'EPIS'
-    | 'OUTROS'
-    | 'Taxa bancária';
+export type DiscountCategory = string;
 
 export type DiscountStatus = 'Ativo' | 'Pausado' | 'Concluído';
 

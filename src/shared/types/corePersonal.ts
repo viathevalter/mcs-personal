@@ -57,6 +57,7 @@ export interface HousingBenefit {
     start_date: string;
     end_date: string | null;
     proration_method: string | null;
+    import_batch_id?: string | null;
     created_at: string;
 }
 

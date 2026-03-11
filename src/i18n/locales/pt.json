@@ -4,7 +4,8 @@
         "workers": "Trabalhadores",
         "socialSecurity": "Seguridade Social",
         "benefits": "Benefícios",
-        "bankAccounts": "Conta Corrente",
+        "holerites": "Holerites",
+        "bankAccounts": "Gestão de Contas Bancárias e Iban",
         "ledger": "Ledger / Caixas",
         "settlements": "Settlements",
         "documents": "Documentos",
@@ -113,7 +114,7 @@
             "vidaLaboral": "Vida Laboral",
             "allocations": "Alocações",
             "benefits": "Benefícios",
-            "ledger": "Conta Corrente",
+            "ledger": "Gestão de Contas Bancárias e Iban",
             "documents": "Documentos"
         }
     },

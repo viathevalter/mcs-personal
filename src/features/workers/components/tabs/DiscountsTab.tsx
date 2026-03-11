@@ -11,12 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
-const DISCOUNT_CATEGORIES: DiscountCategory[] = [
-    'Imposto ss', 'Adiantamento', 'Desconto Carro',
-    'MULTA TRANSITO', 'COMBUSTIBLE', 'PEAJES',
-    'SUMINISTROS', 'MULTA ALOJAMIENTO', 'LIMPIEZA O DAÑOS',
-    'EPIS', 'OUTROS', 'Taxa bancária'
-];
+import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
 interface DiscountsTabProps {
     workerId: string;
@@ -33,8 +28,10 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
     const [isEditing, setIsEditing] = useState(false);
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
 
+    const { data: discountCategories = [] } = useDiscountCategories(empresaId);
+    
     // Form State
-    const [category, setCategory] = useState<DiscountCategory>('OUTROS');
+    const [category, setCategory] = useState<DiscountCategory>('');
     const [amount, setAmount] = useState<string>('');
     const [description, setDescription] = useState<string>('');
     const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -53,7 +50,7 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
     };
 
     const resetForm = () => {
-        setCategory('OUTROS');
+        setCategory(discountCategories.length > 0 ? discountCategories[0].name : '');
         setAmount('');
         setDescription('');
         setReferenceDate(new Date());
@@ -138,8 +135,8 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
                                 onChange={(e) => setCategory(e.target.value as DiscountCategory)}
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                             >
-                                {DISCOUNT_CATEGORIES.map(c => (
-                                    <option key={c} value={c}>{c}</option>
+                                {discountCategories.map(c => (
+                                    <option key={c.id} value={c.name}>{c.name}</option>
                                 ))}
                             </select>
                         </div>

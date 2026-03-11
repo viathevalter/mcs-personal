@@ -12,6 +12,7 @@ import { HoleritesPage } from '../features/holerites/pages/HoleritesPage';
 import { BankAccountsPage } from '../features/bank-accounts/pages/BankAccountsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import UsersPage from '../features/admin/UsersPage';
+import { CategoriesSettingsPage } from '../features/settings/pages/CategoriesSettingsPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
@@ -105,6 +106,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'admin/users',
                         element: <UsersPage />,
+                    },
+                    {
+                        path: 'admin/categories',
+                        element: <CategoriesSettingsPage />,
                     },
                     {
                         path: '*',

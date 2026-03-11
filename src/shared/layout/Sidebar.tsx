@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, CarFront, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator } from 'lucide-react';
+import { Users, UserCog, LayoutDashboard, CarFront, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
@@ -22,13 +22,14 @@ export function Sidebar() {
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
-        { to: '/holerites', tKey: 'Folha de Pagamento', icon: FileText, roles: ['admin', 'rh', 'finance'] },
+        { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/benefits', tKey: 'navigation.benefits', icon: CarFront, roles: ['admin', 'rh'] },
         { to: '/discounts', tKey: 'Gestão de Descontos', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
         { to: '/taxes', tKey: 'Configuração de Impostos', icon: Calculator, roles: ['admin', 'finance'] },
         { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
         { to: '/documents', tKey: 'navigation.documents', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/admin/users', tKey: 'navigation.access', icon: UserCog, roles: ['admin'] },
+        { to: '/admin/categories', tKey: 'Categorias (Descontos/Acresc)', icon: Tags, roles: ['admin'] },
     ];
 
     return (

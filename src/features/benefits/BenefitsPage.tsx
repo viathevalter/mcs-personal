@@ -6,9 +6,10 @@ import { ImportHousingDialog } from './components/ImportHousingDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { WorkerWithHousing } from '@/shared/types/corePersonal';
+import { useDeleteHousingBatch } from './hooks/useDeleteHousingBatch';
 
 export function BenefitsPage() {
     const { selectedEmpresaId: empresaId } = useEmpresa();
@@ -21,9 +22,10 @@ export function BenefitsPage() {
     const [selectedCompany, setSelectedCompany] = useState<string>('ALL');
 
     // Sort
+    // Sort
     const [sortConfig, setSortConfig] = useState<{ key: keyof WorkerWithHousing | 'housing_benefit_status' | 'housing_benefit_amount' | 'housing_benefit_date'; direction: 'asc' | 'desc' } | null>(null);
 
-    const [isImportOpen, setIsImportOpen] = useState(false);
+    const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHousingBatch();
 
     // Edit Modal State
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -48,6 +50,35 @@ export function BenefitsPage() {
         }
         setSortConfig({ key, direction });
     };
+
+    const handleUndoBatch = (batchId: string) => {
+        if (confirm('Atenção: Você está prestes a excluir todos os benefícios de moradia importados neste lote. Continuar?')) {
+            deleteBatch(batchId);
+        }
+    };
+
+    const recentBatches = useMemo(() => {
+        if (!workers) return [];
+
+        const map = new Map<string, { time: number, count: number }>();
+        workers.forEach(w => {
+            const h = w.housing_benefit;
+            if (h && h.import_batch_id) {
+                const time = new Date(h.created_at || Date.now()).getTime();
+                const existing = map.get(h.import_batch_id);
+                if (!existing) {
+                    map.set(h.import_batch_id, { time, count: 1 });
+                } else {
+                    map.set(h.import_batch_id, { time: Math.max(existing.time, time), count: existing.count + 1 });
+                }
+            }
+        });
+
+        return Array.from(map.entries())
+            .sort((a, b) => b[1].time - a[1].time)
+            .slice(0, 3)
+            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time) }));
+    }, [workers]);
 
     const filteredAndSortedWorkers = useMemo(() => {
         if (!workers) return [];
@@ -125,11 +156,38 @@ export function BenefitsPage() {
                     <p className="text-muted-foreground">Gestão global de benefícios de auxílio moradia dos trabalhadores.</p>
                 </div>
 
-                <Button onClick={() => setIsImportOpen(true)} className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Importar Planilhas
-                </Button>
+                <ImportHousingDialog
+                    workers={workers || []}
+                    trigger={
+                        <Button className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-4 w-4" />
+                            Importar Planilhas
+                        </Button>
+                    }
+                />
             </div>
+
+            {recentBatches.length > 0 && (
+                <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60 max-w-3xl">
+                    <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                        <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                        {recentBatches.map(b => (
+                            <Button
+                                key={b.id}
+                                variant="outline"
+                                size="sm"
+                                className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleUndoBatch(b.id)}
+                                disabled={isDeletingBatch}
+                            >
+                                Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="flex flex-col sm:flex-row items-center gap-4 bg-muted/30 p-4 rounded-lg border">
                 <div className="w-full sm:w-1/3">
@@ -248,11 +306,6 @@ export function BenefitsPage() {
                     existingBenefit={selectedWorker.housing_benefit}
                 />
             )}
-
-            <ImportHousingDialog
-                open={isImportOpen}
-                onOpenChange={setIsImportOpen}
-            />
         </div>
     );
 }

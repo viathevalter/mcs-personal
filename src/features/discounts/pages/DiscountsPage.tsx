@@ -19,17 +19,14 @@ import {
 import { ImportDiscountsDialog } from '../components/ImportDiscountsDialog';
 import { EditDiscountDialog } from '../components/EditDiscountDialog';
 import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountMutations';
-
-const CATEGORIES: DiscountCategory[] = [ // Added helper mapped array based on type
-    'Imposto ss', 'Adiantamento', 'Desconto Carro',
-    'MULTA TRANSITO', 'COMBUSTIBLE', 'PEAJES',
-    'SUMINISTROS', 'MULTA ALOJAMIENTO', 'LIMPIEZA O DAÑOS',
-    'EPIS', 'OUTROS', 'Taxa bancária'
-];
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
 export function DiscountsPage() {
     const { i18n } = useTranslation();
     const { data: allDiscounts, isLoading } = useAllDiscounts();
+    const { selectedEmpresaId } = useEmpresa();
+    const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || undefined);
 
     // Filters state
     const [searchTerm, setSearchTerm] = useState('');
@@ -223,7 +220,7 @@ export function DiscountsPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ALL">Todas as categorias</SelectItem>
-                                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                {discountCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>

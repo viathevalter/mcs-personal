@@ -16,6 +16,19 @@ export async function getHousingByWorker(workerId: string): Promise<HousingBenef
     return data as HousingBenefit[];
 }
 
+export async function insertHousingBatch(payloads: Omit<HousingBenefit, 'id' | 'created_at'>[]): Promise<void> {
+    if (!payloads || payloads.length === 0) return;
+
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('worker_benefit_housing')
+        .insert(payloads);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
 export async function upsertHousing(payload: Partial<HousingBenefit> & { worker_id: string; empresa_id: string }): Promise<HousingBenefit> {
     const { data, error } = await supabase
         .schema('core_personal').from('worker_benefit_housing')

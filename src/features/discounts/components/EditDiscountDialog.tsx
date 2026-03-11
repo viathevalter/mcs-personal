@@ -19,21 +19,16 @@ import {
 } from '@/components/ui/select';
 import { useUpdateDiscount } from '../hooks/useDiscountMutations';
 import type { WorkerDiscount, DiscountCategory, DiscountStatus } from '../types';
+import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
 interface EditDiscountDialogProps {
     discount: WorkerDiscount;
     trigger: React.ReactNode;
 }
 
-const CATEGORIES: DiscountCategory[] = [
-    'Imposto ss', 'Adiantamento', 'Desconto Carro',
-    'MULTA TRANSITO', 'COMBUSTIBLE', 'PEAJES',
-    'SUMINISTROS', 'MULTA ALOJAMIENTO', 'LIMPIEZA O DAÑOS',
-    'EPIS', 'OUTROS', 'Taxa bancária'
-];
-
 export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const { data: discountCategories = [] } = useDiscountCategories(discount.empresa_id);
 
     const [amount, setAmount] = useState<string>(discount.amount.toString());
     const [category, setCategory] = useState<DiscountCategory>(discount.category);
@@ -88,7 +83,7 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
                                 <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                             <SelectContent>
-                                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                {discountCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>

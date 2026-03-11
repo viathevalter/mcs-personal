@@ -38,25 +38,11 @@ import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento, EventoTipo, EventoCategoria } from '@/shared/types/holerites';
 import { useAddHoleriteEvento } from '../hooks/useAddHoleriteEvento';
 import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
-
-const EVENTO_OPTIONS = {
-    provento: [
-        { value: 'bonus', label: 'Bônus / Premiação' },
-        { value: 'adiantamento', label: 'Devolução de Adiantamento' },
-        { value: 'outros', label: 'Outros Proventos' }
-    ],
-    desconto: [
-        { value: 'adiantamento', label: 'Adiantamento Solicitado' },
-        { value: 'multa_transito', label: 'Multa de Trânsito' },
-        { value: 'sinistro_carro', label: 'Sinistro / Batida de Viatura' },
-        { value: 'dias_faltas', label: 'Faltas Injustificadas' },
-        { value: 'outros', label: 'Outros Descontos' }
-    ]
-};
+import { useDiscountCategories, useBenefitCategories } from '@/features/settings/hooks/useCategories';
 
 const formSchema = z.object({
     tipo: z.enum(['provento', 'desconto']),
-    categoria: z.enum(['adiantamento', 'multa_transito', 'sinistro_carro', 'dias_faltas', 'bonus', 'outros']),
+    categoria: z.string().min(1, { message: "Selecione uma categoria" }),
     valor: z.coerce.number().min(0.01, { message: "O valor deve ser maior que zero." }),
     descricao: z.string().optional()
 });
@@ -77,12 +63,14 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
 
     const { mutate: addEvento, isPending: isAdding } = useAddHoleriteEvento();
     const { mutate: deleteEvento, isPending: isDeleting } = useDeleteHoleriteEvento();
+    const { data: discountCategories = [] } = useDiscountCategories(worker.empresa_id);
+    const { data: benefitCategories = [] } = useBenefitCategories(worker.empresa_id);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema) as any,
         defaultValues: {
             tipo: 'desconto',
-            categoria: 'adiantamento',
+            categoria: '',
             valor: 0,
             descricao: ''
         }
@@ -149,8 +137,7 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                                                 <FormLabel>Tipo de Evento</FormLabel>
                                                 <Select onValueChange={(val) => {
                                                     field.onChange(val);
-                                                    // Auto select first option on type change
-                                                    form.setValue('categoria', val === 'provento' ? 'bonus' : 'adiantamento');
+                                                    form.setValue('categoria', ''); // Reset category when type changes
                                                 }} defaultValue={field.value}>
                                                     <FormControl>
                                                         <SelectTrigger className={isDebito ? 'border-red-200 focus:ring-red-500' : 'border-green-200 focus:ring-green-500'}>
@@ -180,10 +167,10 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {isDebito ? EVENTO_OPTIONS.desconto.map(opt => (
-                                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                        )) : EVENTO_OPTIONS.provento.map(opt => (
-                                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                        {isDebito ? discountCategories.map(opt => (
+                                                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                                                        )) : benefitCategories.map(opt => (
+                                                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
@@ -246,7 +233,7 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                                                 }
                                                 <div>
                                                     <p className="font-medium text-slate-800 dark:text-slate-200">
-                                                        {ev.categoria.replace('_', ' ').toUpperCase()}
+                                                        {ev.categoria}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={ev.descricao || ''}>
                                                         {ev.descricao || 'Sem descrição'}

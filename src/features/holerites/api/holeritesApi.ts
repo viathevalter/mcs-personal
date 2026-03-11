@@ -6,7 +6,7 @@ export interface InsertHoleriteEventoPayload {
     empresa_id: string;
     mes_referencia: string; // e.g. "2026-02"
     tipo: 'provento' | 'desconto';
-    categoria: 'adiantamento' | 'multa_transito' | 'sinistro_carro' | 'dias_faltas' | 'bonus' | 'outros' | 'total_horas';
+    categoria: string;
     valor: number;
     horas_referencia?: number;
     descricao?: string;

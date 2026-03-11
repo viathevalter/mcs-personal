@@ -11,36 +11,61 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
         queryFn: async () => {
             if (!empresaId) return [];
 
-            // Fetch workers using the API that correctly maps cliente_nombre and contratante
-            const workersResponse = await listWorkers({
-                empresaId,
-                statusTrabajador: ['ativos', 'pendientes_ingreso'],
-                page: 1,
-                pageSize: 10000, // Retrieve all relevant workers
-                sortColumn: 'nome',
-                sortDirection: 'asc'
-            });
+            // The search_workers RPC is capped at 1000 results internally, so we must paginate to get all workers.
+            let allWorkersData: any[] = [];
+            let currentPage = 1;
+            const pageSize = 1000;
+            let hasMore = true;
 
-            const workersData = workersResponse.data.filter(w => w.nome && w.nome.trim() !== '');
+            while (hasMore) {
+                const workersResponse = await listWorkers({
+                    empresaId,
+                    statusTrabajador: ['ativos', 'pendientes_ingreso'],
+                    page: currentPage,
+                    pageSize: pageSize,
+                    sortColumn: 'nome',
+                    sortDirection: 'asc'
+                });
 
-            if (!workersData || workersData.length === 0) return [];
+                const pageData = workersResponse.data.filter(w => w.nome && w.nome.trim() !== '');
+                allWorkersData = [...allWorkersData, ...pageData];
 
-            const workerIds = workersData.map(w => w.id).filter(Boolean);
-
-            if (workerIds.length === 0) return workersData as (Worker & { worker_beneficios_settings?: any })[];
-
-            const { data: settingsData, error: settingsError } = await supabase
-                .schema('core_personal')
-                .from('worker_beneficios_settings')
-                .select('*')
-                .in('worker_id', workerIds);
-
-            if (settingsError) {
-                console.error("Error fetching benefits settings for holerites:", settingsError);
-                // Não bloquear a listagem de folha por causa do fallback default de tarifa_hora
+                if (workersResponse.data.length < pageSize) {
+                    hasMore = false;
+                } else {
+                    currentPage++;
+                }
             }
 
-            const mergedData = workersData.map(w => {
+            if (!allWorkersData || allWorkersData.length === 0) return [];
+
+            const workerIds = allWorkersData.map(w => w.id).filter(Boolean);
+
+            if (workerIds.length === 0) return allWorkersData as (Worker & { worker_beneficios_settings?: any })[];
+
+            // Fetch settings in chunks to avoid URL length limit (414)
+            const chunkSize = 150;
+            const settingsData: any[] = [];
+            
+            for (let i = 0; i < workerIds.length; i += chunkSize) {
+                const chunk = workerIds.slice(i, i + chunkSize);
+                const { data, error } = await supabase
+                    .schema('core_personal')
+                    .from('worker_beneficios_settings')
+                    .select('*')
+                    .in('worker_id', chunk);
+
+                if (error) {
+                    console.error("Error fetching benefits settings for holerites (chunk):", error);
+                    // Não bloquear a listagem de folha por causa do fallback default de tarifa_hora
+                }
+                
+                if (data) {
+                    settingsData.push(...data);
+                }
+            }
+
+            const mergedData = allWorkersData.map(w => {
                 const setting = settingsData?.find(s => s.worker_id === w.id);
                 return {
                     ...w,
