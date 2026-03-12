@@ -251,6 +251,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                                     <SelectContent>
                                                         <SelectItem value="Alta">{t('editWorker.security.alta')}</SelectItem>
                                                         <SelectItem value="Pendente Alta">{t('editWorker.security.pendingAlta')}</SelectItem>
+                                                        <SelectItem value="Em Regularização">Em Regularização</SelectItem>
                                                         <SelectItem value="Baixa">{t('editWorker.security.baixa')}</SelectItem>
                                                         <SelectItem value="Pendente Baixa">{t('editWorker.security.pendingBaixa')}</SelectItem>
                                                     </SelectContent>

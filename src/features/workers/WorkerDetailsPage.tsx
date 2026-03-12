@@ -96,7 +96,10 @@ export function WorkerDetailsPage() {
                     {worker.status_seguridad && (
                         <div className="flex flex-col items-end gap-1">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('workerDetails.legalStatus')}</span>
-                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${worker.status_seguridad.toLowerCase().includes('alta') ? 'bg-primary/20 text-primary' : 'bg-destructive/20 text-destructive'}`}>
+                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                worker.status_seguridad.toLowerCase() === 'em regularização' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                worker.status_seguridad.toLowerCase().includes('alta') ? 'bg-primary/20 text-primary' : 'bg-destructive/20 text-destructive'
+                            }`}>
                                 {worker.status_seguridad}
                             </div>
                         </div>

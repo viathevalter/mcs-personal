@@ -258,7 +258,7 @@ export function WorkersPage() {
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4" /> {t('workersPage.kpi.securityTitle')}
                         </h3>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
                                 <CardContent className="p-4 sm:p-5">
                                     <div className="flex flex-col gap-1">
@@ -272,6 +272,14 @@ export function WorkersPage() {
                                     <div className="flex flex-col gap-1">
                                         <span className="text-xs font-medium text-muted-foreground truncate block" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-500">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-[#E0E7FF] border-[#E0E7FF]/80 shadow-none dark:bg-[#2e314a] dark:border-[#383d5c]">
+                                <CardContent className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Em Regularização">Em Regularização</span>
+                                        <span className="text-2xl sm:text-3xl font-bold text-indigo-600 dark:text-indigo-400">{kpisLoading ? '-' : kpis.seguridade_em_regularizacao}</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -376,9 +384,13 @@ export function WorkersPage() {
                                     <TableCell className="text-center">
                                         {worker.status_seguridad ? (
                                             <Badge
+                                                className={
+                                                    worker.status_seguridad.toLowerCase() === 'em regularização' ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800/50' : ''
+                                                }
                                                 variant={
                                                     worker.status_seguridad.toLowerCase().includes('alta') ? 'default' :
-                                                        worker.status_seguridad.toLowerCase().includes('baja') ? 'destructive' : 'secondary'
+                                                        worker.status_seguridad.toLowerCase().includes('baja') ? 'destructive' :
+                                                            worker.status_seguridad.toLowerCase() === 'em regularização' ? 'outline' : 'secondary'
                                                 }
                                             >
                                                 {t(`workersPage.statusValues.seguridad.${worker.status_seguridad.toLowerCase().replace(/ /g, '_')}`)}

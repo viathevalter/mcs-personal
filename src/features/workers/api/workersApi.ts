@@ -113,6 +113,7 @@ export interface ClientWorkerKpi {
     pendentes_ingreso: number;
     seguridade_alta: number;
     seguridade_pendente_alta: number;
+    seguridade_em_regularizacao: number;
     seguridade_baixa: number;
     seguridade_pendente_baixa: number;
 }
@@ -143,6 +144,7 @@ export async function getClientWorkerKpis(
             pendentes_ingreso: 0,
             seguridade_alta: 0,
             seguridade_pendente_alta: 0,
+            seguridade_em_regularizacao: 0,
             seguridade_baixa: 0,
             seguridade_pendente_baixa: 0
         };

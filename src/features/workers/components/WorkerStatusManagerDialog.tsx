@@ -43,7 +43,8 @@ const STATUS_SEGURIDADE_OPTIONS = [
     'Alta',
     'Baixa',
     'Pendente Alta',
-    'Pendente Baixa'
+    'Pendente Baixa',
+    'Em Regularização'
 ];
 
 const formSchema = z.object({

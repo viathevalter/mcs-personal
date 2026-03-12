@@ -237,8 +237,12 @@ export function ClientHoursDetail() {
             setActionLoading(recordId + '-sp');
             toast.loading(t('clientHoursDetail.messages.syncStarted'), { id: 'sharepoint_sync' });
 
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.access_token;
+            
             const { data, error } = await supabase.functions.invoke('sync-to-sharepoint', {
                 body: { hour_id: recordId },
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             });
 
             if (error) throw error;
