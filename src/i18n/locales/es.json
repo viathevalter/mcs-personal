@@ -313,7 +313,11 @@
                 "baixa": "Baja",
                 "baja": "Baja",
                 "pendente_baixa": "Pendiente de Baja",
-                "pendiente_baja": "Pendiente de Baja"
+                "pendiente_baja": "Pendiente de Baja",
+                "em_regularizacao": "En Regularización",
+                "em_regularização": "En Regularización",
+                "em_regularizacion": "En Regularización",
+                "en_regularizacion": "En Regularización"
             }
         },
         "kpi": {

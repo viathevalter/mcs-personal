@@ -1,123 +1,94 @@
 const xlsx = require('xlsx');
 const fs = require('fs');
+const path = require('path');
 
-function standardizeStatus(status) {
-    if (status === undefined || status === null) return null;
-    return status.toString().trim();
-}
-
-function escapeSql(str) {
-    if (!str) return 'NULL';
-    return "'" + str.replace(/'/g, "''") + "'";
-}
-
-const workbook = xlsx.readFile('dados_sharepoint/Control Personal - ATUALIZADO.xlsx');
-const worksheet = workbook.Sheets['Control de trabajadores'];
+const filePath = path.join('C:\\\\', 'Projetos IA', 'Kotrik', 'mcs-personal', 'dados_sharepoint', 'trabalhadores_alta.xlsx');
+const workbook = xlsx.readFile(filePath);
+const sheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('planilla'));
+const worksheet = workbook.Sheets[sheetName || 'Planilla_3'];
 const rawData = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
 
-let headerRowIndex = -1;
-for (let i = 0; i < 10; i++) {
-    if (rawData[i] && rawData[i].includes('CodColab')) {
-        headerRowIndex = i;
-        break;
-    }
+const header = rawData[0];
+const data = rawData.slice(1);
+
+function getColIdx(namePart) {
+    return header.findIndex(h => h && h.toLowerCase().includes(namePart.toLowerCase()));
 }
 
-if (headerRowIndex === -1) {
-    console.error("Could not find headers in Excel.");
-    process.exit(1);
-}
+const idxCodColab = getColIdx('CodColab');
+const idxNombre = getColIdx('NOMBRE');
+const idxStatusTrab = getColIdx('STATUS TRABAJADOR');
+const idxStatusSeg = getColIdx('STATUSSEGURIDADE');
+const idxEmpresa = getColIdx('EmpresaHo');
+const idxCodCliente = getColIdx('cod_cliente');
+const idxNomeCliente = getColIdx('NomeCliente');
+const idxFuncion = getColIdx('Función Trabajador') > -1 ? getColIdx('Función Trabajador') : getColIdx('Funcion');
 
-const headers = rawData[headerRowIndex];
-let sql = `
--- Script to bulk update workers and seguridade_status
+let batchCounter = 1;
+let rowCount = 0;
+let sqlOutput = "BEGIN;\n\n-- Clean up assignments\n";
 
+data.forEach(row => {
+    const codColab = row[idxCodColab] ? String(row[idxCodColab]).trim() : '';
+    if (!codColab || !codColab.startsWith('E')) return; // Skip invalid
+    
+    rowCount++;
+    const rawStatusTrabajador = row[idxStatusTrab] ? String(row[idxStatusTrab]).trim() : '';
+    const rawStatusSeg = row[idxStatusSeg] ? String(row[idxStatusSeg]).trim() : '';
+    const rawEmpresa = row[idxEmpresa] ? String(row[idxEmpresa]).trim() : '';
+    const rawCodCliente = row[idxCodCliente] ? String(row[idxCodCliente]).trim() : '';
+    const rawNomeCliente = row[idxNomeCliente] ? String(row[idxNomeCliente]).trim() : '';
+    const rawNome = row[idxNombre] ? String(row[idxNombre]).trim().replace(/'/g, "''") : '';
+    const rawFuncion = row[idxFuncion] ? String(row[idxFuncion]).trim().replace(/'/g, "''") : '';
+
+    const cleanStatusTrab = rawStatusTrabajador.toLowerCase().includes('activo') ? 'Ativo' 
+                          : rawStatusTrabajador.toLowerCase().includes('regulariza') ? 'Em Regularização'
+                          : 'Inativo'; // fallback
+                          
+    const empresaSafe = rawEmpresa.replace(/'/g, "''");
+    const segStatusSafe = rawStatusSeg.replace(/'/g, "''");
+    
+    sqlOutput += `
+UPDATE public.colaboradores 
+SET status_trabajador = '${cleanStatusTrab}', 
+    status_seguridad = '${segStatusSafe}',
+    contratante = NULLIF('${empresaSafe}', ''),
+    funcion = COALESCE(NULLIF('${rawFuncion}', ''), funcion)
+WHERE cod_colab = '${codColab}';
 `;
 
-let updateCount = 0;
-const workerUpdates = {};
-
-for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-    const row = rawData[i];
-    if (!row || row.length === 0) continue;
-
-    let rowObj = {};
-    headers.forEach((h, idx) => {
-        if (h) rowObj[h] = row[idx];
-    });
-
-    const codColab = standardizeStatus(rowObj['CodColab']);
-    if (!codColab) continue;
-
-    let newTrab = standardizeStatus(rowObj['STATUS TRABAJADOR']);
-    let newSeg = standardizeStatus(rowObj['STATUS']);
-
-    const isInactive = newTrab && (newTrab.toLowerCase().includes('inativo') || newTrab.toLowerCase().includes('inactivo'));
-    const isPendingSeg = newSeg && (newSeg.toLowerCase().includes('pendente') || newSeg.toLowerCase().includes('pendiente'));
-
-    if (isInactive && isPendingSeg) {
-        newSeg = 'Anulado'; // Force out of pending status for inactive workers
-    }
-
-    const isActive = newTrab && (newTrab.toLowerCase() === 'ativo' || newTrab.toLowerCase() === 'activo');
-
-    if (!workerUpdates[codColab]) {
-        workerUpdates[codColab] = { trab: newTrab, seg: newSeg, isActive: isActive };
-    } else {
-        // If this row is Activo and previous wasn't, override it completely
-        if (isActive && !workerUpdates[codColab].isActive) {
-            workerUpdates[codColab] = { trab: newTrab, seg: newSeg, isActive: isActive };
-        }
-    }
-}
-
-// Generate update statements for each unique worker
-for (const [codColab, updates] of Object.entries(workerUpdates)) {
-    if (updates.trab !== undefined || updates.seg !== undefined) {
-        let sets = [];
-        if (updates.trab !== undefined) sets.push(`status_trabajador = ${escapeSql(updates.trab)}`);
-        if (updates.seg !== undefined) sets.push(`status_seguridad = ${escapeSql(updates.seg)}`);
-
-        if (sets.length > 0) {
-            sql += `UPDATE core_personal.workers SET ${sets.join(', ')} WHERE cod_colab = ${escapeSql(codColab)};\n`;
-            updateCount++;
-        }
-    }
-}
-
-sql += `
--- Cancel pending seguridade cards for INACTIVE workers
-UPDATE core_personal.seguridade_status
-SET status = 'cancelado', updated_at = NOW(), observacoes = 'Cancelado via sync (Trabalhador inativo)'
-WHERE status = 'pendente' 
-  AND worker_id IN (
-    SELECT id FROM core_personal.workers 
-    WHERE status_trabajador ILIKE '%inativ%' OR status_trabajador ILIKE '%inactiv%'
-  );
-
--- Create missing pending ALTA cards for active workers
-INSERT INTO core_personal.seguridade_status (empresa_id, worker_id, tipo_evento, status, origem, data_solicitacao)
-SELECT empresa_id, id, 'alta', 'pendente', 'Importação Excel', NOW()
-FROM core_personal.workers w
-WHERE (w.status_seguridad ILIKE '%pendente alta%' OR w.status_seguridad ILIKE '%pendiente alta%')
-  AND w.status_trabajador NOT ILIKE '%inativ%' AND w.status_trabajador NOT ILIKE '%inactiv%'
-  AND NOT EXISTS (
-      SELECT 1 FROM core_personal.seguridade_status ss 
-      WHERE ss.worker_id = w.id AND ss.status = 'pendente' AND ss.tipo_evento = 'alta'
-  );
-
--- Create missing pending BAIXA cards for active workers
-INSERT INTO core_personal.seguridade_status (empresa_id, worker_id, tipo_evento, status, origem, data_solicitacao)
-SELECT empresa_id, id, 'baixa', 'pendente', 'Importação Excel', NOW()
-FROM core_personal.workers w
-WHERE (w.status_seguridad ILIKE '%pendente baixa%' OR w.status_seguridad ILIKE '%pendiente baja%')
-  AND w.status_trabajador NOT ILIKE '%inativ%' AND w.status_trabajador NOT ILIKE '%inactiv%'
-  AND NOT EXISTS (
-      SELECT 1 FROM core_personal.seguridade_status ss 
-      WHERE ss.worker_id = w.id AND ss.status = 'pendente' AND ss.tipo_evento = 'baixa'
-  );
-
+    if (cleanStatusTrab === 'Ativo' && rawNomeCliente) {
+        const clienteSafe = rawNomeCliente.replace(/'/g, "''");
+        sqlOutput += `
+DO $$
+DECLARE
+    v_idcolab integer;
+    v_idempresa integer;
+    v_idcliente integer;
+BEGIN
+    SELECT id INTO v_idcolab FROM public.colaboradores WHERE cod_colab = '${codColab}' LIMIT 1;
+    SELECT id INTO v_idempresa FROM public.empresas WHERE nome_pbi ILIKE '%${empresaSafe}%' LIMIT 1;
+    SELECT sp_id INTO v_idcliente FROM public.clientes WHERE nombre_comercial ILIKE '%${clienteSafe}%' LIMIT 1;
+    
+    IF v_idcolab IS NOT NULL THEN
+        UPDATE public.colaborador_por_pedido 
+        SET fechasalidatrabajador = CURRENT_DATE 
+        WHERE cod_colab = '${codColab}' AND (fechasalidatrabajador IS NULL OR fechasalidatrabajador > CURRENT_DATE);
+        
+        INSERT INTO public.colaborador_por_pedido 
+        (idcolaborador, cod_colab, nome_colab, idcliente, codcliente, cliente_nombre, idempresa, contratante, fechainiciopedido)
+        VALUES 
+        (v_idcolab::text, '${codColab}', '${rawNome}', v_idcliente, '${rawCodCliente}', '${clienteSafe}', v_idempresa, '${empresaSafe}', CURRENT_DATE);
+    END IF;
+END $$;
 `;
+    }
+    
+    if (rowCount % 100 === 0) {
+        sqlOutput += "\nCOMMIT;\n\nBEGIN;\n";
+    }
+});
 
-fs.writeFileSync('sync.sql', sql);
-console.log(`Generated sync.sql with ${updateCount} worker updates and cleanup logic.`);
+sqlOutput += "\nCOMMIT;\n";
+fs.writeFileSync('sync_workers.sql', sqlOutput);
+console.log(`Generated sync_workers.sql with ${rowCount} valid workers.`);
