@@ -4,17 +4,20 @@ import { LogOut, Briefcase } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../../app/providers';
 
 export function WorkerPortalLayout() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const { setTheme } = useTheme();
 
     useEffect(() => {
+        setTheme('light');
         const session = localStorage.getItem('worker_session');
         if (!session) {
             navigate('/portal/login');
         }
-    }, [navigate]);
+    }, [navigate, setTheme]);
 
     const handleLogout = () => {
         localStorage.removeItem('worker_session');

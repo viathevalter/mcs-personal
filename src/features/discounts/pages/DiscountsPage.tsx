@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAllDiscounts } from '../hooks/useAllDiscounts';
 import type { DiscountCategory, DiscountStatus } from '../types';
@@ -22,17 +22,32 @@ import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountM
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
+import { useSearchParams } from 'react-router-dom';
+
 export function DiscountsPage() {
     const { i18n } = useTranslation();
     const { data: allDiscounts, isLoading } = useAllDiscounts();
     const { selectedEmpresaId } = useEmpresa();
     const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || undefined);
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    // Filters state
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<DiscountCategory | 'ALL'>('ALL');
-    const [selectedStatus, setSelectedStatus] = useState<DiscountStatus | 'ALL'>('ALL');
-    const [monthFilter, setMonthFilter] = useState(''); // YYYY-MM format
+    // Filters from URL
+    const searchTerm = searchParams.get('search') || '';
+    const selectedCategory = (searchParams.get('category') as DiscountCategory | 'ALL') || 'ALL';
+    const selectedStatus = (searchParams.get('status') as DiscountStatus | 'ALL') || 'ALL';
+    const monthFilter = searchParams.get('month') || ''; // YYYY-MM format
+
+    const updateSearchParams = (updates: Record<string, string | null | undefined>) => {
+        const newParams = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '' || value === 'ALL') {
+                newParams.delete(key);
+            } else {
+                newParams.set(key, value);
+            }
+        });
+        setSearchParams(newParams, { replace: true });
+    };
 
     // Filter application
     const filteredDiscounts = useMemo(() => {
@@ -197,7 +212,7 @@ export function DiscountsPage() {
                             <Input
                                 placeholder="Nome do trabalhador..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => updateSearchParams({ search: e.target.value })}
                                 className="pl-9"
                             />
                         </div>
@@ -208,13 +223,13 @@ export function DiscountsPage() {
                         <Input
                             type="month"
                             value={monthFilter}
-                            onChange={(e) => setMonthFilter(e.target.value)}
+                            onChange={(e) => updateSearchParams({ month: e.target.value })}
                         />
                     </div>
 
                     <div className="space-y-1.5 w-full md:w-48">
                         <label className="text-xs font-medium text-gray-700">Categoria</label>
-                        <Select value={selectedCategory} onValueChange={(v: DiscountCategory | 'ALL') => setSelectedCategory(v)}>
+                        <Select value={selectedCategory} onValueChange={(v: DiscountCategory | 'ALL') => updateSearchParams({ category: v })}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Todas" />
                             </SelectTrigger>
@@ -227,7 +242,7 @@ export function DiscountsPage() {
 
                     <div className="space-y-1.5 w-full md:w-36">
                         <label className="text-xs font-medium text-gray-700">Status</label>
-                        <Select value={selectedStatus} onValueChange={(v: DiscountStatus | 'ALL') => setSelectedStatus(v)}>
+                        <Select value={selectedStatus} onValueChange={(v: DiscountStatus | 'ALL') => updateSearchParams({ status: v })}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Todos" />
                             </SelectTrigger>

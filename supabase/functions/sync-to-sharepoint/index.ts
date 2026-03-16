@@ -134,9 +134,37 @@ serve(async (req) => {
     const folderMonthName = `${monthName} ${year}`;
 
     // Empresa (Company) string e.g. LUMINOUS, STOCCO, KOTRIK ROSAS
-    const folderEmpresaName = hourRecord.contratante || "";
+    let folderEmpresaName = hourRecord.contratante || "";
     // O Cliente já será fornecido com o código embutido se a UI tiver gerado dessa forma (ex: 628-METALVENT)
-    const folderClientName = hourRecord.cliente_nombre || "";
+    let folderClientName = hourRecord.cliente_nombre || "";
+
+    if (!folderEmpresaName || !folderClientName) {
+      console.log("Campos de empresa ou cliente vazios no worker_hours, inferindo via RPC (fallback)...");
+      const { data: workerData, error: rpcErr } = await supabaseClient.rpc('get_hours_control_workers', {
+        p_empresa_id: hourRecord.empresa_id,
+        p_period_year: hourRecord.period_year,
+        p_period_month: hourRecord.period_month
+      });
+
+      if (!rpcErr && workerData && Array.isArray(workerData)) {
+        const thisWorker = workerData.find((w: any) => w.id === hourRecord.worker_id);
+        if (thisWorker) {
+          folderEmpresaName = folderEmpresaName || thisWorker.contratante || "";
+          folderClientName = folderClientName || thisWorker.cliente_nombre || "";
+
+          console.log(`Fallback resgatado - Empresa: ${folderEmpresaName}, Cliente: ${folderClientName}`);
+          
+          try {
+            await supabaseClient.from('worker_hours').update({
+              contratante: folderEmpresaName,
+              cliente_nombre: folderClientName
+            }).eq('id', hourId);
+          } catch(e) {
+            console.error("Non-fatal: não foi possível salvar o fallback na tabela worker_hours");
+          }
+        }
+      }
+    }
 
     // Use worker's name for the file, keeping the original extension
     const workerName = hourRecord.worker?.nome || `Trabalhador_${hourRecord.worker_id}`;
@@ -148,6 +176,45 @@ serve(async (req) => {
     // If not: Geral / 3. HOJAS TRABAJADORES / 2026 / 3. MARZO 2026 / WILLIAM.pdf
     let dynamicSubPaths = "";
     if (folderEmpresaName && folderClientName) {
+        
+        // --- BUSCA E PADRONIZAÇÃO DO CÓDIGO DO CLIENTE ---
+        try {
+          // Extrai o nome base do cliente para a busca (ignorando o código se já houver)
+          let searchName = folderClientName;
+          if (/^\d+\s*-/.test(folderClientName)) {
+            searchName = folderClientName.substring(folderClientName.indexOf('-') + 1).trim();
+          }
+
+          // Busca o código na tabela de clientes usando o nome comercial provido
+          const { data: clientData, error: clientErr } = await supabaseClient
+            .schema('public')
+            .from('clientes')
+            .select('cod_cliente')
+            .ilike('nombre_comercial', `%${searchName}%`)
+            .limit(1)
+            .single();
+            
+          if (!clientErr && clientData && clientData.cod_cliente) {
+             // Limpa o prefixo ex: 'C0241' -> '241'
+             const rawCode = clientData.cod_cliente;
+             // Usamos Number() para remover zeros à esquerda após tirar as letras
+             const numericPart = rawCode.replace(/\D/g, ''); 
+             
+             if (numericPart) {
+               const cleanCode = Number(numericPart).toString(); 
+               
+               // Só aplica o prefixo se a string atual já não começar com números + traço
+               if (!/^\d+\s*-/.test(folderClientName)) {
+                 folderClientName = `${cleanCode}-${folderClientName}`;
+                 console.log(`Pasta formatada com código: ${folderClientName}`);
+               }
+             }
+          }
+        } catch (e) {
+          console.error("Falha ao tentar obter e formatar o código do cliente:", e);
+        }
+        // ---------------------------------------------------
+
         dynamicSubPaths = `/${folderEmpresaName}/${folderClientName}`;
     }
 

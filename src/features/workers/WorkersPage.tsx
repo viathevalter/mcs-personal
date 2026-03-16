@@ -27,22 +27,38 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ImportTarifasDialog } from './components/ImportTarifasDialog';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 
 export function WorkersPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { selectedEmpresaId } = useEmpresa();
     const { t } = useTranslation();
 
-    const [search, setSearch] = useState('');
-    const [searchMode, setSearchMode] = useState<'worker' | 'client'>('worker');
-    const [contratante, setContratante] = useState<string | null>(null);
-    const [funcion, setFuncion] = useState<string | null>(null);
-    const [statusTrabajador, setStatusTrabajador] = useState<string[]>(['ativos']); // Default to 'ativos'
-    const [statusSeguridad, setStatusSeguridad] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [sortColumn, setSortColumn] = useState<string>('nome');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const searchMode = (searchParams.get('searchMode') as 'worker' | 'client') || 'worker';
+    const search = searchParams.get('search') || '';
+    const contratante = searchParams.get('contratante') || null;
+    const funcion = searchParams.get('funcion') || null;
+    const statusTrabajador = searchParams.get('statusTrabajador')?.split(',').filter(Boolean) || ['ativos'];
+    const statusSeguridad = searchParams.get('statusSeguridad')?.split(',').filter(Boolean) || [];
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+    const sortColumn = searchParams.get('sortColumn') || 'nome';
+    const sortDirection = (searchParams.get('sortDirection') as 'asc' | 'desc') || 'asc';
+
+    const updateSearchParams = (updates: Record<string, string | string[] | null | undefined>) => {
+        const newParams = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
+                newParams.delete(key);
+            } else if (Array.isArray(value)) {
+                newParams.set(key, value.join(','));
+            } else {
+                newParams.set(key, value.toString());
+            }
+        });
+        setSearchParams(newParams, { replace: true });
+    };
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
@@ -80,7 +96,8 @@ export function WorkersPage() {
     });
 
     const handleRowClick = (id: string) => {
-        navigate(`/workers/${id}`);
+        const currentQueryString = searchParams.toString();
+        navigate(`/workers/${id}?${currentQueryString}`);
     };
 
     const totalCount = data?.count || 0;
@@ -88,12 +105,10 @@ export function WorkersPage() {
 
     const handleSort = (column: string) => {
         if (sortColumn === column) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+            updateSearchParams({ sortDirection: sortDirection === 'asc' ? 'desc' : 'asc', page: '1' });
         } else {
-            setSortColumn(column);
-            setSortDirection('asc');
+            updateSearchParams({ sortColumn: column, sortDirection: 'asc', page: '1' });
         }
-        setPage(1);
     };
 
     const renderSortIcon = (column: string) => {
@@ -128,9 +143,11 @@ export function WorkersPage() {
                     <div className="relative w-full sm:col-span-2 flex flex-col sm:flex-row items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
                         <div className="flex items-center justify-center px-3 h-9 sm:h-full w-full sm:w-auto text-muted-foreground border-b sm:border-b-0 sm:border-r border-input bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer select-none"
                             onClick={() => {
-                                setSearchMode(prev => prev === 'worker' ? 'client' : 'worker');
-                                setSearch('');
-                                setPage(1);
+                                updateSearchParams({ 
+                                    searchMode: searchMode === 'worker' ? 'client' : 'worker',
+                                    search: '',
+                                    page: '1'
+                                });
                             }}
                             title={t('workersPage.filters.toggle')}
                         >
@@ -144,8 +161,7 @@ export function WorkersPage() {
                                 placeholder={searchMode === 'worker' ? t('workersPage.filters.searchWorker') : t('workersPage.filters.searchClient')}
                                 value={search}
                                 onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPage(1);
+                                    updateSearchParams({ search: e.target.value, page: '1' });
                                 }}
                                 className="flex-1 bg-transparent px-3 py-1 text-sm outline-none placeholder:text-muted-foreground w-full"
                             />
@@ -159,10 +175,7 @@ export function WorkersPage() {
                                 { value: 'pendentes_ingreso', label: t('workersPage.filters.statusTrabOptions.pendentes_ingresso') },
                             ]}
                             selected={statusTrabajador}
-                            onChange={(newStatus) => {
-                                setStatusTrabajador(newStatus);
-                                setPage(1);
-                            }}
+                            onChange={(newStatus) => updateSearchParams({ statusTrabajador: newStatus, page: '1' })}
                             placeholder={t('workersPage.filters.statusTrab')}
                         />
                     </div>
@@ -175,10 +188,7 @@ export function WorkersPage() {
                                 { value: 'pendentes_baixa', label: t('workersPage.filters.securityOptions.pendentes_baixa') },
                             ]}
                             selected={statusSeguridad}
-                            onChange={(newStatus) => {
-                                setStatusSeguridad(newStatus);
-                                setPage(1);
-                            }}
+                            onChange={(newStatus) => updateSearchParams({ statusSeguridad: newStatus, page: '1' })}
                             placeholder={t('workersPage.filters.security')}
                         />
                     </div>
@@ -187,10 +197,7 @@ export function WorkersPage() {
                         <Combobox
                             options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             value={contratante}
-                            onChange={(val) => {
-                                setContratante(val);
-                                setPage(1);
-                            }}
+                            onChange={(val) => updateSearchParams({ contratante: val, page: '1' })}
                             placeholder={t('workersPage.filters.company')}
                             emptyText={t('workersPage.filters.noCompany')}
                         />
@@ -199,10 +206,7 @@ export function WorkersPage() {
                         <Combobox
                             options={funciones?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             value={funcion}
-                            onChange={(val) => {
-                                setFuncion(val);
-                                setPage(1);
-                            }}
+                            onChange={(val) => updateSearchParams({ funcion: val, page: '1' })}
                             placeholder={t('workersPage.filters.profile')}
                             emptyText={t('workersPage.filters.noProfile')}
                         />
@@ -418,10 +422,7 @@ export function WorkersPage() {
                             <select
                                 className="h-8 w-[70px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 value={pageSize}
-                                onChange={(e) => {
-                                    setPageSize(Number(e.target.value));
-                                    setPage(1);
-                                }}
+                                onChange={(e) => updateSearchParams({ pageSize: e.target.value, page: '1' })}
                             >
                                 <option value="10">10</option>
                                 <option value="25">25</option>
@@ -434,7 +435,7 @@ export function WorkersPage() {
                                 variant="outline"
                                 size="sm"
                                 disabled={page <= 1}
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                onClick={() => updateSearchParams({ page: Math.max(1, page - 1).toString() })}
                                 className="h-8"
                             >
                                 <ChevronLeft className="h-4 w-4 mr-1" />
@@ -447,7 +448,7 @@ export function WorkersPage() {
                                 variant="outline"
                                 size="sm"
                                 disabled={page >= totalPages}
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                onClick={() => updateSearchParams({ page: Math.min(totalPages, page + 1).toString() })}
                                 className="h-8"
                             >
                                 {t('workersPage.pagination.next')}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -18,16 +18,30 @@ export function HoursControlPage() {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { selectedEmpresaId } = useEmpresa();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // Default to previous month
     const currentDate = new Date();
     const prevMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
 
-    const [periodYear, setPeriodYear] = useState(prevMonthDate.getFullYear());
-    const [periodMonth, setPeriodMonth] = useState(prevMonthDate.getMonth() + 1); // 1-12
-    const [clientFilter, setClientFilter] = useState('');
-    const [contratanteFilter, setContratanteFilter] = useState<string | null>(null);
+    const periodYear = parseInt(searchParams.get('year') || prevMonthDate.getFullYear().toString());
+    const periodMonth = parseInt(searchParams.get('month') || (prevMonthDate.getMonth() + 1).toString()); // 1-12
+    const clientFilter = searchParams.get('clientFilter') || '';
+    const contratanteFilter = searchParams.get('contratante') || null;
+
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+
+    const updateSearchParams = (updates: Record<string, string | null>) => {
+        const newParams = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === '') {
+                newParams.delete(key);
+            } else {
+                newParams.set(key, value);
+            }
+        });
+        setSearchParams(newParams, { replace: true });
+    };
 
     useEffect(() => {
         setPortalNode(document.getElementById('topbar-title-portal'));
@@ -85,7 +99,7 @@ export function HoursControlPage() {
                 <div className="flex gap-4 items-center flex-wrap">
                     <div className="space-y-1">
                         <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.month')}</label>
-                        <Select value={periodMonth.toString()} onValueChange={(v) => setPeriodMonth(parseInt(v))}>
+                        <Select value={periodMonth.toString()} onValueChange={(v) => updateSearchParams({ month: v })}>
                             <SelectTrigger className="w-[180px]">
                                 <SelectValue />
                             </SelectTrigger>
@@ -98,7 +112,7 @@ export function HoursControlPage() {
                     </div>
                     <div className="space-y-1">
                         <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.year')}</label>
-                        <Select value={periodYear.toString()} onValueChange={(v) => setPeriodYear(parseInt(v))}>
+                        <Select value={periodYear.toString()} onValueChange={(v) => updateSearchParams({ year: v })}>
                             <SelectTrigger className="w-[120px]">
                                 <SelectValue />
                             </SelectTrigger>
@@ -116,7 +130,7 @@ export function HoursControlPage() {
                         <Combobox
                             options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             value={contratanteFilter}
-                            onChange={(val) => setContratanteFilter(val)}
+                            onChange={(val) => updateSearchParams({ contratante: val })}
                             placeholder={t('hoursControl.filterCompany')}
                             emptyText={t('hoursControl.noCompany')}
                         />
@@ -128,7 +142,7 @@ export function HoursControlPage() {
                             placeholder={t('hoursControl.filterClient')}
                             className="pl-8"
                             value={clientFilter}
-                            onChange={(e) => setClientFilter(e.target.value)}
+                            onChange={(e) => updateSearchParams({ clientFilter: e.target.value })}
                         />
                     </div>
                 </div>
@@ -221,7 +235,15 @@ export function HoursControlPage() {
                                     <TableRow
                                         key={client.cliente_nombre}
                                         className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                        onClick={() => navigate(`/hours-control/client/${encodeURIComponent(client.cliente_nombre)}?year=${periodYear}&month=${periodMonth}`)}
+                                        onClick={() => {
+                                            const params = new URLSearchParams(searchParams);
+                                            params.set('year', periodYear.toString());
+                                            params.set('month', periodMonth.toString());
+                                            if (contratanteFilter) {
+                                                params.set('contratante', contratanteFilter);
+                                            }
+                                            navigate(`/hours-control/client/${encodeURIComponent(client.cliente_nombre)}?${params.toString()}`);
+                                        }}
                                     >
                                         <TableCell className="font-medium">
                                             <div className="flex items-center gap-2">

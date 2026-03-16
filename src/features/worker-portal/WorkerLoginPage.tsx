@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../shared/supabase/client';
 import { Button } from '../../components/ui/button';
@@ -8,11 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../../app/providers';
 
 export function WorkerLoginPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const { setTheme } = useTheme();
     const [loading, setLoading] = useState(false);
+    
+    // Forçar o tema light no portal do trabalhador independentemente da preferência do sistema
+    useEffect(() => {
+        setTheme('light');
+    }, [setTheme]);
+
     const [formData, setFormData] = useState({
         nome: '',
         pasaporte: ''

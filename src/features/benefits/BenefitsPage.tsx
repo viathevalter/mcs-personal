@@ -11,19 +11,35 @@ import { format } from 'date-fns';
 import type { WorkerWithHousing } from '@/shared/types/corePersonal';
 import { useDeleteHousingBatch } from './hooks/useDeleteHousingBatch';
 
+import { useSearchParams } from 'react-router-dom';
+
 export function BenefitsPage() {
     const { selectedEmpresaId: empresaId } = useEmpresa();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const { data: workers, isLoading, isError } = useWorkersWithHousing(empresaId || undefined);
 
-    // Filters
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedClient, setSelectedClient] = useState<string>('ALL');
-    const [selectedCompany, setSelectedCompany] = useState<string>('ALL');
+    // Filters from URL
+    const searchTerm = searchParams.get('search') || '';
+    const selectedClient = searchParams.get('client') || 'ALL';
+    const selectedCompany = searchParams.get('company') || 'ALL';
 
-    // Sort
-    // Sort
-    const [sortConfig, setSortConfig] = useState<{ key: keyof WorkerWithHousing | 'housing_benefit_status' | 'housing_benefit_amount' | 'housing_benefit_date'; direction: 'asc' | 'desc' } | null>(null);
+    // Sort from URL
+    const sortKeyParam = searchParams.get('sortKey');
+    const sortDirParam = searchParams.get('sortDir') as 'asc' | 'desc' | null;
+    const sortConfig = sortKeyParam && sortDirParam ? { key: sortKeyParam as any, direction: sortDirParam } : null;
+
+    const updateSearchParams = (updates: Record<string, string | null | undefined>) => {
+        const newParams = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '' || value === 'ALL') {
+                newParams.delete(key);
+            } else {
+                newParams.set(key, value);
+            }
+        });
+        setSearchParams(newParams, { replace: true });
+    };
 
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHousingBatch();
 
@@ -48,7 +64,7 @@ export function BenefitsPage() {
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
             direction = 'desc';
         }
-        setSortConfig({ key, direction });
+        updateSearchParams({ sortKey: key, sortDir: direction });
     };
 
     const handleUndoBatch = (batchId: string) => {
@@ -194,7 +210,7 @@ export function BenefitsPage() {
                     <Input
                         placeholder="Buscar por nome ou código..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => updateSearchParams({ search: e.target.value })}
                         className="w-full bg-background"
                     />
                 </div>
@@ -202,7 +218,7 @@ export function BenefitsPage() {
                     <select
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                         value={selectedClient}
-                        onChange={(e) => setSelectedClient(e.target.value)}
+                        onChange={(e) => updateSearchParams({ client: e.target.value })}
                     >
                         <option value="ALL">Todos os Clientes</option>
                         {uniqueClients.map(client => (
@@ -214,7 +230,7 @@ export function BenefitsPage() {
                     <select
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                         value={selectedCompany}
-                        onChange={(e) => setSelectedCompany(e.target.value)}
+                        onChange={(e) => updateSearchParams({ company: e.target.value })}
                     >
                         <option value="ALL">Todas as Empresas</option>
                         {uniqueCompanies.map(company => (

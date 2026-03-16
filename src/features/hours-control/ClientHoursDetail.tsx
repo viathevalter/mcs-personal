@@ -41,6 +41,7 @@ export function ClientHoursDetail() {
 
     const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
     const month = parseInt(searchParams.get('month') || (new Date().getMonth() + 1).toString());
+    const contratante = searchParams.get('contratante');
 
     const [workers, setWorkers] = useState<WorkerDetail[]>([]);
     const [loading, setLoading] = useState(true);
@@ -69,7 +70,7 @@ export function ClientHoursDetail() {
         if (selectedEmpresaId && clientName) {
             fetchClientWorkers();
         }
-    }, [selectedEmpresaId, clientName, year, month]);
+    }, [selectedEmpresaId, clientName, year, month, contratante]);
 
     const fetchClientWorkers = async () => {
         setLoading(true);
@@ -80,7 +81,7 @@ export function ClientHoursDetail() {
                 periodYear: year,
                 periodMonth: month,
                 clienteNombre: clientName || null,
-                contratante: null
+                contratante: contratante || null
             });
 
             // Fetch hour records
@@ -239,12 +240,8 @@ export function ClientHoursDetail() {
             setActionLoading(recordId + '-sp');
             toast.loading(t('clientHoursDetail.messages.syncStarted'), { id: 'sharepoint_sync' });
 
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData?.session?.access_token;
-            
             const { data, error } = await supabase.functions.invoke('sync-to-sharepoint', {
                 body: { hour_id: recordId },
-                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             });
 
             if (error) throw error;
@@ -274,7 +271,7 @@ export function ClientHoursDetail() {
             {portalNode && createPortal(
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => navigate('/hours-control')} className="h-8 w-8 -ml-2">
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`/hours-control?${searchParams.toString()}`)} className="h-8 w-8 -ml-2">
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
                         <h1 className="text-xl font-bold tracking-tight">{clientName}</h1>
