@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../shared/supabase/client';
 import { useEmpresa } from '../../../app/providers/EmpresaProvider';
-import { listWorkers } from '../../workers/api/workersApi';
+import { getHoursControlWorkers } from '../../workers/api/workersApi';
 
 export interface ClientSummary {
     cliente_nombre: string;
@@ -36,12 +36,11 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                 setError(null);
 
                 console.log('Fetching workers...');
-                const { data: workers } = await listWorkers({
+                const workers = await getHoursControlWorkers({
                     empresaId: selectedEmpresaId,
-                    statusTrabajador: ['ativos'],
+                    periodYear,
+                    periodMonth,
                     contratante: contratante || undefined,
-                    page: 1,
-                    pageSize: 5000,
                 });
                 console.log('Workers fetched:', workers?.length);
 

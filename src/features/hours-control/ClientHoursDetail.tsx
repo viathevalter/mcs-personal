@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../shared/supabase/client';
 import { useEmpresa } from '../../app/providers/EmpresaProvider';
-import { listWorkers } from '../workers/api/workersApi';
+import { getHoursControlWorkers } from '../workers/api/workersApi';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -28,6 +28,7 @@ interface WorkerDetail {
     sharepoint_sync_date?: string;
     sharepoint_error?: string;
     observacoes?: string | null;
+    contratante: string;
 }
 
 export function ClientHoursDetail() {
@@ -49,8 +50,9 @@ export function ClientHoursDetail() {
         open: boolean;
         workerId: string;
         workerName: string;
+        contratante: string;
         hourRecordId?: string;
-    }>({ open: false, workerId: '', workerName: '' });
+    }>({ open: false, workerId: '', workerName: '', contratante: '' });
     const [notesDialogState, setNotesDialogState] = useState<{
         open: boolean;
         workerId: string;
@@ -73,12 +75,11 @@ export function ClientHoursDetail() {
         setLoading(true);
         try {
             // Fetch workers for this client
-            const { data: workersData } = await listWorkers({
+            const workersData = await getHoursControlWorkers({
                 empresaId: selectedEmpresaId as string,
+                periodYear: year,
+                periodMonth: month,
                 clienteNombre: clientName || '',
-                statusTrabajador: ['ativos'],
-                page: 1,
-                pageSize: 5000,
             });
 
             // Fetch hour records
@@ -101,7 +102,7 @@ export function ClientHoursDetail() {
 
             // Merge details
             const merged: WorkerDetail[] = workersData?.map(w => {
-                const hr = hoursData.find(h => h.worker_id === w.id);
+                const hr = hoursData.find(h => h.worker_id === w.id && (!h.contratante || h.contratante === w.contratante));
                 return {
                     worker_id: w.id,
                     worker_name: w.nome,
@@ -114,7 +115,8 @@ export function ClientHoursDetail() {
                     sharepoint_sync_status: hr?.sharepoint_sync_status,
                     sharepoint_sync_date: hr?.sharepoint_sync_date,
                     sharepoint_error: hr?.sharepoint_error,
-                    observacoes: hr?.observacoes
+                    observacoes: hr?.observacoes,
+                    contratante: w.contratante || ''
                 };
             }) || [];
 
@@ -328,7 +330,7 @@ export function ClientHoursDetail() {
                                 </TableRow>
                             )}
                             {!loading && workers.map((worker) => (
-                                <TableRow key={worker.worker_id} className="hover:bg-muted/50 transition-colors">
+                                <TableRow key={`${worker.worker_id}-${worker.contratante}`} className="hover:bg-muted/50 transition-colors">
                                     <TableCell className="font-medium">
                                         <div className="flex items-center gap-2">
                                             <span>{worker.worker_name}</span>
@@ -444,6 +446,7 @@ export function ClientHoursDetail() {
                                                         open: true,
                                                         workerId: worker.worker_id,
                                                         workerName: worker.worker_name,
+                                                        contratante: worker.contratante,
                                                         hourRecordId: worker.hour_record_id
                                                     })}
                                                     title={t('clientHoursDetail.tooltips.sendSheet')}
@@ -527,6 +530,7 @@ export function ClientHoursDetail() {
                 clientXName={clientName || ''}
                 periodYear={year}
                 periodMonth={month}
+                contratante={uploadDialogState.contratante}
                 onSuccess={() => {
                     setUploadDialogState(prev => ({ ...prev, open: false }));
                     fetchClientWorkers();

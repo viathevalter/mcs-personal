@@ -22,6 +22,7 @@ interface AdminUploadDialogProps {
     clientXName: string; // The client name specifically for folder structure
     periodYear: number;
     periodMonth: number;
+    contratante: string; // The employer specifically for folder structure
     hourRecordId?: string; // If it doesn't exist, we might need to create it, but in our flow it should exist as 'pendente'
     onSuccess: () => void;
 }
@@ -33,6 +34,7 @@ export function AdminUploadDialog({
     clientXName,
     periodYear,
     periodMonth,
+    contratante,
     hourRecordId,
     onSuccess
 }: AdminUploadDialogProps) {
@@ -97,7 +99,9 @@ export function AdminUploadDialog({
                 .update({
                     status: 'enviado',
                     file_url: fileUrl,
-                    file_name: file.name
+                    file_name: file.name,
+                    contratante: contratante,
+                    cliente_nombre: clientXName
                 })
                 .eq('id', hourRecordId);
 

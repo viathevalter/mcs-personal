@@ -60,6 +60,30 @@ export async function getUniqueClients(): Promise<string[]> {
     return data ? data.map((row: any) => row.cliente_nombre) : [];
 }
 
+export interface GetHoursControlWorkersParams {
+    empresaId: string;
+    periodYear: number;
+    periodMonth: number;
+    contratante?: string;
+    clienteNombre?: string;
+}
+
+export async function getHoursControlWorkers({ empresaId, periodYear, periodMonth, contratante, clienteNombre }: GetHoursControlWorkersParams): Promise<Worker[]> {
+    const { data, error } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
+        p_empresa_id: empresaId,
+        p_period_year: periodYear,
+        p_period_month: periodMonth,
+        p_contratante: contratante || null,
+        p_cliente_nombre: clienteNombre || null
+    });
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    return (data || []) as Worker[];
+}
+
 export async function getUniqueContratantes(): Promise<string[]> {
     const { data, error } = await supabase.schema('public').rpc('get_unique_contratantes');
 

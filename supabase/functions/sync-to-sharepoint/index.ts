@@ -105,29 +105,8 @@ serve(async (req) => {
 
     const hourRecord = hrData as any;
 
-    // Workaround for cross-schema join: Fetch client details separately via RPC
-    const codColab = hourRecord.worker?.cod_colab;
-    if (codColab) {
-      const { data: rpcDataRaw, error: rpcError } = await supabaseClient.rpc('fn_get_active_client_for_worker_json', { p_cod_colab: codColab });
-      if (!rpcError && rpcDataRaw) {
-        // Handle PostgREST returning an array or a wrapped scalar
-        let rpcData = Array.isArray(rpcDataRaw) ? rpcDataRaw[0] : rpcDataRaw;
-        // Sometimes it wraps the scalar inside the function name key
-        if (rpcData && rpcData.fn_get_active_client_for_worker_json) {
-            rpcData = rpcData.fn_get_active_client_for_worker_json;
-        }
-
-        // rpcData is now a JSON object containing: cod_cliente, cliente_nombre, empresa_nome
-        hourRecord.worker.cliente = {
-           cod_cliente: rpcData?.cod_cliente || "",
-           nome_comercial: rpcData?.cliente_nombre || ""
-        };
-        hourRecord.worker.empresa_nome = rpcData?.empresa_nome || "";
-
-      } else {
-        console.warn(`Could not resolve client for cod_colab ${codColab}:`, rpcError);
-      }
-    }
+    // Leia os dados gravados no momento do envio da folha pela UI:
+    // hourRecord.contratante e hourRecord.cliente_nombre já contêm STOCCO / LUMINOUS etc.
 
     if (!hourRecord.file_url) throw new Error("This record has no file to sync.");
 
@@ -154,21 +133,10 @@ serve(async (req) => {
     // Ex: "3. MARZO 2026"
     const folderMonthName = `${monthName} ${year}`;
 
-    // Empresa (Company) string e.g. LUMINOUS, KOTRIK ROSAS
-    const folderEmpresaName = hourRecord.worker?.empresa_nome || "";
-
-    let clientCode = hourRecord.worker?.cliente?.cod_cliente || "";
-    // Strip "C" and leading zeros if present (e.g., C0628 -> 628)
-    if (clientCode.startsWith('C')) {
-       clientCode = clientCode.replace(/^C0*/, '');
-    }
-
-    const clientName = hourRecord.worker?.cliente?.nome_comercial || "";
-    // Ex: "628-METALVENT" or just "METALVENT" if no code is available
-    let folderClientName = clientName;
-    if (clientName && clientCode) {
-       folderClientName = `${clientCode}-${clientName}`; // Changed space to hyphen as requested
-    }
+    // Empresa (Company) string e.g. LUMINOUS, STOCCO, KOTRIK ROSAS
+    const folderEmpresaName = hourRecord.contratante || "";
+    // O Cliente já será fornecido com o código embutido se a UI tiver gerado dessa forma (ex: 628-METALVENT)
+    const folderClientName = hourRecord.cliente_nombre || "";
 
     // Use worker's name for the file, keeping the original extension
     const workerName = hourRecord.worker?.nome || `Trabalhador_${hourRecord.worker_id}`;
