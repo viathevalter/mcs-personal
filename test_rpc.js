@@ -4,40 +4,22 @@ dotenv.config({ path: '.env.local' });
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY,
-    { db: { schema: 'public' } }
+    process.env.VITE_SUPABASE_ANON_KEY
 );
 
-async function run() {
-    // 1. Fetch FREDERICK AU BLANQUICETT
-    const { data: worker, error: wError } = await supabase
-        .from('colaboradores')
-        .select('id, cod_colab, nombre, contratante')
-        .ilike('nombre', '%FREDERICK AU%')
-        .limit(1);
+async function main() {
+    // Simulando a mesma chamada do useClientHoursSummary
+    const { data, error } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
+        p_empresa_id: 'e6963e6e-213c-4b68-8092-d9bedfca03bb', // Luminous UUID hardcoded ou um null/invalido só pra trigger error
+        p_period_year: 2026,
+        p_period_month: 3,
+        p_contratante: null,
+        p_cliente_nombre: null
+    });
 
-    if (wError) {
-        console.error('Error fetching worker:', wError);
-        return;
-    }
-    console.log('Worker:', worker);
-
-    if (worker && worker.length > 0) {
-        // 2. Test RPC
-        const { data: rpcData, error: rpcError } = await supabase
-            .rpc('fn_get_active_client_for_worker_json', { p_cod_colab: worker[0].cod_colab });
-
-        console.log('RPC Result:', rpcData);
-        console.log('RPC Error:', rpcError);
-        
-        // 3. Let's see all assignments for this worker in colaborador_por_pedido
-        const { data: assignments, error: aError } = await supabase
-            .from('colaborador_por_pedido')
-            .select('id, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador')
-            .eq('cod_colab', worker[0].cod_colab);
-            
-        console.log('Assignments:', assignments);
+    console.log("Error details:", JSON.stringify(error, null, 2));
+    if (!error) {
+       console.log("Row count:", data?.length);
     }
 }
-
-run();
+main();

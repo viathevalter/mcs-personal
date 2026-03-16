@@ -79,7 +79,8 @@ export function ClientHoursDetail() {
                 empresaId: selectedEmpresaId as string,
                 periodYear: year,
                 periodMonth: month,
-                clienteNombre: clientName || '',
+                clienteNombre: clientName || null,
+                contratante: null
             });
 
             // Fetch hour records
@@ -93,8 +94,7 @@ export function ClientHoursDetail() {
                     .select('*')
                     .eq('empresa_id', selectedEmpresaId)
                     .eq('period_year', year)
-                    .eq('period_month', month)
-                    .in('worker_id', workerIds);
+                    .eq('period_month', month);
 
                 if (hoursError) throw hoursError;
                 hoursData = hours || [];

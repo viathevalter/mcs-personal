@@ -64,8 +64,8 @@ export interface GetHoursControlWorkersParams {
     empresaId: string;
     periodYear: number;
     periodMonth: number;
-    contratante?: string;
-    clienteNombre?: string;
+    contratante?: string | null;
+    clienteNombre?: string | null;
 }
 
 export async function getHoursControlWorkers({ empresaId, periodYear, periodMonth, contratante, clienteNombre }: GetHoursControlWorkersParams): Promise<Worker[]> {

@@ -40,7 +40,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                     empresaId: selectedEmpresaId,
                     periodYear,
                     periodMonth,
-                    contratante: contratante || undefined,
+                    contratante: contratante || null,
                 });
                 console.log('Workers fetched:', workers?.length);
 
@@ -56,8 +56,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         .select('worker_id, status')
                         .eq('empresa_id', selectedEmpresaId)
                         .eq('period_year', periodYear)
-                        .eq('period_month', periodMonth)
-                        .in('worker_id', workerIds);
+                        .eq('period_month', periodMonth);
 
                     if (hoursError) {
                         console.error('Hours fetch error:', hoursError);
