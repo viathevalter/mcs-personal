@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags } from 'lucide-react';
+import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
@@ -20,6 +20,7 @@ export function Sidebar() {
     const links: SidebarLink[] = [
         { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
+        { to: '/workers/history', tKey: 'Histórico de Atividade', icon: History, roles: ['admin', 'rh'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
         { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'] },

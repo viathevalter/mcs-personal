@@ -3,6 +3,7 @@ import { BaseLayout } from '../shared/layout/BaseLayout';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { WorkersPage } from '../features/workers/WorkersPage';
 import { WorkerDetailsPage } from '../features/workers/WorkerDetailsPage';
+import { MovementHistoryPage } from '../features/workers/MovementHistoryPage';
 import { BenefitsPage } from '../features/benefits/BenefitsPage';
 import { TaxesPage } from '../features/taxes/pages/TaxesPage';
 import { DiscountsPage } from '../features/discounts/pages/DiscountsPage';
@@ -62,6 +63,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'workers',
                         element: <WorkersPage />,
+                    },
+                    {
+                        path: 'workers/history',
+                        element: <MovementHistoryPage />,
                     },
                     {
                         path: 'workers/:id',

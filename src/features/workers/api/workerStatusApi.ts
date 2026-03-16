@@ -57,7 +57,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
     const { data: worker, error: fetchError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('status_trabajador, status_seguridad')
+        .select('status_trabajador, status_seguridad, cod_colab, empresa_id')
         .eq('id', workerId)
         .single();
 
@@ -65,12 +65,18 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
 
     const oldValue = changeType === 'TRABALHADOR' ? worker.status_trabajador : worker.status_seguridad;
 
-    // 2. Update the worker table
     const updateData: any = {};
     if (changeType === 'TRABALHADOR') {
         updateData.status_trabajador = newValue;
-        if (newValue.toUpperCase() === 'INATIVO' || newValue.toUpperCase() === 'BAIXA') {
+        if (newValue.toUpperCase() === 'INATIVO' || newValue.toUpperCase() === 'BAIXA' || newValue.toUpperCase() === 'DESLIGADO') {
             updateData.data_baixa = effectiveDate;
+            
+            // Regra 4: Casamento com Seguridade Social
+            if (worker.status_seguridad?.toUpperCase() === 'ALTA') {
+                updateData.status_seguridad = 'Pendente Baixa';
+            } else if (worker.status_seguridad?.toUpperCase() === 'EM REGULARIZAÇÃO') {
+                updateData.status_seguridad = null;
+            }
         } else if (newValue.toUpperCase() === 'ATIVO') {
             updateData.data_ingresso = effectiveDate;
             updateData.data_baixa = null; // Clear if re-hired
@@ -107,4 +113,69 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
         });
 
     if (historyError) throw mapSupabaseError(historyError);
+
+    // ==========================================
+    // Automações Paralelas (Regras 2, 3 e 5)
+    // ==========================================
+    
+    if (changeType === 'TRABALHADOR' && (newValue.toUpperCase() === 'INATIVO' || newValue.toUpperCase() === 'BAIXA' || newValue.toUpperCase() === 'DESLIGADO')) {
+        // Regra 2: Baixa Efetiva Automática de Obras (Alocações / Kanban)
+        const { error: allocError } = await supabase
+            .schema('public')
+            .from('colaborador_por_pedido')
+            .update({ fechasalidatrabajador: effectiveDate })
+            .eq('cod_colab', worker.cod_colab)
+            .is('fechasalidatrabajador', null);
+
+        if (allocError) console.error('Erro ao atualizar Alocações:', allocError);
+
+        // Regra 3: Observações no Controle de Horas
+        const d = new Date(effectiveDate);
+        const periodYear = d.getFullYear();
+        const periodMonth = d.getMonth() + 1;
+        
+        const { data: existingHour } = await supabase
+            .schema('core_personal')
+            .from('worker_hours')
+            .select('id, observacoes')
+            .eq('worker_id', workerId)
+            .eq('period_year', periodYear)
+            .eq('period_month', periodMonth)
+            .maybeSingle();
+
+        // Extrai o Timezone adjustment se necessário (gambiarra UTC-to-Local visual)
+        const dtFormatted = effectiveDate.split('-').reverse().join('/');
+        const msgObservacao = `Trabalhador inativado em ${dtFormatted}. Motivo: ${comments || 'Não informado'}.`;
+
+        if (existingHour) {
+            const newObs = existingHour.observacoes ? `${existingHour.observacoes} | ${msgObservacao}` : msgObservacao;
+            await supabase.schema('core_personal').from('worker_hours').update({ observacoes: newObs }).eq('id', existingHour.id);
+        } else {
+            await supabase.schema('core_personal').from('worker_hours').insert({ 
+                worker_id: workerId, 
+                empresa_id: worker.empresa_id,
+                period_year: periodYear,
+                period_month: periodMonth,
+                status: 'pendente',
+                observacoes: msgObservacao
+            });
+        }
+    }
+
+    // Regra 5: Integração Kanban (Tarefas de Alta/Baixa)
+    const finalSeguridadStatus = changeType === 'SEGURIDADE' ? newValue : updateData.status_seguridad;
+
+    if (finalSeguridadStatus && 
+       (finalSeguridadStatus.toUpperCase() === 'PENDENTE ALTA' || finalSeguridadStatus.toUpperCase() === 'PENDENTE BAIXA')) {
+        const isAlta = finalSeguridadStatus.toUpperCase() === 'PENDENTE ALTA';
+        const { error: queueError } = await supabase.schema('core_personal').from('seguridade_status').insert({
+             worker_id: workerId,
+             empresa_id: worker.empresa_id,
+             tipo_evento: isAlta ? 'alta' : 'baixa',
+             status: 'pendente',
+             origem: changeType === 'SEGURIDADE' ? 'Mudança Manual de Status' : 'Inativação de Trabalhador',
+             data_solicitacao: new Date().toISOString()
+        });
+        if (queueError) console.error('Erro ao inserir fila de seguridade:', queueError);
+    }
 }

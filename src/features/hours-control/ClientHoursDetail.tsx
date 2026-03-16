@@ -29,6 +29,8 @@ interface WorkerDetail {
     sharepoint_error?: string;
     observacoes?: string | null;
     contratante: string;
+    worker_status?: string | null;
+    data_baixa?: string | null;
 }
 
 export function ClientHoursDetail() {
@@ -102,7 +104,7 @@ export function ClientHoursDetail() {
             }
 
             // Merge details
-            const merged: WorkerDetail[] = workersData?.map(w => {
+            const merged: WorkerDetail[] = workersData?.map((w: any) => {
                 const hr = hoursData.find(h => h.worker_id === w.id && (!h.contratante || h.contratante === w.contratante));
                 return {
                     worker_id: w.id,
@@ -117,7 +119,9 @@ export function ClientHoursDetail() {
                     sharepoint_sync_date: hr?.sharepoint_sync_date,
                     sharepoint_error: hr?.sharepoint_error,
                     observacoes: hr?.observacoes,
-                    contratante: w.contratante || ''
+                    contratante: w.contratante || '',
+                    worker_status: w.status_trabajador,
+                    data_baixa: w.data_baixa
                 };
             }) || [];
 
@@ -326,27 +330,51 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {!loading && workers.map((worker) => (
+                            {!loading && workers.map((worker) => {
+                                const rawStatus = worker.worker_status?.toUpperCase() || '';
+                                let displayStatus = rawStatus;
+                                let isHistoricalActive = false;
+                                
+                                if ((rawStatus === 'INATIVO' || rawStatus === 'BAIXA') && worker.data_baixa) {
+                                    const baixaDate = new Date(worker.data_baixa + 'T00:00:00');
+                                    if (baixaDate.getFullYear() > year || (baixaDate.getFullYear() === year && baixaDate.getMonth() + 1 > month)) {
+                                        displayStatus = 'ATIVO';
+                                        isHistoricalActive = true;
+                                    }
+                                }
+
+                                return (
                                 <TableRow key={`${worker.worker_id}-${worker.contratante}`} className="hover:bg-muted/50 transition-colors">
-                                    <TableCell className="font-medium">
-                                        <div className="flex items-center gap-2">
-                                            <span>{worker.worker_name}</span>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigator.clipboard.writeText(worker.worker_name);
-                                                    toast.success(t('clientHoursDetail.copied.name'));
-                                                }}
-                                                title={t('clientHoursDetail.tooltips.copyName')}
-                                            >
-                                                <Copy className="h-3 w-3" />
-                                            </Button>
+                                    <TableCell className="font-medium align-top pt-4">
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <span>{worker.worker_name}</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigator.clipboard.writeText(worker.worker_name);
+                                                        toast.success(t('clientHoursDetail.copied.name'));
+                                                    }}
+                                                    title={t('clientHoursDetail.tooltips.copyName')}
+                                                >
+                                                    <Copy className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                            {displayStatus === 'INATIVO' || displayStatus === 'BAIXA' ? (
+                                                <Badge variant="destructive" className="w-fit text-[10px] px-1.5 py-0 h-5">
+                                                    {worker.worker_status} {worker.data_baixa ? `em ${new Date(worker.data_baixa + 'T00:00:00').toLocaleDateString('pt-PT')}` : ''}
+                                                </Badge>
+                                            ) : displayStatus === 'ATIVO' ? (
+                                                <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0 h-5 text-green-600 border-green-200 bg-green-50" title={isHistoricalActive ? "Trabalhador inativado posteriormente" : undefined}>
+                                                    {isHistoricalActive ? 'Ativo' : worker.worker_status || 'Ativo'}
+                                                </Badge>
+                                            ) : null}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground">
+                                    <TableCell className="text-muted-foreground align-top pt-4">
                                         <div className="flex items-center gap-2">
                                             <span>{worker.pasaporte || t('clientHoursDetail.notInformed')}</span>
                                             {worker.pasaporte && (
@@ -366,7 +394,7 @@ export function ClientHoursDetail() {
                                             )}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground">
+                                    <TableCell className="text-muted-foreground align-top pt-4">
                                         <div className="flex items-center gap-2">
                                             <span>{worker.movil || t('clientHoursDetail.notInformed')}</span>
                                             {worker.movil && (
@@ -397,29 +425,49 @@ export function ClientHoursDetail() {
                                             )}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-center">
+                                    <TableCell className="text-center align-top pt-4">
                                         {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
                                         {worker.status === 'enviado' && <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100">{t('clientHoursDetail.badges.submitted')}</Badge>}
                                         {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
                                     </TableCell>
-                                    <TableCell className="text-center">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`h-8 w-8 ${worker.observacoes ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-muted-foreground hover:text-foreground'}`}
-                                            onClick={() => setNotesDialogState({
-                                                open: true,
-                                                workerId: worker.worker_id,
-                                                workerName: worker.worker_name,
-                                                hourRecordId: worker.hour_record_id || null,
-                                                existingNote: worker.observacoes || null
-                                            })}
-                                            title={worker.observacoes || t('clientHoursDetail.notesTitle', 'Anotações')}
-                                        >
-                                            <StickyNote className="h-4 w-4" />
-                                        </Button>
+                                    <TableCell className="align-top pt-4">
+                                        {worker.observacoes ? (
+                                            <div className="flex items-start gap-2">
+                                                <div 
+                                                    className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded max-w-[200px] whitespace-pre-wrap break-words cursor-pointer hover:bg-amber-100 transition-colors"
+                                                    title="Clique para editar"
+                                                    onClick={() => setNotesDialogState({
+                                                        open: true,
+                                                        workerId: worker.worker_id,
+                                                        workerName: worker.worker_name,
+                                                        hourRecordId: worker.hour_record_id || null,
+                                                        existingNote: worker.observacoes || null
+                                                    })}
+                                                >
+                                                    {worker.observacoes}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-center">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                                    onClick={() => setNotesDialogState({
+                                                        open: true,
+                                                        workerId: worker.worker_id,
+                                                        workerName: worker.worker_name,
+                                                        hourRecordId: worker.hour_record_id || null,
+                                                        existingNote: worker.observacoes || null
+                                                    })}
+                                                    title={t('clientHoursDetail.notesTitle', 'Adicionar anotação')}
+                                                >
+                                                    <StickyNote className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="align-top pt-4">
                                         {worker.file_name && worker.file_url ? (
                                             <div
                                                 className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer max-w-[200px]"
@@ -432,7 +480,7 @@ export function ClientHoursDetail() {
                                             <span className="text-muted-foreground text-sm">-</span>
                                         )}
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-right align-top pt-4">
                                         <div className="flex justify-end gap-2">
                                             {worker.status === 'pendente' && worker.hour_record_id && (role === 'super_admin' || role === 'admin_rh') && (
                                                 <Button
@@ -513,7 +561,8 @@ export function ClientHoursDetail() {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 </div>

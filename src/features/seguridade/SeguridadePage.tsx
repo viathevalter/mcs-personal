@@ -4,19 +4,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Search, ArrowRight, CheckCircle2, AlertCircle, LayoutGrid, List, Users, ShieldCheck } from 'lucide-react';
 import type { SeguridadeStatusWithWorker } from '@/shared/types/corePersonal';
 import { useClientWorkerKpis } from '../workers/hooks/useClientWorkerKpis';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDebounce } from '@/shared/hooks/useDebounce';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 export function SeguridadePage() {
     const { selectedEmpresaId } = useEmpresa();
     const { data: statuses, isLoading, isError } = useSeguridadeList();
     const [searchTerm, setSearchTerm] = useState('');
-    const [clienteFilter, setClienteFilter] = useState('all');
+    const [clienteFilters, setClienteFilters] = useState<string[]>([]);
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
 
     // Debounce search term to avoid spamming the DB
@@ -26,7 +26,7 @@ export function SeguridadePage() {
     const { data: kpis, isLoading: kpisLoading } = useClientWorkerKpis(
         selectedEmpresaId || '',
         debouncedSearch || null,
-        clienteFilter === 'all' ? null : clienteFilter,
+        clienteFilters.length > 0 ? clienteFilters : null,
         null,
         null
     );
@@ -64,8 +64,8 @@ export function SeguridadePage() {
             if (!matchesSearch) return false;
         }
 
-        if (clienteFilter !== 'all') {
-            if (s.origem_cliente_nome !== clienteFilter) return false;
+        if (clienteFilters.length > 0) {
+            if (!s.origem_cliente_nome || !clienteFilters.includes(s.origem_cliente_nome)) return false;
         }
 
         return true;
@@ -87,29 +87,25 @@ export function SeguridadePage() {
             </header>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <div className="relative flex-1 max-w-sm shrink-0 items-center h-10">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                         type="search"
                         placeholder="Buscar trabalhador, cód, NISS..."
-                        className="pl-8"
+                        className="pl-9 h-10 w-full"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="w-full sm:w-[250px]">
-                    <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filtrar por Cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Ver Todos os Clientes</SelectItem>
-                            {clients.map(c => (
-                                <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                <div className="w-full sm:w-[320px] shrink-0 h-10">
+                    <MultiSelect
+                        options={clients.map(c => ({ value: c, label: c }))}
+                        selected={clienteFilters}
+                        onChange={setClienteFilters}
+                        placeholder="Filtrar por Cliente"
+                        emptyText="Nenhum cliente encontrado"
+                    />
                 </div>
 
                 <div className="flex-1"></div>

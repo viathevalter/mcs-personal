@@ -26,7 +26,7 @@ export function WorkerDetailsPage() {
     if (id === 'new') {
         return (
             <div className="space-y-6">
-                <Button variant="ghost" onClick={() => navigate('/workers')} className="mb-4 -ml-3">
+                <Button variant="ghost" onClick={() => window.history.length > 2 ? navigate(-1) : navigate('/workers')} className="mb-4 -ml-3">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para lista
                 </Button>
                 <div className="rounded-md bg-muted p-8 text-center border">
@@ -64,7 +64,7 @@ export function WorkerDetailsPage() {
 
     return (
         <div className="space-y-6">
-            <Button variant="ghost" onClick={() => navigate('/workers')} className="mb-6 -ml-3">
+            <Button variant="ghost" onClick={() => window.history.length > 2 ? navigate(-1) : navigate('/workers')} className="mb-6 -ml-3">
                 <ArrowLeft className="mr-2 h-4 w-4" /> {t('workerDetails.backToList')}
             </Button>
 
