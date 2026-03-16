@@ -10,6 +10,8 @@ import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, 
 import { format } from 'date-fns';
 import type { WorkerWithHousing } from '@/shared/types/corePersonal';
 import { useDeleteHousingBatch } from './hooks/useDeleteHousingBatch';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { useUniqueClients } from '../workers/hooks/useUniqueClients';
 
 import { useSearchParams } from 'react-router-dom';
 
@@ -21,7 +23,7 @@ export function BenefitsPage() {
 
     // Filters from URL
     const searchTerm = searchParams.get('search') || '';
-    const selectedClient = searchParams.get('client') || 'ALL';
+    const selectedClient = searchParams.get('client')?.split(',').filter(Boolean) || [];
     const selectedCompany = searchParams.get('company') || 'ALL';
 
     // Sort from URL
@@ -29,13 +31,15 @@ export function BenefitsPage() {
     const sortDirParam = searchParams.get('sortDir') as 'asc' | 'desc' | null;
     const sortConfig = sortKeyParam && sortDirParam ? { key: sortKeyParam as any, direction: sortDirParam } : null;
 
-    const updateSearchParams = (updates: Record<string, string | null | undefined>) => {
+    const updateSearchParams = (updates: Record<string, string | string[] | null | undefined>) => {
         const newParams = new URLSearchParams(searchParams);
         Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === undefined || value === '' || value === 'ALL') {
+            if (value === null || value === undefined || value === '' || value === 'ALL' || (Array.isArray(value) && value.length === 0)) {
                 newParams.delete(key);
+            } else if (Array.isArray(value)) {
+                newParams.set(key, value.join(','));
             } else {
-                newParams.set(key, value);
+                newParams.set(key, value.toString());
             }
         });
         setSearchParams(newParams, { replace: true });
@@ -47,11 +51,13 @@ export function BenefitsPage() {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [selectedWorker, setSelectedWorker] = useState<WorkerWithHousing | null>(null);
 
+    const { data: globalClientsList } = useUniqueClients();
     const uniqueClients = useMemo(() => {
+        if (globalClientsList) return globalClientsList;
         if (!workers) return [];
         const clients = new Set(workers.map(w => w.cliente_nombre).filter(Boolean) as string[]);
         return Array.from(clients).sort();
-    }, [workers]);
+    }, [workers, globalClientsList]);
 
     const uniqueCompanies = useMemo(() => {
         if (!workers) return [];
@@ -102,7 +108,7 @@ export function BenefitsPage() {
         let result = workers.filter(w => {
             const matchesSearch = w.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 w.cod_colab.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesClient = selectedClient === 'ALL' || w.cliente_nombre === selectedClient;
+            const matchesClient = selectedClient.length === 0 || selectedClient.includes(w.cliente_nombre || '');
             const matchesCompany = selectedCompany === 'ALL' || w.contratante === selectedCompany;
             return matchesSearch && matchesClient && matchesCompany;
         });
@@ -215,16 +221,13 @@ export function BenefitsPage() {
                     />
                 </div>
                 <div className="w-full sm:w-1/3">
-                    <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedClient}
-                        onChange={(e) => updateSearchParams({ client: e.target.value })}
-                    >
-                        <option value="ALL">Todos os Clientes</option>
-                        {uniqueClients.map(client => (
-                            <option key={client} value={client}>{client}</option>
-                        ))}
-                    </select>
+                    <MultiSelect
+                        options={uniqueClients.filter(c => c && c.trim() !== '').map(client => ({ value: client, label: client })) || []}
+                        selected={selectedClient}
+                        onChange={(val) => updateSearchParams({ client: val })}
+                        placeholder="Filtrar por Cliente"
+                        emptyText="Nenhum cliente"
+                    />
                 </div>
                 <div className="w-full sm:w-1/3">
                     <select

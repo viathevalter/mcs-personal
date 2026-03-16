@@ -5,7 +5,7 @@ import type { Worker } from '@/shared/types/corePersonal';
 export interface ListWorkersParams {
     empresaId: string;
     search?: string;
-    clienteNombre?: string;
+    clienteNombre?: string[];
     statusTrabajador?: string[];
     statusSeguridad?: string[];
     contratante?: string;
@@ -25,7 +25,7 @@ export async function listWorkers({ empresaId, search, clienteNombre, statusTrab
     const { data, error } = await supabase.schema('core_personal').rpc('search_workers', {
         p_empresa_id: empresaId,
         p_search: search || null,
-        p_cliente_nombre: clienteNombre || null,
+        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
         p_status_trabajador_filter: statusTrabajador && statusTrabajador.length > 0 ? statusTrabajador : null,
         p_status_seguridad_filter: statusSeguridad && statusSeguridad.length > 0 ? statusSeguridad : null,
         p_contratante: contratante || null,
@@ -145,14 +145,14 @@ export interface ClientWorkerKpi {
 export async function getClientWorkerKpis(
     empresaId: string,
     search: string | null,
-    clienteNombre: string | null,
+    clienteNombre: string[] | null,
     contratante: string | null,
     funcion: string | null
 ): Promise<ClientWorkerKpi> {
     const { data, error } = await supabase.schema('core_personal').rpc('get_client_worker_kpis', {
         p_empresa_id: empresaId,
         p_search: search || null,
-        p_cliente_nombre: clienteNombre || null,
+        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
         p_contratante: contratante || null,
         p_funcion: funcion || null
     });

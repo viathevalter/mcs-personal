@@ -13,11 +13,12 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Search, ChevronLeft, ChevronRight, Loader2, Users, ShieldAlert, Building, ArrowUpDown, ArrowUp, ArrowDown, DownloadCloud } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Loader2, Users, ShieldAlert, ArrowUpDown, ArrowUp, ArrowDown, DownloadCloud } from 'lucide-react';
 
 import { useUniqueContratantes } from './hooks/useUniqueContratantes';
 import { useUniqueFunciones } from './hooks/useUniqueFunciones';
 import { useClientWorkerKpis } from './hooks/useClientWorkerKpis';
+import { useUniqueClients } from './hooks/useUniqueClients';
 import { Combobox } from '@/components/ui/combobox';
 import { MultiSelect } from '@/components/ui/multi-select';
 import {
@@ -35,8 +36,8 @@ export function WorkersPage() {
     const { selectedEmpresaId } = useEmpresa();
     const { t } = useTranslation();
 
-    const searchMode = (searchParams.get('searchMode') as 'worker' | 'client') || 'worker';
     const search = searchParams.get('search') || '';
+    const clienteNombre = searchParams.get('clienteNombre')?.split(',').filter(Boolean) || [];
     const contratante = searchParams.get('contratante') || null;
     const funcion = searchParams.get('funcion') || null;
     const statusTrabajador = searchParams.get('statusTrabajador')?.split(',').filter(Boolean) || ['ativos'];
@@ -68,15 +69,15 @@ export function WorkersPage() {
     // 400ms debounce as per requirements
     const debouncedSearch = useDebounce(search, 400);
 
-    const activeSearch = searchMode === 'worker' ? (debouncedSearch || undefined) : undefined;
-    const activeClienteNombre = searchMode === 'client' ? (debouncedSearch || undefined) : undefined;
+    const activeSearch = debouncedSearch || undefined;
 
     const { data: contratantes } = useUniqueContratantes();
     const { data: funciones } = useUniqueFunciones();
+    const { data: clientsList } = useUniqueClients();
     const { data: kpis, isLoading: kpisLoading, isError: kpisIsError, error: kpisError } = useClientWorkerKpis(
         selectedEmpresaId || '',
         activeSearch || null,
-        activeClienteNombre || null,
+        clienteNombre.length > 0 ? clienteNombre : null,
         contratante,
         funcion
     );
@@ -84,7 +85,7 @@ export function WorkersPage() {
     const { data, isLoading, isError, error } = useWorkersList({
         empresaId: selectedEmpresaId || '',
         search: activeSearch,
-        clienteNombre: activeClienteNombre,
+        clienteNombre: clienteNombre.length > 0 ? clienteNombre : undefined,
         statusTrabajador: statusTrabajador,
         statusSeguridad: statusSeguridad,
         contratante: contratante || undefined,
@@ -140,25 +141,12 @@ export function WorkersPage() {
             </div>
             <div className="w-full mb-2 shrink-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full">
-                    <div className="relative w-full sm:col-span-2 flex flex-col sm:flex-row items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
-                        <div className="flex items-center justify-center px-3 h-9 sm:h-full w-full sm:w-auto text-muted-foreground border-b sm:border-b-0 sm:border-r border-input bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer select-none"
-                            onClick={() => {
-                                updateSearchParams({ 
-                                    searchMode: searchMode === 'worker' ? 'client' : 'worker',
-                                    search: '',
-                                    page: '1'
-                                });
-                            }}
-                            title={t('workersPage.filters.toggle')}
-                        >
-                            {searchMode === 'worker' ? <Users className="h-4 w-4 mr-2" /> : <Building className="h-4 w-4 mr-2" />}
-                            <span className="text-xs font-medium w-[75px] text-center">{searchMode === 'worker' ? t('workersPage.filters.worker') : t('workersPage.filters.client')}</span>
-                        </div>
+                    <div className="relative w-full sm:col-span-2 flex items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
                         <div className="relative flex-1 flex items-center h-9 sm:h-full w-full">
                             <Search className="h-4 w-4 ml-3 text-muted-foreground shrink-0" />
                             <input
                                 type="text"
-                                placeholder={searchMode === 'worker' ? t('workersPage.filters.searchWorker') : t('workersPage.filters.searchClient')}
+                                placeholder={t('workersPage.filters.searchWorker')}
                                 value={search}
                                 onChange={(e) => {
                                     updateSearchParams({ search: e.target.value, page: '1' });
@@ -192,10 +180,20 @@ export function WorkersPage() {
                             placeholder={t('workersPage.filters.security')}
                         />
                     </div>
+                    
+                    <div className="w-full">
+                        <MultiSelect
+                            options={clientsList?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            selected={clienteNombre}
+                            onChange={(val) => updateSearchParams({ clienteNombre: val, page: '1' })}
+                            placeholder={t('workersPage.filters.client')}
+                            emptyText={t('workersPage.filters.noCompany')}
+                        />
+                    </div>
 
                     <div className="w-full">
                         <Combobox
-                            options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            options={contratantes?.filter((c: string | undefined): c is string => !!c && c.trim() !== '').map((c: string) => ({ value: c, label: c })) || []}
                             value={contratante}
                             onChange={(val) => updateSearchParams({ contratante: val, page: '1' })}
                             placeholder={t('workersPage.filters.company')}
@@ -204,7 +202,7 @@ export function WorkersPage() {
                     </div>
                     <div className="w-full">
                         <Combobox
-                            options={funciones?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            options={funciones?.filter((c: string | undefined): c is string => !!c && c.trim() !== '').map((c: string) => ({ value: c, label: c })) || []}
                             value={funcion}
                             onChange={(val) => updateSearchParams({ funcion: val, page: '1' })}
                             placeholder={t('workersPage.filters.profile')}
@@ -369,7 +367,7 @@ export function WorkersPage() {
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {selectedEmpresaId && !isLoading && !isError && data?.data.map((worker) => (
+                            {selectedEmpresaId && !isLoading && !isError && data?.data.map((worker: any) => (
                                 <TableRow
                                     key={worker.id}
                                     className="cursor-pointer hover:bg-muted/50 transition-colors"

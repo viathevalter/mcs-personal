@@ -7,11 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../components/ui/badge';
 import { useEmpresa } from '../../app/providers/EmpresaProvider';
 import { useClientHoursSummary } from './hooks/useClientHoursSummary';
-import { Loader2, FileText, ChevronRight, Search, Users, Clock, Upload, CheckCircle } from 'lucide-react';
+import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Input } from '../../components/ui/input';
 import { useUniqueContratantes } from '../workers/hooks/useUniqueContratantes';
+import { useUniqueClients } from '../workers/hooks/useUniqueClients';
 import { Combobox } from '../../components/ui/combobox';
+import { MultiSelect } from '../../components/ui/multi-select';
 import { useTranslation } from 'react-i18next';
 
 export function HoursControlPage() {
@@ -26,16 +27,18 @@ export function HoursControlPage() {
 
     const periodYear = parseInt(searchParams.get('year') || prevMonthDate.getFullYear().toString());
     const periodMonth = parseInt(searchParams.get('month') || (prevMonthDate.getMonth() + 1).toString()); // 1-12
-    const clientFilter = searchParams.get('clientFilter') || '';
+    const clientFilter = searchParams.get('clientFilter')?.split(',').filter(Boolean) || [];
     const contratanteFilter = searchParams.get('contratante') || null;
 
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
 
-    const updateSearchParams = (updates: Record<string, string | null>) => {
+    const updateSearchParams = (updates: Record<string, string | string[] | null>) => {
         const newParams = new URLSearchParams(searchParams);
         Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === '') {
+            if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
                 newParams.delete(key);
+            } else if (Array.isArray(value)) {
+                newParams.set(key, value.join(','));
             } else {
                 newParams.set(key, value);
             }
@@ -48,6 +51,7 @@ export function HoursControlPage() {
     }, []);
 
     const { data: contratantes } = useUniqueContratantes();
+    const { data: clientsList } = useUniqueClients();
     const { data: clients, isLoading, isError, error } = useClientHoursSummary(periodYear, periodMonth, contratanteFilter);
 
     // Filter controls
@@ -60,9 +64,10 @@ export function HoursControlPage() {
         };
     });
 
-    const filteredClients = (clients || []).filter(c =>
-        c.cliente_nombre?.toLowerCase().includes(clientFilter.toLowerCase())
-    );
+    const filteredClients = (clients || []).filter(c => {
+        if (clientFilter.length === 0) return true;
+        return clientFilter.some(filtro => c.cliente_nombre?.toLowerCase() === filtro.toLowerCase());
+    });
 
     const kpis = {
         ativos: filteredClients.reduce((acc, c) => acc + (c.total_workers || 0), 0),
@@ -136,13 +141,13 @@ export function HoursControlPage() {
                         />
                     </div>
 
-                    <div className="w-full sm:w-64 relative">
-                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
+                    <div className="w-full sm:w-80">
+                        <MultiSelect
+                            options={clientsList?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
+                            selected={clientFilter}
+                            onChange={(val) => updateSearchParams({ clientFilter: val })}
                             placeholder={t('hoursControl.filterClient')}
-                            className="pl-8"
-                            value={clientFilter}
-                            onChange={(e) => updateSearchParams({ clientFilter: e.target.value })}
+                            emptyText={t('hoursControl.noCompany')}
                         />
                     </div>
                 </div>
