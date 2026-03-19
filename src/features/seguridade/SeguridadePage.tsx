@@ -11,6 +11,7 @@ import { useClientWorkerKpis } from '../workers/hooks/useClientWorkerKpis';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { ProcessarSeguridadeDialog } from './components/ProcessarSeguridadeDialog';
 
 export function SeguridadePage() {
     const { selectedEmpresaId } = useEmpresa();
@@ -18,6 +19,14 @@ export function SeguridadePage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [clienteFilters, setClienteFilters] = useState<string[]>([]);
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<SeguridadeStatusWithWorker | null>(null);
+
+    const handleProcessar = (item: SeguridadeStatusWithWorker) => {
+        setSelectedItem(item);
+        setIsDialogOpen(true);
+    };
 
     // Debounce search term to avoid spamming the DB
     const debouncedSearch = useDebounce(searchTerm, 400);
@@ -201,7 +210,7 @@ export function SeguridadePage() {
                             {pendentes.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-8">Nenhuma pendência.</p>
                             ) : (
-                                pendentes.map(item => <StatusCard key={item.id} item={item} />)
+                                pendentes.map(item => <StatusCard key={item.id} item={item} onProcessar={handleProcessar} />)
                             )}
                         </div>
                     </div>
@@ -219,7 +228,7 @@ export function SeguridadePage() {
                             {erros.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum erro.</p>
                             ) : (
-                                erros.map(item => <StatusCard key={item.id} item={item} />)
+                                erros.map(item => <StatusCard key={item.id} item={item} onProcessar={handleProcessar} />)
                             )}
                         </div>
                     </div>
@@ -237,7 +246,7 @@ export function SeguridadePage() {
                             {confirmados.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum item processado buscando pelo filtro.</p>
                             ) : (
-                                confirmados.map(item => <StatusCard key={item.id} item={item} />)
+                                confirmados.map(item => <StatusCard key={item.id} item={item} onProcessar={handleProcessar} />)
                             )}
                         </div>
                     </div>
@@ -289,7 +298,7 @@ export function SeguridadePage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" variant={isPendente ? 'default' : 'secondary'} asChild>
-                                                    <button onClick={() => alert('Abrir modal de resolução')}>
+                                                    <button onClick={() => handleProcessar(item)}>
                                                         {isPendente ? 'Tratar' : 'Detalhes'}
                                                     </button>
                                                 </Button>
@@ -303,11 +312,16 @@ export function SeguridadePage() {
                 </Card>
             )
             }
+            <ProcessarSeguridadeDialog 
+                isOpen={isDialogOpen} 
+                onClose={() => setIsDialogOpen(false)} 
+                item={selectedItem} 
+            />
         </div >
     );
 }
 
-function StatusCard({ item }: { item: SeguridadeStatusWithWorker }) {
+function StatusCard({ item, onProcessar }: { item: SeguridadeStatusWithWorker; onProcessar: (item: SeguridadeStatusWithWorker) => void }) {
     const isAlta = item.tipo_evento === 'alta';
 
     return (
@@ -341,7 +355,7 @@ function StatusCard({ item }: { item: SeguridadeStatusWithWorker }) {
                 </div>
 
                 <div className="flex justify-end">
-                    <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => alert('Abrir modal de resolução')}>
+                    <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => onProcessar(item)}>
                         {item.status === 'confirmado' ? (
                             <>
                                 <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-500" />
