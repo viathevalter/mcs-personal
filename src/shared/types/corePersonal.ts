@@ -82,6 +82,8 @@ export interface SeguridadeStatus {
 
 export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
     autor_inativacao?: string;
+    hist_observacoes?: string;
+    hist_data_efetiva?: string;
     worker: {
         id: string;
         nome: string;
@@ -91,6 +93,9 @@ export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
         dni: string | null;
         nie: string | null;
         pasaporte: string | null;
+        fecha_nacimiento?: string | null;
+        funcion?: string | null;
+        empresa_nome?: string | null;
     };
 }
 export interface LedgerType {

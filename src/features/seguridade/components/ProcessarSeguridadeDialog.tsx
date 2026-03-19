@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Copy } from 'lucide-react';
 import { updateSeguridadeStatus } from '../api/seguridadeApi';
 import { uploadWorkerDocument } from '../../workers/api/documentsApi';
 import type { SeguridadeStatusWithWorker, StatusWorkflowSeguridade } from '@/shared/types/corePersonal';
@@ -24,6 +25,28 @@ interface ProcessarSeguridadeDialogProps {
     onClose: () => void;
     item: SeguridadeStatusWithWorker | null;
 }
+
+const CopyableField = ({ label, value }: { label: string, value?: string | null }) => {
+    if (!value) return null;
+    return (
+        <div className="flex items-start gap-1.5 text-xs">
+            <span className="font-medium text-foreground whitespace-nowrap mt-0.5">{label}:</span>
+            <span className="flex-1 text-muted-foreground break-words mt-0.5" title={value}>{value}</span>
+            <button 
+                type="button" 
+                onClick={(e) => {
+                    e.preventDefault();
+                    navigator.clipboard.writeText(value);
+                    toast.success(`${label} copiado!`);
+                }}
+                className="text-muted-foreground/50 hover:text-primary transition-colors flex-shrink-0 p-0.5 focus:outline-none"
+                title="Copiar"
+            >
+                <Copy className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    );
+};
 
 export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSeguridadeDialogProps) {
     const queryClient = useQueryClient();
@@ -74,7 +97,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Tratar Processo de Seguridade</DialogTitle>
                     <DialogDescription>
@@ -82,24 +105,50 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-3 py-2">
                     {/* Worker Info */}
-                    <div className="rounded-md bg-muted p-3 text-sm">
-                        <div className="flex items-center gap-2 mb-2">
+                    <div className="rounded-md bg-muted p-3 text-sm flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
                             <Badge variant={isAlta ? 'default' : 'destructive'} className="uppercase">
                                 {item.tipo_evento}
                             </Badge>
                             <span className="font-semibold">{item.worker.nome}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-muted-foreground mt-2">
-                            <div><span className="font-medium mr-1 text-foreground">Cód:</span>{item.worker.cod_colab}</div>
-                            {item.worker.niss && <div><span className="font-medium mr-1 text-foreground">NISS:</span>{item.worker.niss}</div>}
-                            {item.worker.dni && <div><span className="font-medium mr-1 text-foreground">DNI:</span>{item.worker.dni}</div>}
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-2 bg-background/50 p-2.5 rounded border border-border/50">
+                            <CopyableField label="Cód" value={item.worker.cod_colab} />
+                            <CopyableField label="NISS" value={item.worker.niss} />
+                            <CopyableField label="DNI/NIE" value={item.worker.dni || item.worker.nie} />
+                            <CopyableField 
+                                label="Nascimento" 
+                                value={item.worker.fecha_nacimiento ? new Date(item.worker.fecha_nacimiento).toLocaleDateString('pt-BR') : null} 
+                            />
+                            <CopyableField label="Função" value={item.worker.funcion} />
+                            <CopyableField label="Empresa" value={item.worker.empresa_nome} />
+                            <div className="sm:col-span-2">
+                                <CopyableField label="Cliente" value={item.origem_cliente_nome} />
+                            </div>
                         </div>
+
+                        {/* Histórico da Inativação / Alta */}
+                        {(item.hist_data_efetiva || item.hist_observacoes) && (
+                            <div className="border border-border/50 bg-background/50 rounded p-2.5 mt-2 space-y-2">
+                                <p className="text-xs font-semibold text-foreground/80 border-b border-border/50 pb-1">
+                                    Histórico de {isAlta ? 'Alta' : 'Baixa'} (Trabalhador)
+                                </p>
+                                <div className="grid grid-cols-1 gap-1.5">
+                                    <CopyableField 
+                                        label="Data do Evento" 
+                                        value={item.hist_data_efetiva ? new Date(item.hist_data_efetiva).toLocaleDateString('pt-BR') : null} 
+                                    />
+                                    <CopyableField label="Motivo/Obs" value={item.hist_observacoes} />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Form Fields */}
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Novo Status *</label>
                             <Select value={status} onValueChange={(val) => setStatus(val as StatusWorkflowSeguridade)}>
@@ -124,18 +173,18 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 sm:col-span-2">
                             <label className="text-sm font-medium">Observações / Anotações</label>
                             <Textarea 
                                 placeholder="Insira detalhes sobre a resolução ou erro do trâmite contábil..." 
                                 value={observacoes}
                                 onChange={(e) => setObservacoes(e.target.value)}
                                 className="resize-none"
-                                rows={3}
+                                rows={2}
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 sm:col-span-2">
                             <label className="text-sm font-medium">Anexar Comprovante (Opcional)</label>
                             <Input 
                                 type="file" 
