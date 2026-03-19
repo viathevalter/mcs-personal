@@ -8,18 +8,14 @@ const supabase = createClient(
 );
 
 async function main() {
-    // Simulando a mesma chamada do useClientHoursSummary
-    const { data, error } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
-        p_empresa_id: 'e6963e6e-213c-4b68-8092-d9bedfca03bb', // Luminous UUID hardcoded ou um null/invalido só pra trigger error
-        p_period_year: 2026,
-        p_period_month: 3,
-        p_contratante: null,
-        p_cliente_nombre: null
+    const { data, error } = await supabase.schema('core_personal').rpc('get_real_seguridade_status', {
+        p_empresa_id: 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d'
     });
 
     console.log("Error details:", JSON.stringify(error, null, 2));
     if (!error) {
-       console.log("Row count:", data?.length);
+       console.log("Type of data:", typeof data);
+       console.log("Data length:", data?.length);
     }
 }
 main();

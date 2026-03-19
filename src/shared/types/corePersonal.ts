@@ -81,7 +81,9 @@ export interface SeguridadeStatus {
 }
 
 export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
+    autor_inativacao?: string;
     worker: {
+        id: string;
         nome: string;
         cod_colab: string;
         niss: string | null;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateSeguridadeStatus } from '../api/seguridadeApi';
+import { uploadWorkerDocument } from '../../workers/api/documentsApi';
 import type { SeguridadeStatusWithWorker, StatusWorkflowSeguridade } from '@/shared/types/corePersonal';
 import {
     Dialog,
@@ -30,22 +31,35 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
     const [status, setStatus] = useState<StatusWorkflowSeguridade | ''>('');
     const [dataEfetiva, setDataEfetiva] = useState('');
     const [observacoes, setObservacoes] = useState('');
+    const [file, setFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (item) {
             setStatus(item.status === 'pendente' ? 'confirmado' : item.status);
             setDataEfetiva(item.data_efetiva ? item.data_efetiva.substring(0, 10) : new Date().toISOString().substring(0, 10));
             setObservacoes(item.observacoes || '');
+            setFile(null);
         }
     }, [item]);
 
     const mutation = useMutation({
         mutationFn: async () => {
             if (!item || !status) throw new Error('Dados inválidos');
-            return updateSeguridadeStatus(item.id, status as StatusWorkflowSeguridade, dataEfetiva || undefined, observacoes || undefined);
+            
+            await updateSeguridadeStatus(item.id, status as StatusWorkflowSeguridade, dataEfetiva || undefined, observacoes || undefined);
+            
+            if (file) {
+                await uploadWorkerDocument({
+                    empresaId: selectedEmpresaId || item.empresa_id,
+                    workerId: item.worker.id,
+                    docType: item.tipo_evento === 'alta' ? 'Comprovante_Alta' : 'Comprovante_Baixa',
+                    file: file
+                });
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['seguridade-status', selectedEmpresaId] });
+            queryClient.invalidateQueries({ queryKey: ['worker_documents', item?.worker.id] });
             toast.success('Processo atualizado com sucesso!');
             onClose();
         },
@@ -118,6 +132,15 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                 onChange={(e) => setObservacoes(e.target.value)}
                                 className="resize-none"
                                 rows={3}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Anexar Comprovante (Opcional)</label>
+                            <Input 
+                                type="file" 
+                                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                accept=".pdf,.png,.jpg,.jpeg"
                             />
                         </div>
                     </div>

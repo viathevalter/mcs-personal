@@ -193,6 +193,23 @@ export function SeguridadePage() {
                         </p>
                     </CardContent>
                 </Card>
+
+                <Card className="shadow-sm border-l-4 border-l-purple-500 hover:bg-muted/50 transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                        <CardTitle className="text-sm font-medium uppercase text-muted-foreground" title="Em Regularização">
+                            Em Regularização
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-purple-500" />
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="text-2xl font-bold text-purple-600">
+                            {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-purple-500/50" /> : kpis?.seguridade_em_regularizacao || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Trabalhadores em processo de acerto
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             {viewMode === 'kanban' ? (
@@ -323,6 +340,12 @@ export function SeguridadePage() {
 
 function StatusCard({ item, onProcessar }: { item: SeguridadeStatusWithWorker; onProcessar: (item: SeguridadeStatusWithWorker) => void }) {
     const isAlta = item.tipo_evento === 'alta';
+    const isPendente = item.status === 'pendente';
+    
+    // Formatar a etiqueta para ficar mais clara conforme referenciado no áudio (Ex: Pendente Baixa)
+    const badgeText = isPendente 
+        ? (isAlta ? 'Pendente Alta' : 'Pendente Baixa') 
+        : item.tipo_evento;
 
     return (
         <Card className="hover:border-primary/50 transition-colors">
@@ -330,7 +353,7 @@ function StatusCard({ item, onProcessar }: { item: SeguridadeStatusWithWorker; o
                 <div className="flex items-start justify-between">
                     <div>
                         <Badge variant={isAlta ? 'default' : 'destructive'} className="mb-2 uppercase text-[10px] tracking-wider font-semibold">
-                            {item.tipo_evento}
+                            {badgeText}
                         </Badge>
                         <CardTitle className="text-base line-clamp-1">{item.worker.nome}</CardTitle>
                         <CardDescription className="text-xs uppercase font-mono mt-1">
@@ -349,6 +372,11 @@ function StatusCard({ item, onProcessar }: { item: SeguridadeStatusWithWorker; o
                     <p>
                         <span className="font-medium text-foreground">Origem:</span> {item.origem} {item.origem_id ? `(#${item.origem_id})` : ''}
                     </p>
+                    {item.autor_inativacao && (
+                        <p>
+                            <span className="font-medium text-foreground">Autor(a):</span> {item.autor_inativacao}
+                        </p>
+                    )}
                     <p>
                         <span className="font-medium text-foreground">Data Req:</span> {new Date(item.data_solicitacao).toLocaleDateString('pt-PT')}
                     </p>

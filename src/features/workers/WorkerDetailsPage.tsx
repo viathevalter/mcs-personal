@@ -93,6 +93,16 @@ export function WorkerDetailsPage() {
                         currentSeguridadeStatus={worker.status_seguridad} 
                     />
                     <EditWorkerDialog worker={worker} />
+                    {worker.status_trabajador && (
+                        <div className="flex flex-col items-end gap-1 mr-2">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('dashboard.workerStatus', 'Status')}</span>
+                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                worker.status_trabajador.toLowerCase() === 'ativo' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-destructive/20 text-destructive'
+                            }`}>
+                                {worker.status_trabajador}
+                            </div>
+                        </div>
+                    )}
                     {worker.status_seguridad && (
                         <div className="flex flex-col items-end gap-1">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('workerDetails.legalStatus')}</span>

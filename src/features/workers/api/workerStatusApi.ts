@@ -98,19 +98,35 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
 
     if (updateError) throw mapSupabaseError(updateError);
 
-    // 3. Insert history record
+    // 3. Insert history record(s)
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    
+    const historyInserts = [{
+        worker_id: workerId,
+        change_type: changeType,
+        old_value: oldValue || 'Sem Status',
+        new_value: newValue || 'Sem Status',
+        effective_date: effectiveDate,
+        comments: comments || null,
+        changed_by: userId
+    }];
+
+    if (changeType === 'TRABALHADOR' && updateData.status_seguridad !== undefined) {
+        historyInserts.push({
+            worker_id: workerId,
+            change_type: 'SEGURIDADE',
+            old_value: worker.status_seguridad || 'Sem Status',
+            new_value: updateData.status_seguridad || 'Sem Status',
+            effective_date: effectiveDate,
+            comments: comments ? `Reflexo Trabalhador: ${comments}` : 'Reflexo Automático da Baixa do Trabalhador',
+            changed_by: userId
+        });
+    }
+
     const { error: historyError } = await supabase
         .schema('core_personal')
         .from('worker_status_history')
-        .insert({
-            worker_id: workerId,
-            change_type: changeType,
-            old_value: oldValue,
-            new_value: newValue,
-            effective_date: effectiveDate,
-            comments: comments || null,
-            changed_by: (await supabase.auth.getUser()).data.user?.id
-        });
+        .insert(historyInserts);
 
     if (historyError) throw mapSupabaseError(historyError);
 
@@ -162,20 +178,4 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
         }
     }
 
-    // Regra 5: Integração Kanban (Tarefas de Alta/Baixa)
-    const finalSeguridadStatus = changeType === 'SEGURIDADE' ? newValue : updateData.status_seguridad;
-
-    if (finalSeguridadStatus && 
-       (finalSeguridadStatus.toUpperCase() === 'PENDENTE ALTA' || finalSeguridadStatus.toUpperCase() === 'PENDENTE BAIXA')) {
-        const isAlta = finalSeguridadStatus.toUpperCase() === 'PENDENTE ALTA';
-        const { error: queueError } = await supabase.schema('core_personal').from('seguridade_status').insert({
-             worker_id: workerId,
-             empresa_id: worker.empresa_id,
-             tipo_evento: isAlta ? 'alta' : 'baixa',
-             status: 'pendente',
-             origem: changeType === 'SEGURIDADE' ? 'Mudança Manual de Status' : 'Inativação de Trabalhador',
-             data_solicitacao: new Date().toISOString()
-        });
-        if (queueError) console.error('Erro ao inserir fila de seguridade:', queueError);
-    }
 }
