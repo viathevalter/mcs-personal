@@ -14,6 +14,7 @@ import { AlocacoesTab } from './components/AlocacoesTab';
 import { EditWorkerDialog } from './components/EditWorkerDialog';
 import { WorkerStatusManagerDialog } from './components/WorkerStatusManagerDialog';
 import { DiscountsTab } from './components/tabs/DiscountsTab';
+import { BankTabProfile } from './components/BankTabProfile';
 import { useTranslation } from 'react-i18next';
 
 export function WorkerDetailsPage() {
@@ -124,6 +125,7 @@ export function WorkerDetailsPage() {
                     <TabsTrigger value="alocacoes" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.allocations')}</TabsTrigger>
                     <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.benefits')}</TabsTrigger>
                     <TabsTrigger value="discounts" className="flex-1 whitespace-nowrap">Descontos</TabsTrigger>
+                    <TabsTrigger value="bank_accounts" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.bankAccounts')}</TabsTrigger>
                     <TabsTrigger value="ledger" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.ledger')}</TabsTrigger>
                     <TabsTrigger value="documents" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.documents')}</TabsTrigger>
                 </TabsList>
@@ -146,6 +148,10 @@ export function WorkerDetailsPage() {
 
                 <TabsContent value="discounts">
                     <DiscountsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={false} />
+                </TabsContent>
+
+                <TabsContent value="bank_accounts">
+                    <BankTabProfile workerId={worker.id} empresaId={worker.empresa_id} />
                 </TabsContent>
 
                 <TabsContent value="ledger">

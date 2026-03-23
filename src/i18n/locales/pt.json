@@ -114,7 +114,8 @@
             "vidaLaboral": "Vida Laboral",
             "allocations": "Alocações",
             "benefits": "Benefícios",
-            "ledger": "Gestão de Contas Bancárias e Iban",
+            "ledger": "Holerites e Lançamentos",
+            "bankAccounts": "Contas Bancárias (IBAN)",
             "documents": "Documentos"
         }
     },

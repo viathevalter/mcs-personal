@@ -210,6 +210,7 @@ export interface WorkerAlocacao {
     id: number;
     codpedido: string;
     cliente_nombre: string;
+    contratante: string;
     tiposervico: string;
     fechainiciopedido: string | null;
     fechafinpedido: string | null;

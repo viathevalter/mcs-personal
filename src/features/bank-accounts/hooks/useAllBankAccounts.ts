@@ -60,12 +60,13 @@ export const useAllBankAccounts = (empresaId?: string) => {
                 const chunk = workerIds.slice(i, i + chunkSize);
                 const { data, error } = await supabase
                     .schema('core_personal')
-                    .from('worker_beneficios_settings')
-                    .select('worker_id, iban, banco, import_batch_id')
+                    .from('worker_ibans')
+                    .select('worker_id, iban, banco')
+                    .eq('status', 'ATIVO')
                     .in('worker_id', chunk);
 
                 if (error) {
-                    console.error("Error fetching benefits settings for bank accounts (chunk):", error);
+                    console.error("Error fetching active ibans for bank accounts (chunk):", error);
                     // continue with what we have to not break the whole page
                 }
                 
@@ -85,7 +86,7 @@ export const useAllBankAccounts = (empresaId?: string) => {
                     contratante: w.contratante || null,
                     iban: settings?.iban || null,
                     banco: settings?.banco || null,
-                    import_batch_id: settings?.import_batch_id || null
+                    import_batch_id: null // We removed import_batch_id from worker_ibans for simplified flow
                 };
             });
         },

@@ -1,0 +1,62 @@
+[
+  {
+    "ROW_2": [
+      "N",
+      "ID",
+      "TRABAJADOR",
+      "IBAN",
+      "BANCO",
+      "CERT. DE TITUL.",
+      "FECHA ÚLTIMO CAMBIO",
+      "DOCUM. FIRMADO",
+      "EMPRESA",
+      "OBSERVACIONES",
+      "NOTAS"
+    ]
+  },
+  {
+    "ROW_3": [
+      "1",
+      "E0530",
+      "ABDELFAHAM OUBOUZID",
+      "FR76 1659 8000 0131 9171 7000 163",
+      "NICKEL",
+      "",
+      "2025-05-13 00:00:00",
+      "",
+      "",
+      "",
+      ""
+    ]
+  },
+  {
+    "ROW_4": [
+      "2",
+      "E1855",
+      "ABDRUBAL FONSECA RINCON",
+      "ES16 0182 2247 0702 0167 7660",
+      "BBVA",
+      "",
+      "2025-10-28 00:00:00",
+      "",
+      "",
+      "",
+      ""
+    ]
+  },
+  {
+    "ROW_5": [
+      "3",
+      "E0663",
+      "ABEL ANTONIO CUESTA CIFUENTES",
+      " BE13 9050 1484 4239",
+      "WISE",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ]
+  }
+]
