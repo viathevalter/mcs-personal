@@ -82,7 +82,8 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
             updateData.data_baixa = null; // Clear if re-hired
             
             // Regra 6: Se voltar a ser ATIVO e tiver documentos básicos, vira Pendente Alta
-            if (worker.status_seguridad?.toUpperCase() !== 'ALTA' && !worker.status_seguridad?.toUpperCase().includes('PENDENTE ALTA')) {
+            const seguridadeUpper = worker.status_seguridad?.toUpperCase() || '';
+            if (seguridadeUpper !== 'ALTA' && !seguridadeUpper.includes('PENDENTE ALTA')) {
                 const hasDocs = !!((worker.niss && worker.nif) || worker.dni || worker.nie);
                 if (hasDocs) {
                     updateData.status_seguridad = 'Pendente Alta';
