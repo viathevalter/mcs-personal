@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Plus, FileSignature, CheckCircle2, History } from 'lucide-react';
+import { Download, Loader2, Plus, FileSignature, CheckCircle2, History, UploadCloud } from 'lucide-react';
 import { useWorkerIbans } from '../hooks/useWorkerIbans';
 import { useWorkerById } from '../hooks/useWorkerById';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
+import { useManageWorkerIban } from '../hooks/useManageWorkerIban';
 import { AddIbanDialog } from './AddIbanDialog';
 import { generateIbanAuthDoc } from '../utils/printIbanAuth';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface BankTabProfileProps {
     workerId: string;
@@ -21,6 +23,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
     
     const { data: ibans, isLoading, isError } = useWorkerIbans(workerId);
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const { attachDocument, isAttaching } = useManageWorkerIban();
 
     const { data: worker } = useWorkerById(workerId);
     const { data: alocacoes } = useWorkerAlocacoes(worker?.cod_colab || '');
@@ -60,6 +63,29 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
             banco: activeIban.banco || "Banco Não Informado",
             iban: activeIban.iban || ""
         });
+    };
+
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, ibanId: string) => {
+        const file = event.target.files?.[0];
+        if (!file || !worker) return;
+
+        // Use the worker's parent company for the storage path
+        const empresaIdToUse = worker.empresa_id;
+
+        try {
+            await attachDocument({
+                id: ibanId,
+                worker_id: workerId,
+                empresa_id: empresaIdToUse,
+                file
+            });
+            toast.success('Documento anexado com sucesso e classificado como Autorização de IBAN!');
+        } catch (error) {
+            console.error('Upload Error:', error);
+            toast.error('Erro ao anexar o documento. Tente novamente.');
+        } finally {
+            event.target.value = ''; // Reset input
+        }
     };
 
     return (
@@ -114,9 +140,26 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                 </a>
                                             </Button>
                                         ) : (
-                                            <p className="text-sm text-amber-600 flex items-center">
-                                                Nenhum documento anexado.
-                                            </p>
+                                            <div>
+                                                <input 
+                                                    type="file" 
+                                                    id={`upload-${activeIban.id}`} 
+                                                    className="hidden" 
+                                                    onChange={(e) => handleFileUpload(e, activeIban.id)} 
+                                                    accept=".pdf,image/*"
+                                                    disabled={isAttaching}
+                                                />
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="w-full sm:w-auto text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800/50" 
+                                                    onClick={() => document.getElementById(`upload-${activeIban.id}`)?.click()}
+                                                    disabled={isAttaching}
+                                                >
+                                                    {isAttaching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                                                    Anexar Termo Assinado
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -152,12 +195,33 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                 Registrada em {format(new Date(ibanItem.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                             </p>
                                         </div>
-                                        {ibanItem.documento_url && (
+                                        {ibanItem.documento_url ? (
                                             <Button variant="ghost" size="sm" asChild>
                                                 <a href={ibanItem.documento_url} target="_blank" rel="noreferrer">
                                                     <Download className="w-4 h-4 mr-2" /> Autorização
                                                 </a>
                                             </Button>
+                                        ) : (
+                                            <div className="flex-shrink-0">
+                                                <input 
+                                                    type="file" 
+                                                    id={`upload-${ibanItem.id}`} 
+                                                    className="hidden" 
+                                                    onChange={(e) => handleFileUpload(e, ibanItem.id)} 
+                                                    accept=".pdf,image/*"
+                                                    disabled={isAttaching}
+                                                />
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20" 
+                                                    onClick={() => document.getElementById(`upload-${ibanItem.id}`)?.click()}
+                                                    disabled={isAttaching}
+                                                >
+                                                    {isAttaching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                                                    Anexar
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 ))}

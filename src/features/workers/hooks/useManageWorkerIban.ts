@@ -2,10 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { uploadWorkerDocument } from '../api/documentsApi';
 
 interface AddIbanData {
     worker_id: string;
     banco: string | null;
+    empresa_id: string; // added to upload document
     iban: string;
     documentoFile: File | null;
     observacoes: string | null;
@@ -22,19 +24,18 @@ export function useManageWorkerIban() {
             // 1. Upload file if exists
             let documento_url = null;
             if (data.documentoFile) {
-                const fileExt = data.documentoFile.name.split('.').pop();
-                const fileName = `${data.worker_id}-${Date.now()}.${fileExt}`;
-                const filePath = `ibans/${fileName}`;
+                // Upload globally and classify as IBAN Authorization
+                const doc = await uploadWorkerDocument({
+                    empresaId: data.empresa_id,
+                    workerId: data.worker_id,
+                    docType: 'Autorização de IBAN',
+                    file: data.documentoFile
+                });
 
-                const { error: uploadError } = await supabase.storage
-                    .from('worker-documents')
-                    .upload(filePath, data.documentoFile);
-
-                if (uploadError) throw mapSupabaseError(uploadError);
-
+                // Generate public or signed URL to string in db
                 const { data: urlData } = supabase.storage
-                    .from('worker-documents')
-                    .getPublicUrl(filePath);
+                    .from('mcs-personal-docs')
+                    .getPublicUrl(doc.file_path);
                 
                 documento_url = urlData.publicUrl;
             }
@@ -99,11 +100,42 @@ export function useManageWorkerIban() {
         }
     });
 
+    const attachDocumentMutation = useMutation({
+        mutationFn: async ({ id, worker_id, empresa_id, file }: { id: string, worker_id: string, empresa_id: string, file: File }) => {
+            if (!user) throw new Error('Usuário não autenticado');
+
+            const doc = await uploadWorkerDocument({
+                empresaId: empresa_id,
+                workerId: worker_id,
+                docType: 'Autorização de IBAN',
+                file: file
+            });
+
+            const { data: urlData } = supabase.storage
+                .from('mcs-personal-docs')
+                .getPublicUrl(doc.file_path);
+
+            const { error } = await supabase
+                .schema('core_personal')
+                .from('worker_ibans')
+                .update({ documento_url: urlData.publicUrl, changed_by: user.id })
+                .eq('id', id);
+
+            if (error) throw mapSupabaseError(error);
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['worker_ibans', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['worker_documents', variables.worker_id] }); // Update docs tab
+        }
+    });
+
 
     return {
         addIban: addIbanMutation.mutateAsync,
         isAdding: addIbanMutation.isPending,
         updateStatus: updateIbanStatusMutation.mutateAsync,
-        isUpdatingStatus: updateIbanStatusMutation.isPending
+        isUpdatingStatus: updateIbanStatusMutation.isPending,
+        attachDocument: attachDocumentMutation.mutateAsync,
+        isAttaching: attachDocumentMutation.isPending
     };
 }
