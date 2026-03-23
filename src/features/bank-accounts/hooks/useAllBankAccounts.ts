@@ -11,6 +11,7 @@ export interface BankAccountRow {
     iban: string | null;
     banco: string | null;
     import_batch_id: string | null;
+    updated_at: string | null;
 }
 
 export const useAllBankAccounts = (empresaId?: string) => {
@@ -61,7 +62,7 @@ export const useAllBankAccounts = (empresaId?: string) => {
                 const { data, error } = await supabase
                     .schema('core_personal')
                     .from('worker_ibans')
-                    .select('worker_id, iban, banco')
+                    .select('worker_id, iban, banco, updated_at')
                     .eq('status', 'ATIVO')
                     .in('worker_id', chunk);
 
@@ -86,6 +87,7 @@ export const useAllBankAccounts = (empresaId?: string) => {
                     contratante: w.contratante || null,
                     iban: settings?.iban || null,
                     banco: settings?.banco || null,
+                    updated_at: settings?.updated_at || null,
                     import_batch_id: null // We removed import_batch_id from worker_ibans for simplified flow
                 };
             });

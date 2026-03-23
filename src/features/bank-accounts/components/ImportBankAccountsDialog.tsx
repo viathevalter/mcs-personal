@@ -43,6 +43,7 @@ interface ParsedRow {
     status: 'ok' | 'not_found' | 'invalid_data';
     errorMessage?: string;
     originalRowData: any;
+    observacoes?: string;
 }
 
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
@@ -96,7 +97,8 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
         cod_colab: '',
         banco: '',
         iban: '',
-        nome: ''
+        nome: '',
+        observacoes: ''
     });
 
     // Preview State
@@ -109,7 +111,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
         setRawHeaders([]);
         setRawRows([]);
         setParsedRows([]);
-        setColMapping({ cod_colab: '', banco: '', iban: '', nome: '' });
+        setColMapping({ cod_colab: '', banco: '', iban: '', nome: '', observacoes: '' });
         setIsParsing(false);
     };
 
@@ -136,7 +138,8 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
                     cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'cód trabalhador', 'codigo', 'cod', 'cod_colab']) || '',
                     banco: findKeyIgnoreCase(headers, ['banco', 'bank', 'banco nome']) || '',
                     iban: findKeyIgnoreCase(headers, ['iban', 'conta', 'account']) || '',
-                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'colaborador']) || ''
+                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'colaborador']) || '',
+                    observacoes: findKeyIgnoreCase(headers, ['obs', 'observacao', 'observacoes', 'observações', 'notas']) || ''
                 };
                 setColMapping(guessMapping);
                 setStep('MAPPING');
@@ -164,6 +167,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             const rawBanco = colMapping.banco ? String(row[colMapping.banco] || '').trim() : '';
             const rawIban = colMapping.iban ? String(row[colMapping.iban] || '').trim().toUpperCase() : '';
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '') : '';
+            const rawObservacoes = colMapping.observacoes ? String(row[colMapping.observacoes] || '') : '';
 
             if (!rawCod) continue;
 
@@ -195,7 +199,8 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
                 nomeSistema: matchedWorker?.nome,
                 status,
                 errorMessage,
-                originalRowData: row
+                originalRowData: row,
+                observacoes: rawObservacoes
             });
         }
 
@@ -215,6 +220,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             worker_id: r.workerId!,
             banco: r.banco,
             iban: r.iban,
+            observacoes: r.observacoes,
             import_batch_id: batchId
         }));
 
@@ -329,6 +335,17 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
                                 <div className="space-y-1.5">
                                     <Label className="text-xs">Nome do Trabalhador (Planilha)</Label>
                                     <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
+                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
+                                            {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Observações (Opcional)</Label>
+                                    <Select value={colMapping.observacoes} onValueChange={(v) => setColMapping({ ...colMapping, observacoes: v })}>
                                         <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value=" ">-- Ignorar --</SelectItem>
