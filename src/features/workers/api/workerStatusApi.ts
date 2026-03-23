@@ -57,7 +57,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
     const { data: worker, error: fetchError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('status_trabajador, status_seguridad, cod_colab, empresa_id')
+        .select('status_trabajador, status_seguridad, cod_colab, empresa_id, nif, niss, dni, nie')
         .eq('id', workerId)
         .single();
 
@@ -80,6 +80,14 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
         } else if (newValue.toUpperCase() === 'ATIVO') {
             updateData.data_ingresso = effectiveDate;
             updateData.data_baixa = null; // Clear if re-hired
+            
+            // Regra 6: Se voltar a ser ATIVO e tiver documentos básicos, vira Pendente Alta
+            if (worker.status_seguridad?.toUpperCase() !== 'ALTA' && !worker.status_seguridad?.toUpperCase().includes('PENDENTE ALTA')) {
+                const hasDocs = !!((worker.niss && worker.nif) || worker.dni || worker.nie);
+                if (hasDocs) {
+                    updateData.status_seguridad = 'Pendente Alta';
+                }
+            }
         }
     } else {
         updateData.status_seguridad = newValue;
@@ -118,7 +126,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
             old_value: worker.status_seguridad || 'Sem Status',
             new_value: updateData.status_seguridad || 'Sem Status',
             effective_date: effectiveDate,
-            comments: comments ? `Reflexo Trabalhador: ${comments}` : 'Reflexo Automático da Baixa do Trabalhador',
+            comments: comments ? `Reflexo Trabalhador: ${comments}` : 'Reflexo Automático da Atualização do Trabalhador',
             changed_by: userId
         });
     }

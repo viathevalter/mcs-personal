@@ -55,13 +55,37 @@ BEGIN
     -- Se o card mudou para "confirmado"
     IF NEW.status = 'confirmado' AND OLD.status != 'confirmado' THEN
         IF NEW.tipo_evento = 'alta' THEN
-            UPDATE core_personal.workers 
-            SET status_seguridad = 'Alta', updated_at = NOW()
-            WHERE id = NEW.worker_id AND (status_seguridad ILIKE '%Pendente%' OR status_seguridad IS NULL);
+            IF v_old_status_seguridad ILIKE '%Pendente%' OR v_old_status_seguridad IS NULL THEN
+                UPDATE core_personal.workers 
+                SET status_seguridad = 'Alta'
+                WHERE id = NEW.worker_id;
+
+                INSERT INTO core_personal.worker_status_history (
+                    worker_id, change_type, old_value, new_value, effective_date, comments, changed_by
+                ) VALUES (
+                    NEW.worker_id, 'SEGURIDADE', COALESCE(v_old_status_seguridad, 'Sem Status'), 'Alta', CURRENT_DATE, NEW.observacoes, auth.uid()
+                );
+            END IF;
         ELSIF NEW.tipo_evento = 'baixa' THEN
             UPDATE core_personal.workers 
-            SET status_seguridad = 'Baixa', status_trabajador = 'Inativo', updated_at = NOW()
+            SET status_seguridad = 'Baixa', status_trabajador = 'INATIVO'
             WHERE id = NEW.worker_id;
+
+            IF v_old_status_seguridad IS DISTINCT FROM 'Baixa' THEN
+                INSERT INTO core_personal.worker_status_history (
+                    worker_id, change_type, old_value, new_value, effective_date, comments, changed_by
+                ) VALUES (
+                    NEW.worker_id, 'SEGURIDADE', COALESCE(v_old_status_seguridad, 'Sem Status'), 'Baixa', CURRENT_DATE, NEW.observacoes, auth.uid()
+                );
+            END IF;
+
+            IF v_old_status_trabajador IS NULL OR v_old_status_trabajador NOT ILIKE 'INATIVO' THEN
+                INSERT INTO core_personal.worker_status_history (
+                    worker_id, change_type, old_value, new_value, effective_date, comments, changed_by
+                ) VALUES (
+                    NEW.worker_id, 'TRABALHADOR', COALESCE(v_old_status_trabajador, 'Sem Status'), 'INATIVO', CURRENT_DATE, 'Reflexo Automático da Baixa Kanban', auth.uid()
+                );
+            END IF;
         END IF;
     END IF;
     
