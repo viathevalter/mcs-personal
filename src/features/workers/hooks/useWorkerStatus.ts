@@ -21,7 +21,7 @@ export const useChangeWorkerStatus = () => {
         mutationFn: (payload: ChangeStatusPayload) => changeWorkerStatus(payload),
         onSuccess: (_, variables) => {
             // Invalidate both the specific worker and the overall workers list
-            queryClient.invalidateQueries({ queryKey: ['worker', { id: variables.workerId }] });
+            queryClient.invalidateQueries({ queryKey: ['worker', variables.workerId] });
             queryClient.invalidateQueries({ queryKey: ['workers'] });
             queryClient.invalidateQueries({ queryKey: ['workerStatusHistory', variables.workerId] });
             
