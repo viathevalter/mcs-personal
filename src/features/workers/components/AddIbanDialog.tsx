@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useManageWorkerIban } from '../hooks/useManageWorkerIban';
+import { useWorkerById } from '../hooks/useWorkerById';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -28,6 +29,7 @@ interface AddIbanDialogProps {
 
 export function AddIbanDialog({ open, onOpenChange, workerId }: AddIbanDialogProps) {
     const { addIban, isAdding } = useManageWorkerIban();
+    const { data: worker } = useWorkerById(workerId);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const form = useForm<IbanFormValues>({
@@ -43,6 +45,7 @@ export function AddIbanDialog({ open, onOpenChange, workerId }: AddIbanDialogPro
         try {
             await addIban({
                 worker_id: workerId,
+                empresa_id: worker?.empresa_id || '',
                 banco: data.banco,
                 iban: data.iban,
                 observacoes: data.observacoes || null,
