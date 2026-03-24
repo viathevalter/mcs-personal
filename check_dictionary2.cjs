@@ -4,13 +4,10 @@ const run = async () => {
     const prodClient = new Client({ connectionString: prodConnectionString });
     try {
         await prodClient.connect();
-        const res = await prodClient.query(`
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name IN ('colaborador_por_pedido', 'colaboradores');
-        `);
-        console.log(res.rows);
+        const emps = await prodClient.query("SELECT * FROM public.empresas");
+        console.log("public.empresas:", emps.rows);
+        const empsCore = await prodClient.query("SELECT * FROM core_common.empresas");
+        console.log("core_common.empresas:", empsCore.rows);
     } catch(e) {
         console.error(e.message);
     } finally {

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, LogOut, User, Building2 } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -18,15 +19,19 @@ import { Badge } from '@/components/ui/badge';
 
 export function Topbar() {
     const { user, signOut } = useAuth();
-    const { selectedEmpresaId, setSelectedEmpresaId, role, currentMembership, empresas, isLoading } = useEmpresa();
+    const { selectedEmpresaId, setSelectedEmpresaId, role: memberRole, currentMembership, empresas, isLoading } = useEmpresa();
+    const { role: globalRole } = useRole();
     const { t } = useTranslation();
 
     const selectedEmpresa = empresas?.find(e => e.id === selectedEmpresaId);
 
+    // Super admin fura fila do vínculo local (mostra tudo sem banner de erro)
+    const showLinkError = user && selectedEmpresaId && !currentMembership && globalRole !== 'super_admin';
+
     return (
         <>
             {/* Vínculo Ausente Warning Banner */}
-            {user && selectedEmpresaId && !currentMembership && (
+            {showLinkError && (
                 <div className="w-full bg-red-500/15 text-red-600 dark:text-red-400 text-sm py-1.5 px-4 text-center font-medium flex items-center justify-center border-b border-red-500/20">
                     Usuário sem vínculo para esta empresa
                 </div>
@@ -85,9 +90,9 @@ export function Topbar() {
 
                 {user && (
                     <div className="flex items-center gap-3">
-                        {role && (
+                        {(globalRole || memberRole) && (
                             <Badge variant="secondary" className="hidden sm:flex capitalize">
-                                {role}
+                                {globalRole === 'super_admin' ? 'Super Admin' : memberRole}
                             </Badge>
                         )}
                         <DropdownMenu>
