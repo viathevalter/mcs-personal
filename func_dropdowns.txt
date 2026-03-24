@@ -1,0 +1,36 @@
+
+--- get_unique_clients ---
+CREATE OR REPLACE FUNCTION public.get_unique_clients()
+ RETURNS TABLE(cliente_nombre text)
+ LANGUAGE sql
+AS $function$
+  SELECT DISTINCT cliente_nombre FROM public.colaborador_por_pedido WHERE cliente_nombre IS NOT NULL ORDER BY 1;
+$function$
+
+--- get_unique_contratantes ---
+CREATE OR REPLACE FUNCTION public.get_unique_contratantes()
+ RETURNS TABLE(contratante text)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT c.contratante
+  FROM public.colaboradores c
+  WHERE c.contratante IS NOT NULL AND c.contratante != ''
+  ORDER BY c.contratante ASC;
+END;
+$function$
+
+--- get_unique_funciones ---
+CREATE OR REPLACE FUNCTION public.get_unique_funciones()
+ RETURNS TABLE(funcion text)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT c.funcion
+  FROM public.colaboradores c
+  WHERE c.funcion IS NOT NULL AND c.funcion != ''
+  ORDER BY c.funcion ASC;
+END;
+$function$

@@ -296,7 +296,8 @@
                 "alta": "Alta",
                 "pendentes_alta": "Pendentes Alta",
                 "baixa": "Baixa",
-                "pendentes_baixa": "Pendentes Baixa"
+                "pendentes_baixa": "Pendentes Baixa",
+                "em_regularizacao": "Em Regularização"
             }
         },
         "statusValues": {

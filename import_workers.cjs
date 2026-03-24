@@ -39,12 +39,16 @@ const run = async () => {
 
     for (const row of data) {
         try {
-            await prodClient.query('BEGIN');
+            // Não mais BEGIN unificado pois aborts engoliam o block inteiro.
             
             const codColab = row['CodColab'] ? String(row['CodColab']).trim() : '';
+            if (codColab === 'E0266' || codColab === '999999') {
+                 // Pular os que eu já inseri na mão
+                 continue;
+            }
+            
             const nome = row['Colaborador'] ? String(row['Colaborador']).trim() : '';
             const contratanteObj = String(row['Contratante'] || '').trim().toUpperCase();
-            
             let empresa_id = companyMap[contratanteObj] || companyMap['KOTRIK'];
             const id_empresa = typeof row['Id_contratante'] === 'number' ? row['Id_contratante'] : 1;
             
@@ -75,7 +79,7 @@ const run = async () => {
                     row['Funcion'] || null,
                     parseExcelDate(row['Fecha Alta'])
                 ]);
-            } catch(ee) {}
+            } catch(ee) { console.error("Error public.colaboradores:", ee.message); }
             
             // 3. Insert public.colaborador_por_pedido
             try {
@@ -91,13 +95,11 @@ const run = async () => {
                     row['Cod_funcion'] || null,
                     parseExcelDate(row['Fecha Inicio'])
                 ]);
-            } catch(ee) {}
+            } catch(ee) { console.error("Error public.colaborador_por_pedido:", ee.message); }
 
-            await prodClient.query('COMMIT');
             successCount++;
         } catch(e) {
-            await prodClient.query('ROLLBACK');
-            console.error(`❌ Erro no Colaborador ${row['CodColab']} (${row['Colaborador']}):\n  ->`, e.message);
+            console.error(`❌ Erro FATAL no Colaborador ${row['CodColab']} (${row['Colaborador']}):\n  ->`, e.message);
         }
     }
     

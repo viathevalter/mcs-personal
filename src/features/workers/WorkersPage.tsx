@@ -172,6 +172,7 @@ export function WorkersPage() {
                             options={[
                                 { value: 'alta', label: t('workersPage.filters.securityOptions.alta') },
                                 { value: 'pendentes_alta', label: t('workersPage.filters.securityOptions.pendentes_alta') },
+                                { value: 'em_regularizacao', label: t('workersPage.filters.securityOptions.em_regularizacao') },
                                 { value: 'baixa', label: t('workersPage.filters.securityOptions.baixa') },
                                 { value: 'pendentes_baixa', label: t('workersPage.filters.securityOptions.pendentes_baixa') },
                             ]}
