@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2, CheckCircle2, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { useRole } from '@/app/providers/RoleProvider';
 
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
@@ -27,6 +28,8 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
 
     const [isEditing, setIsEditing] = useState(false);
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
+
+    const { role: globalRole } = useRole();
 
     const { data: discountCategories = [] } = useDiscountCategories(empresaId);
     
@@ -116,7 +119,7 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Gestão de Descontos</h3>
-                {!isEditing && (
+                {!isEditing && globalRole !== 'visualizador' && (
                     <Button onClick={() => setIsEditing(true)} size="sm" type="button">
                         <Plus className="mr-2 h-4 w-4" />
                         Novo Desconto
@@ -232,9 +235,11 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
                                 </th>
-                                <th scope="col" className="relative px-6 py-3">
-                                    <span className="sr-only">Ações</span>
-                                </th>
+                                {globalRole !== 'visualizador' && (
+                                    <th scope="col" className="relative px-6 py-3">
+                                        <span className="sr-only">Ações</span>
+                                    </th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -263,26 +268,28 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
                                             {discount.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex justify-end space-x-2">
-                                            <button
-                                                onClick={() => handleEdit(discount)}
-                                                className="text-indigo-600 hover:text-indigo-900"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (window.confirm('Tem certeza que deseja remover este desconto?')) {
-                                                        deleteDiscount(discount.id);
-                                                    }
-                                                }}
-                                                className="text-red-600 hover:text-red-900"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </td>
+                                    {globalRole !== 'visualizador' && (
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div className="flex justify-end space-x-2">
+                                                <button
+                                                    onClick={() => handleEdit(discount)}
+                                                    className="text-indigo-600 hover:text-indigo-900"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.confirm('Tem certeza que deseja remover este desconto?')) {
+                                                            deleteDiscount(discount.id);
+                                                        }
+                                                    }}
+                                                    className="text-red-600 hover:text-red-900"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>

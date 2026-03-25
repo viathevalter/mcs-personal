@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Trash2, Home } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export interface BenefitsTabRef {
     save: () => Promise<void>;
@@ -24,6 +25,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
         const { data: housingBenefits, isLoading, isError } = useHousingByWorker(workerId);
         const upsertHousing = useUpsertHousing();
         const deleteHousing = useDeleteHousing(workerId, empresaId);
+        const { role: globalRole } = useRole();
 
         // Simplification for prototype: Edit mode for the first benefit or create new
         const existingBenefit = housingBenefits?.[0];
@@ -154,7 +156,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                                     Configure the housing allowance and its proration method.
                                 </CardDescription>
                             </div>
-                            {existingBenefit && (
+                            {existingBenefit && globalRole !== 'visualizador' && (
                                 <Button variant="destructive" size="icon" onClick={handleDelete}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -173,6 +175,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                                         placeholder="Ex: 500.00"
                                         value={monthlyAmount}
                                         onChange={(e) => setMonthlyAmount(e.target.value)}
+                                        disabled={globalRole === 'visualizador'}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -181,6 +184,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                                         value={prorationMethod}
                                         onChange={(e) => setProrationMethod(e.target.value)}
+                                        disabled={globalRole === 'visualizador'}
                                     >
                                         <option value="daily_actual">Atuais Dias do Mês (28/29/30/31)</option>
                                         <option value="daily_30">Comercial (30 dias)</option>
@@ -196,6 +200,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
+                                        disabled={globalRole === 'visualizador'}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -205,6 +210,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
+                                        disabled={globalRole === 'visualizador'}
                                     />
                                 </div>
                             </div>
@@ -217,7 +223,7 @@ export const BenefitsTab = forwardRef<BenefitsTabRef, BenefitsTabProps>(
                             </div>
                         )}
 
-                        {!isEmbedded && (
+                        {!isEmbedded && globalRole !== 'visualizador' && (
                             <div className="mt-6 flex gap-4 justify-end">
                                 <Button
                                     onClick={handleSave}
