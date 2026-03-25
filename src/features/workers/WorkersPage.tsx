@@ -235,25 +235,25 @@ export function WorkersPage() {
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Card className="border-emerald-200/50 dark:border-emerald-900/30">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3 sm:p-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block">{t('workersPage.kpi.active')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-emerald-700 dark:text-emerald-400">{t('workersPage.kpi.active')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.ativos}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="border-rose-200/50 dark:border-rose-900/30">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3 sm:p-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate block">{t('workersPage.kpi.inactive')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-rose-700 dark:text-rose-400">{t('workersPage.kpi.inactive')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.inativos}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="border-amber-200/50 dark:border-amber-900/30">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3 sm:p-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-500 truncate block" title={t('workersPage.kpi.pendingEntry')}>{t('workersPage.kpi.pendingEntry')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-amber-700 dark:text-amber-500" title={t('workersPage.kpi.pendingEntry')}>{t('workersPage.kpi.pendingEntry')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.pendentes_ingreso}</span>
                                     </div>
                                 </CardContent>
@@ -266,43 +266,43 @@ export function WorkersPage() {
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4" /> {t('workersPage.kpi.securityTitle')}
                         </h3>
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block">{t('workersPage.kpi.alta')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground">{t('workersPage.kpi.alta')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-500">{kpisLoading ? '-' : kpis.seguridade_alta}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-500">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="bg-[#E0E7FF] border-[#E0E7FF]/80 shadow-none dark:bg-[#2e314a] dark:border-[#383d5c]">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block" title="Em Regularização">Em Regularização</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title="Em Regularização">Em Regularização</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-indigo-600 dark:text-indigo-400">{kpisLoading ? '-' : kpis.seguridade_em_regularizacao}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block">{t('workersPage.kpi.baixa')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground">{t('workersPage.kpi.baixa')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-500">{kpisLoading ? '-' : kpis.seguridade_baixa}</span>
                                     </div>
                                 </CardContent>
                             </Card>
                             <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
-                                <CardContent className="p-4 sm:p-5">
+                                <CardContent className="p-3">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-muted-foreground truncate block" title={t('workersPage.kpi.pendingBaixa')}>{t('workersPage.kpi.pendingBaixa')}</span>
+                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title={t('workersPage.kpi.pendingBaixa')}>{t('workersPage.kpi.pendingBaixa')}</span>
                                         <span className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-500">{kpisLoading ? '-' : kpis.seguridade_pendente_baixa}</span>
                                     </div>
                                 </CardContent>
