@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useWorkersList } from './hooks/useWorkersList';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { Button } from '@/components/ui/button';
@@ -82,6 +83,8 @@ export function WorkersPage() {
         funcion
     );
 
+    const { role: globalRole } = useRole(); // Need to import useRole
+
     const { data, isLoading, isError, error } = useWorkersList({
         empresaId: selectedEmpresaId || '',
         search: activeSearch,
@@ -131,12 +134,14 @@ export function WorkersPage() {
             <div className="flex justify-between items-center w-full mb-3 shrink-0">
                 <h2 className="text-lg font-semibold">{t('workersPage.title')}</h2>
                 <div className="flex gap-2">
-                    <ImportTarifasDialog trigger={
-                        <Button variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                            <DownloadCloud className="mr-2 h-4 w-4" />
-                            Importar Tarifas (Excel)
-                        </Button>
-                    } />
+                    {globalRole !== 'visualizador' && (
+                        <ImportTarifasDialog trigger={
+                            <Button variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                                <DownloadCloud className="mr-2 h-4 w-4" />
+                                Importar Tarifas (Excel)
+                            </Button>
+                        } />
+                    )}
                 </div>
             </div>
             <div className="w-full mb-2 shrink-0">

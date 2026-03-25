@@ -16,11 +16,13 @@ import { WorkerStatusManagerDialog } from './components/WorkerStatusManagerDialo
 import { DiscountsTab } from './components/tabs/DiscountsTab';
 import { BankTabProfile } from './components/BankTabProfile';
 import { useTranslation } from 'react-i18next';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export function WorkerDetailsPage() {
     const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { role: globalRole } = useRole();
 
     const { data: worker, isLoading, isError, error } = useWorkerById(id);
 
@@ -88,12 +90,16 @@ export function WorkerDetailsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
-                    <WorkerStatusManagerDialog 
-                        workerId={worker.id} 
-                        currentTrabalhoStatus={worker.status_trabajador} 
-                        currentSeguridadeStatus={worker.status_seguridad} 
-                    />
-                    <EditWorkerDialog worker={worker} />
+                    {globalRole !== 'visualizador' && (
+                        <>
+                            <WorkerStatusManagerDialog 
+                                workerId={worker.id} 
+                                currentTrabalhoStatus={worker.status_trabajador} 
+                                currentSeguridadeStatus={worker.status_seguridad} 
+                            />
+                            <EditWorkerDialog worker={worker} />
+                        </>
+                    )}
                     {worker.status_trabajador && (
                         <div className="flex flex-col items-end gap-1 mr-2">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('dashboard.workerStatus', 'Status')}</span>

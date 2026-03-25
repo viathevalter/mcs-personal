@@ -119,7 +119,12 @@ export async function updateUserRole(userId: string, email: string, role: string
         .from('user_roles')
         .upsert({ user_id: userId, email, role }, { onConflict: 'user_id' });
 
-    if (error) throw mapSupabaseError(error);
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('O usuário não possui um cadastro ativo no sistema (Auth). Peça para ele acessar a plataforma e criar a conta com este e-mail antes de salvar permissões.');
+        }
+        throw mapSupabaseError(error);
+    }
 }
 
 // Relacionamentos com as Empresas (Matriz / Filiais)
@@ -166,7 +171,12 @@ export async function saveUserMembership(membership: UserCompanyMembership): Pro
             })
             .eq('id', existing.id);
 
-        if (updateError) throw mapSupabaseError(updateError);
+        if (updateError) {
+            if (updateError.code === '23503') {
+                throw new Error('O usuário não possui um cadastro ativo no sistema (Auth). Peça para ele acessar a plataforma e criar a conta com este e-mail antes de salvar permissões.');
+            }
+            throw mapSupabaseError(updateError);
+        }
     } else {
         // Insert new membership
         const { error: insertError } = await supabase
@@ -179,6 +189,11 @@ export async function saveUserMembership(membership: UserCompanyMembership): Pro
                 is_active: membership.is_active
             });
 
-        if (insertError) throw mapSupabaseError(insertError);
+        if (insertError) {
+            if (insertError.code === '23503') {
+                throw new Error('O usuário não possui um cadastro ativo no sistema (Auth). Peça para ele acessar a plataforma e criar a conta com este e-mail antes de salvar permissões.');
+            }
+            throw mapSupabaseError(insertError);
+        }
     }
 }

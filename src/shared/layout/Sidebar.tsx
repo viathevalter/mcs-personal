@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 
 type SidebarLink = {
@@ -16,6 +17,7 @@ type SidebarLink = {
 export function Sidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const { t } = useTranslation();
+    const { role: globalRole } = useRole();
 
     const links: SidebarLink[] = [
         { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
@@ -32,6 +34,14 @@ export function Sidebar() {
         { to: '/admin/users', tKey: 'navigation.access', icon: UserCog, roles: ['admin'] },
         { to: '/admin/categories', tKey: 'Categorias (Descontos/Acresc)', icon: Tags, roles: ['admin'] },
     ];
+
+    // Ocultar menus específicos caso o usuário seja apenas visualizador global
+    const filteredLinks = links.filter(link => {
+        if (globalRole === 'visualizador') {
+            return link.to === '/dashboard' || link.to === '/workers';
+        }
+        return true;
+    });
 
     return (
         <aside className={cn(
@@ -54,7 +64,7 @@ export function Sidebar() {
                         </div>
                     )}
                     <nav className="grid items-start px-2 text-sm font-medium gap-1">
-                        {links.map(({ to, tKey, icon: Icon, roles }) => (
+                        {filteredLinks.map(({ to, tKey, icon: Icon, roles }) => (
                             <RoleGate key={to} allow={roles}>
                                 <NavLink
                                     to={to}
