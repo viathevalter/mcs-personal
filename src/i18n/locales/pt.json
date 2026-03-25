@@ -305,6 +305,7 @@
                 "ativo": "Ativo",
                 "activo": "Ativo",
                 "inativo": "Inativo",
+                "inactivo": "Inativo",
                 "pendente_ingresso": "Pendente Ingresso",
                 "pendiente_ingreso": "Pendente Ingresso"
             },
