@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, Plus, FileSignature, CheckCircle2, History, UploadCloud } from 'lucide-react';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useWorkerIbans } from '../hooks/useWorkerIbans';
 import { useWorkerById } from '../hooks/useWorkerById';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
@@ -20,6 +21,7 @@ interface BankTabProfileProps {
 export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
     // @ts-ignore
     const _empresa = empresaId; // Keeping it for future use.
+    const { role: globalRole } = useRole();
     
     const { data: ibans, isLoading, isError } = useWorkerIbans(workerId);
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -97,10 +99,12 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                         Histórico de contas correntes e documentos de autorização
                     </p>
                 </div>
-                <Button onClick={() => setIsAddOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Adicionar Nova Conta
-                </Button>
+                {globalRole !== 'visualizador' && (
+                    <Button onClick={() => setIsAddOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Adicionar Nova Conta
+                    </Button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -139,7 +143,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     <Download className="w-4 h-4 mr-2" /> Ver Autorização
                                                 </a>
                                             </Button>
-                                        ) : (
+                                        ) : globalRole !== 'visualizador' ? (
                                             <div>
                                                 <input 
                                                     type="file" 
@@ -160,7 +164,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     Anexar Termo Assinado
                                                 </Button>
                                             </div>
-                                        )}
+                                        ) : null}
                                     </div>
                                 </div>
                             ) : (
@@ -201,7 +205,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     <Download className="w-4 h-4 mr-2" /> Autorização
                                                 </a>
                                             </Button>
-                                        ) : (
+                                        ) : globalRole !== 'visualizador' ? (
                                             <div className="flex-shrink-0">
                                                 <input 
                                                     type="file" 
@@ -222,7 +226,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     Anexar
                                                 </Button>
                                             </div>
-                                        )}
+                                        ) : null}
                                     </div>
                                 ))}
                             </CardContent>
