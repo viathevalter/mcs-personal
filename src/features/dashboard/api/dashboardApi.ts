@@ -11,24 +11,33 @@ export async function fetchDashboardMetrics(empresaId: string, _year: number, _m
 
     try {
         // Query total workers
-        const { count: total } = await supaClient
+        const { count: total, error: errTotal } = await supaClient
+            .schema('core_personal')
             .from('workers')
             .select('*', { count: 'exact', head: true })
             .eq('empresa_id', empresaId);
 
+        if (errTotal) console.error("Error fetching total workers:", errTotal);
+
         // Query active workers
-        const { count: active } = await supaClient
+        const { count: active, error: errActive } = await supaClient
+            .schema('core_personal')
             .from('workers')
             .select('*', { count: 'exact', head: true })
             .eq('empresa_id', empresaId)
             .eq('status_trabajador', 'Ativo');
+			
+        if (errActive) console.error("Error fetching active workers:", errActive);
 
         // Query workers in regularization
-        const { count: regularization } = await supaClient
+        const { count: regularization, error: errReg } = await supaClient
+            .schema('core_personal')
             .from('workers')
             .select('*', { count: 'exact', head: true })
             .eq('empresa_id', empresaId)
             .ilike('status_seguridad', '%Em Regularização%');
+			
+        if (errReg) console.error("Error fetching regularization workers:", errReg);
 
         return {
             total_workers: total || 0,
