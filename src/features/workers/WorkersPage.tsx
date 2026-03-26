@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImportTarifasDialog } from './components/ImportTarifasDialog';
+import { ExportWorkersDialog } from './components/ExportWorkersDialog';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
@@ -134,6 +135,22 @@ export function WorkersPage() {
             <div className="flex justify-between items-center w-full mb-3 shrink-0">
                 <h2 className="text-lg font-semibold">{t('workersPage.title')}</h2>
                 <div className="flex gap-2">
+                    <ExportWorkersDialog 
+                        trigger={
+                            <Button variant="outline" className="border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700">
+                                <DownloadCloud className="mr-2 h-4 w-4" />
+                                Exportar para Excel
+                            </Button>
+                        }
+                        currentFilters={{
+                            search: activeSearch,
+                            clienteNombre: clienteNombre.length > 0 ? clienteNombre : undefined,
+                            statusTrabajador: statusTrabajador,
+                            statusSeguridad: statusSeguridad,
+                            contratante: contratante || undefined,
+                            funcion: funcion || undefined,
+                        }}
+                    />
                     {globalRole !== 'visualizador' && (
                         <ImportTarifasDialog trigger={
                             <Button variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">

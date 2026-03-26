@@ -20,6 +20,10 @@ export interface Worker {
     contratante?: string | null;
     funcion?: string | null;
     cliente_nombre?: string | null;
+    data_ingresso?: string | null;
+    data_baixa?: string | null;
+    data_alta_seguridad?: string | null;
+    data_baixa_seguridad?: string | null;
     created_at: string;
 }
 
