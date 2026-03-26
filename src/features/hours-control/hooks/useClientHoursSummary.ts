@@ -50,20 +50,26 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                 let hoursData: any[] = [];
                 if (workerIds.length > 0) {
                     console.log('Fetching worker hours...');
-                    const { data: hours, error: hoursError } = await supabase
-                        .schema('core_personal')
-                        .from('worker_hours')
-                        .select('worker_id, status')
-                        .eq('empresa_id', selectedEmpresaId)
-                        .eq('period_year', periodYear)
-                        .eq('period_month', periodMonth);
+                    const chunkSize = 200;
+                    for (let i = 0; i < workerIds.length; i += chunkSize) {
+                        const chunk = workerIds.slice(i, i + chunkSize);
+                        const { data: hours, error: hoursError } = await supabase
+                            .schema('core_personal')
+                            .from('worker_hours')
+                            .select('worker_id, status')
+                            .in('worker_id', chunk)
+                            .eq('period_year', periodYear)
+                            .eq('period_month', periodMonth);
 
-                    if (hoursError) {
-                        console.error('Hours fetch error:', hoursError);
-                        throw hoursError;
+                        if (hoursError) {
+                            console.error('Hours fetch error:', hoursError);
+                            throw hoursError;
+                        }
+                        if (hours) {
+                            hoursData = [...hoursData, ...hours];
+                        }
                     }
-                    console.log('Hours fetched:', hours?.length);
-                    hoursData = hours || [];
+                    console.log('Hours fetched:', hoursData.length);
                 }
 
                 if (!isMounted) return;

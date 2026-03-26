@@ -91,16 +91,20 @@ export function ClientHoursDetail() {
             let hoursData: any[] = [];
 
             if (workerIds.length > 0) {
-                const { data: hours, error: hoursError } = await supabase
-                    .schema('core_personal')
-                    .from('worker_hours')
-                    .select('*')
-                    .eq('empresa_id', selectedEmpresaId)
-                    .eq('period_year', year)
-                    .eq('period_month', month);
+                const chunkSize = 200;
+                for (let i = 0; i < workerIds.length; i += chunkSize) {
+                    const chunk = workerIds.slice(i, i + chunkSize);
+                    const { data: hours, error: hoursError } = await supabase
+                        .schema('core_personal')
+                        .from('worker_hours')
+                        .select('*')
+                        .in('worker_id', chunk)
+                        .eq('period_year', year)
+                        .eq('period_month', month);
 
-                if (hoursError) throw hoursError;
-                hoursData = hours || [];
+                    if (hoursError) throw hoursError;
+                    if (hours) hoursData = [...hoursData, ...hours];
+                }
             }
 
             // Merge details
