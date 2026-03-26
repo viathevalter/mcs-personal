@@ -29,13 +29,14 @@ export function HoursControlPage() {
     const periodMonth = parseInt(searchParams.get('month') || (prevMonthDate.getMonth() + 1).toString()); // 1-12
     const clientFilter = searchParams.get('clientFilter')?.split(',').filter(Boolean) || [];
     const contratanteFilter = searchParams.get('contratante') || null;
+    const workerStatusFilter = searchParams.get('workerStatus') || 'all';
 
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
 
     const updateSearchParams = (updates: Record<string, string | string[] | null>) => {
         const newParams = new URLSearchParams(searchParams);
         Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+            if (value === null || value === '' || (Array.isArray(value) && value.length === 0) || value === 'all') {
                 newParams.delete(key);
             } else if (Array.isArray(value)) {
                 newParams.set(key, value.join(','));
@@ -65,8 +66,16 @@ export function HoursControlPage() {
     });
 
     const filteredClients = (clients || []).filter(c => {
-        if (clientFilter.length === 0) return true;
-        return clientFilter.some(filtro => c.cliente_nombre?.toLowerCase() === filtro.toLowerCase());
+        // 1. Client filter
+        if (clientFilter.length > 0 && !clientFilter.some(filtro => c.cliente_nombre?.toLowerCase() === filtro.toLowerCase())) {
+            return false;
+        }
+
+        // 2. Worker Status filter
+        if (workerStatusFilter === 'active' && !c.has_active_workers) return false;
+        if (workerStatusFilter === 'inactive' && !c.has_inactive_workers) return false;
+
+        return true;
     });
 
     const kpis = {
@@ -131,6 +140,22 @@ export function HoursControlPage() {
                 </div>
 
                 <div className="flex gap-4 w-full sm:w-auto mt-2 sm:mt-0 items-center">
+                    <div className="space-y-1">
+                        <Select 
+                            value={workerStatusFilter} 
+                            onValueChange={(v) => updateSearchParams({ workerStatus: v })}
+                        >
+                            <SelectTrigger className="w-[160px]">
+                                <SelectValue placeholder={t('hoursControl.filterStatus')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{t('hoursControl.statusAll')}</SelectItem>
+                                <SelectItem value="active">{t('hoursControl.statusActive')}</SelectItem>
+                                <SelectItem value="inactive">{t('hoursControl.statusInactive')}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="w-full sm:w-48">
                         <Combobox
                             options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}

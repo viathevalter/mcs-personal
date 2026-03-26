@@ -183,6 +183,10 @@
         "filterCompany": "Filtrar por empresa...",
         "noCompany": "Nenhuma empresa",
         "filterClient": "Filtrar por cliente...",
+        "filterStatus": "Status Trabalhador",
+        "statusAll": "Todos os Status",
+        "statusActive": "Com Ativos",
+        "statusInactive": "Com Inativos",
         "kpis": {
             "active": "Ativos no Mês",
             "pending": "Faltam Enviar",

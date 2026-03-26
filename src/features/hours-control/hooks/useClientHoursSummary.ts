@@ -9,6 +9,8 @@ export interface ClientSummary {
     pending_hours: number;
     submitted_hours: number;
     validated_hours: number;
+    has_active_workers: boolean;
+    has_inactive_workers: boolean;
 }
 
 export function useClientHoursSummary(periodYear: number, periodMonth: number, contratante: string | null = null) {
@@ -86,10 +88,19 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                             pending_hours: 0,
                             submitted_hours: 0,
                             validated_hours: 0,
+                            has_active_workers: false,
+                            has_inactive_workers: false,
                         });
                     }
                     const summary = summaryMap.get(client)!;
                     summary.total_workers++;
+
+                    const isInactive = w.status_trabajador?.toLowerCase() === 'inativo' || w.status_trabajador?.toLowerCase() === 'desligado';
+                    if (isInactive) {
+                        summary.has_inactive_workers = true;
+                    } else {
+                        summary.has_active_workers = true;
+                    }
 
                     // Check hours status
                     const hourRecord = hoursData.find(h => h.worker_id === w.id);
