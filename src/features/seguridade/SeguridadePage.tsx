@@ -142,7 +142,7 @@ export function SeguridadePage() {
             </div>
 
             {/* KPIs Section */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card className="shadow-sm border-l-4 border-l-primary hover:bg-muted/50 transition-colors">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
                         <CardTitle className="text-sm font-medium uppercase text-muted-foreground">
@@ -189,7 +189,24 @@ export function SeguridadePage() {
                             {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-amber-500/50" /> : kpis?.seguridade_pendente_alta || 0}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Aguardando documentação (Alta ou Baixa)
+                            Aguardando documentação de Alta
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="shadow-sm border-l-4 border-l-rose-500 hover:bg-muted/50 transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                        <CardTitle className="text-sm font-medium uppercase text-muted-foreground" title="Pendente de Baixa">
+                            Pendente de Baixa
+                        </CardTitle>
+                        <AlertCircle className="h-4 w-4 text-rose-500" />
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="text-2xl font-bold text-rose-600">
+                            {kpisLoading ? <Loader2 className="h-4 w-4 animate-spin text-rose-500/50" /> : kpis?.seguridade_pendente_baixa || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Aguardando documentação de Baixa
                         </p>
                     </CardContent>
                 </Card>
