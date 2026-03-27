@@ -100,6 +100,8 @@ export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
         fecha_nacimiento?: string | null;
         funcion?: string | null;
         empresa_nome?: string | null;
+        data_ingresso?: string | null;
+        data_baixa?: string | null;
     };
 }
 export interface LedgerType {

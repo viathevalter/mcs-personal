@@ -84,6 +84,7 @@ export function WorkerStatusManagerDialog({
     
     // Dynamically set options based on type
     const isSeguridade = watchChangeType === 'SEGURIDADE';
+    const isAtivo = !isSeguridade && form.watch('newValue') === 'ATIVO';
     const options = isSeguridade ? STATUS_SEGURIDADE_OPTIONS : STATUS_TRABALHO_OPTIONS;
 
     const handleOpenChange = (newOpen: boolean) => {
@@ -197,7 +198,13 @@ export function WorkerStatusManagerDialog({
                             name="effectiveDate"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Data Efetiva {isSeguridade && watchChangeType === 'SEGURIDADE' ? '(Ex: Data da Baixa Médica)' : '(Ex: Último dia de trabalho)'}</FormLabel>
+                                    <FormLabel>
+                                        Data Efetiva {
+                                            isSeguridade ? '(Ex: Data da Baixa Médica)' : 
+                                            isAtivo ? '(Ex: Primeiro dia de trabalho / Data de Entrada)' : 
+                                            '(Ex: Último dia de trabalho / Data de Saída)'
+                                        }
+                                    </FormLabel>
                                     <FormControl>
                                         <Input type="date" {...field} />
                                     </FormControl>

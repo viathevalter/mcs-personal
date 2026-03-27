@@ -4,6 +4,8 @@ import { Copy } from 'lucide-react';
 import { updateSeguridadeStatus } from '../api/seguridadeApi';
 import { uploadWorkerDocument } from '../../workers/api/documentsApi';
 import type { SeguridadeStatusWithWorker, StatusWorkflowSeguridade } from '@/shared/types/corePersonal';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DocumentsTab } from '../../workers/components/DocumentsTab';
 import {
     Dialog,
     DialogContent,
@@ -27,23 +29,25 @@ interface ProcessarSeguridadeDialogProps {
 }
 
 const CopyableField = ({ label, value }: { label: string, value?: string | null }) => {
-    if (!value) return null;
+    const displayValue = value || 'Não informada';
     return (
         <div className="flex items-start gap-1.5 text-xs">
             <span className="font-medium text-foreground whitespace-nowrap mt-0.5">{label}:</span>
-            <span className="flex-1 text-muted-foreground break-words mt-0.5" title={value}>{value}</span>
-            <button 
-                type="button" 
-                onClick={(e) => {
-                    e.preventDefault();
-                    navigator.clipboard.writeText(value);
-                    toast.success(`${label} copiado!`);
-                }}
-                className="text-muted-foreground/50 hover:text-primary transition-colors flex-shrink-0 p-0.5 focus:outline-none"
-                title="Copiar"
-            >
-                <Copy className="h-3.5 w-3.5" />
-            </button>
+            <span className={`flex-1 break-words mt-0.5 ${!value ? 'text-muted-foreground/50 italic' : 'text-muted-foreground'}`} title={displayValue}>{displayValue}</span>
+            {value && (
+                <button 
+                    type="button" 
+                    onClick={(e) => {
+                        e.preventDefault();
+                        navigator.clipboard.writeText(value);
+                        toast.success(`${label} copiado!`);
+                    }}
+                    className="text-muted-foreground/50 hover:text-primary transition-colors flex-shrink-0 p-0.5 focus:outline-none"
+                    title="Copiar"
+                >
+                    <Copy className="h-3.5 w-3.5" />
+                </button>
+            )}
         </div>
     );
 };
@@ -105,9 +109,15 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-3 py-2">
-                    {/* Worker Info */}
-                    <div className="rounded-md bg-muted p-3 text-sm flex flex-col gap-3">
+                <Tabs defaultValue="detalhes" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="detalhes">Detalhes do Processo</TabsTrigger>
+                        <TabsTrigger value="documentos">Documentos do Trabalhador</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="detalhes" className="grid gap-3 py-2">
+                        {/* Worker Info */}
+                        <div className="rounded-md bg-muted p-3 text-sm flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                             <Badge variant={isAlta ? 'default' : 'destructive'} className="uppercase">
                                 {item.tipo_evento}
@@ -124,6 +134,14 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                 value={item.worker.fecha_nacimiento ? new Date(item.worker.fecha_nacimiento).toLocaleDateString('pt-BR') : null} 
                             />
                             <CopyableField label="Função" value={item.worker.funcion} />
+                            <CopyableField 
+                                label="Contratação" 
+                                value={item.worker.data_ingresso ? new Date(item.worker.data_ingresso).toLocaleDateString('pt-BR') : null} 
+                            />
+                            <CopyableField 
+                                label="Data Baixa" 
+                                value={item.worker.data_baixa ? new Date(item.worker.data_baixa).toLocaleDateString('pt-BR') : null} 
+                            />
                             <CopyableField label="Empresa" value={item.worker.empresa_nome} />
                             <div className="sm:col-span-2">
                                 <CopyableField label="Cliente" value={item.origem_cliente_nome} />
@@ -193,7 +211,12 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                             />
                         </div>
                     </div>
-                </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="documentos" className="py-2">
+                        <DocumentsTab workerId={item.worker.id} empresaId={selectedEmpresaId || item.empresa_id} />
+                    </TabsContent>
+                </Tabs>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
