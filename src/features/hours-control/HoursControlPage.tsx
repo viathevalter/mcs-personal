@@ -14,6 +14,7 @@ import { useUniqueClients } from '../workers/hooks/useUniqueClients';
 import { Combobox } from '../../components/ui/combobox';
 import { MultiSelect } from '../../components/ui/multi-select';
 import { useTranslation } from 'react-i18next';
+import { ExportPendingHoursDialog } from './components/ExportPendingHoursDialog';
 
 export function HoursControlPage() {
     const { t, i18n } = useTranslation();
@@ -101,9 +102,20 @@ export function HoursControlPage() {
     return (
         <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3">
             {portalNode && createPortal(
-                <div className="flex flex-col">
-                    <h1 className="text-xl font-bold tracking-tight">{t('hoursControl.title')}</h1>
-                    <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.subtitle')}</span>
+                <div className="flex w-[90%] md:w-full items-center justify-between">
+                    <div className="flex flex-col">
+                        <h1 className="text-xl font-bold tracking-tight">{t('hoursControl.title')}</h1>
+                        <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">{t('hoursControl.subtitle')}</span>
+                    </div>
+                    {selectedEmpresaId && (
+                        <ExportPendingHoursDialog 
+                            periodYear={periodYear}
+                            periodMonth={periodMonth}
+                            contratanteFilter={contratanteFilter}
+                            clientFilter={clientFilter}
+                            workerStatusFilter={workerStatusFilter}
+                        />
+                    )}
                 </div>,
                 portalNode
             )}

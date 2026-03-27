@@ -216,6 +216,19 @@
             "collecting": "Recolectando",
             "review": "Revisar",
             "completed": "Completo"
+        },
+        "exportPending": {
+            "btn": "Exportar Faltantes",
+            "title": "Exportar Faltan Enviar (Excel)",
+            "desc": "Selecciona las columnas para la hoja de cálculo.\nLa exportación traerá solo a los trabajadores que AÚN NO han enviado la nómina este mes, filtrados por contratante y cliente.",
+            "fields": "Campos para exportar",
+            "selectAll": "Marcar todos",
+            "deselectAll": "Desmarcar todos",
+            "cancel": "Cancelar",
+            "exporting": "Procesando Archivo...",
+            "exportBtn": "Descargar Planilla",
+            "noWorkers": "No se encontraron trabajadores pendientes con los filtros actuales.",
+            "error": "Error al exportar la planilla. Intenta de nuevo."
         }
     },
     "clientHoursDetail": {
