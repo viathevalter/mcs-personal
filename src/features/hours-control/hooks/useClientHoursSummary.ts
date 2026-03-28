@@ -13,7 +13,7 @@ export interface ClientSummary {
     has_inactive_workers: boolean;
 }
 
-export function useClientHoursSummary(periodYear: number, periodMonth: number, contratante: string | null = null) {
+export function useClientHoursSummary(periodYear: number, periodMonth: number, contratante: string | null = null, searchQuery: string | null = null) {
     const { selectedEmpresaId } = useEmpresa();
     const [data, setData] = useState<ClientSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -78,8 +78,18 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
 
                 // Group by client
                 const summaryMap = new Map<string, ClientSummary>();
+                
+                let filteredWorkers = workers || [];
+                if (searchQuery && searchQuery.trim().length > 0) {
+                    const q = searchQuery.trim().toLowerCase();
+                    filteredWorkers = filteredWorkers.filter(w => {
+                        const nameMatch = w.nome && w.nome.toLowerCase().includes(q);
+                        const phoneMatch = w.movil && w.movil.toLowerCase().includes(q);
+                        return nameMatch || phoneMatch;
+                    });
+                }
 
-                workers?.forEach(w => {
+                filteredWorkers.forEach(w => {
                     const client = w.cliente_nombre || 'NÃO DEFINIDO';
                     if (!summaryMap.has(client)) {
                         summaryMap.set(client, {
@@ -132,7 +142,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
         return () => {
             isMounted = false;
         };
-    }, [selectedEmpresaId, periodYear, periodMonth, contratante]);
+    }, [selectedEmpresaId, periodYear, periodMonth, contratante, searchQuery]);
 
     return { data, isLoading, isError, error };
 }

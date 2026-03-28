@@ -44,6 +44,7 @@ export function ClientHoursDetail() {
     const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
     const month = parseInt(searchParams.get('month') || (new Date().getMonth() + 1).toString());
     const contratante = searchParams.get('contratante');
+    const searchQuery = searchParams.get('q');
 
     const [workers, setWorkers] = useState<WorkerDetail[]>([]);
     const [loading, setLoading] = useState(true);
@@ -72,19 +73,28 @@ export function ClientHoursDetail() {
         if (selectedEmpresaId && clientName) {
             fetchClientWorkers();
         }
-    }, [selectedEmpresaId, clientName, year, month, contratante]);
+    }, [selectedEmpresaId, clientName, year, month, contratante, searchQuery]);
 
     const fetchClientWorkers = async () => {
         setLoading(true);
         try {
             // Fetch workers for this client
-            const workersData = await getHoursControlWorkers({
+            let workersData = await getHoursControlWorkers({
                 empresaId: selectedEmpresaId as string,
                 periodYear: year,
                 periodMonth: month,
                 clienteNombre: clientName || null,
                 contratante: contratante || null
             });
+
+            if (searchQuery && searchQuery.trim().length > 0 && workersData) {
+                const q = searchQuery.trim().toLowerCase();
+                workersData = workersData.filter(w => {
+                    const nameMatch = w.nome && w.nome.toLowerCase().includes(q);
+                    const phoneMatch = w.movil && w.movil.toLowerCase().includes(q);
+                    return nameMatch || phoneMatch;
+                });
+            }
 
             // Fetch hour records
             const workerIds = workersData?.map(w => w.id) || [];

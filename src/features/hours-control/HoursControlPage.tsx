@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../components/ui/badge';
 import { useEmpresa } from '../../app/providers/EmpresaProvider';
 import { useClientHoursSummary } from './hooks/useClientHoursSummary';
-import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle } from 'lucide-react';
+import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle, Search } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Input } from '../../components/ui/input';
 import { useUniqueContratantes } from '../workers/hooks/useUniqueContratantes';
 import { useUniqueClients } from '../workers/hooks/useUniqueClients';
 import { Combobox } from '../../components/ui/combobox';
@@ -31,8 +32,27 @@ export function HoursControlPage() {
     const clientFilter = searchParams.get('clientFilter')?.split(',').filter(Boolean) || [];
     const contratanteFilter = searchParams.get('contratante') || null;
     const workerStatusFilter = searchParams.get('workerStatus') || 'all';
+    
+    const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+    const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
 
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedQuery(searchQuery);
+            const newParams = new URLSearchParams(searchParams);
+            if (searchQuery.trim()) {
+                newParams.set('q', searchQuery.trim());
+            } else {
+                newParams.delete('q');
+            }
+            setSearchParams(newParams, { replace: true });
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery, searchParams, setSearchParams]);
+
 
     const updateSearchParams = (updates: Record<string, string | string[] | null>) => {
         const newParams = new URLSearchParams(searchParams);
@@ -54,7 +74,7 @@ export function HoursControlPage() {
 
     const { data: contratantes } = useUniqueContratantes();
     const { data: clientsList } = useUniqueClients();
-    const { data: clients, isLoading, isError, error } = useClientHoursSummary(periodYear, periodMonth, contratanteFilter);
+    const { data: clients, isLoading, isError, error } = useClientHoursSummary(periodYear, periodMonth, contratanteFilter, debouncedQuery);
 
     // Filter controls
     const years = [currentDate.getFullYear() - 1, currentDate.getFullYear(), currentDate.getFullYear() + 1];
@@ -120,8 +140,8 @@ export function HoursControlPage() {
                 portalNode
             )}
 
-            {/* Fila superior com Seletores */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shrink-0 bg-card p-4 rounded-md border shadow-sm">
+            {/* Fila superior com Seletores e Busca */}
+            <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between shrink-0 bg-card p-4 rounded-md border shadow-sm">
                 <div className="flex gap-4 items-center flex-wrap">
                     <div className="space-y-1">
                         <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.month')}</label>
@@ -149,9 +169,24 @@ export function HoursControlPage() {
                             </SelectContent>
                         </Select>
                     </div>
+                    
+                    {/* Worker Search */}
+                    <div className="space-y-1 ml-0 xl:ml-4 w-full sm:w-80">
+                         <label className="text-sm font-medium text-muted-foreground">Pesquisar Trabalhador</label>
+                         <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Nome ou telemóvel..."
+                                className="pl-9 bg-background"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex gap-4 w-full sm:w-auto mt-2 sm:mt-0 items-center">
+                <div className="flex gap-4 w-full lg:w-auto mt-2 xl:mt-0 items-center">
+
                     <div className="space-y-1">
                         <Select 
                             value={workerStatusFilter} 
