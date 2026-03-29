@@ -170,6 +170,11 @@ Deno.serve(async (req) => {
     const originalExt = hourRecord.file_name ? hourRecord.file_name.split('.').pop() : 'pdf';
     const finalFileName = `${workerName}.${originalExt}`;
 
+    // Override para manter compatibilidade com outro sistema que espera a pasta como WISE
+    if (folderEmpresaName === "WISEOWE") {
+      folderEmpresaName = "WISE";
+    }
+
     // Dynamically build the path depending on what we have.
     // If we have Empresa and Client: Geral / 3. HOJAS TRABAJADORES / 2026 / 3. MARZO 2026 / LUMINOUS / 628 METALVENT / WILLIAM.pdf
     // If not: Geral / 3. HOJAS TRABAJADORES / 2026 / 3. MARZO 2026 / WILLIAM.pdf
