@@ -127,7 +127,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nacionalidade: values.nacionalidade || null,
             fecha_nacimiento: values.fecha_nacimiento || null,
             nuss: values.nuss || null,
-            foto: worker.foto || null,
+            foto: worker.foto || null
         }, {
             onSuccess: () => {
                 if (activeTab === "beneficios" && benefitsTabRef.current) {

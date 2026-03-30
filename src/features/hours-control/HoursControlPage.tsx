@@ -29,7 +29,7 @@ export function HoursControlPage() {
 
     const periodYear = parseInt(searchParams.get('year') || prevMonthDate.getFullYear().toString());
     const periodMonth = parseInt(searchParams.get('month') || (prevMonthDate.getMonth() + 1).toString()); // 1-12
-    const clientFilter = searchParams.get('clientFilter')?.split(',').filter(Boolean) || [];
+    const clientFilter = searchParams.get('clientFilter')?.split('||').filter(Boolean) || [];
     const contratanteFilter = searchParams.get('contratante') || null;
     const workerStatusFilter = searchParams.get('workerStatus') || 'all';
     
@@ -60,7 +60,7 @@ export function HoursControlPage() {
             if (value === null || value === '' || (Array.isArray(value) && value.length === 0) || value === 'all') {
                 newParams.delete(key);
             } else if (Array.isArray(value)) {
-                newParams.set(key, value.join(','));
+                newParams.set(key, value.join('||'));
             } else {
                 newParams.set(key, value);
             }

@@ -39,11 +39,11 @@ export function WorkersPage() {
     const { t } = useTranslation();
 
     const search = searchParams.get('search') || '';
-    const clienteNombre = searchParams.get('clienteNombre')?.split(',').filter(Boolean) || [];
+    const clienteNombre = searchParams.get('clienteNombre')?.split('||').filter(Boolean) || [];
     const contratante = searchParams.get('contratante') || null;
     const funcion = searchParams.get('funcion') || null;
-    const statusTrabajador = searchParams.get('statusTrabajador')?.split(',').filter(Boolean) || ['ativos'];
-    const statusSeguridad = searchParams.get('statusSeguridad')?.split(',').filter(Boolean) || [];
+    const statusTrabajador = searchParams.get('statusTrabajador')?.split('||').filter(Boolean) || ['ativos'];
+    const statusSeguridad = searchParams.get('statusSeguridad')?.split('||').filter(Boolean) || [];
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const sortColumn = searchParams.get('sortColumn') || 'nome';
@@ -55,7 +55,7 @@ export function WorkersPage() {
             if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
                 newParams.delete(key);
             } else if (Array.isArray(value)) {
-                newParams.set(key, value.join(','));
+                newParams.set(key, value.join('||'));
             } else {
                 newParams.set(key, value.toString());
             }
