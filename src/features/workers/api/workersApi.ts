@@ -111,6 +111,8 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             fecha_nacimiento: updates.fecha_nacimiento,
             nuss: updates.nuss,
             foto: updates.foto,
+            status_trabajador: updates.status_trabajador,
+            status_seguridad: updates.status_seguridad,
             camiseta: updates.camiseta,
             pantalones: updates.pantalones,
         })

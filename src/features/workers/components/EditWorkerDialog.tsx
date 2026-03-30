@@ -55,6 +55,8 @@ const formSchema = z.object({
     nacionalidade: z.string().optional().nullable(),
     fecha_nacimiento: z.string().optional().nullable(),
     nuss: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
+    status_trabajador: z.string().optional().nullable(),
+    status_seguridad: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -88,6 +90,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nacionalidade: worker.nacionalidade || "",
             fecha_nacimiento: worker.fecha_nacimiento || "",
             nuss: worker.nuss || "",
+            status_trabajador: worker.status_trabajador || "",
+            status_seguridad: worker.status_seguridad || "",
         },
     });
 
@@ -107,6 +111,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 nacionalidade: worker.nacionalidade || "",
                 fecha_nacimiento: worker.fecha_nacimiento || "",
                 nuss: worker.nuss || "",
+                status_trabajador: worker.status_trabajador || "",
+                status_seguridad: worker.status_seguridad || "",
             });
             setActiveTab("basico");
         }
@@ -127,7 +133,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nacionalidade: values.nacionalidade || null,
             fecha_nacimiento: values.fecha_nacimiento || null,
             nuss: values.nuss || null,
-            foto: worker.foto || null,
+            foto: worker.foto || null
         }, {
             onSuccess: () => {
                 if (activeTab === "beneficios" && benefitsTabRef.current) {
@@ -204,6 +210,56 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                             </FormItem>
                                         )}
                                     />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="status_trabajador"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-1">
+                                                <FormLabel>{t('editWorker.fields.workerStatus')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.select')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="Ativo">{t('editWorker.status.active')}</SelectItem>
+                                                        <SelectItem value="Inativo">{t('editWorker.status.inactive')}</SelectItem>
+                                                        <SelectItem value="Pendente Ingresso">{t('editWorker.status.pendingEntry')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="status_seguridad"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel>{t('editWorker.fields.securityStatus')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.select')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="Alta">{t('editWorker.security.alta')}</SelectItem>
+                                                        <SelectItem value="Pendente Alta">{t('editWorker.security.pendingAlta')}</SelectItem>
+                                                        <SelectItem value="Em Regularização">Em Regularização</SelectItem>
+                                                        <SelectItem value="Baixa">{t('editWorker.security.baixa')}</SelectItem>
+                                                        <SelectItem value="Pendente Baixa">{t('editWorker.security.pendingBaixa')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+
                                     <FormField
                                         control={form.control}
                                         name="movil"

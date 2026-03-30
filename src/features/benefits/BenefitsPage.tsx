@@ -23,7 +23,7 @@ export function BenefitsPage() {
 
     // Filters from URL
     const searchTerm = searchParams.get('search') || '';
-    const selectedClient = searchParams.get('client')?.split(',').filter(Boolean) || [];
+    const selectedClient = searchParams.get('client')?.split('||').filter(Boolean) || [];
     const selectedCompany = searchParams.get('company') || 'ALL';
 
     // Sort from URL
@@ -37,7 +37,7 @@ export function BenefitsPage() {
             if (value === null || value === undefined || value === '' || value === 'ALL' || (Array.isArray(value) && value.length === 0)) {
                 newParams.delete(key);
             } else if (Array.isArray(value)) {
-                newParams.set(key, value.join(','));
+                newParams.set(key, value.join('||'));
             } else {
                 newParams.set(key, value.toString());
             }
