@@ -113,6 +113,8 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             foto: updates.foto,
             status_trabajador: updates.status_trabajador,
             status_seguridad: updates.status_seguridad,
+            camiseta: updates.camiseta,
+            pantalones: updates.pantalones,
         })
         .eq('id', id);
 

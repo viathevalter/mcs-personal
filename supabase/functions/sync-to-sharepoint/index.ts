@@ -181,18 +181,17 @@ Deno.serve(async (req) => {
       const clientNameFixes: Record<string, string> = {
         "SERRALLERIA MILLAN MARTINEZ S.L": "SERRALLERIA MILLAN MARTINEZ",
         "DUROFELGUERAS SL": "DURO FELGUERA ENERGY STORAGE",
-        "INSTALACIONES Y SISTEMAS HIDRAULICOS": "INSTALACIONES Y SISTEMAS HIDRAULICOS",
-        "INSTALACIONES Y SISTEMAS HIDRAULICOS": "INSTALACIONES Y SISTEMAS HIDRAULICOS", // Variação do a com acento ou letra trocada já tratada pelo .toUpperCase, mas deixo se houver 'a' vs 'A'
         "GRUPO FERRERAS SL": "GRUPO FERRERAS",
         "CUBIERTAS Y MONTAJES P. FERRERAS S.L": "CUBIERTAS Y MONTAJES P. FERRERAS, S.L",
         "OBRESIEDIFICACIONS": "OBRES I EDIFICACIONS S.L.",
         "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L": "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L",
-        "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES S.L": "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L"
+        "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES S.L": "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L",
+        "GAMOHER CONSTRUCCIONES METÁLICAS S.L": "GAMOHER CONSTRUCCIONES METÁLICAS, S.L"
       };
 
-      // Corrige a variação de case específico do HIDRaULICOS
-      if (folderClientName.includes("HIDRaULICOS") || folderClientName.includes("HIDRAULICOS")) {
-        folderClientName = "INSTALACIONES Y SISTEMAS HIDRAULICOS";
+      // Corrige as variações do HIDRAULICOS (e a falta de acento) para bater com a C0108 no banco
+      if (folderClientName.includes("HIDRaULICOS") || folderClientName.includes("HIDRAULICOS") || folderClientName.includes("HIDRÁULICOS")) {
+        folderClientName = "INSTALACIONES Y SISTEMAS HIDRÁULICOS";
       } else if (clientNameFixes[nomKey]) {
         folderClientName = clientNameFixes[nomKey];
       }

@@ -74,6 +74,27 @@ export function OverviewTab({ worker }: OverviewTabProps) {
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <span className="text-muted-foreground text-lg flex align-middle justify-center">👕</span>
+                            Tamanhos de Uniforme
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">T-Shirt (Camiseta)</p>
+                                <p className="text-sm font-medium">{worker.camiseta || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">Calça (Pantalones)</p>
+                                <p className="text-sm font-medium">{worker.pantalones || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="space-y-6">

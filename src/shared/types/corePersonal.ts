@@ -24,6 +24,8 @@ export interface Worker {
     data_baixa?: string | null;
     data_alta_seguridad?: string | null;
     data_baixa_seguridad?: string | null;
+    camiseta?: string | null;
+    pantalones?: string | null;
     created_at: string;
 }
 
