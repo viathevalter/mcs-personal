@@ -175,6 +175,29 @@ Deno.serve(async (req) => {
       folderEmpresaName = "WISE";
     }
 
+    // --- CORREÇÕES MANUAIS DE NOMES DE CLIENTES (Problemas de digitação e match exato no DB) ---
+    if (folderClientName) {
+      const nomKey = folderClientName.trim().toUpperCase();
+      const clientNameFixes: Record<string, string> = {
+        "SERRALLERIA MILLAN MARTINEZ S.L": "SERRALLERIA MILLAN MARTINEZ",
+        "DUROFELGUERAS SL": "DURO FELGUERA ENERGY STORAGE",
+        "INSTALACIONES Y SISTEMAS HIDRAULICOS": "INSTALACIONES Y SISTEMAS HIDRAULICOS",
+        "INSTALACIONES Y SISTEMAS HIDRAULICOS": "INSTALACIONES Y SISTEMAS HIDRAULICOS", // Variação do a com acento ou letra trocada já tratada pelo .toUpperCase, mas deixo se houver 'a' vs 'A'
+        "GRUPO FERRERAS SL": "GRUPO FERRERAS",
+        "CUBIERTAS Y MONTAJES P. FERRERAS S.L": "CUBIERTAS Y MONTAJES P. FERRERAS, S.L",
+        "OBRESIEDIFICACIONS": "OBRES I EDIFICACIONS S.L.",
+        "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L": "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L",
+        "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES S.L": "MONTAJE DE TRANSPORTADORES Y SISTEMAS INDUSTRIALES, S.L"
+      };
+
+      // Corrige a variação de case específico do HIDRaULICOS
+      if (folderClientName.includes("HIDRaULICOS") || folderClientName.includes("HIDRAULICOS")) {
+        folderClientName = "INSTALACIONES Y SISTEMAS HIDRAULICOS";
+      } else if (clientNameFixes[nomKey]) {
+        folderClientName = clientNameFixes[nomKey];
+      }
+    }
+
     // Dynamically build the path depending on what we have.
     // If we have Empresa and Client: Geral / 3. HOJAS TRABAJADORES / 2026 / 3. MARZO 2026 / LUMINOUS / 628 METALVENT / WILLIAM.pdf
     // If not: Geral / 3. HOJAS TRABAJADORES / 2026 / 3. MARZO 2026 / WILLIAM.pdf

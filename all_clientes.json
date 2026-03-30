@@ -1,0 +1,1374 @@
+[
+  {
+    "cod_cliente": "C0633",
+    "nombre_comercial": "EICPERMAN"
+  },
+  {
+    "cod_cliente": "C0047",
+    "nombre_comercial": "CEMETASA"
+  },
+  {
+    "cod_cliente": "C0004",
+    "nombre_comercial": "ADUS-METAL"
+  },
+  {
+    "cod_cliente": "C0008",
+    "nombre_comercial": "ALORA SLU"
+  },
+  {
+    "cod_cliente": "C0010",
+    "nombre_comercial": "ALVINOX INSTALLACIONS INDUSTRIALS SL"
+  },
+  {
+    "cod_cliente": "C0011",
+    "nombre_comercial": "APLICACIONES METALAYM SL"
+  },
+  {
+    "cod_cliente": "C0014",
+    "nombre_comercial": "ATELIER FERRARI"
+  },
+  {
+    "cod_cliente": "C0027",
+    "nombre_comercial": "BMG EQUIPAMENTOS, SL"
+  },
+  {
+    "cod_cliente": "C0031",
+    "nombre_comercial": "CALDERARIA OSONA"
+  },
+  {
+    "cod_cliente": "C0034",
+    "nombre_comercial": "CALDERERIA DAYMA SL"
+  },
+  {
+    "cod_cliente": "C0035",
+    "nombre_comercial": "CALDERERIA HAIZEBERRI SL"
+  },
+  {
+    "cod_cliente": "C0037",
+    "nombre_comercial": "CALDERERIA MONDRAC SL"
+  },
+  {
+    "cod_cliente": "C0051",
+    "nombre_comercial": "COIME"
+  },
+  {
+    "cod_cliente": "C0055",
+    "nombre_comercial": "COMETEL SA"
+  },
+  {
+    "cod_cliente": "C0057",
+    "nombre_comercial": "CONSTRUCIONES METALICAS CONTINENTE SL"
+  },
+  {
+    "cod_cliente": "C0058",
+    "nombre_comercial": "CONSTRUCTORA CARDONER"
+  },
+  {
+    "cod_cliente": "C0063",
+    "nombre_comercial": "DIZMAR"
+  },
+  {
+    "cod_cliente": "C0065",
+    "nombre_comercial": "DOMINION TANKS DIMOIN"
+  },
+  {
+    "cod_cliente": "C0066",
+    "nombre_comercial": "EDERKALDE"
+  },
+  {
+    "cod_cliente": "C0067",
+    "nombre_comercial": "EFISIO IGNAZIO FAIS"
+  },
+  {
+    "cod_cliente": "C0069",
+    "nombre_comercial": "EGONDO SL"
+  },
+  {
+    "cod_cliente": "C0072",
+    "nombre_comercial": "EMAT 2022 SL"
+  },
+  {
+    "cod_cliente": "C0075",
+    "nombre_comercial": "EPER"
+  },
+  {
+    "cod_cliente": "C0077",
+    "nombre_comercial": "EUROTUBOS DEL NORTE"
+  },
+  {
+    "cod_cliente": "C0081",
+    "nombre_comercial": "GRAN MECANIZADOS DEL NORTE"
+  },
+  {
+    "cod_cliente": "C0091",
+    "nombre_comercial": "IMASA"
+  },
+  {
+    "cod_cliente": "C0094",
+    "nombre_comercial": "INCOME SA"
+  },
+  {
+    "cod_cliente": "C0282",
+    "nombre_comercial": "ATECA S.A."
+  },
+  {
+    "cod_cliente": "C0096",
+    "nombre_comercial": "INDUSTRIAS AJA DE LLIÇÀ SL"
+  },
+  {
+    "cod_cliente": "C0634",
+    "nombre_comercial": "SPI-PAPEL"
+  },
+  {
+    "cod_cliente": "C0164",
+    "nombre_comercial": "ROVIRA"
+  },
+  {
+    "cod_cliente": "C0103",
+    "nombre_comercial": "INFLUI SA"
+  },
+  {
+    "cod_cliente": "C0104",
+    "nombre_comercial": "INGALUX SL"
+  },
+  {
+    "cod_cliente": "C0107",
+    "nombre_comercial": "INOXMIAN"
+  },
+  {
+    "cod_cliente": "C0109",
+    "nombre_comercial": "INSTUIF SL"
+  },
+  {
+    "cod_cliente": "C0112",
+    "nombre_comercial": "ISLAS GROUP INGENIERIA E INSTALACIONES SL"
+  },
+  {
+    "cod_cliente": "C0117",
+    "nombre_comercial": "KISEKI"
+  },
+  {
+    "cod_cliente": "C0120",
+    "nombre_comercial": "LATORRE SLU"
+  },
+  {
+    "cod_cliente": "C0125",
+    "nombre_comercial": "MAXMETAL"
+  },
+  {
+    "cod_cliente": "C0126",
+    "nombre_comercial": "MC&S METAL CONCEPT & STABILITE"
+  },
+  {
+    "cod_cliente": "C0132",
+    "nombre_comercial": "METALICAS DEL HENARES SLU"
+  },
+  {
+    "cod_cliente": "C0135",
+    "nombre_comercial": "METALIZARD"
+  },
+  {
+    "cod_cliente": "C0139",
+    "nombre_comercial": "MEVASA"
+  },
+  {
+    "cod_cliente": "C0145",
+    "nombre_comercial": "MOMAR"
+  },
+  {
+    "cod_cliente": "C0152",
+    "nombre_comercial": "NAVACEL PROCESS"
+  },
+  {
+    "cod_cliente": "C0159",
+    "nombre_comercial": "PNYC"
+  },
+  {
+    "cod_cliente": "C0169",
+    "nombre_comercial": "SCHWARTZ MONTAJES Y SERVICIOS"
+  },
+  {
+    "cod_cliente": "C0174",
+    "nombre_comercial": "SIMI"
+  },
+  {
+    "cod_cliente": "C0175",
+    "nombre_comercial": "SINTEL SRL"
+  },
+  {
+    "cod_cliente": "C0181",
+    "nombre_comercial": "SPR DIVISION INTEG SL"
+  },
+  {
+    "cod_cliente": "C0190",
+    "nombre_comercial": "TALLERES FONTA SLU"
+  },
+  {
+    "cod_cliente": "C0194",
+    "nombre_comercial": "TALLERES METALICOS DINAMETAL"
+  },
+  {
+    "cod_cliente": "C0195",
+    "nombre_comercial": "TALLERES METALICOS GALICIA"
+  },
+  {
+    "cod_cliente": "C0206",
+    "nombre_comercial": "TORRAVAL COOLING SL"
+  },
+  {
+    "cod_cliente": "C0227",
+    "nombre_comercial": "TAVIL-IND S.A.U."
+  },
+  {
+    "cod_cliente": "C0276",
+    "nombre_comercial": "LTS INDUSTRIE"
+  },
+  {
+    "cod_cliente": "C0260",
+    "nombre_comercial": "CALDERERIA LA NOGUERA, SLU"
+  },
+  {
+    "cod_cliente": "C0018",
+    "nombre_comercial": "AYALA SL"
+  },
+  {
+    "cod_cliente": "C0032",
+    "nombre_comercial": "CALDERARIA PINTEÑO"
+  },
+  {
+    "cod_cliente": "C0036",
+    "nombre_comercial": "CALDERERIA LANDALUZ"
+  },
+  {
+    "cod_cliente": "C0038",
+    "nombre_comercial": "CALDERERIA MONGAR SL"
+  },
+  {
+    "cod_cliente": "C0041",
+    "nombre_comercial": "CALDERERÍA Y MONTAJES REUNIDOS, SA"
+  },
+  {
+    "cod_cliente": "C0045",
+    "nombre_comercial": "CDE SAS"
+  },
+  {
+    "cod_cliente": "C0053",
+    "nombre_comercial": "COMECARAN SA"
+  },
+  {
+    "cod_cliente": "C0093",
+    "nombre_comercial": "IMEGUISA"
+  },
+  {
+    "cod_cliente": "C0115",
+    "nombre_comercial": "JAVIAN MANT Y SERVICIOS GERAIS SL"
+  },
+  {
+    "cod_cliente": "C0118",
+    "nombre_comercial": "KOTRIK INDUSTRIAL"
+  },
+  {
+    "cod_cliente": "C0134",
+    "nombre_comercial": "METALICAS PALENTINAS"
+  },
+  {
+    "cod_cliente": "C0137",
+    "nombre_comercial": "METALMECANICA HERJIMAR SL"
+  },
+  {
+    "cod_cliente": "C0138",
+    "nombre_comercial": "METALURGICA DEL DEZA SAU"
+  },
+  {
+    "cod_cliente": "C0142",
+    "nombre_comercial": "MIMESE"
+  },
+  {
+    "cod_cliente": "C0147",
+    "nombre_comercial": "MONTAJES EISSEN SA"
+  },
+  {
+    "cod_cliente": "C0157",
+    "nombre_comercial": "PIMAN"
+  },
+  {
+    "cod_cliente": "C0163",
+    "nombre_comercial": "RACKS & NETWORKING SOLUTIONS SL"
+  },
+  {
+    "cod_cliente": "C0173",
+    "nombre_comercial": "SILVEMOL SL"
+  },
+  {
+    "cod_cliente": "C0196",
+    "nombre_comercial": "TALLERES PEIDRO SL"
+  },
+  {
+    "cod_cliente": "C0207",
+    "nombre_comercial": "TRATERGA"
+  },
+  {
+    "cod_cliente": "C0210",
+    "nombre_comercial": "TUBAL/STOCCO"
+  },
+  {
+    "cod_cliente": "C0228",
+    "nombre_comercial": "CEMENTOS BLANCOS DEL SUR SL"
+  },
+  {
+    "cod_cliente": "C0243",
+    "nombre_comercial": "LANDETA BURDIN LANAK BERRIA SL"
+  },
+  {
+    "cod_cliente": "C0263",
+    "nombre_comercial": "ENTRERRIOS AUTOMATIZACION S.A"
+  },
+  {
+    "cod_cliente": "C0279",
+    "nombre_comercial": "GAMOHER CONSTRUCCIONES METÁLICAS, S.L"
+  },
+  {
+    "cod_cliente": "C0280",
+    "nombre_comercial": "GARCIA FAURA S.L"
+  },
+  {
+    "cod_cliente": "C0595",
+    "nombre_comercial": "NOUMAFYC"
+  },
+  {
+    "cod_cliente": "C0599",
+    "nombre_comercial": "HIDRO SISTEMAS Y MONTAJES"
+  },
+  {
+    "cod_cliente": "C0600",
+    "nombre_comercial": "DINAT 2006 SLU"
+  },
+  {
+    "cod_cliente": "C0005",
+    "nombre_comercial": "AEB DRYTECH SRL"
+  },
+  {
+    "cod_cliente": "C0635",
+    "nombre_comercial": "CONSTRUCCIONES ESKUIN"
+  },
+  {
+    "cod_cliente": "C0064",
+    "nombre_comercial": "DOHERCO MIRANDA SL"
+  },
+  {
+    "cod_cliente": "C0074",
+    "nombre_comercial": "EMYPRO"
+  },
+  {
+    "cod_cliente": "C0080",
+    "nombre_comercial": "FERIMET SL"
+  },
+  {
+    "cod_cliente": "C0095",
+    "nombre_comercial": "INDUSON APLICACIONES ACUSTICAS INDUSTRIALES SL"
+  },
+  {
+    "cod_cliente": "C0121",
+    "nombre_comercial": "MACHINE SCOUT SL"
+  },
+  {
+    "cod_cliente": "C0122",
+    "nombre_comercial": "MANREC"
+  },
+  {
+    "cod_cliente": "C0128",
+    "nombre_comercial": "MECAONDO SL"
+  },
+  {
+    "cod_cliente": "C0143",
+    "nombre_comercial": "MMTCI AS"
+  },
+  {
+    "cod_cliente": "C0167",
+    "nombre_comercial": "SAS LINCK"
+  },
+  {
+    "cod_cliente": "C0218",
+    "nombre_comercial": "INAGAL SOLDADURA S.L."
+  },
+  {
+    "cod_cliente": "C0226",
+    "nombre_comercial": "C. METALICAS DANIEL LAJO"
+  },
+  {
+    "cod_cliente": "C0258",
+    "nombre_comercial": "REVERTER INDUSTRIES SL"
+  },
+  {
+    "cod_cliente": "C0259",
+    "nombre_comercial": "TALLERES NORBERTO MARCOS SA"
+  },
+  {
+    "cod_cliente": "C0267",
+    "nombre_comercial": "TALLERS VIDAL AMILL, SLU"
+  },
+  {
+    "cod_cliente": "C0269",
+    "nombre_comercial": "PROYECTOS DPTA PIPING S.L.U"
+  },
+  {
+    "cod_cliente": "C0272",
+    "nombre_comercial": "INDUSTRIA NAVARRA DE GALVANOTECNIA S.L"
+  },
+  {
+    "cod_cliente": "C0275",
+    "nombre_comercial": "CONSTRUCCIONES MECÁNICAS BADORC, S.L"
+  },
+  {
+    "cod_cliente": "C0283",
+    "nombre_comercial": "JORFE EFICIÈNCIA ENERGÈTICA"
+  },
+  {
+    "cod_cliente": "C0285",
+    "nombre_comercial": "TALLERES METACA"
+  },
+  {
+    "cod_cliente": "C0288",
+    "nombre_comercial": "OCSACON, S. L. U."
+  },
+  {
+    "cod_cliente": "C0579",
+    "nombre_comercial": "FIT-3"
+  },
+  {
+    "cod_cliente": "C0589",
+    "nombre_comercial": "RUBIALEHIJOS"
+  },
+  {
+    "cod_cliente": "C0602",
+    "nombre_comercial": "STOKES FLUID"
+  },
+  {
+    "cod_cliente": "C0603",
+    "nombre_comercial": "SAINTLOYALTY"
+  },
+  {
+    "cod_cliente": "C0606",
+    "nombre_comercial": "INDOFORMA"
+  },
+  {
+    "cod_cliente": "C0608",
+    "nombre_comercial": "CAYMO CRUCES SL"
+  },
+  {
+    "cod_cliente": "C0609",
+    "nombre_comercial": "CALDINOXVAPOR"
+  },
+  {
+    "cod_cliente": "C0612",
+    "nombre_comercial": "INDUSTRIAS AERONAUTICAS LATORRE S.L"
+  },
+  {
+    "cod_cliente": "C0197",
+    "nombre_comercial": "TALLERES QUINTANA, SL"
+  },
+  {
+    "cod_cliente": "C0636",
+    "nombre_comercial": "CURVASTUR"
+  },
+  {
+    "cod_cliente": "C0607",
+    "nombre_comercial": ""
+  },
+  {
+    "cod_cliente": "C0614",
+    "nombre_comercial": ""
+  },
+  {
+    "cod_cliente": "C0028",
+    "nombre_comercial": "BSA TUBERIA"
+  },
+  {
+    "cod_cliente": "C0048",
+    "nombre_comercial": "CHAUDRONNERIE LESCAUT"
+  },
+  {
+    "cod_cliente": "C0050",
+    "nombre_comercial": "CMR SA"
+  },
+  {
+    "cod_cliente": "C0131",
+    "nombre_comercial": "METALIA ESTRUCTURAS CUBIERTAS Y MONTAJES SL"
+  },
+  {
+    "cod_cliente": "C0155",
+    "nombre_comercial": "NORTON SAU"
+  },
+  {
+    "cod_cliente": "C0161",
+    "nombre_comercial": "PREMETALIC"
+  },
+  {
+    "cod_cliente": "C0180",
+    "nombre_comercial": "SORIGUE"
+  },
+  {
+    "cod_cliente": "C0189",
+    "nombre_comercial": "TALLERES BERASATEGUI"
+  },
+  {
+    "cod_cliente": "C0193",
+    "nombre_comercial": "TALLERES MERCIER"
+  },
+  {
+    "cod_cliente": "C0201",
+    "nombre_comercial": "TECEMU"
+  },
+  {
+    "cod_cliente": "C0214",
+    "nombre_comercial": "AUTOMATISMES ELECTRICS GRANOLLERS, S.L."
+  },
+  {
+    "cod_cliente": "C0262",
+    "nombre_comercial": "TALLERES UMACO S.L"
+  },
+  {
+    "cod_cliente": "C0277",
+    "nombre_comercial": "VENTICLIMA, S.A."
+  },
+  {
+    "cod_cliente": "C0287",
+    "nombre_comercial": "SARRALLE STEEL MELTING PLANT, S.L"
+  },
+  {
+    "cod_cliente": "C0588",
+    "nombre_comercial": "CABEMA SL"
+  },
+  {
+    "cod_cliente": "C0604",
+    "nombre_comercial": "CM TENERIFE"
+  },
+  {
+    "cod_cliente": "C0605",
+    "nombre_comercial": "MECANIZADOS LLANOS, S.L"
+  },
+  {
+    "cod_cliente": "C0613",
+    "nombre_comercial": "IBERTECNIC"
+  },
+  {
+    "cod_cliente": "C0615",
+    "nombre_comercial": "GRUPO MICESA"
+  },
+  {
+    "cod_cliente": "C0151",
+    "nombre_comercial": "MORELBA SL"
+  },
+  {
+    "cod_cliente": "C0123",
+    "nombre_comercial": "MATERIART 14 SL"
+  },
+  {
+    "cod_cliente": "C0141",
+    "nombre_comercial": "SERRALLERIA MILLAN MARTINEZ"
+  },
+  {
+    "cod_cliente": "C0162",
+    "nombre_comercial": "PREST - INSTALACIONES Y MONTAJES SL"
+  },
+  {
+    "cod_cliente": "C0232",
+    "nombre_comercial": "MONTAJES METALICOS FAYSOL"
+  },
+  {
+    "cod_cliente": "C0244",
+    "nombre_comercial": "REMOMEC"
+  },
+  {
+    "cod_cliente": "C0245",
+    "nombre_comercial": "DEGIMA"
+  },
+  {
+    "cod_cliente": "C0246",
+    "nombre_comercial": "GOITEK LANON SL"
+  },
+  {
+    "cod_cliente": "C0247",
+    "nombre_comercial": "VICME SA"
+  },
+  {
+    "cod_cliente": "C0249",
+    "nombre_comercial": "INMETOL S.L."
+  },
+  {
+    "cod_cliente": "C0251",
+    "nombre_comercial": "TECNICAS DE VENTILACIÓN CALGE"
+  },
+  {
+    "cod_cliente": "C0252",
+    "nombre_comercial": "CALDERERÍA LAMARCA S.L."
+  },
+  {
+    "cod_cliente": "C0265",
+    "nombre_comercial": "SINFINES FACTORY S.L"
+  },
+  {
+    "cod_cliente": "C0266",
+    "nombre_comercial": "CALVO CONSTRUCCIONES Y MONTAJES, S.L.- "
+  },
+  {
+    "cod_cliente": "C0278",
+    "nombre_comercial": "METALMANT S.L"
+  },
+  {
+    "cod_cliente": "C0281",
+    "nombre_comercial": "INSTALACIONES GARDO S.L"
+  },
+  {
+    "cod_cliente": "C0286",
+    "nombre_comercial": "INSYME S.L."
+  },
+  {
+    "cod_cliente": "C0289",
+    "nombre_comercial": "PINE INSTALACIONES Y MONTAJES"
+  },
+  {
+    "cod_cliente": "C0580",
+    "nombre_comercial": "COMMSAL"
+  },
+  {
+    "cod_cliente": "C0586",
+    "nombre_comercial": "CRCOS"
+  },
+  {
+    "cod_cliente": "C0637",
+    "nombre_comercial": "Estructuras Vedat"
+  },
+  {
+    "cod_cliente": "C0113",
+    "nombre_comercial": "CHAUDRONNERIES ET FONDERIES PHILIPPE"
+  },
+  {
+    "cod_cliente": "C0016",
+    "nombre_comercial": "ATTSU TECNIVAP, SA"
+  },
+  {
+    "cod_cliente": "C0017",
+    "nombre_comercial": "AURO-TUB"
+  },
+  {
+    "cod_cliente": "C0019",
+    "nombre_comercial": "AZERO BUILDING SL"
+  },
+  {
+    "cod_cliente": "C0020",
+    "nombre_comercial": "AZERO METALISTRY"
+  },
+  {
+    "cod_cliente": "C0042",
+    "nombre_comercial": "CALDESOL"
+  },
+  {
+    "cod_cliente": "C0062",
+    "nombre_comercial": "DBIZ INSTALACIONES Y SERVICIOS INDUSTRIALES, SL"
+  },
+  {
+    "cod_cliente": "C0070",
+    "nombre_comercial": "ELECTRODINAMIC JO-AN SL"
+  },
+  {
+    "cod_cliente": "C0076",
+    "nombre_comercial": "ERBIA SL"
+  },
+  {
+    "cod_cliente": "C0082",
+    "nombre_comercial": "GRANOLLERS SL"
+  },
+  {
+    "cod_cliente": "C0084",
+    "nombre_comercial": "GRUPO LOAFA SL"
+  },
+  {
+    "cod_cliente": "C0085",
+    "nombre_comercial": "GRUPO MAINSA"
+  },
+  {
+    "cod_cliente": "C0086",
+    "nombre_comercial": "GRUPO SOLDATEC SL"
+  },
+  {
+    "cod_cliente": "C0088",
+    "nombre_comercial": "HORMECAL"
+  },
+  {
+    "cod_cliente": "C0090",
+    "nombre_comercial": "IDEMO"
+  },
+  {
+    "cod_cliente": "C0097",
+    "nombre_comercial": "INDUSTRIAS BALMES SA"
+  },
+  {
+    "cod_cliente": "C0098",
+    "nombre_comercial": "INDUSTRIAS COTOMAC SLU"
+  },
+  {
+    "cod_cliente": "C0105",
+    "nombre_comercial": "INGENIERIA PARA EL DESAROLLO TECNOLOGICO"
+  },
+  {
+    "cod_cliente": "C0111",
+    "nombre_comercial": "IQUORD"
+  },
+  {
+    "cod_cliente": "C0119",
+    "nombre_comercial": "LASAFE SLU"
+  },
+  {
+    "cod_cliente": "C0133",
+    "nombre_comercial": "METALICAS LEKUNBERRI"
+  },
+  {
+    "cod_cliente": "C0136",
+    "nombre_comercial": "METALLIC SOLUTIONS"
+  },
+  {
+    "cod_cliente": "C0148",
+    "nombre_comercial": "MONTAJES GOMUR SL"
+  },
+  {
+    "cod_cliente": "C0156",
+    "nombre_comercial": "NOVA HIDRAULICA SL"
+  },
+  {
+    "cod_cliente": "C0590",
+    "nombre_comercial": "Rene"
+  },
+  {
+    "cod_cliente": "C0591",
+    "nombre_comercial": "ANSA MONTAJES METALICOS"
+  },
+  {
+    "cod_cliente": "C0598",
+    "nombre_comercial": "MARSA CALDERERIA"
+  },
+  {
+    "cod_cliente": "C0611",
+    "nombre_comercial": "DURO FELGUERA ENERGY STORAGE"
+  },
+  {
+    "cod_cliente": "C0597",
+    "nombre_comercial": "HERMANOS DJ 2000"
+  },
+  {
+    "cod_cliente": "C0071",
+    "nombre_comercial": "ELYTT ENERGY SL"
+  },
+  {
+    "cod_cliente": "C0158",
+    "nombre_comercial": "PMA ESTRUCTURAS 318 SL"
+  },
+  {
+    "cod_cliente": "C0168",
+    "nombre_comercial": "SBV"
+  },
+  {
+    "cod_cliente": "C0176",
+    "nombre_comercial": "SISTEMAS DE FILTRADO Y TRATAMIENTO DE FLUIDOS SL"
+  },
+  {
+    "cod_cliente": "C0185",
+    "nombre_comercial": "TABAR INSTALACIONES INDUSTRIALES DE FLUIDOS, SL"
+  },
+  {
+    "cod_cliente": "C0186",
+    "nombre_comercial": "TACMAN 2000"
+  },
+  {
+    "cod_cliente": "C0188",
+    "nombre_comercial": "TALLERES BAMA"
+  },
+  {
+    "cod_cliente": "C0191",
+    "nombre_comercial": "TALLERES LANDALUCE SA"
+  },
+  {
+    "cod_cliente": "C0198",
+    "nombre_comercial": "TAPIA"
+  },
+  {
+    "cod_cliente": "C0203",
+    "nombre_comercial": "TECNOLOGIA MECANICA I ELECTRA SLU"
+  },
+  {
+    "cod_cliente": "C0205",
+    "nombre_comercial": "TOKIO METAL SL"
+  },
+  {
+    "cod_cliente": "C0209",
+    "nombre_comercial": "TUBAL INSTALACIONES, SL"
+  },
+  {
+    "cod_cliente": "C0216",
+    "nombre_comercial": "GRUPO VENTO"
+  },
+  {
+    "cod_cliente": "C0217",
+    "nombre_comercial": "HIMEPAL"
+  },
+  {
+    "cod_cliente": "C0224",
+    "nombre_comercial": "BEKOTER INSTALACIONES INDUSTRIALES, SL"
+  },
+  {
+    "cod_cliente": "C0225",
+    "nombre_comercial": "CARVISA CONTAINER S.L.U"
+  },
+  {
+    "cod_cliente": "C0284",
+    "nombre_comercial": "MST RIELLS, SL"
+  },
+  {
+    "cod_cliente": "C0582",
+    "nombre_comercial": "GRUPO ANRO"
+  },
+  {
+    "cod_cliente": "C0583",
+    "nombre_comercial": "JUNSASTEEL"
+  },
+  {
+    "cod_cliente": "C0587",
+    "nombre_comercial": "INTUYMA"
+  },
+  {
+    "cod_cliente": "C0593",
+    "nombre_comercial": "CUBIERTAS Y MONTAJES P. FERRERAS, S.L"
+  },
+  {
+    "cod_cliente": "C0108",
+    "nombre_comercial": "INSTALACIONES Y SISTEMAS HIDRÁULICOS"
+  },
+  {
+    "cod_cliente": "C0154",
+    "nombre_comercial": "NORCAL SL"
+  },
+  {
+    "cod_cliente": "C0601",
+    "nombre_comercial": ""
+  },
+  {
+    "cod_cliente": "C0003",
+    "nombre_comercial": "ACEBRON GROUP"
+  },
+  {
+    "cod_cliente": "C0007",
+    "nombre_comercial": "AIRSEC SA"
+  },
+  {
+    "cod_cliente": "C0013",
+    "nombre_comercial": "ARDANORE 14 SL"
+  },
+  {
+    "cod_cliente": "C0015",
+    "nombre_comercial": "ATELIERS DELBEQUE"
+  },
+  {
+    "cod_cliente": "C0023",
+    "nombre_comercial": "BATIA MOSA GROUP"
+  },
+  {
+    "cod_cliente": "C0025",
+    "nombre_comercial": "BIANNA RECYCLING"
+  },
+  {
+    "cod_cliente": "C0026",
+    "nombre_comercial": "BIO BEX SL"
+  },
+  {
+    "cod_cliente": "C0029",
+    "nombre_comercial": "CALDEMECA SL"
+  },
+  {
+    "cod_cliente": "C0039",
+    "nombre_comercial": "CALDERERIA ROAN SL"
+  },
+  {
+    "cod_cliente": "C0040",
+    "nombre_comercial": "CALDERERIA TOMELLOS SL"
+  },
+  {
+    "cod_cliente": "C0043",
+    "nombre_comercial": "CAM IMPIANTI INDUSTRIALI SRL"
+  },
+  {
+    "cod_cliente": "C0044",
+    "nombre_comercial": "CAYTA"
+  },
+  {
+    "cod_cliente": "C0046",
+    "nombre_comercial": "CERNEY SA"
+  },
+  {
+    "cod_cliente": "C0049",
+    "nombre_comercial": "CLIMBAR SL"
+  },
+  {
+    "cod_cliente": "C0052",
+    "nombre_comercial": "COIMPUL SL"
+  },
+  {
+    "cod_cliente": "C0054",
+    "nombre_comercial": "COMESA SL"
+  },
+  {
+    "cod_cliente": "C0056",
+    "nombre_comercial": "CONSTRUCCIONES METALICAS SL"
+  },
+  {
+    "cod_cliente": "C0059",
+    "nombre_comercial": "CONTRATOS Y DISEÑOS INDUSTRIALES SL"
+  },
+  {
+    "cod_cliente": "C0061",
+    "nombre_comercial": "CT2A SAS"
+  },
+  {
+    "cod_cliente": "C0068",
+    "nombre_comercial": "EFP"
+  },
+  {
+    "cod_cliente": "C0073",
+    "nombre_comercial": "EMATEC"
+  },
+  {
+    "cod_cliente": "C0079",
+    "nombre_comercial": "FELIX VERDUGO MELERO"
+  },
+  {
+    "cod_cliente": "C0089",
+    "nombre_comercial": "HUELVA SL"
+  },
+  {
+    "cod_cliente": "C0092",
+    "nombre_comercial": "IMASA - BIRLA CARBON SPAIN"
+  },
+  {
+    "cod_cliente": "C0099",
+    "nombre_comercial": "INDUSTRIAS HIDRAULICAS"
+  },
+  {
+    "cod_cliente": "C0100",
+    "nombre_comercial": "INDUSTRIAS KALDEA"
+  },
+  {
+    "cod_cliente": "C0102",
+    "nombre_comercial": "INDUSTRIAS METALICAS OIZ, SL"
+  },
+  {
+    "cod_cliente": "C0106",
+    "nombre_comercial": "INGENIERIA TECNICA E INNOVACIONES LENCINA SL"
+  },
+  {
+    "cod_cliente": "C0110",
+    "nombre_comercial": "IPSUM PROYECTOS"
+  },
+  {
+    "cod_cliente": "C0114",
+    "nombre_comercial": "JANSA METAL"
+  },
+  {
+    "cod_cliente": "C0116",
+    "nombre_comercial": "JP INDUSTRIAS MECANICAS SL"
+  },
+  {
+    "cod_cliente": "C0130",
+    "nombre_comercial": "MEN MONTAJES INDUSTRIALES"
+  },
+  {
+    "cod_cliente": "C0170",
+    "nombre_comercial": "SCS STRUCTURAL"
+  },
+  {
+    "cod_cliente": "C0230",
+    "nombre_comercial": "INOXIDABLES DE MEDINA S.L"
+  },
+  {
+    "cod_cliente": "C0254",
+    "nombre_comercial": "HIERROS Y ESTRUCTURAS SEGORBE SL"
+  },
+  {
+    "cod_cliente": "C0166",
+    "nombre_comercial": "SAMA"
+  },
+  {
+    "cod_cliente": "C0129",
+    "nombre_comercial": "MECO SL"
+  },
+  {
+    "cod_cliente": "C0146",
+    "nombre_comercial": "MONTAJES CALPRISA SL"
+  },
+  {
+    "cod_cliente": "C0149",
+    "nombre_comercial": "MONTAJES NAVEA SL"
+  },
+  {
+    "cod_cliente": "C0150",
+    "nombre_comercial": "MONTAJES Y MANTENIMIENTOS"
+  },
+  {
+    "cod_cliente": "C0153",
+    "nombre_comercial": "NIDS BV"
+  },
+  {
+    "cod_cliente": "C0160",
+    "nombre_comercial": "PRAMAR"
+  },
+  {
+    "cod_cliente": "C0171",
+    "nombre_comercial": "SERVICIOS MECANICOS PERT SL"
+  },
+  {
+    "cod_cliente": "C0172",
+    "nombre_comercial": "SF MONTAGE"
+  },
+  {
+    "cod_cliente": "C0177",
+    "nombre_comercial": "SKILLDD"
+  },
+  {
+    "cod_cliente": "C0178",
+    "nombre_comercial": "SME"
+  },
+  {
+    "cod_cliente": "C0179",
+    "nombre_comercial": "SOLUCIONES TUBULARES SOSTENIBLES SLU (STS)"
+  },
+  {
+    "cod_cliente": "C0182",
+    "nombre_comercial": "STANIUM WORLDWISE"
+  },
+  {
+    "cod_cliente": "C0183",
+    "nombre_comercial": "SUP & TRAP SL"
+  },
+  {
+    "cod_cliente": "C0184",
+    "nombre_comercial": "SYME SISTEMAS FLUIDOS"
+  },
+  {
+    "cod_cliente": "C0187",
+    "nombre_comercial": "TALLERES ACESAN SL"
+  },
+  {
+    "cod_cliente": "C0199",
+    "nombre_comercial": "TCM"
+  },
+  {
+    "cod_cliente": "C0200",
+    "nombre_comercial": "TEC EN MULTISERVICIOS"
+  },
+  {
+    "cod_cliente": "C0202",
+    "nombre_comercial": "TECNOEQUIP PENEDES"
+  },
+  {
+    "cod_cliente": "C0204",
+    "nombre_comercial": "TEKNICALDE"
+  },
+  {
+    "cod_cliente": "C0208",
+    "nombre_comercial": "TRIBAU EQUIPMENT SLU"
+  },
+  {
+    "cod_cliente": "C0211",
+    "nombre_comercial": "TUBYTANK"
+  },
+  {
+    "cod_cliente": "C0212",
+    "nombre_comercial": "YGRA"
+  },
+  {
+    "cod_cliente": "C0215",
+    "nombre_comercial": "CALDERERÍA Y ENERGIA SOLAR SL"
+  },
+  {
+    "cod_cliente": "C0219",
+    "nombre_comercial": "JAVIAN MANTENIMIENTO Y SERVICIOS, S.L"
+  },
+  {
+    "cod_cliente": "C0220",
+    "nombre_comercial": "METAL CONCEPT & STABILITE"
+  },
+  {
+    "cod_cliente": "C0221",
+    "nombre_comercial": "METALAYM"
+  },
+  {
+    "cod_cliente": "C0223",
+    "nombre_comercial": "STANISLAS INDUSTRIES"
+  },
+  {
+    "cod_cliente": "C0229",
+    "nombre_comercial": "METALMECANICA DAVID SÁNCHEZ, S.L"
+  },
+  {
+    "cod_cliente": "C0231",
+    "nombre_comercial": "INDUSTRIAS GINOX SL"
+  },
+  {
+    "cod_cliente": "C0235",
+    "nombre_comercial": "EXTINVIT S.L"
+  },
+  {
+    "cod_cliente": "C0236",
+    "nombre_comercial": "ASTURFEITO S.A"
+  },
+  {
+    "cod_cliente": "C0237",
+    "nombre_comercial": "IMARTEC ENERGIA S.L"
+  },
+  {
+    "cod_cliente": "C0238",
+    "nombre_comercial": "SOLUCIONES TUBULARES SOSTENIBLES, S.L."
+  },
+  {
+    "cod_cliente": "C0239",
+    "nombre_comercial": "GAHERMA BARCELONA SL"
+  },
+  {
+    "cod_cliente": "C0240",
+    "nombre_comercial": "EXTRUSIONES DE TOLEDO"
+  },
+  {
+    "cod_cliente": "C0242",
+    "nombre_comercial": "INOXINNOVA SL"
+  },
+  {
+    "cod_cliente": "C0250",
+    "nombre_comercial": "AYRTAC MAQUINARA SL"
+  },
+  {
+    "cod_cliente": "C0253",
+    "nombre_comercial": "UCALSA INDUSTRIAL VIGO S.L."
+  },
+  {
+    "cod_cliente": "C0255",
+    "nombre_comercial": "HEAT TRACE ENGINEERING SOLUTIONS SL"
+  },
+  {
+    "cod_cliente": "C0256",
+    "nombre_comercial": "SOTECMA"
+  },
+  {
+    "cod_cliente": "C0264",
+    "nombre_comercial": "ELECTRICIDAD ROJO LOPEZ S.L"
+  },
+  {
+    "cod_cliente": "C0268",
+    "nombre_comercial": "UCALSA LASER S.L"
+  },
+  {
+    "cod_cliente": "C0270",
+    "nombre_comercial": "TRATAMIENTOS Y DISTRIBUCIONES TRAMETAL SL"
+  },
+  {
+    "cod_cliente": "C0271",
+    "nombre_comercial": "MONTAJES Y ESTRUCTURAS METALICAS SIERRA, S.L"
+  },
+  {
+    "cod_cliente": "C0592",
+    "nombre_comercial": "CALDERERIA CAVESA"
+  },
+  {
+    "cod_cliente": "C0610",
+    "nombre_comercial": "GRUPO LECRU ANSEMA"
+  },
+  {
+    "cod_cliente": "C0616",
+    "nombre_comercial": "INSTALACIONES MDV"
+  },
+  {
+    "cod_cliente": "C0617",
+    "nombre_comercial": " METALFLEXJAM"
+  },
+  {
+    "cod_cliente": "C0621",
+    "nombre_comercial": "Talleres Metalicos Leziaga. S.L.U."
+  },
+  {
+    "cod_cliente": "C0623",
+    "nombre_comercial": "INDUSTRIAS BALMES SA"
+  },
+  {
+    "cod_cliente": "C0624",
+    "nombre_comercial": "VICENTE GARCIA CASTELLAR"
+  },
+  {
+    "cod_cliente": "C0625",
+    "nombre_comercial": "KUBO MODULAR"
+  },
+  {
+    "cod_cliente": "C0626",
+    "nombre_comercial": "ALTUNA Y URIA"
+  },
+  {
+    "cod_cliente": "C0030",
+    "nombre_comercial": "CALDENOR"
+  },
+  {
+    "cod_cliente": "C0033",
+    "nombre_comercial": "CALDERAS RCB"
+  },
+  {
+    "cod_cliente": "C0144",
+    "nombre_comercial": "MOINTER SL"
+  },
+  {
+    "cod_cliente": "C0234",
+    "nombre_comercial": "TINCASUR SUR, S.L"
+  },
+  {
+    "cod_cliente": "C0257",
+    "nombre_comercial": "TALLERES RO-DA-JE SL"
+  },
+  {
+    "cod_cliente": "C0273",
+    "nombre_comercial": "HERRERIA MITXEL S.L"
+  },
+  {
+    "cod_cliente": "C0274",
+    "nombre_comercial": "MONTAJES Y TUBERIAS, S.A."
+  },
+  {
+    "cod_cliente": "C0627",
+    "nombre_comercial": "Talleres Castisagra"
+  },
+  {
+    "cod_cliente": "C0629",
+    "nombre_comercial": "estrumetal"
+  },
+  {
+    "cod_cliente": "C0233",
+    "nombre_comercial": "MANUFACTURES DFERRO SLU"
+  },
+  {
+    "cod_cliente": "C0622",
+    "nombre_comercial": "MONTAJES GOMUR SL"
+  },
+  {
+    "cod_cliente": "C0620",
+    "nombre_comercial": "CRANTE"
+  },
+  {
+    "cod_cliente": "C0628",
+    "nombre_comercial": "METALVENT"
+  },
+  {
+    "cod_cliente": "C0124",
+    "nombre_comercial": "MATEU INOXWELDING SL"
+  },
+  {
+    "cod_cliente": "C0241",
+    "nombre_comercial": "CALDERERIA URRETXU, S.L"
+  },
+  {
+    "cod_cliente": "C0596",
+    "nombre_comercial": "JOUSSEAU MECANO SOUDURE"
+  },
+  {
+    "cod_cliente": "C0630",
+    "nombre_comercial": "LLAMAZERAS CASALS"
+  },
+  {
+    "cod_cliente": "C0001",
+    "nombre_comercial": "ABIS CALORIFUGE"
+  },
+  {
+    "cod_cliente": "C0002",
+    "nombre_comercial": "ACASTILLAJE SYNERA SL"
+  },
+  {
+    "cod_cliente": "C0006",
+    "nombre_comercial": "AILLAMENTS 98 SL"
+  },
+  {
+    "cod_cliente": "C0009",
+    "nombre_comercial": "ALUMINIO YACHT COSTA SL"
+  },
+  {
+    "cod_cliente": "C0012",
+    "nombre_comercial": "ARA TRANSFERENCIAS TERMICAS SL"
+  },
+  {
+    "cod_cliente": "C0021",
+    "nombre_comercial": "BABCOCK MONTAJES SAU"
+  },
+  {
+    "cod_cliente": "C0022",
+    "nombre_comercial": "BACHILLER, SA"
+  },
+  {
+    "cod_cliente": "C0024",
+    "nombre_comercial": "BECK & POLLITZER IBERICA SLU"
+  },
+  {
+    "cod_cliente": "C0060",
+    "nombre_comercial": "CORDOBA SL"
+  },
+  {
+    "cod_cliente": "C0078",
+    "nombre_comercial": "EVOLUCIO METALLICA"
+  },
+  {
+    "cod_cliente": "C0127",
+    "nombre_comercial": "MECANIQUES BASSEGODA"
+  },
+  {
+    "cod_cliente": "C0140",
+    "nombre_comercial": "MIBERICO"
+  },
+  {
+    "cod_cliente": "C0165",
+    "nombre_comercial": "RSD ENGINEERING"
+  },
+  {
+    "cod_cliente": "C0192",
+    "nombre_comercial": "TALLERES MAXIMILIANO SL"
+  },
+  {
+    "cod_cliente": "C0213",
+    "nombre_comercial": "ZUDAIRE ESTRUCTURAS SL"
+  },
+  {
+    "cod_cliente": "C0222",
+    "nombre_comercial": "MONTAJES INDUSTRIALES JM SL"
+  },
+  {
+    "cod_cliente": "C0248",
+    "nombre_comercial": "TRATAMIENTOS TERMICOS Y MECANIZADOS GATIKA, S.L"
+  },
+  {
+    "cod_cliente": "C0261",
+    "nombre_comercial": "METALTEC MONTAJES INDUSTRIALES, S.L.U"
+  },
+  {
+    "cod_cliente": "C0632",
+    "nombre_comercial": "Mecanizado Bassegoda"
+  },
+  {
+    "cod_cliente": "C0101",
+    "nombre_comercial": "INDUSTRIAS MDV"
+  },
+  {
+    "cod_cliente": "C0631",
+    "nombre_comercial": "MONTRA"
+  },
+  {
+    "cod_cliente": "C0087",
+    "nombre_comercial": "HGL"
+  },
+  {
+    "cod_cliente": "C0581",
+    "nombre_comercial": "OBRES I EDIFICACIONS S.L."
+  },
+  {
+    "cod_cliente": "C0083",
+    "nombre_comercial": "GRUPO FERRERAS"
+  }
+]

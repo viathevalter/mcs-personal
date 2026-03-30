@@ -1,0 +1,26 @@
+[
+  {
+    "cod_cliente": "C0141",
+    "nombre_comercial": "SERRALLERIA MILLAN MARTINEZ"
+  },
+  {
+    "cod_cliente": "C0156",
+    "nombre_comercial": "NOVA HIDRAULICA SL"
+  },
+  {
+    "cod_cliente": "C0611",
+    "nombre_comercial": "DURO FELGUERA ENERGY STORAGE"
+  },
+  {
+    "cod_cliente": "C0593",
+    "nombre_comercial": "CUBIERTAS Y MONTAJES P. FERRERAS, S.L"
+  },
+  {
+    "cod_cliente": "C0099",
+    "nombre_comercial": "INDUSTRIAS HIDRAULICAS"
+  },
+  {
+    "cod_cliente": "C0083",
+    "nombre_comercial": "GRUPO FERRERAS"
+  }
+]
