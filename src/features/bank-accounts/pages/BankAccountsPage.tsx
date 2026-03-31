@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Search, Wallet, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, Search, Wallet, Download, ChevronUp, ChevronDown, Eye, EyeOff, User, Building, Landmark, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAllBankAccounts } from '../hooks/useAllBankAccounts';
@@ -21,7 +21,31 @@ export function BankAccountsPage() {
     const [sortColumn, setSortColumn] = useState<'worker_nome' | 'worker_codigo' | 'banco' | 'iban'>('worker_nome');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+    // Estado para controlar a visibilidade do IBAN por ID de trabalhador
+    const [revealedIbans, setRevealedIbans] = useState<Set<string>>(new Set());
+
     const { data: bankAccounts, isLoading } = useAllBankAccounts(selectedEmpresaId || undefined);
+
+    const toggleIbanVisibility = (id: string, e: React.MouseEvent) => {
+        e.preventDefault(); // Impede o clique de navegar (como o Card é um Link)
+        e.stopPropagation();
+        setRevealedIbans(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const maskIban = (iban: string | null | undefined) => {
+        if (!iban) return '';
+        const clean = iban.replace(/\s+/g, '');
+        if (clean.length < 8) return iban; // Se for muito curto para mascarar bem
+        
+        const start = clean.substring(0, 4);
+        const end = clean.substring(clean.length - 4);
+        return `${start} •••• •••• •••• ${end}`;
+    };
 
     // Derive dropdown options
     const clientesUnicos = (Array.from(new Set(bankAccounts?.map(w => w.cliente_nome).filter(Boolean))) as string[])
@@ -158,83 +182,124 @@ export function BankAccountsPage() {
 
 
 
-            {/* Table Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 flex-1 overflow-hidden flex flex-col">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold border-b">
-                            <tr>
-                                <th
-                                    className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                                    onClick={() => toggleSort('worker_nome')}
-                                >
-                                    <div className="flex items-center">Trabalhador <SortIcon column="worker_nome" /></div>
-                                </th>
-                                <th
-                                    className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                                    onClick={() => toggleSort('worker_codigo')}
-                                >
-                                    <div className="flex items-center">Código <SortIcon column="worker_codigo" /></div>
-                                </th>
-                                <th
-                                    className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                                    onClick={() => toggleSort('banco')}
-                                >
-                                    <div className="flex items-center">Banco <SortIcon column="banco" /></div>
-                                </th>
-                                <th
-                                    className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                                    onClick={() => toggleSort('iban')}
-                                >
-                                    <div className="flex items-center">IBAN <SortIcon column="iban" /></div>
-                                </th>
-                                <th className="px-6 py-4 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={5} className="h-64 text-center">
-                                        <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                            <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
-                                            <p>Carregando contas bancárias...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : sortedAccounts.length > 0 ? (
-                                sortedAccounts.map((account) => (
-                                    <tr key={account.worker_id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4 font-medium text-slate-900">
-                                            {account.worker_nome}
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-500">
-                                            {account.worker_codigo}
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-600">
-                                            {account.banco || <span className="text-slate-400 italic">Não div.</span>}
-                                        </td>
-                                        <td className="px-6 py-4 font-mono text-slate-700">
-                                            {account.iban || <span className="text-slate-400 italic font-sans">Não div.</span>}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <Button variant="ghost" size="sm" asChild className="text-primary hover:text-primary hover:bg-primary/10">
-                                                <Link to={`/workers/${account.worker_id}`}>
-                                                    Acessar Perfil
-                                                </Link>
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={5} className="h-64 text-center text-muted-foreground">
-                                        Nenhuma conta bancária encontrada.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+            {/* Sort & Order Controls for Gallery */}
+            <div className="flex items-center gap-4 mb-4 text-sm text-slate-500">
+                <span className="font-medium">Ordenar por:</span>
+                <button 
+                    onClick={() => toggleSort('worker_nome')}
+                    className={`flex items-center hover:text-primary transition-colors ${sortColumn === 'worker_nome' ? 'text-primary font-semibold' : ''}`}
+                >
+                    Nome <SortIcon column="worker_nome" />
+                </button>
+                <button 
+                    onClick={() => toggleSort('banco')}
+                    className={`flex items-center hover:text-primary transition-colors ${sortColumn === 'banco' ? 'text-primary font-semibold' : ''}`}
+                >
+                    Banco <SortIcon column="banco" />
+                </button>
+                <div className="flex-1"></div>
+                <div className="text-xs font-medium bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-100">
+                    {sortedAccounts.length} {sortedAccounts.length === 1 ? 'conta' : 'contas'}
                 </div>
+            </div>
+
+            {/* Gallery Section */}
+            <div className="flex-1 overflow-y-auto pr-1 pb-4">
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground w-full bg-white rounded-xl border border-slate-200/60 shadow-sm">
+                        <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+                        <p>Carregando contas bancárias...</p>
+                    </div>
+                ) : sortedAccounts.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {sortedAccounts.map((account) => {
+                            const isRevealed = revealedIbans.has(account.worker_id);
+                            
+                            return (
+                                <Link 
+                                    to={`/workers/${account.worker_id}`}
+                                    key={account.worker_id} 
+                                    className="group bg-white flex flex-col justify-between rounded-xl border border-slate-200 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] hover:shadow-lg hover:border-indigo-200/80 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative"
+                                    title={`Acessar perfil de ${account.worker_nome}`}
+                                >
+                                    {/* Top status indicator line */}
+                                    <div className={`h-[5px] w-full ${account.iban ? 'bg-emerald-500' : 'bg-slate-200/80'}`} />
+                                    
+                                    <div className="p-5 flex-1 flex flex-col">
+                                        {/* Header */}
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex-1 min-w-0 pr-4">
+                                                <h3 className="font-semibold text-slate-900 truncate">
+                                                    {account.worker_nome}
+                                                </h3>
+                                                <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+                                                    <User className="w-3.5 h-3.5 opacity-70" />
+                                                    <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">{account.worker_codigo}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className={`w-9 h-9 rounded-full ${account.iban ? 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'} flex items-center justify-center flex-shrink-0 transition-colors`}>
+                                                <Landmark className="w-4.5 h-4.5" />
+                                            </div>
+                                        </div>
+
+                                        {/* Bank details info */}
+                                        <div className="mb-5 space-y-2.5">
+                                            <div className="flex items-center text-sm">
+                                                <Building className="w-4 h-4 mr-2 text-slate-400" />
+                                                <span className="text-slate-600 font-medium truncate">
+                                                    {account.banco || <span className="text-slate-400 italic font-normal text-xs">Banco não informado</span>}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-auto">
+                                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 group-hover:border-indigo-50/80 group-hover:bg-indigo-50/30 transition-colors relative">
+                                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                                                    IBAN 
+                                                </label>
+                                                
+                                                <div className="flex items-center justify-between">
+                                                    {account.iban ? (
+                                                        <span className={`font-mono text-[13px] font-medium tracking-tight ${isRevealed ? 'text-slate-800' : 'text-slate-500'}`}>
+                                                            {isRevealed ? account.iban : maskIban(account.iban)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-sm text-slate-400 italic">Não disponível</span>
+                                                    )}
+                                                    
+                                                    {account.iban && (
+                                                        <button 
+                                                            onClick={(e) => toggleIbanVisibility(account.worker_id, e)}
+                                                            className="p-1.5 -m-1.5 ml-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                                            title={isRevealed ? "Ocultar IBAN" : "Revelar IBAN"}
+                                                        >
+                                                            {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Bar (Footer style) */}
+                                    <div className="bg-slate-50/80 px-5 py-3 border-t border-slate-100/80 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider flex items-center">
+                                            Acessar Perfil
+                                        </span>
+                                        <ExternalLink className="w-4 h-4 text-indigo-500" />
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground w-full bg-white rounded-xl border border-slate-200/60 shadow-sm">
+                        <Wallet className="w-12 h-12 text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-medium">Nenhuma conta bancária encontrada para os critérios dados.</p>
+                        <p className="text-slate-400 text-sm mt-1">Limpe os filtros de cliente/empresa ou busca realizada.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
