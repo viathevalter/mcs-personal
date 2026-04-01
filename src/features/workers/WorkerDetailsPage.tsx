@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkerById } from './hooks/useWorkerById';
+import { useDocumentDownload } from './hooks/useWorkerDocuments';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -25,6 +27,26 @@ export function WorkerDetailsPage() {
     const { role: globalRole } = useRole();
 
     const { data: worker, isLoading, isError, error } = useWorkerById(id);
+    const downloadMutation = useDocumentDownload();
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (worker?.foto) {
+            if (worker.foto.startsWith('http')) {
+                setAvatarUrl(worker.foto);
+            } else {
+                let isMounted = true;
+                downloadMutation.mutate(worker.foto, {
+                    onSuccess: (url) => {
+                        if (isMounted) setAvatarUrl(url);
+                    }
+                });
+                return () => { isMounted = false; };
+            }
+        } else {
+            setAvatarUrl(null);
+        }
+    }, [worker?.foto]);
 
     if (id === 'new') {
         return (
@@ -73,9 +95,9 @@ export function WorkerDetailsPage() {
 
             <header className="mb-8 flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                    {worker.foto ? (
+                    {avatarUrl ? (
                         <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-primary/20 bg-muted">
-                            <img src={worker.foto} alt={worker.nome} className="h-full w-full object-cover" />
+                            <img src={avatarUrl} alt={worker.nome} className="h-full w-full object-cover" />
                         </div>
                     ) : (
                         <div className="h-16 w-16 rounded-full border-2 border-primary/20 bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">

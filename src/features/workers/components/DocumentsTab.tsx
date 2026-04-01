@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWorkerDocuments, useUploadDocument, useDeleteDocument, useDocumentDownload } from '@/features/workers/hooks/useWorkerDocuments';
+import { updateWorker } from '@/features/workers/api/workersApi';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,7 @@ interface DocumentsTabProps {
 }
 
 const DOC_TYPES = [
+    { value: 'foto', label: 'Foto do Trabalhador' },
     { value: 'contrato_trabalho', label: 'Contrato de Trabalho' },
     { value: 'contrato_alta', label: 'Contrato de Alta' },
     { value: 'doc_alta_seguridade', label: 'Doc Alta Seguridade' },
@@ -50,6 +53,7 @@ function formatBytes(bytes: number | null, decimals = 2) {
 
 export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
     const { role } = useEmpresa();
+    const queryClient = useQueryClient();
     const { data: documents, isLoading, isError } = useWorkerDocuments(workerId);
     const uploadMutation = useUploadDocument();
     const deleteMutation = useDeleteDocument();
@@ -77,11 +81,21 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
             docType: selectedDocType,
             file: selectedFile
         }, {
-            onSuccess: () => {
+            onSuccess: async (newDoc) => {
                 setSelectedFile(null);
                 // Reset input file
                 const fileInput = document.getElementById('file-upload') as HTMLInputElement;
                 if (fileInput) fileInput.value = '';
+                
+                if (selectedDocType === 'foto' && newDoc?.file_path) {
+                    try {
+                        await updateWorker(workerId, { foto: newDoc.file_path });
+                        queryClient.invalidateQueries({ queryKey: ['worker', workerId] });
+                    } catch (err) {
+                        console.error('Falha ao atualizar foto de perfil do trabalhador', err);
+                    }
+                }
+                
                 alert('Documento anexado com sucesso!');
             },
             onError: (err) => {
