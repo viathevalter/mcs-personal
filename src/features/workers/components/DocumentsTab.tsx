@@ -13,7 +13,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Loader2, UploadCloud, Download, Trash2, FileText } from 'lucide-react';
+import { Loader2, UploadCloud, Download, Trash2, FileText, Eye } from 'lucide-react';
 
 interface DocumentsTabProps {
     workerId: string;
@@ -106,12 +106,20 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = fileName;
-                link.target = '_blank';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             },
             onError: (err) => alert(`Falha ao obter link de download: ${err.message}`)
+        });
+    };
+
+    const handleView = (filePath: string) => {
+        downloadMutation.mutate(filePath, {
+            onSuccess: (url) => {
+                window.open(url, '_blank');
+            },
+            onError: (err) => alert(`Falha ao abrir documento: ${err.message}`)
         });
     };
 
@@ -224,6 +232,15 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                                             <TableCell className="text-muted-foreground">{formatBytes(doc.file_size)}</TableCell>
                                             <TableCell className="text-muted-foreground">{date}</TableCell>
                                             <TableCell className="text-right space-x-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Visualizar"
+                                                    onClick={() => handleView(doc.file_path)}
+                                                    disabled={downloadMutation.isPending}
+                                                >
+                                                    <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
