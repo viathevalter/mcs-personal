@@ -22,6 +22,8 @@ import { useClientWorkerKpis } from './hooks/useClientWorkerKpis';
 import { useUniqueClients } from './hooks/useUniqueClients';
 import { Combobox } from '@/components/ui/combobox';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UserCheck } from 'lucide-react';
 import {
     Card,
     CardContent,
@@ -48,6 +50,17 @@ export function WorkersPage() {
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const sortColumn = searchParams.get('sortColumn') || 'nome';
     const sortDirection = (searchParams.get('sortDirection') as 'asc' | 'desc') || 'asc';
+    
+    const currentDate = new Date();
+    const periodYear = searchParams.get('periodYear') ? parseInt(searchParams.get('periodYear') as string, 10) : currentDate.getFullYear();
+    const periodMonth = searchParams.get('periodMonth') ? parseInt(searchParams.get('periodMonth') as string, 10) : currentDate.getMonth() + 1;
+    const onlyNovos = searchParams.get('onlyNovos') === 'true';
+
+    const anosDisponiveis = [currentDate.getFullYear() - 1, currentDate.getFullYear(), currentDate.getFullYear() + 1];
+    const mesesDisponiveis = Array.from({ length: 12 }, (_, i) => ({
+        value: i + 1,
+        label: new Date(2000, i, 1).toLocaleString('pt-BR', { month: 'long' }).toUpperCase()
+    }));
 
     const updateSearchParams = (updates: Record<string, string | string[] | null | undefined>) => {
         const newParams = new URLSearchParams(searchParams);
@@ -97,7 +110,9 @@ export function WorkersPage() {
         sortColumn,
         sortDirection,
         page,
-        pageSize
+        pageSize,
+        periodMonth: onlyNovos ? periodMonth : undefined,
+        periodYear: onlyNovos ? periodYear : undefined
     });
 
     const handleRowClick = (id: string) => {
@@ -149,6 +164,8 @@ export function WorkersPage() {
                             statusSeguridad: statusSeguridad,
                             contratante: contratante || undefined,
                             funcion: funcion || undefined,
+                            periodMonth: onlyNovos ? periodMonth : undefined,
+                            periodYear: onlyNovos ? periodYear : undefined
                         }}
                     />
                     {globalRole !== 'visualizador' && (
@@ -162,6 +179,41 @@ export function WorkersPage() {
                 </div>
             </div>
             <div className="w-full mb-2 shrink-0">
+                <div className="flex flex-col xl:flex-row gap-3 w-full mb-3 items-start xl:items-center">
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 border p-1 rounded-md mb-2 xl:mb-0">
+                        <Select value={periodMonth.toString()} onValueChange={(v) => updateSearchParams({ periodMonth: v, page: '1' })}>
+                            <SelectTrigger className="h-8 border-0 bg-transparent text-sm font-medium w-auto focus:ring-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {mesesDisponiveis.map(m => (
+                                    <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={periodYear.toString()} onValueChange={(v) => updateSearchParams({ periodYear: v, page: '1' })}>
+                            <SelectTrigger className="h-8 border-0 bg-transparent text-sm font-medium w-[80px] focus:ring-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {anosDisponiveis.map(y => (
+                                    <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <div className="w-px h-6 bg-border mx-1" />
+                        <Button 
+                            variant={onlyNovos ? "default" : "ghost"} 
+                            size="sm"
+                            onClick={() => updateSearchParams({ onlyNovos: onlyNovos ? null : 'true', page: '1' })}
+                            className={`h-8 px-2.5 ${onlyNovos ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <UserCheck className="w-4 h-4 mr-1.5" />
+                            Novos / Reativados
+                        </Button>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 w-full">
                     <div className="relative w-full sm:col-span-2 flex items-center h-auto sm:h-9 rounded-md border border-input bg-background overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
                         <div className="relative flex-1 flex items-center h-9 sm:h-full w-full">
@@ -397,7 +449,12 @@ export function WorkersPage() {
                                     onClick={() => handleRowClick(worker.id)}
                                 >
                                     <TableCell className="font-medium text-muted-foreground">{worker.cod_colab}</TableCell>
-                                    <TableCell className="font-medium text-sm w-48">{worker.nome}</TableCell>
+                                    <TableCell className="font-medium text-sm w-48">
+                                        <div className="flex items-center gap-2">
+                                            <span>{worker.nome}</span>
+                                            {onlyNovos && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0 text-[10px] px-1.5 py-0">NOVO</Badge>}
+                                        </div>
+                                    </TableCell>
                                     <TableCell className="text-sm truncate max-w-[120px]">{worker.contratante || '-'}</TableCell>
                                     <TableCell className="text-sm truncate max-w-[120px]">{worker.funcion || '-'}</TableCell>
                                     <TableCell className="text-sm truncate max-w-[150px]" title={worker.cliente_nombre || undefined}>{worker.cliente_nombre || '-'}</TableCell>

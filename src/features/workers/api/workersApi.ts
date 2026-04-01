@@ -14,6 +14,8 @@ export interface ListWorkersParams {
     sortDirection?: 'asc' | 'desc';
     page: number;
     pageSize: number;
+    periodMonth?: number;
+    periodYear?: number;
 }
 
 export interface ListWorkersResponse {
@@ -21,7 +23,7 @@ export interface ListWorkersResponse {
     count: number;
 }
 
-export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize }: ListWorkersParams): Promise<ListWorkersResponse> {
+export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize, periodMonth, periodYear }: ListWorkersParams): Promise<ListWorkersResponse> {
     const { data, error } = await supabase.schema('core_personal').rpc('search_workers', {
         p_empresa_id: empresaId,
         p_search: search || null,
@@ -33,7 +35,9 @@ export async function listWorkers({ empresaId, search, clienteNombre, statusTrab
         p_sort_column: sortColumn || 'nome',
         p_sort_direction: sortDirection || 'asc',
         p_page: page,
-        p_page_size: pageSize
+        p_page_size: pageSize,
+        p_period_month: periodMonth || null,
+        p_period_year: periodYear || null
     });
 
     if (error) {

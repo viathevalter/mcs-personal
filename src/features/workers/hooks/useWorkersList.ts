@@ -13,10 +13,12 @@ export function useWorkersList(params: {
     sortDirection?: 'asc' | 'desc';
     page: number;
     pageSize: number;
+    periodMonth?: number;
+    periodYear?: number;
 }) {
     return useQuery<ListWorkersResponse, Error>({
         // Include all params in the query key to avoid cache collisions
-        queryKey: ['workers', params.empresaId, params.page, params.pageSize, params.search, params.clienteNombre, params.statusTrabajador, params.statusSeguridad, params.contratante, params.funcion, params.sortColumn, params.sortDirection],
+        queryKey: ['workers', params.empresaId, params.page, params.pageSize, params.search, params.clienteNombre, params.statusTrabajador, params.statusSeguridad, params.contratante, params.funcion, params.sortColumn, params.sortDirection, params.periodMonth, params.periodYear],
         queryFn: () => listWorkers(params as any),
         enabled: Boolean(params.empresaId),
         staleTime: 60 * 1000,

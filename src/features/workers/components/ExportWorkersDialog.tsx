@@ -26,6 +26,8 @@ interface ExportWorkersDialogProps {
         statusSeguridad?: string[];
         contratante?: string;
         funcion?: string;
+        periodMonth?: number;
+        periodYear?: number;
     };
 }
 
