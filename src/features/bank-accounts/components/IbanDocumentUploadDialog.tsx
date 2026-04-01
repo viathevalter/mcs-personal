@@ -39,7 +39,10 @@ export function IbanDocumentUploadDialog({ open, onOpenChange, workerId, workerN
     const docTypeLabel = docType === 'certificado' ? 'Certificado de Titularidade' : 'Autorização de Mudança';
 
     const uploadMutation = useMutation({
-        mutationFn: (file: File) => uploadIbanDocument({ workerId, docType, file }),
+        mutationFn: async (file: File) => {
+            if (!selectedEmpresaId) throw new Error("Empresa não selecionada.");
+            return uploadIbanDocument({ empresaId: selectedEmpresaId, workerId, docType, file });
+        },
         onSuccess: () => {
              toast({
                 title: 'Sucesso',

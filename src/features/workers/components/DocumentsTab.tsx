@@ -21,10 +21,21 @@ interface DocumentsTabProps {
 }
 
 const DOC_TYPES = [
+    { value: 'contrato_trabalho', label: 'Contrato de Trabalho' },
+    { value: 'contrato_alta', label: 'Contrato de Alta' },
+    { value: 'doc_alta_seguridade', label: 'Doc Alta Seguridade' },
+    { value: 'doc_baixa_seguridade', label: 'Doc Baixa Seguridade' },
+    { value: 'certificado_banco', label: 'Cert. Titularidade Banco' },
+    { value: 'autorizacao_banco', label: 'Autorização Mudança Conta Banco' },
+    { value: 'passaporte', label: 'Passaporte' },
+    { value: 'niss', label: 'NISS' },
+    { value: 'nif', label: 'NIF' },
+    { value: 'permision_conducir', label: 'Permision de Conducir' },
+    { value: 'carta_renuncia', label: 'Carta de Renuncia' },
+    { value: 'carta_laboral', label: 'Carta Laboral' },
     { value: 'prova_vida', label: 'Prova de Vida' },
-    { value: 'contrato', label: 'Contrato de Trabalho' },
     { value: 'nomina', label: 'Recibo de Vencimento (Nómina)' },
-    { value: 'identificacao', label: 'Doc. Identificação' },
+    { value: 'identificacao', label: 'Doc. Identificação Genérica' },
     { value: 'outros', label: 'Outros' }
 ];
 
@@ -44,7 +55,7 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
     const deleteMutation = useDeleteDocument();
     const downloadMutation = useDocumentDownload();
 
-    const [selectedDocType, setSelectedDocType] = useState('prova_vida');
+    const [selectedDocType, setSelectedDocType] = useState('contrato_trabalho');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const safeDocs = documents || [];

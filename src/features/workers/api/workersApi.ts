@@ -99,7 +99,7 @@ export async function getUniqueContratantes(): Promise<string[]> {
 }
 
 export async function updateWorker(id: string, updates: Partial<Worker>): Promise<void> {
-    const { error } = await supabase
+    const { data: updatedWorker, error } = await supabase
         .schema('core_personal')
         .from('workers')
         .update({
@@ -118,10 +118,15 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             camiseta: updates.camiseta,
             pantalones: updates.pantalones,
         })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
     if (error) {
         throw mapSupabaseError(error);
+    }
+    
+    if (!updatedWorker || updatedWorker.length === 0) {
+        throw new Error("Falha ao atualizar o trabalhador. Verifique suas permissões (RLS).");
     }
 }
 
