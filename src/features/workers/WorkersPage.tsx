@@ -234,7 +234,7 @@ export function WorkersPage() {
                             options={[
                                 { value: 'ativos', label: t('workersPage.filters.statusTrabOptions.ativos') },
                                 { value: 'inativos', label: t('workersPage.filters.statusTrabOptions.inativos') },
-                                { value: 'pendentes_ingreso', label: t('workersPage.filters.statusTrabOptions.pendentes_ingresso') },
+                                { value: 'pendientes_ingreso', label: t('workersPage.filters.statusTrabOptions.pendentes_ingresso') },
                             ]}
                             selected={statusTrabajador}
                             onChange={(newStatus) => updateSearchParams({ statusTrabajador: newStatus, page: '1' })}
