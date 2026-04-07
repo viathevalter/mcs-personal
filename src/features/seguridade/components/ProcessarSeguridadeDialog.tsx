@@ -79,7 +79,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                 await uploadWorkerDocument({
                     empresaId: selectedEmpresaId || item.empresa_id,
                     workerId: item.worker.id,
-                    docType: item.tipo_evento === 'alta' ? 'Comprovante_Alta' : 'Comprovante_Baixa',
+                    docType: item.tipo_evento === 'alta' ? 'doc_alta_seguridade' : 'doc_baixa_seguridade',
                     file: file
                 });
             }
