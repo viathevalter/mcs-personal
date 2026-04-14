@@ -19,6 +19,7 @@ export function AddManualAllocationModal({ open, onOpenChange, workerCodColab, w
     const [cliente, setCliente] = useState('');
     const [contratante, setContratante] = useState('');
     const [funcion, setFuncion] = useState('');
+    const [codpedido, setCodpedido] = useState('');
     const [dataInicio, setDataInicio] = useState(() => new Date().toISOString().split('T')[0]);
 
     const [clientsList, setClientsList] = useState<string[]>([]);
@@ -46,6 +47,7 @@ export function AddManualAllocationModal({ open, onOpenChange, workerCodColab, w
             setCliente('');
             setContratante('');
             setFuncion('');
+            setCodpedido('');
             setDataInicio(new Date().toISOString().split('T')[0]);
         }
     }, [open]);
@@ -60,6 +62,7 @@ export function AddManualAllocationModal({ open, onOpenChange, workerCodColab, w
                 cliente_nombre: cliente,
                 contratante,
                 funcion,
+                codpedido: codpedido || undefined,
                 fechainiciopedido: dataInicio
             },
             {
@@ -91,6 +94,15 @@ export function AddManualAllocationModal({ open, onOpenChange, workerCodColab, w
                                     type="date" 
                                     value={dataInicio} 
                                     onChange={(e) => setDataInicio(e.target.value)} 
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <Label>Código do Pedido (Opcional)</Label>
+                                <Input 
+                                    placeholder="Ex: P12345 (Ou gerado automático)" 
+                                    value={codpedido} 
+                                    onChange={(e) => setCodpedido(e.target.value)} 
                                 />
                             </div>
                             

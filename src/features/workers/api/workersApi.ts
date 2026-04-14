@@ -24,7 +24,7 @@ export interface ListWorkersResponse {
 }
 
 export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize, periodMonth, periodYear }: ListWorkersParams): Promise<ListWorkersResponse> {
-    const { data, error } = await supabase.schema('core_personal').rpc('search_workers', {
+    const rpcArgs: any = {
         p_empresa_id: empresaId,
         p_search: search || null,
         p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
@@ -35,10 +35,13 @@ export async function listWorkers({ empresaId, search, clienteNombre, statusTrab
         p_sort_column: sortColumn || 'nome',
         p_sort_direction: sortDirection || 'asc',
         p_page: page,
-        p_page_size: pageSize,
-        p_period_month: periodMonth || null,
-        p_period_year: periodYear || null
-    });
+        p_page_size: pageSize
+    };
+
+    if (periodMonth != null) rpcArgs.p_period_month = periodMonth;
+    if (periodYear != null) rpcArgs.p_period_year = periodYear;
+
+    const { data, error } = await supabase.schema('core_personal').rpc('search_workers', rpcArgs);
 
     if (error) {
         throw mapSupabaseError(error);
@@ -250,6 +253,7 @@ export interface AddManualAllocationParams {
     contratante: string;
     funcion: string;
     fechainiciopedido: string;
+    codpedido?: string;
 }
 
 export async function addManualAllocation(params: AddManualAllocationParams): Promise<void> {
@@ -266,7 +270,7 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
             contratante: params.contratante,
             fechainiciopedido: params.fechainiciopedido,
             tiposervico: 'Pedido Manual',
-            codpedido: `MANUAL-${fakeSpId}`
+            codpedido: params.codpedido || `MANUAL-${fakeSpId}`
         });
 
     if (allocError) throw mapSupabaseError(allocError);
