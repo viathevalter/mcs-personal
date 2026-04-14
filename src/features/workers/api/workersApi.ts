@@ -259,6 +259,26 @@ export interface AddManualAllocationParams {
 export async function addManualAllocation(params: AddManualAllocationParams): Promise<void> {
     const fakeSpId = 9900000 + Math.floor(Math.random() * 100000); // 9.9M range to avoid collisions
     
+    // First, check current worker status
+    const { data: worker, error: fetchError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('status_seguridad, status_trabajador, niss')
+        .eq('cod_colab', params.workerCodColab)
+        .single();
+        
+    if (fetchError) throw mapSupabaseError(fetchError);
+
+    // Determine if we need to trigger a Pendente Alta
+    let newStatusSeguridad = worker.status_seguridad;
+    
+    // If worker was inactive or their security is Baixa/Pendente Baixa, they need a new Alta!
+    // We only trigger this if they have a NISS. If no NISS, they go to Em Regularização typically? 
+    // Actually, safest is to put Pendente Alta so the Kanban catches it.
+    if (!worker.status_seguridad || worker.status_seguridad.toLowerCase().includes('baixa')) {
+        newStatusSeguridad = worker.niss ? 'Pendente Alta' : 'Em Regularização';
+    }
+
     const { error: allocError } = await supabase
         .schema('public')
         .from('colaborador_por_pedido')
@@ -282,7 +302,8 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
             cliente: params.cliente_nombre,
             contratante: params.contratante,
             funcion: params.funcion,
-            status_trabajador: 'Ativo'
+            status_trabajador: 'Ativo',
+            status_seguridad: newStatusSeguridad
         })
         .eq('cod_colab', params.workerCodColab);
         
