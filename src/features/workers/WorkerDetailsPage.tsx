@@ -167,7 +167,7 @@ export function WorkerDetailsPage() {
                 </TabsContent>
 
                 <TabsContent value="alocacoes">
-                    <AlocacoesTab workerCodColab={worker.cod_colab} />
+                    <AlocacoesTab workerCodColab={worker.cod_colab} workerName={worker.nome} />
                 </TabsContent>
 
                 <TabsContent value="benefits">

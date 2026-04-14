@@ -242,3 +242,45 @@ export async function getWorkerAlocacoes(workerCodColab: string): Promise<Worker
 
     return data as WorkerAlocacao[];
 }
+
+export interface AddManualAllocationParams {
+    workerCodColab: string;
+    workerName: string;
+    cliente_nombre: string;
+    contratante: string;
+    funcion: string;
+    fechainiciopedido: string;
+}
+
+export async function addManualAllocation(params: AddManualAllocationParams): Promise<void> {
+    const fakeSpId = 9900000 + Math.floor(Math.random() * 100000); // 9.9M range to avoid collisions
+    
+    const { error: allocError } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .insert({
+            sp_id: fakeSpId,
+            cod_colab: params.workerCodColab,
+            nome_colab: params.workerName,
+            cliente_nombre: params.cliente_nombre,
+            contratante: params.contratante,
+            fechainiciopedido: params.fechainiciopedido,
+            tiposervico: 'Pedido Manual',
+            codpedido: `MANUAL-${fakeSpId}`
+        });
+
+    if (allocError) throw mapSupabaseError(allocError);
+
+    const { error: workerError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .update({
+            cliente: params.cliente_nombre,
+            contratante: params.contratante,
+            funcion: params.funcion,
+            status_trabajador: 'Ativo'
+        })
+        .eq('cod_colab', params.workerCodColab);
+        
+    if (workerError) throw mapSupabaseError(workerError);
+}
