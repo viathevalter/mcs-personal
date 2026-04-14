@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { addManualAllocation, AddManualAllocationParams } from '../api/workersApi';
+import { addManualAllocation } from '../api/workersApi';
+import type { AddManualAllocationParams } from '../api/workersApi';
 import { toast } from 'sonner';
 
 export function useAddManualAllocation() {
