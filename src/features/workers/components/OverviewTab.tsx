@@ -1,12 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Worker } from '@/shared/types/corePersonal';
-import { Mail, Phone, Hash, FileText, Globe } from 'lucide-react';
+import { Mail, Phone, Hash, FileText, Globe, Briefcase, Loader2 } from 'lucide-react';
+import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
+import { Badge } from '@/components/ui/badge';
 
 interface OverviewTabProps {
     worker: Worker;
 }
 
 export function OverviewTab({ worker }: OverviewTabProps) {
+    const { data: alocacoes, isLoading } = useWorkerAlocacoes(worker.cod_colab);
+
+    // Dedup functions from allocations to show a neat history
+    const historicalFunctions = alocacoes?.reduce((acc, aloc) => {
+        if (aloc.funcion && aloc.cliente_nombre) {
+            acc.push({ functionName: aloc.funcion, client: aloc.cliente_nombre, date: aloc.fechainiciopedido });
+        }
+        return acc;
+    }, [] as { functionName: string; client: string; date: string | null }[]) || [];
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
             <div className="space-y-6">
@@ -146,6 +158,50 @@ export function OverviewTab({ worker }: OverviewTabProps) {
                                     <p className="text-sm font-medium">{worker.nuss || '-'}</p>
                                 </div>
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Briefcase className="h-5 w-5 text-muted-foreground" />
+                            Funções e Histórico (Galeria)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">Função Atual</p>
+                            <div className="flex gap-2">
+                                {worker.funcion ? (
+                                    <Badge variant="default" className="text-xs">{worker.funcion}</Badge>
+                                ) : (
+                                    <span className="text-sm font-medium text-muted-foreground">Não informada no perfil</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-3 border-b pb-2">Funções em Clientes (Alocações)</p>
+                            {isLoading ? (
+                                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando histórico...
+                                </div>
+                            ) : historicalFunctions.length > 0 ? (
+                                <div className="flex flex-col gap-3">
+                                    {historicalFunctions.slice(0, 5).map((hist, idx) => (
+                                        <div key={idx} className="flex flex-col border-l-2 border-primary/40 pl-3">
+                                            <span className="text-sm font-semibold">{hist.functionName}</span>
+                                            <span className="text-xs text-muted-foreground">{hist.client} {hist.date ? `(Início: ${hist.date.split('-').reverse().join('/')})` : ''}</span>
+                                        </div>
+                                    ))}
+                                    {historicalFunctions.length > 5 && (
+                                        <p className="text-xs text-muted-foreground italic mt-1">Veja a aba Alocações para mais detalhes.</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Nenhum histórico de função via alocação encontrado.</p>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

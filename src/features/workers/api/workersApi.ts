@@ -110,6 +110,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             email: updates.email,
             movil: updates.movil,
             niss: updates.niss,
+            nif: updates.nif,
             nie: updates.nie,
             dni: updates.dni,
             pasaporte: updates.pasaporte,
@@ -227,6 +228,7 @@ export interface WorkerAlocacao {
     fechainiciopedido: string | null;
     fechafinpedido: string | null;
     fechasalidatrabajador: string | null;
+    funcion?: string | null;
     inserted_at: string;
     updated_at: string;
 }
@@ -290,7 +292,8 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
             contratante: params.contratante,
             fechainiciopedido: params.fechainiciopedido,
             tiposervico: 'Pedido Manual',
-            codpedido: params.codpedido || `MANUAL-${fakeSpId}`
+            codpedido: params.codpedido || `MANUAL-${fakeSpId}`,
+            funcion: params.funcion
         });
 
     if (allocError) throw mapSupabaseError(allocError);

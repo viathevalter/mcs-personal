@@ -67,6 +67,7 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                     <TableRow className="bg-muted/50">
                         <TableHead className="font-semibold text-foreground">Data Registro</TableHead>
                         <TableHead className="font-semibold text-foreground text-center">Tipo</TableHead>
+                        <TableHead className="font-semibold text-foreground">Função</TableHead>
                         <TableHead className="font-semibold text-foreground">Empresa / Contratante</TableHead>
                         <TableHead className="font-semibold text-foreground">Pedido / Cliente</TableHead>
                         <TableHead className="font-semibold text-foreground">Duração Programada</TableHead>
@@ -76,7 +77,7 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                 <TableBody>
                     {!alocacoes || alocacoes.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                            <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                                 Nenhuma alocação encontrada para este trabalhador.
                             </TableCell>
                         </TableRow>
@@ -90,6 +91,11 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                                     <Badge variant={aloc.tiposervico === 'Pedido' ? 'default' : 'outline'} className="text-[10px] uppercase font-semibold">
                                         {aloc.tiposervico || 'Desconhecido'}
                                     </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <span className="font-medium text-sm text-primary">
+                                        {aloc.funcion || '-'}
+                                    </span>
                                 </TableCell>
                                 <TableCell>
                                     <span className="font-medium text-sm text-foreground">
