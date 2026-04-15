@@ -142,7 +142,6 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                 label="Data Baixa" 
                                 value={item.worker.data_baixa ? new Date(item.worker.data_baixa).toLocaleDateString('pt-BR') : null} 
                             />
-                            <CopyableField label="Empresa (Registro)" value={item.worker.empresa_nome} />
                             <CopyableField label="Contratante" value={item.origem_contratante || item.worker.contratante} />
                             <div className="sm:col-span-2">
                                 <CopyableField label="Cliente" value={item.origem_cliente_nome} />
