@@ -177,7 +177,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                     <SelectItem value="pendente">Pendente (Reverter)</SelectItem>
                                     <SelectItem value="confirmado">Confirmado (Concluído)</SelectItem>
                                     <SelectItem value="erro">Em Erro / Requer Atenção</SelectItem>
-                                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                                    <SelectItem value="cancelado">Encerrado / Cancelado</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
