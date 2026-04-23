@@ -64,10 +64,23 @@ export function WorkerDashboardPage() {
                     const hasPrevMonth = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth);
 
                     const toInsert = [];
-                    if (!hasCurrentMonth) {
+                    
+                    let shouldHaveCurrentMonth = true;
+                    let shouldHavePrevMonth = true;
+
+                    if (profile.data_ingresso) {
+                        const admissionDate = new Date(profile.data_ingresso);
+                        const admissionYear = admissionDate.getFullYear();
+                        const admissionMonth = admissionDate.getMonth() + 1;
+
+                        shouldHaveCurrentMonth = admissionYear < currentYear || (admissionYear === currentYear && admissionMonth <= currentMonth);
+                        shouldHavePrevMonth = admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth);
+                    }
+
+                    if (!hasCurrentMonth && shouldHaveCurrentMonth) {
                         toInsert.push({ empresa_id: profile.empresa_id, worker_id: profile.id, period_year: currentYear, period_month: currentMonth, status: 'pendente' });
                     }
-                    if (!hasPrevMonth) {
+                    if (!hasPrevMonth && shouldHavePrevMonth) {
                         toInsert.push({ empresa_id: profile.empresa_id, worker_id: profile.id, period_year: prevYear, period_month: prevMonth, status: 'pendente' });
                     }
 
