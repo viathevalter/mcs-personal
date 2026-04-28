@@ -312,3 +312,56 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
         
     if (workerError) throw mapSupabaseError(workerError);
 }
+
+export interface UpdateWorkerAlocacaoParams {
+    id: number;
+    workerCodColab: string;
+    cliente_nombre?: string;
+    contratante?: string;
+    funcion?: string;
+    fechainiciopedido?: string;
+    fechafinpedido?: string | null;
+    fechasalidatrabajador?: string | null;
+    codpedido?: string;
+}
+
+export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): Promise<void> {
+    const { id, workerCodColab, ...updates } = params;
+
+    const { error: allocError } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .update(updates)
+        .eq('id', id);
+
+    if (allocError) throw mapSupabaseError(allocError);
+
+    // Optional: If this is the most recent allocation, we might want to sync some fields back to the worker record.
+    // For now, we update the worker if we are updating the allocation to keep it somewhat in sync
+    // but a proper sync might check if it's the latest. We'll update the worker if cliente, contratante or funcion is provided.
+    
+    // We fetch the latest allocation to see if this is it.
+    const { data: latestAlloc } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .select('id')
+        .eq('cod_colab', workerCodColab)
+        .order('inserted_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (latestAlloc?.id === id) {
+        const workerUpdates: any = {};
+        if (updates.cliente_nombre) workerUpdates.cliente = updates.cliente_nombre;
+        if (updates.contratante) workerUpdates.contratante = updates.contratante;
+        if (updates.funcion) workerUpdates.funcion = updates.funcion;
+        
+        if (Object.keys(workerUpdates).length > 0) {
+            await supabase
+                .schema('core_personal')
+                .from('workers')
+                .update(workerUpdates)
+                .eq('cod_colab', workerCodColab);
+        }
+    }
+}

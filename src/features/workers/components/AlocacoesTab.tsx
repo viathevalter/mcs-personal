@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlusCircle } from 'lucide-react';
+import { Loader2, PlusCircle, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
 import { format } from 'date-fns';
 import { AddManualAllocationModal } from './WorkerModals/AddManualAllocationModal';
+import { EditManualAllocationModal } from './WorkerModals/EditManualAllocationModal';
+import { WorkerAlocacao } from '../api/workersApi';
 
 interface AlocacoesTabProps {
     workerCodColab: string;
@@ -16,6 +18,8 @@ interface AlocacoesTabProps {
 export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) {
     const { data: alocacoes, isLoading, isError, error } = useWorkerAlocacoes(workerCodColab);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedAllocation, setSelectedAllocation] = useState<WorkerAlocacao | null>(null);
 
     if (isLoading) {
         return (
@@ -62,6 +66,12 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                 workerCodColab={workerCodColab}
                 workerName={workerName || 'Trabalhador'}
             />
+            <EditManualAllocationModal
+                open={isEditModalOpen}
+                onOpenChange={setIsEditModalOpen}
+                workerCodColab={workerCodColab}
+                allocation={selectedAllocation}
+            />
             <Table>
                 <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -72,12 +82,13 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                         <TableHead className="font-semibold text-foreground">Pedido / Cliente</TableHead>
                         <TableHead className="font-semibold text-foreground">Duração Programada</TableHead>
                         <TableHead className="font-semibold text-foreground">Saída Efetiva</TableHead>
+                        <TableHead className="font-semibold text-foreground text-center">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {!alocacoes || alocacoes.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                                 Nenhuma alocação encontrada para este trabalhador.
                             </TableCell>
                         </TableRow>
@@ -124,6 +135,19 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                                     ) : (
                                         <span className="text-muted-foreground">-</span>
                                     )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setSelectedAllocation(aloc);
+                                            setIsEditModalOpen(true);
+                                        }}
+                                        title="Editar alocação"
+                                    >
+                                        <Edit2 className="h-4 w-4" />
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))
