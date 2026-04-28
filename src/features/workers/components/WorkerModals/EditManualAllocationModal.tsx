@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { useUpdateWorkerAlocacao } from '../../hooks/useUpdateWorkerAlocacao';
-import { getUniqueClients, getUniqueContratantes, getUniqueFunciones, WorkerAlocacao } from '../../api/workersApi';
+import { getUniqueClients, getUniqueContratantes, getUniqueFunciones } from '../../api/workersApi';
+import type { WorkerAlocacao } from '../../api/workersApi';
 
 interface EditManualAllocationModalProps {
     open: boolean;

@@ -8,7 +8,7 @@ import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
 import { format } from 'date-fns';
 import { AddManualAllocationModal } from './WorkerModals/AddManualAllocationModal';
 import { EditManualAllocationModal } from './WorkerModals/EditManualAllocationModal';
-import { WorkerAlocacao } from '../api/workersApi';
+import type { WorkerAlocacao } from '../api/workersApi';
 
 interface AlocacoesTabProps {
     workerCodColab: string;

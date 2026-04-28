@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateWorkerAlocacao, UpdateWorkerAlocacaoParams } from '../api/workersApi';
+import { updateWorkerAlocacao } from '../api/workersApi';
+import type { UpdateWorkerAlocacaoParams } from '../api/workersApi';
 import { useToast } from '@/hooks/use-toast';
 
 export function useUpdateWorkerAlocacao() {
