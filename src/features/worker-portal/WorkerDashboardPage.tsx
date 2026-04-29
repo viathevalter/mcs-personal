@@ -77,6 +77,14 @@ export function WorkerDashboardPage() {
                         shouldHavePrevMonth = admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth);
                     }
 
+                    // Regra específica: bloquear geração de mês de março de 2026
+                    if (prevYear === 2026 && prevMonth === 3) {
+                        shouldHavePrevMonth = false;
+                    }
+                    if (currentYear === 2026 && currentMonth === 3) {
+                        shouldHaveCurrentMonth = false;
+                    }
+
                     if (!hasCurrentMonth && shouldHaveCurrentMonth) {
                         toInsert.push({ empresa_id: profile.empresa_id, worker_id: profile.id, period_year: currentYear, period_month: currentMonth, status: 'pendente' });
                     }
@@ -119,6 +127,14 @@ export function WorkerDashboardPage() {
             }
 
             allRecords = Array.from(uniqueRecordsMap.values());
+
+            // Regra específica: bloquear envio (status pendente) para Março de 2026 no portal para todos
+            allRecords = allRecords.filter(record => {
+                if (record.period_year === 2026 && record.period_month === 3 && record.status === 'pendente') {
+                    return false;
+                }
+                return true;
+            });
 
             // Ordenar de forma decrescente (mais recente primeiro)
             allRecords.sort((a, b) => {
