@@ -1,0 +1,1276 @@
+import React, { useEffect, useState } from 'react';
+import { Layout } from '@/components/layout/Layout';
+import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { 
+    listContracts, generateContract, type Contract,
+    listDocumentRequests, createDocumentRequest, approveDocumentRequest, type DocumentRequest
+} from '../api/contractsApi';
+import { listWorkers } from '@/features/workers/api/workersApi';
+import { Combobox } from '@/components/ui/combobox';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { supabase } from '@/shared/supabase/client';
+import { 
+    FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
+    Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
+    MessageSquare, Send
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+export function DocumentacionTasksPage() {
+    const { selectedEmpresaId } = useEmpresa();
+    
+    // Contratos state
+    const [contracts, setContracts] = useState<Contract[]>([]);
+    const [loadingContracts, setLoadingContracts] = useState(false);
+
+    // Document Requests state
+    const [docRequests, setDocRequests] = useState<DocumentRequest[]>([]);
+    const [loadingDocRequests, setLoadingDocRequests] = useState(false);
+    
+    // Workers state for generation & request
+    const [workersList, setWorkersList] = useState<{ value: string; label: string }[]>([]);
+
+    // Dialog & Form states - Geração de Contrato
+    const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+    const [selectedContratante, setSelectedContratante] = useState<string>('');
+    const [selectedContractType, setSelectedContractType] = useState<string>('');
+    const [generationSuccess, setGenerationSuccess] = useState<{
+        signingLink: string;
+        otpCode: string;
+        emailSent: boolean;
+        contractType?: string;
+    } | null>(null);
+
+    // Dialog & Form states - Nova Solicitação de Docs
+    const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+    const [requestWorkerId, setRequestWorkerId] = useState<string | null>(null);
+    const [creatingRequest, setCreatingRequest] = useState(false);
+    const [requestSuccessLink, setRequestSuccessLink] = useState<string | null>(null);
+
+    // Dialog & Form states - Verificação de Documento Enviado (Lado a Lado)
+    const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
+    const [verifying, setVerifying] = useState(false);
+    const [activeDocTab, setActiveDocTab] = useState<'identity' | 'nif' | 'niss' | 'license' | 'selfie'>('identity');
+    const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
+    const [verifyFormData, setVerifyFormData] = useState({
+        nome: '',
+        nif: '',
+        niss: '',
+        nie: '',
+        dni: '',
+        pasaporte: '',
+        licencia_conducir: '',
+        nacionalidade: '',
+        fecha_nacimiento: ''
+    });
+
+    // State para modal de trabalhadores associados à tarefa clicada
+    const [selectedTaskForWorkers, setSelectedTaskForWorkers] = useState<any | null>(null);
+    const [workersDialogOpen, setWorkersDialogOpen] = useState(false);
+    const [taskWorkers, setTaskWorkers] = useState<any[]>([]);
+    const [loadingTaskWorkers, setLoadingTaskWorkers] = useState(false);
+    const [taskMetadata, setTaskMetadata] = useState<{ clientName: string; siteName: string; pedidoCode: string } | null>(null);
+
+    const loadTaskWorkers = async (task: any) => {
+        if (!task || !selectedEmpresaId) return;
+        try {
+            setLoadingTaskWorkers(true);
+            setTaskWorkers([]);
+            setTaskMetadata(null);
+
+            const solicitudId = task.solicitud_id;
+            const pedidoId = task.solicitud?.pedido_id;
+
+            // 1. Fetch metadata (client and site) using same logic as solicitud detail
+            let clientName = 'N/A';
+            let siteName = 'N/A';
+            let pedidoCode = 'N/A';
+
+            if (pedidoId) {
+                const { data: pedidoData } = await supabase
+                    .schema('core_comercial')
+                    .from('pedidos')
+                    .select('id, codigo, client_id, client_site_id')
+                    .eq('id', pedidoId)
+                    .maybeSingle();
+
+                if (pedidoData) {
+                    pedidoCode = pedidoData.codigo || 'N/A';
+                    const [{ data: clientData }, { data: siteData }] = await Promise.all([
+                        pedidoData.client_id ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', pedidoData.client_id).maybeSingle() : Promise.resolve({ data: null }),
+                        pedidoData.client_site_id ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', pedidoData.client_site_id).maybeSingle() : Promise.resolve({ data: null })
+                    ]);
+                    if (clientData) {
+                        clientName = clientData.trade_name || clientData.legal_name || 'N/A';
+                    }
+                    if (siteData) {
+                        siteName = siteData.name || 'N/A';
+                    }
+                }
+            }
+            setTaskMetadata({ clientName, siteName, pedidoCode });
+
+            // 2. Fetch targets first
+            const { data: targets, error: targetsErr } = await supabase
+                .schema('core_operacoes')
+                .from('solicitud_targets')
+                .select(`
+                    *,
+                    source_worker:workers!solicitud_targets_source_worker_id_fkey(id, nome, cod_colab, email, movil, funcion)
+                `)
+                .eq('solicitud_id', solicitudId);
+
+            if (targetsErr) throw targetsErr;
+
+            let displayItems: any[] = [];
+            if (targets && targets.length > 0) {
+                displayItems = targets.map((t: any) => ({
+                    id: t.id,
+                    worker: t.source_worker,
+                    action_type: t.action_type || 'substituição',
+                    status: t.status || 'pendente'
+                }));
+            } else if (pedidoId) {
+                // Fetch from worker_assignments
+                const { data: assignments, error: assignErr } = await supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select(`
+                        *,
+                        worker:workers(id, nome, cod_colab, email, movil, funcion)
+                    `)
+                    .eq('empresa_id', selectedEmpresaId)
+                    .eq('pedido_id', pedidoId)
+                    .in('status', ['planned', 'active']);
+
+                if (assignErr) throw assignErr;
+
+                if (assignments) {
+                    displayItems = assignments.map((a: any) => ({
+                        id: a.id,
+                        worker: a.worker,
+                        action_type: 'alocação',
+                        status: a.status === 'planned' ? 'planejado' : 'ativo'
+                    }));
+                }
+            }
+
+            // 3. For each worker, check if there is an active doc request
+            if (displayItems.length > 0) {
+                const workerIds = displayItems.map(item => item.worker?.id).filter(Boolean);
+                if (workerIds.length > 0) {
+                    const { data: requests } = await supabase
+                        .schema('core_personal')
+                        .from('document_requests')
+                        .select('*, worker:workers(id, nome, email, movil, cod_colab)')
+                        .in('worker_id', workerIds);
+
+                    const requestsMap = new Map(requests?.map(r => [r.worker_id, r]) || []);
+                    displayItems = displayItems.map(item => ({
+                        ...item,
+                        docRequest: item.worker ? requestsMap.get(item.worker.id) : null
+                    }));
+                }
+            }
+
+            setTaskWorkers(displayItems);
+
+        } catch (err) {
+            console.error("Erro ao carregar trabalhadores da tarefa:", err);
+            toast.error("Erro ao obter a lista de trabalhadores.");
+        } finally {
+            setLoadingTaskWorkers(false);
+        }
+    };
+
+    const handleSendWhatsApp = async (item: any) => {
+        if (!item.worker) {
+            toast.error("Trabalhador inválido.");
+            return;
+        }
+
+        const workerName = item.worker.nome;
+        const phone = item.worker.movil || '';
+        
+        let inviteLink = '';
+        
+        // Se já existe uma solicitação de documentos, usa o token existente
+        if (item.docRequest) {
+            inviteLink = `${window.location.origin}/enviar-documentos/${item.docRequest.token}`;
+        } else {
+            // Caso contrário, cria uma nova solicitação silenciosamente na hora!
+            try {
+                const loadingToast = toast.loading("Gerando link de envio de documentos...");
+                const res = await createDocumentRequest(selectedEmpresaId!, item.worker.id);
+                inviteLink = `${window.location.origin}/enviar-documentos/${res.token}`;
+                
+                // Atualiza a lista local
+                setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                // Atualiza a aba geral de solicitações de documentos
+                loadDocRequests();
+                toast.dismiss(loadingToast);
+            } catch (err) {
+                console.error("Erro ao criar solicitação automática:", err);
+                toast.dismiss();
+                toast.error("Erro ao gerar link de documentos.");
+                return;
+            }
+        }
+
+        // Constrói a mensagem personalizada
+        const msg = `Hola *${workerName}*,
+ 
+Para poder formalizar tu contratación, necesitamos que nos envíes tu documentación a través del siguiente enlace seguro desde tu móvil:
+🔗 *${inviteLink}*
+ 
+📄 *Documentos requeridos* (en formato imagen o PDF):
+* Pasaporte
+* Certificado bancario (cuenta europea a tu nombre, donde se vea claramente el IBAN)
+* NISS o NIF (si ya lo tienes)
+* DNI o NIE (si aplica)
+* Dirección personal (solo si resides en España o Portugal)
+* Permiso de conducir (si tienes)
+* Una foto tuya con fondo blanco, tipo documento (mirando a la cámara, bien iluminada y nítida)
+* Correo electrónico
+* Ubicación actual
+ 
+*Talla de uniforme:*
+* Camisa: _
+* Pantalón: _
+ 
+* Teléfono de uno o dos familiares (incluir nombre y parentesco)
+* Ciudad y país donde te encuentras actualmente
+ 
+❓*Dudas frecuentes:*
+* El IBAN es el número internacional de tu cuenta bancaria. La cuenta debe estar en euros.
+* The dirección personal solo es necesaria si resides en España o Portugal.
+* El permiso de conducir no es obligatorio, solo envíalo si dispones de uno.
+* La foto debe parecerse a una de documento oficial: mirando de frente, fondo blanco, buena luz y sin filtros.
+* Quedamos atentos a tu documentación para avanzar con el proceso.
+ 
+Saludos cordiales,
+Equipo de Contratación`;
+
+        // Copia a mensagem para a área de transferência
+        try {
+            await navigator.clipboard.writeText(msg);
+        } catch (clipErr) {
+            console.warn("Clipboard copy failed: ", clipErr);
+        }
+        
+        // Abre o link do WhatsApp
+        const cleanPhone = phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+        const whatsappUrl = cleanPhone 
+            ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
+            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+            
+        window.open(whatsappUrl, '_blank');
+        
+        toast.success(`Mensagem personalizada para ${workerName} copiada e WhatsApp aberto!`);
+    };
+
+    // 1. Carregar Contratos
+    const loadContracts = async () => {
+        if (!selectedEmpresaId) return;
+        try {
+            setLoadingContracts(true);
+            const data = await listContracts({ empresaId: selectedEmpresaId });
+            setContracts(data);
+        } catch (err: any) {
+            console.error("Erro ao carregar contratos:", err);
+            toast.error("Erro ao carregar lista de contratos.");
+        } finally {
+            setLoadingContracts(false);
+        }
+    };
+
+    // 2. Carregar Solicitações de Documentos
+    const loadDocRequests = async () => {
+        if (!selectedEmpresaId) return;
+        try {
+            setLoadingDocRequests(true);
+            const data = await listDocumentRequests(selectedEmpresaId);
+            setDocRequests(data);
+        } catch (err) {
+            console.error("Erro ao carregar solicitações de documentos:", err);
+            toast.error("Erro ao carregar solicitações de documentos.");
+        } finally {
+            setLoadingDocRequests(false);
+        }
+    };
+
+    // 3. Carregar Trabalhadores para o Combobox
+    const loadWorkers = async () => {
+        if (!selectedEmpresaId) return;
+        try {
+            const res = await listWorkers({
+                empresaId: selectedEmpresaId,
+                page: 1,
+                pageSize: 200,
+            });
+            const options = res.data.map(w => ({
+                value: w.id || '',
+                label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})`
+            }));
+            setWorkersList(options);
+        } catch (err) {
+            console.error("Erro ao carregar trabalhadores:", err);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedEmpresaId) {
+            loadContracts();
+            loadDocRequests();
+            loadWorkers();
+        }
+    }, [selectedEmpresaId]);
+
+    useEffect(() => {
+        if (generateDialogOpen && selectedEmpresaId) {
+            if (selectedEmpresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
+                setSelectedContratante('STOCCO');
+            } else if (selectedEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+                setSelectedContratante('WISEOWE UNIPESSOAL LDA');
+            } else if (selectedEmpresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
+                setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
+            } else {
+                setSelectedContratante('');
+            }
+        }
+    }, [generateDialogOpen, selectedEmpresaId]);
+
+    // 4. Submeter geração de contrato
+    const handleGenerate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedWorkerId || !selectedContratante || !selectedContractType) {
+            toast.error("Por favor, preencha todos os campos.");
+            return;
+        }
+
+        try {
+            setGenerating(true);
+            const res = await generateContract({
+                worker_id: selectedWorkerId,
+                contratante: selectedContratante,
+                contract_type: selectedContractType,
+            });
+
+            setGenerationSuccess({
+                signingLink: res.signing_link,
+                otpCode: res.otp_code,
+                emailSent: res.email_sent,
+                contractType: selectedContractType
+            });
+            
+            toast.success(selectedContractType === 'contrato_alta' ? "Contrato de alta emitido!" : "Contrato emitido e pronto para assinatura!");
+            loadContracts();
+        } catch (err: any) {
+            console.error("Erro ao gerar contrato:", err);
+            toast.error(err.message || "Erro interno ao tentar emitir o contrato.");
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handleDownloadContract = async (contract: Contract) => {
+        const path = contract.signed_document_url || contract.document_url;
+        if (!path) {
+            toast.error("Documento não encontrado.");
+            return;
+        }
+        try {
+            const { data, error } = await supabase.storage
+                .from('worker-contracts')
+                .createSignedUrl(path, 3600);
+            if (error) throw error;
+            if (data?.signedUrl) {
+                window.open(data.signedUrl, '_blank');
+            }
+        } catch (err) {
+            console.error("Erro ao baixar documento:", err);
+            toast.error("Erro ao gerar link de download do documento.");
+        }
+    };
+
+    // 5. Submeter nova solicitação de documentos
+    const handleCreateRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!requestWorkerId || !selectedEmpresaId) {
+            toast.error("Selecione um trabalhador.");
+            return;
+        }
+
+        try {
+            setCreatingRequest(true);
+            const res = await createDocumentRequest(selectedEmpresaId, requestWorkerId);
+            const link = `${window.location.origin}/enviar-documentos/${res.token}`;
+            setRequestSuccessLink(link);
+            toast.success("Solicitação criada com sucesso!");
+            loadDocRequests();
+        } catch (err) {
+            console.error("Erro ao solicitar documentos:", err);
+            toast.error("Falha ao criar solicitação de documentos.");
+        } finally {
+            setCreatingRequest(false);
+        }
+    };
+
+    // 6. Abrir verificação lado a lado de documentos
+    const handleOpenVerify = (req: DocumentRequest) => {
+        setSelectedRequest(req);
+        const data = req.extracted_data || {};
+        setVerifyFormData({
+            nome: data.nome || req.worker?.nome || '',
+            nif: data.nif || '',
+            niss: data.niss || '',
+            nie: data.nie || '',
+            dni: data.dni || '',
+            pasaporte: data.pasaporte || '',
+            licencia_conducir: data.licencia_conducir || '',
+            nacionalidade: data.nacionalidade || '',
+            fecha_nacimiento: data.fecha_nacimiento || ''
+        });
+        setActiveDocTab('identity');
+        setVerifyDialogOpen(true);
+    };
+
+    // 7. Obter URL temporária assinada para visualizar a imagem enviada
+    useEffect(() => {
+        if (!selectedRequest) return;
+        
+        let path = '';
+        if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
+        else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
+        else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
+        else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
+
+        if (!path) {
+            setActiveDocUrl(null);
+            return;
+        }
+
+        async function getSigned() {
+            try {
+                const { data, error } = await supabase.storage
+                    .from('worker-incoming-docs')
+                    .createSignedUrl(path, 3600);
+                
+                if (error) throw error;
+                setActiveDocUrl(data?.signedUrl || null);
+            } catch (err) {
+                console.error("Erro ao gerar URL assinada:", err);
+                setActiveDocUrl(null);
+            }
+        }
+        getSigned();
+    }, [selectedRequest, activeDocTab]);
+
+    // 8. Salvar aprovação de cadastro
+    const handleApproveVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedRequest) return;
+
+        try {
+            setVerifying(true);
+            
+            // Selfie URL passa a ser a foto oficial do trabalhador se presente
+            const approvedPayload = {
+                ...verifyFormData,
+                foto: selectedRequest.selfie_url || undefined
+            };
+
+            await approveDocumentRequest(selectedRequest.id, selectedRequest.worker_id, approvedPayload);
+            toast.success("Documentação validada e cadastro atualizado com sucesso!");
+            setVerifyDialogOpen(false);
+            loadDocRequests();
+            if (selectedTaskForWorkers) {
+                loadTaskWorkers(selectedTaskForWorkers);
+            }
+        } catch (err) {
+            console.error("Erro ao aprovar documentos:", err);
+            toast.error("Erro ao salvar validação de documentos.");
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    const handleCopyLink = (link: string) => {
+        navigator.clipboard.writeText(link);
+        toast.success("Link copiado para a área de transferência!");
+    };
+
+    return (
+        <Layout>
+            <div className="flex flex-col space-y-6 p-4">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            Painel de Documentos & Contratos
+                        </h1>
+                        <p className="text-muted-foreground">
+                            Gerencie e emita contratos de trabalho com assinatura eletrônica e captura inteligente de documentos.
+                        </p>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        {/* Botão Solicitar Documentos */}
+                        <Dialog open={requestDialogOpen} onOpenChange={(open) => {
+                            setRequestDialogOpen(open);
+                            if (!open) {
+                                setRequestWorkerId(null);
+                                setRequestSuccessLink(null);
+                            }
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="border-indigo-600/25 hover:bg-slate-50 dark:hover:bg-slate-900 text-indigo-600 dark:text-indigo-400 font-semibold gap-1.5">
+                                    <Camera className="h-4 w-4" />
+                                    Solicitar Documentos
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                                <DialogHeader>
+                                    <DialogTitle>Solicitar Documentos por Link</DialogTitle>
+                                    <DialogDescription>
+                                        Gere um portal exclusivo e temporário para o trabalhador tirar fotos e enviar os documentos de cadastro do próprio celular.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                
+                                {!requestSuccessLink ? (
+                                    <form onSubmit={handleCreateRequest} className="space-y-4 pt-2">
+                                        <div className="space-y-2">
+                                            <Label>Selecionar Trabalhador</Label>
+                                            <Combobox
+                                                options={workersList}
+                                                value={requestWorkerId || ''}
+                                                onChange={(val) => setRequestWorkerId(val || null)}
+                                                placeholder="Pesquise o trabalhador cadastrado..."
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
+                                            <Button type="submit" disabled={creatingRequest || !requestWorkerId} className="bg-indigo-600 hover:bg-indigo-500">
+                                                {creatingRequest ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                                Criar Link
+                                            </Button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="space-y-4 pt-2">
+                                        <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
+                                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
+                                                <CheckCircle className="h-5 w-5" />
+                                                <span>Link de Cadastro Criado!</span>
+                                            </div>
+                                            <p className="text-xs text-slate-500">Copie o link seguro abaixo e envie para o trabalhador iniciar o preenchimento e captura das fotos:</p>
+                                            
+                                            <div className="flex gap-2">
+                                                <Input readOnly value={requestSuccessLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
+                                                <Button size="icon" variant="outline" onClick={() => handleCopyLink(requestSuccessLink)}>
+                                                    <Copy className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-center pt-2">
+                                            <Button onClick={() => setRequestDialogOpen(false)} className="bg-indigo-600 hover:bg-indigo-500">Fechar</Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* Botão Gerar Contrato */}
+                        <Dialog open={generateDialogOpen} onOpenChange={(open) => {
+                            setGenerateDialogOpen(open);
+                            if (!open) {
+                                setSelectedWorkerId(null);
+                                setSelectedContratante('');
+                                setSelectedContractType('');
+                                setGenerationSuccess(null);
+                            }
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1">
+                                    <Plus className="h-4 w-4" />
+                                    Gerar Contrato
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                                <DialogHeader>
+                                    <DialogTitle>Gerar Novo Contrato</DialogTitle>
+                                    <DialogDescription>
+                                        Selecione o trabalhador e o modelo de contrato. O sistema gerará o arquivo automaticamente com validade eIDAS.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                {!generationSuccess ? (
+                                    <form onSubmit={handleGenerate} className="space-y-4 pt-2">
+                                        <div className="space-y-2">
+                                            <Label>Selecionar Trabalhador</Label>
+                                            <Combobox
+                                                options={workersList}
+                                                value={selectedWorkerId || ''}
+                                                onChange={(val) => setSelectedWorkerId(val || null)}
+                                                placeholder="Digite o nome do trabalhador..."
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Empresa Contratante</Label>
+                                            <Select value={selectedContratante} onValueChange={setSelectedContratante}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="STOCCO">Stocco</SelectItem>
+                                                    <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Modelo de Contrato</Label>
+                                            <Select value={selectedContractType} onValueChange={setSelectedContractType}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione o tipo de contrato..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="contrato_termo_incerto">Contrato a Termo Incerto (Passaporte)</SelectItem>
+                                                    <SelectItem value="contrato_nis">Contrato NIS (NIF)</SelectItem>
+                                                    <SelectItem value="contrato_alta">Contrato de Alta (Contabilidade - Sem Assinatura)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button type="button" variant="outline" onClick={() => setGenerateDialogOpen(false)}>Cancelar</Button>
+                                            <Button type="submit" disabled={generating} className="bg-indigo-600 hover:bg-indigo-500">
+                                                {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                                Gerar Contrato
+                                            </Button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="space-y-4 pt-2">
+                                        <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
+                                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
+                                                <CheckCircle className="h-5 w-5" />
+                                                <span>Contrato Gerado com Sucesso!</span>
+                                            </div>
+                                            {generationSuccess.contractType === 'contrato_alta' ? (
+                                                <p className="text-xs text-slate-500">
+                                                    Este contrato foi classificado como <strong>Alta (Contabilidade)</strong>. Não requer assinatura eletrônica ou código OTP. O arquivo foi enviado diretamente para o histórico de contratos.
+                                                </p>
+                                            ) : (
+                                                <>
+                                                    <p className="text-xs text-slate-500">
+                                                        Código OTP temporário (Desenvolvimento): <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
+                                                    </p>
+                                                    <div>
+                                                        <Label className="text-xs text-muted-foreground">Link de Assinatura Pública</Label>
+                                                        <div className="flex gap-2 mt-1">
+                                                            <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
+                                                            <Button size="icon" variant="outline" onClick={() => handleCopyLink(generationSuccess.signingLink)}>
+                                                                <Copy className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            <div className="text-xs flex items-center gap-2 text-slate-500 pt-1.5 border-t border-slate-200">
+                                                {generationSuccess.contractType === 'contrato_alta' ? (
+                                                    <span>Pronto para envio à contabilidade.</span>
+                                                ) : generationSuccess.emailSent ? (
+                                                    <>
+                                                        <Mail className="h-4 w-4 text-emerald-500" />
+                                                        <span>E-mail enviado com sucesso ao trabalhador.</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                                                        <span>Sem envio automático de e-mail (Resend não configurado ou trabalhador sem e-mail). Copie o link acima.</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-center gap-3 pt-2">
+                                            <Button onClick={() => setGenerateDialogOpen(false)} className="bg-indigo-600 hover:bg-indigo-500">
+                                                Fechar Painel
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                </div>
+
+                {/* Tabs de Navegação */}
+                <Tabs defaultValue="tasks" className="w-full" onValueChange={(value) => {
+                    if (value === 'requests') {
+                        loadDocRequests();
+                    } else if (value === 'contracts') {
+                        loadContracts();
+                    } else if (value === 'tasks' && selectedTaskForWorkers) {
+                        loadTaskWorkers(selectedTaskForWorkers);
+                    }
+                }}>
+                    <TabsList className="grid w-full md:w-[600px] grid-cols-3">
+                        <TabsTrigger value="tasks">Tarefas Operacionais</TabsTrigger>
+                        <TabsTrigger value="requests">Solicitações de Documentos</TabsTrigger>
+                        <TabsTrigger value="contracts">Contratos & Assinaturas</TabsTrigger>
+                    </TabsList>
+                    
+                    {/* Conteúdo 1: Tarefas do Kanban */}
+                    <TabsContent value="tasks" className="pt-4">
+                        <DepartmentTaskBoard 
+                            title="Fila de Tarefas de Documentação" 
+                            departmentCodes={['DOCUMENTACION', 'CONTRATOS']} 
+                            onTaskClick={(task) => {
+                                setSelectedTaskForWorkers(task);
+                                loadTaskWorkers(task);
+                                setWorkersDialogOpen(true);
+                            }}
+                        />
+                    </TabsContent>
+
+                    {/* Conteúdo 2: Solicitações de Documentos (OCR) */}
+                    <TabsContent value="requests" className="pt-4">
+                        <div className="rounded-md border bg-card">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Links e Envios Cadastrais</h3>
+                                <Button size="sm" variant="ghost" onClick={loadDocRequests}><RefreshCw className="h-4 w-4" /></Button>
+                            </div>
+                            
+                            {loadingDocRequests ? (
+                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                    <span>Carregando solicitações...</span>
+                                </div>
+                            ) : docRequests.length === 0 ? (
+                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                    <Camera className="h-10 w-10 text-slate-400" />
+                                    <span>Nenhuma solicitação de documentos ativa.</span>
+                                </div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Trabalhador</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Criado Em</TableHead>
+                                            <TableHead>Expira Em</TableHead>
+                                            <TableHead className="text-right">Ações</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {docRequests.map((req) => {
+                                            const inviteLink = `${window.location.origin}/enviar-documentos/${req.token}`;
+                                            const isExpired = new Date(req.expires_at) < new Date();
+                                            return (
+                                                <TableRow key={req.id}>
+                                                    <TableCell>
+                                                        <div className="font-semibold text-slate-800 dark:text-slate-200">{req.worker?.nome}</div>
+                                                        <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge className={
+                                                            req.status === 'verified' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                            req.status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
+                                                            isExpired ? 'bg-red-500/10 text-red-500 hover:bg-red-500/10 border-red-500/20' :
+                                                            'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10'
+                                                        }>
+                                                            {req.status === 'verified' ? 'Cadastro Validado' :
+                                                             req.status === 'submitted' ? 'Recebido - Analisar' :
+                                                             isExpired ? 'Expirado' : 'Aguardando Envio'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-500 text-sm">
+                                                        {new Date(req.created_at).toLocaleDateString('pt-PT')}
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-500 text-sm">
+                                                        {new Date(req.expires_at).toLocaleDateString('pt-PT')}
+                                                    </TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        {req.status === 'pending_upload' && !isExpired && (
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline" 
+                                                                onClick={() => handleCopyLink(inviteLink)}
+                                                                title="Copiar Link de Envio"
+                                                            >
+                                                                <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
+                                                            </Button>
+                                                        )}
+                                                        {req.status === 'submitted' && (
+                                                            <Button 
+                                                                size="sm" 
+                                                                className="bg-indigo-600 hover:bg-indigo-500"
+                                                                onClick={() => handleOpenVerify(req)}
+                                                            >
+                                                                <Eye className="h-4 w-4 mr-1" /> Analisar
+                                                            </Button>
+                                                        )}
+                                                        {req.status === 'verified' && (
+                                                            <div className="inline-flex items-center text-xs text-emerald-500 gap-1 font-semibold pr-2">
+                                                                <ShieldCheck className="h-4 w-4" /> Validado
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    {/* Conteúdo 3: Gerenciador de Contratos */}
+                    <TabsContent value="contracts" className="pt-4">
+                        <div className="rounded-md border bg-card">
+                            {loadingContracts ? (
+                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                    <span>Buscando contratos gerados...</span>
+                                </div>
+                            ) : contracts.length === 0 ? (
+                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                    <FileText className="h-10 w-10 text-slate-400" />
+                                    <span>Nenhum contrato gerado ainda nesta empresa.</span>
+                                </div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Trabalhador</TableHead>
+                                            <TableHead>Contratante</TableHead>
+                                            <TableHead>Tipo</TableHead>
+                                            <TableHead>OTP Código</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Data de Geração</TableHead>
+                                            <TableHead className="text-right">Ações</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {contracts.map((contract) => {
+                                            const signLink = `${window.location.origin}/assinar/${contract.signature_token}`;
+                                            return (
+                                                <TableRow key={contract.id}>
+                                                    <TableCell>
+                                                        <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                            {contract.worker?.nome}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {contract.worker?.email || 'E-mail não cadastrado'}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="font-medium">
+                                                        {contract.contratante}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className="capitalize">
+                                                            {contract.contract_type.replace('_', ' ')}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                                        {contract.otp_code || '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge className={
+                                                            contract.status === 'signed' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                            contract.status === 'pending_signature' ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20' :
+                                                            contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20' :
+                                                            'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10'
+                                                        }>
+                                                            {contract.status === 'signed' ? 'Assinado' :
+                                                             contract.status === 'pending_signature' ? 'Pendente Assinatura' :
+                                                             contract.status === 'no_signature' ? 'Não Requer Assinatura' :
+                                                             contract.status}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-slate-500">
+                                                        {contract.created_at ? new Date(contract.created_at).toLocaleDateString('pt-PT') : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right space-x-2">
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            onClick={() => handleDownloadContract(contract)}
+                                                            title="Baixar Contrato"
+                                                        >
+                                                            <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                        </Button>
+
+                                                        {contract.status !== 'no_signature' && (
+                                                            <>
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="ghost"
+                                                                    onClick={() => handleCopyLink(signLink)}
+                                                                    title="Copiar Link de Assinatura"
+                                                                >
+                                                                    <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                                </Button>
+                                                                
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="ghost"
+                                                                    onClick={() => window.open(signLink, '_blank')}
+                                                                    title="Abrir Tela de Assinatura"
+                                                                >
+                                                                    <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </div>
+
+            {/* Modal Lado a Lado de Verificação (Revisão OCR) */}
+            <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+                <DialogContent className="max-w-5xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                            Revisão e Validação de Documentos com OCR
+                        </DialogTitle>
+                        <DialogDescription>
+                            Compare as imagens originais enviadas pelo trabalhador com os dados lidos pela IA. Edite os campos se houver erro e aprove para salvar no cadastro.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedRequest && (
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-hidden pt-2">
+                            {/* Painel Esquerdo: Anexos Enviados */}
+                            <div className="flex flex-col border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-950/20">
+                                {/* Navegador de Abas de Anexos */}
+                                <div className="flex border-b dark:border-slate-800 text-xs font-semibold bg-slate-100 dark:bg-slate-800/80">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setActiveDocTab('identity')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'identity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        Identificação
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setActiveDocTab('nif')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'nif' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        NIF
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setActiveDocTab('niss')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'niss' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        NISS
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setActiveDocTab('license')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'license' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        Carta
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setActiveDocTab('selfie')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'selfie' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        Selfie
+                                    </button>
+                                </div>
+
+                                {/* Preview da Imagem */}
+                                <div className="flex-1 flex items-center justify-center p-4 bg-slate-950 overflow-auto">
+                                    {activeDocUrl ? (
+                                        activeDocUrl.split('?')[0].toLowerCase().endsWith('.pdf') ? (
+                                            <iframe src={activeDocUrl} className="w-full h-full border-none rounded bg-white" title="PDF Document Viewer" />
+                                        ) : (
+                                            <img src={activeDocUrl} className="max-w-full max-h-full object-contain rounded" alt="Document Preview" />
+                                        )
+                                    ) : (
+                                        <div className="text-center text-slate-600 flex flex-col items-center gap-2">
+                                            <FileText className="h-10 w-10 text-slate-700" />
+                                            <span>Nenhum arquivo enviado para esta categoria.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Painel Direito: Formulário com Dados do OCR */}
+                            <form onSubmit={handleApproveVerify} className="flex flex-col border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-900/20 p-4 justify-between overflow-y-auto">
+                                <div className="space-y-4">
+                                    <h4 className="font-semibold text-slate-800 dark:text-slate-200 border-b pb-2 text-sm">Dados Cadastrais Revisados</h4>
+                                    
+                                    <div className="space-y-3">
+                                        <div>
+                                            <Label className="text-xs">Nome Completo</Label>
+                                            <Input required value={verifyFormData.nome} onChange={(e) => setVerifyFormData({ ...verifyFormData, nome: e.target.value })} />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <Label className="text-xs">NIF (Portugal)</Label>
+                                                <Input required value={verifyFormData.nif} onChange={(e) => setVerifyFormData({ ...verifyFormData, nif: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs">NISS (Portugal)</Label>
+                                                <Input required value={verifyFormData.niss} onChange={(e) => setVerifyFormData({ ...verifyFormData, niss: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div>
+                                                <Label className="text-xs">DNI</Label>
+                                                <Input value={verifyFormData.dni} onChange={(e) => setVerifyFormData({ ...verifyFormData, dni: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs">NIE</Label>
+                                                <Input value={verifyFormData.nie} onChange={(e) => setVerifyFormData({ ...verifyFormData, nie: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs">Passaporte</Label>
+                                                <Input value={verifyFormData.pasaporte} onChange={(e) => setVerifyFormData({ ...verifyFormData, pasaporte: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <Label className="text-xs">Carta de Condução / Habilitação</Label>
+                                            <Input value={verifyFormData.licencia_conducir} onChange={(e) => setVerifyFormData({ ...verifyFormData, licencia_conducir: e.target.value })} />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <Label className="text-xs">Nacionalidade</Label>
+                                                <Input value={verifyFormData.nacionalidade} onChange={(e) => setVerifyFormData({ ...verifyFormData, nacionalidade: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs">Data de Nascimento (AAAA-MM-DD)</Label>
+                                                <Input type="date" value={verifyFormData.fecha_nacimiento} onChange={(e) => setVerifyFormData({ ...verifyFormData, fecha_nacimiento: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-4 border-t mt-4">
+                                    <Button type="button" variant="outline" className="flex-1" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
+                                    <Button type="submit" disabled={verifying} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+                                        {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                        Aprovar & Salvar no Cadastro
+                                    </Button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Gerenciamento de Trabalhadores da Solicitação */}
+            <Dialog open={workersDialogOpen} onOpenChange={setWorkersDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                            <MessageSquare className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                            Trabalhadores da Solicitação {selectedTaskForWorkers?.solicitud?.codigo}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Gerencie o envio de documentos, contato via WhatsApp e emissão de contratos para os trabalhadores vinculados a este pedido.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {/* Resumo da solicitação/pedido */}
+                    {taskMetadata && (
+                        <div className="grid grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-800/30 text-sm mb-2 mt-2">
+                            <div>
+                                <span className="font-semibold text-muted-foreground block text-xs">CLIENTE</span>
+                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.clientName}</span>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-muted-foreground block text-xs">LOCAL / OBRA</span>
+                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.siteName}</span>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-muted-foreground block text-xs">PEDIDO ORIGINAL</span>
+                                <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800/50 px-2 py-0.5 rounded">{taskMetadata.pedidoCode}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex-1 overflow-y-auto min-h-[300px] border rounded-lg mt-2">
+                        {loadingTaskWorkers ? (
+                            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 h-full">
+                                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                <span>Carregando trabalhadores...</span>
+                            </div>
+                        ) : taskWorkers.length === 0 ? (
+                            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 h-full">
+                                <AlertCircle className="h-10 w-10 text-slate-400" />
+                                <span>Nenhum trabalhador vinculado a este pedido foi encontrado.</span>
+                            </div>
+                        ) : (
+                            <Table>
+                                <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0">
+                                    <TableRow>
+                                        <TableHead>Trabalhador</TableHead>
+                                        <TableHead>Cargo</TableHead>
+                                        <TableHead>Status Documentos</TableHead>
+                                        <TableHead className="text-right">Ações</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {taskWorkers.map((item) => {
+                                        const phone = item.worker?.movil || 'Sem telefone';
+                                        
+                                        // Determinar status do convite de documentos
+                                        const docStatus = item.docRequest?.status;
+                                        
+                                        return (
+                                            <TableRow key={item.id}>
+                                                <TableCell>
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                        {item.worker?.nome || 'N/A'}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        Cód: {item.worker?.cod_colab || 'N/A'} | Tel: {phone}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-sm font-medium">
+                                                    {item.worker?.funcion || 'N/A'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {!item.docRequest ? (
+                                                        <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200">
+                                                            Sem Link de Envio
+                                                        </Badge>
+                                                    ) : docStatus === 'verified' ? (
+                                                        <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
+                                                            Cadastro Validado
+                                                        </Badge>
+                                                    ) : docStatus === 'submitted' ? (
+                                                        <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/20 hover:bg-blue-500/20">
+                                                            Recebido - Analisar
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
+                                                            Aguardando Envio
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right space-x-1.5 whitespace-nowrap">
+                                                    {/* Analisar Button */}
+                                                    {docStatus === 'submitted' && (
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
+                                                            onClick={() => handleOpenVerify(item.docRequest)}
+                                                            title="Analisar documentos enviados"
+                                                        >
+                                                            <Eye className="h-3 w-3" />
+                                                            Analisar
+                                                        </Button>
+                                                    )}
+
+                                                    {/* WhatsApp Button */}
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5"
+                                                        onClick={() => handleSendWhatsApp(item)}
+                                                        title="Enviar mensagem com template via WhatsApp"
+                                                    >
+                                                        <Send className="h-3 w-3" />
+                                                        WhatsApp
+                                                    </Button>
+
+                                                    {/* Copiar Link Button */}
+                                                    {item.docRequest ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                                            onClick={() => handleCopyLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`)}
+                                                            title="Copiar link de envio seguro"
+                                                        >
+                                                            <Copy className="h-3.5 w-3.5 mr-1" />
+                                                            Link
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-slate-600 hover:text-indigo-600"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await createDocumentRequest(selectedEmpresaId!, item.worker.id);
+                                                                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                                                                    loadDocRequests();
+                                                                    toast.success("Link cadastral criado!");
+                                                                } catch (err) {
+                                                                    toast.error("Erro ao criar link cadastral.");
+                                                                }
+                                                            }}
+                                                            title="Criar novo link de envio"
+                                                        >
+                                                            <Plus className="h-3.5 w-3.5 mr-1" />
+                                                            Criar Link
+                                                        </Button>
+                                                    )}
+
+                                                    {/* Gerar Contrato Button */}
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800"
+                                                        onClick={() => {
+                                                            setSelectedWorkerId(item.worker.id);
+                                                            setWorkersDialogOpen(false);
+                                                            setGenerateDialogOpen(true);
+                                                        }}
+                                                        title="Emitir contrato de trabalho"
+                                                    >
+                                                        <FileText className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t mt-4">
+                        <Button variant="outline" onClick={() => setWorkersDialogOpen(false)}>Fechar</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </Layout>
+    );
+}
