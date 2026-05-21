@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
@@ -18,11 +18,13 @@ export function Sidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const { t } = useTranslation();
     const { role: globalRole } = useRole();
+    const navigate = useNavigate();
 
     const links: SidebarLink[] = [
         { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
         { to: '/workers/history', tKey: 'Histórico de Atividade', icon: History, roles: ['admin', 'rh'] },
+        { to: '/documentacion/tarefas', tKey: 'Documentos e Contratos', icon: FileText, roles: ['admin', 'rh'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
         { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'] },
@@ -56,7 +58,21 @@ export function Sidebar() {
                     {isExpanded && <span className="text-xl tracking-tight">Mastercorp</span>}
                 </NavLink>
             </div>
-            <div className="flex-1 py-6 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
+            <div className="px-3 mt-4 mb-2">
+                <button 
+                    onClick={() => navigate('/hub')}
+                    className={cn(
+                        "flex items-center justify-center py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700",
+                        isExpanded ? "w-full gap-2 px-4" : "w-12 mx-auto"
+                    )}
+                    title={!isExpanded ? "Voltar para o Hub" : undefined}
+                >
+                    <ArrowLeft size={16} className="shrink-0" />
+                    {isExpanded && <span>Voltar para o Hub</span>}
+                </button>
+            </div>
+            
+            <div className="flex-1 pb-6 pt-2 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
                 <div>
                     {isExpanded && (
                         <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">

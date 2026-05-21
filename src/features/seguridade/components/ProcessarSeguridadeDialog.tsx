@@ -79,7 +79,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                 await uploadWorkerDocument({
                     empresaId: selectedEmpresaId || item.empresa_id,
                     workerId: item.worker.id,
-                    docType: item.tipo_evento === 'alta' ? 'Comprovante_Alta' : 'Comprovante_Baixa',
+                    docType: item.tipo_evento === 'alta' ? 'doc_alta_seguridade' : 'doc_baixa_seguridade',
                     file: file
                 });
             }
@@ -142,7 +142,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                 label="Data Baixa" 
                                 value={item.worker.data_baixa ? new Date(item.worker.data_baixa).toLocaleDateString('pt-BR') : null} 
                             />
-                            <CopyableField label="Empresa" value={item.worker.empresa_nome} />
+                            <CopyableField label="Contratante" value={item.origem_contratante || item.worker.contratante} />
                             <div className="sm:col-span-2">
                                 <CopyableField label="Cliente" value={item.origem_cliente_nome} />
                             </div>
@@ -177,7 +177,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                     <SelectItem value="pendente">Pendente (Reverter)</SelectItem>
                                     <SelectItem value="confirmado">Confirmado (Concluído)</SelectItem>
                                     <SelectItem value="erro">Em Erro / Requer Atenção</SelectItem>
-                                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                                    <SelectItem value="cancelado">Encerrado / Cancelado</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

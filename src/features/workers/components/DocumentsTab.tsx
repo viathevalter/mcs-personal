@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWorkerDocuments, useUploadDocument, useDeleteDocument, useDocumentDownload } from '@/features/workers/hooks/useWorkerDocuments';
+import { updateWorker } from '@/features/workers/api/workersApi';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Loader2, UploadCloud, Download, Trash2, FileText } from 'lucide-react';
+import { Loader2, UploadCloud, Download, Trash2, FileText, Eye } from 'lucide-react';
 
 interface DocumentsTabProps {
     workerId: string;
@@ -21,10 +23,22 @@ interface DocumentsTabProps {
 }
 
 const DOC_TYPES = [
+    { value: 'foto', label: 'Foto do Trabalhador' },
+    { value: 'contrato_trabalho', label: 'Contrato de Trabalho' },
+    { value: 'contrato_alta', label: 'Contrato de Alta' },
+    { value: 'doc_alta_seguridade', label: 'Doc Alta Seguridade' },
+    { value: 'doc_baixa_seguridade', label: 'Doc Baixa Seguridade' },
+    { value: 'certificado_banco', label: 'Cert. Titularidade Banco' },
+    { value: 'autorizacao_banco', label: 'Autorização Mudança Conta Banco' },
+    { value: 'passaporte', label: 'Passaporte' },
+    { value: 'niss', label: 'NISS' },
+    { value: 'nif', label: 'NIF' },
+    { value: 'permision_conducir', label: 'Permision de Conducir' },
+    { value: 'carta_renuncia', label: 'Carta de Renuncia' },
+    { value: 'carta_laboral', label: 'Carta Laboral' },
     { value: 'prova_vida', label: 'Prova de Vida' },
-    { value: 'contrato', label: 'Contrato de Trabalho' },
     { value: 'nomina', label: 'Recibo de Vencimento (Nómina)' },
-    { value: 'identificacao', label: 'Doc. Identificação' },
+    { value: 'identificacao', label: 'Doc. Identificação Genérica' },
     { value: 'outros', label: 'Outros' }
 ];
 
@@ -39,12 +53,13 @@ function formatBytes(bytes: number | null, decimals = 2) {
 
 export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
     const { role } = useEmpresa();
+    const queryClient = useQueryClient();
     const { data: documents, isLoading, isError } = useWorkerDocuments(workerId);
     const uploadMutation = useUploadDocument();
     const deleteMutation = useDeleteDocument();
     const downloadMutation = useDocumentDownload();
 
-    const [selectedDocType, setSelectedDocType] = useState('prova_vida');
+    const [selectedDocType, setSelectedDocType] = useState('contrato_trabalho');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const safeDocs = documents || [];
@@ -66,11 +81,21 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
             docType: selectedDocType,
             file: selectedFile
         }, {
-            onSuccess: () => {
+            onSuccess: async (newDoc) => {
                 setSelectedFile(null);
                 // Reset input file
                 const fileInput = document.getElementById('file-upload') as HTMLInputElement;
                 if (fileInput) fileInput.value = '';
+                
+                if (selectedDocType === 'foto' && newDoc?.file_path) {
+                    try {
+                        await updateWorker(workerId, { foto: newDoc.file_path });
+                        queryClient.invalidateQueries({ queryKey: ['worker', workerId] });
+                    } catch (err) {
+                        console.error('Falha ao atualizar foto de perfil do trabalhador', err);
+                    }
+                }
+                
                 alert('Documento anexado com sucesso!');
             },
             onError: (err) => {
@@ -95,12 +120,20 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = fileName;
-                link.target = '_blank';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             },
             onError: (err) => alert(`Falha ao obter link de download: ${err.message}`)
+        });
+    };
+
+    const handleView = (filePath: string) => {
+        downloadMutation.mutate(filePath, {
+            onSuccess: (url) => {
+                window.open(url, '_blank');
+            },
+            onError: (err) => alert(`Falha ao abrir documento: ${err.message}`)
         });
     };
 
@@ -213,6 +246,15 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                                             <TableCell className="text-muted-foreground">{formatBytes(doc.file_size)}</TableCell>
                                             <TableCell className="text-muted-foreground">{date}</TableCell>
                                             <TableCell className="text-right space-x-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Visualizar"
+                                                    onClick={() => handleView(doc.file_path)}
+                                                    disabled={downloadMutation.isPending}
+                                                >
+                                                    <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"

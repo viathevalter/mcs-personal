@@ -9,3 +9,10 @@ entrypoint = "./functions/sync-to-sharepoint/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sync-to-sharepoint/*.html" ]
+
+[functions.process-document-ocr]
+verify_jwt = false
+
+[functions.sign-contract]
+verify_jwt = false
+

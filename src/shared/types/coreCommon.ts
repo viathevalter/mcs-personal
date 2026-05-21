@@ -8,6 +8,23 @@ export interface Empresa {
     nome: string;
     is_active: boolean;
     created_at: string;
+    trade_name?: string | null;
+    legal_name?: string | null;
+    tax_id?: string | null;
+    vat_id?: string | null;
+    address_line?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+    province?: string | null;
+    country_id?: string | null;
+    phone?: string | null;
+    mobile?: string | null;
+    email?: string | null;
+    billing_email?: string | null;
+    iban?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    bank_details?: string | null;
 }
 
 // Re-using or extending the existing UserMembership if needed, 

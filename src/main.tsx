@@ -6,10 +6,26 @@ import { router } from './app/router'
 import './index.css'
 import './i18n/config';
 
+import React from 'react';
+
+class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}> {
+  state = { hasError: false, error: null };
+  static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
+  componentDidCatch(error: any, info: any) { console.error("GLOBAL CRASH:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{color:'red'}}><h1>GLOBAL CRASH</h1><pre>{String(this.state.error)}</pre></div>;
+    }
+    return this.props.children;
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Providers>
-      <RouterProvider router={router} />
-    </Providers>
+    <GlobalErrorBoundary>
+      <Providers>
+        <RouterProvider router={router} />
+      </Providers>
+    </GlobalErrorBoundary>
   </StrictMode>,
 )

@@ -591,6 +591,7 @@ export function ClientHoursDetail() {
                 periodYear={year}
                 periodMonth={month}
                 contratante={uploadDialogState.contratante}
+                hourRecordId={uploadDialogState.hourRecordId}
                 onSuccess={() => {
                     setUploadDialogState(prev => ({ ...prev, open: false }));
                     fetchClientWorkers();

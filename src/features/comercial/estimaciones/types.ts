@@ -1,0 +1,132 @@
+import type { Client } from '@/features/master-data/clients/types';
+import type { ClientSite } from '@/features/master-data/client-sites/types';
+
+export interface Estimacion {
+  id: string;
+  empresa_id: string;
+  codigo: string;
+  client_id: string;
+  client_site_id?: string;
+  estimation_type: 'new_allocation' | 'expansion' | 'other';
+  contact_name?: string;
+  contact_email?: string;
+  expected_start_date?: string;
+  expected_end_date?: string;
+  validity_date?: string;
+  payment_terms?: string;
+  general_notes?: string;
+  status: 'draft' | 'review' | 'sent' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';
+  current_version_id?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  updated_by?: string;
+  
+  // Relations mapped by React Query / Supabase
+  client?: Client;
+  client_site?: ClientSite;
+  current_version?: EstimacionVersion;
+}
+
+export interface EstimacionVersion {
+  id: string;
+  empresa_id: string;
+  estimacion_id: string;
+  version_number: number;
+  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+  total_estimated_cost: number;
+  total_estimated_revenue: number;
+  estimated_margin_percent: number;
+  notes?: string;
+  valid_until?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  
+  // Relations mapped by React Query
+  items?: EstimacionItem[];
+  costs?: EstimacionCost[];
+}
+
+export interface EstimacionItem {
+  id: string;
+  empresa_id: string;
+  estimacion_version_id: string;
+  job_function_id: string;
+  quantity: number;
+  planned_hours_per_day: number;
+  planned_days_per_week: number;
+  total_hours: number;
+  includes_accommodation: boolean;
+  includes_transport: boolean;
+  includes_ppe: boolean;
+  base_cost_hour: number;
+  recommended_sell_rate: number;
+  minimum_sell_rate: number;
+  sell_rate_hour: number;
+  margin_percent: number;
+  risk_level?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Relations mapped by React Query
+  job_function?: {
+    id: string;
+    code: string;
+    title: string;
+  };
+}
+
+export interface EstimacionCost {
+  id: string;
+  empresa_id: string;
+  estimacion_version_id: string;
+  cost_category: string;
+  description?: string;
+  amount: number;
+  is_rechargeable: boolean;
+  markup_percent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EstimacionCompletaPayload {
+  empresa_id: string;
+  client_id: string;
+  client_site_id: string;
+  solicitud_type: string;
+  title: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  payment_terms?: string;
+  status: string;
+  total_estimated_cost: number;
+  total_estimated_revenue: number;
+  estimated_margin_percent: number;
+  items: Array<{
+    job_function_id: string;
+    quantity: number;
+    planned_hours_per_day: number;
+    planned_days_per_week: number;
+    total_hours: number;
+    includes_accommodation: boolean;
+    includes_transport: boolean;
+    includes_ppe: boolean;
+    base_cost_hour: number;
+    recommended_sell_rate: number;
+    minimum_sell_rate: number;
+    sell_rate_hour: number;
+    margin_percent: number;
+    risk_level?: string;
+    notes?: string;
+  }>;
+  costs?: Array<{
+    cost_category: string;
+    description?: string;
+    amount: number;
+    is_rechargeable: boolean;
+    markup_percent: number;
+  }>;
+}

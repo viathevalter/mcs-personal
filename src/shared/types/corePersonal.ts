@@ -79,6 +79,7 @@ export interface SeguridadeStatus {
     origem: string;
     origem_id?: string;
     origem_cliente_nome?: string;
+    origem_contratante?: string;
     data_solicitacao: string;
     data_efetiva?: string;
     observacoes?: string;
@@ -102,6 +103,7 @@ export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
         fecha_nacimiento?: string | null;
         funcion?: string | null;
         empresa_nome?: string | null;
+        contratante?: string | null;
         data_ingresso?: string | null;
         data_baixa?: string | null;
     };

@@ -99,13 +99,17 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
         }
     }
 
-    const { error: updateError } = await supabase
+    const { data: updatedWorker, error: updateError } = await supabase
         .schema('core_personal')
         .from('workers')
         .update(updateData)
-        .eq('id', workerId);
+        .eq('id', workerId)
+        .select('id');
 
     if (updateError) throw mapSupabaseError(updateError);
+    if (!updatedWorker || updatedWorker.length === 0) {
+        throw new Error("Falha ao atualizar o trabalhador. Verifique suas permissões (RLS).");
+    }
 
     // 3. Insert history record(s)
     const userId = (await supabase.auth.getUser()).data.user?.id;

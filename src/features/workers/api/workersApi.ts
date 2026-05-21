@@ -14,6 +14,8 @@ export interface ListWorkersParams {
     sortDirection?: 'asc' | 'desc';
     page: number;
     pageSize: number;
+    periodMonth?: number;
+    periodYear?: number;
 }
 
 export interface ListWorkersResponse {
@@ -21,8 +23,8 @@ export interface ListWorkersResponse {
     count: number;
 }
 
-export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize }: ListWorkersParams): Promise<ListWorkersResponse> {
-    const { data, error } = await supabase.schema('core_personal').rpc('search_workers', {
+export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize, periodMonth, periodYear }: ListWorkersParams): Promise<ListWorkersResponse> {
+    const rpcArgs: any = {
         p_empresa_id: empresaId,
         p_search: search || null,
         p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
@@ -34,7 +36,12 @@ export async function listWorkers({ empresaId, search, clienteNombre, statusTrab
         p_sort_direction: sortDirection || 'asc',
         p_page: page,
         p_page_size: pageSize
-    });
+    };
+
+    if (periodMonth != null) rpcArgs.p_period_month = periodMonth;
+    if (periodYear != null) rpcArgs.p_period_year = periodYear;
+
+    const { data, error } = await supabase.schema('core_personal').rpc('search_workers', rpcArgs);
 
     if (error) {
         throw mapSupabaseError(error);
@@ -95,7 +102,7 @@ export async function getUniqueContratantes(): Promise<string[]> {
 }
 
 export async function updateWorker(id: string, updates: Partial<Worker>): Promise<void> {
-    const { error } = await supabase
+    const { data: updatedWorker, error } = await supabase
         .schema('core_personal')
         .from('workers')
         .update({
@@ -103,6 +110,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             email: updates.email,
             movil: updates.movil,
             niss: updates.niss,
+            nif: updates.nif,
             nie: updates.nie,
             dni: updates.dni,
             pasaporte: updates.pasaporte,
@@ -116,10 +124,15 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             camiseta: updates.camiseta,
             pantalones: updates.pantalones,
         })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
     if (error) {
         throw mapSupabaseError(error);
+    }
+    
+    if (!updatedWorker || updatedWorker.length === 0) {
+        throw new Error("Falha ao atualizar o trabalhador. Verifique suas permissões (RLS).");
     }
 }
 
@@ -209,7 +222,7 @@ export async function upsertWorker(payload: Partial<Worker> & { empresa_id: stri
 }
 
 export interface WorkerAlocacao {
-    id: number;
+    id: string | number;
     codpedido: string;
     cliente_nombre: string;
     contratante: string;
@@ -217,14 +230,15 @@ export interface WorkerAlocacao {
     fechainiciopedido: string | null;
     fechafinpedido: string | null;
     fechasalidatrabajador: string | null;
+    funcion?: string | null;
     inserted_at: string;
     updated_at: string;
 }
 
 export async function getWorkerAlocacoes(workerCodColab: string): Promise<WorkerAlocacao[]> {
     const { data, error } = await supabase
-        .schema('public')
-        .from('colaborador_por_pedido')
+        .schema('core_personal')
+        .from('vw_worker_allocations')
         .select('*')
         .eq('cod_colab', workerCodColab)
         .order('inserted_at', { ascending: false });
@@ -234,4 +248,122 @@ export async function getWorkerAlocacoes(workerCodColab: string): Promise<Worker
     }
 
     return data as WorkerAlocacao[];
+}
+
+export interface AddManualAllocationParams {
+    workerCodColab: string;
+    workerName: string;
+    cliente_nombre: string;
+    contratante: string;
+    funcion: string;
+    fechainiciopedido: string;
+    codpedido?: string;
+}
+
+export async function addManualAllocation(params: AddManualAllocationParams): Promise<void> {
+    const fakeSpId = 9900000 + Math.floor(Math.random() * 100000); // 9.9M range to avoid collisions
+    
+    // First, check current worker status
+    const { data: worker, error: fetchError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('status_seguridad, status_trabajador, niss')
+        .eq('cod_colab', params.workerCodColab)
+        .single();
+        
+    if (fetchError) throw mapSupabaseError(fetchError);
+
+    // Determine if we need to trigger a Pendente Alta
+    let newStatusSeguridad = worker.status_seguridad;
+    
+    // If worker was inactive or their security is Baixa/Pendente Baixa, they need a new Alta!
+    // We only trigger this if they have a NISS. If no NISS, they go to Em Regularização typically? 
+    // Actually, safest is to put Pendente Alta so the Kanban catches it.
+    if (!worker.status_seguridad || worker.status_seguridad.toLowerCase().includes('baixa')) {
+        newStatusSeguridad = worker.niss ? 'Pendente Alta' : 'Em Regularização';
+    }
+
+    const { error: allocError } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .insert({
+            sp_id: fakeSpId,
+            cod_colab: params.workerCodColab,
+            nome_colab: params.workerName,
+            cliente_nombre: params.cliente_nombre,
+            contratante: params.contratante,
+            fechainiciopedido: params.fechainiciopedido,
+            tiposervico: 'Pedido Manual',
+            codpedido: params.codpedido || `MANUAL-${fakeSpId}`,
+            funcion: params.funcion
+        });
+
+    if (allocError) throw mapSupabaseError(allocError);
+
+    const { error: workerError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .update({
+            cliente: params.cliente_nombre,
+            contratante: params.contratante,
+            funcion: params.funcion,
+            status_trabajador: 'Ativo',
+            status_seguridad: newStatusSeguridad
+        })
+        .eq('cod_colab', params.workerCodColab);
+        
+    if (workerError) throw mapSupabaseError(workerError);
+}
+
+export interface UpdateWorkerAlocacaoParams {
+    id: number;
+    workerCodColab: string;
+    cliente_nombre?: string;
+    contratante?: string;
+    funcion?: string;
+    fechainiciopedido?: string;
+    fechafinpedido?: string | null;
+    fechasalidatrabajador?: string | null;
+    codpedido?: string;
+}
+
+export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): Promise<void> {
+    const { id, workerCodColab, ...updates } = params;
+
+    const { error: allocError } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .update(updates)
+        .eq('id', id);
+
+    if (allocError) throw mapSupabaseError(allocError);
+
+    // Optional: If this is the most recent allocation, we might want to sync some fields back to the worker record.
+    // For now, we update the worker if we are updating the allocation to keep it somewhat in sync
+    // but a proper sync might check if it's the latest. We'll update the worker if cliente, contratante or funcion is provided.
+    
+    // We fetch the latest allocation to see if this is it.
+    const { data: latestAlloc } = await supabase
+        .schema('public')
+        .from('colaborador_por_pedido')
+        .select('id')
+        .eq('cod_colab', workerCodColab)
+        .order('inserted_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (latestAlloc?.id === id) {
+        const workerUpdates: any = {};
+        if (updates.cliente_nombre) workerUpdates.cliente = updates.cliente_nombre;
+        if (updates.contratante) workerUpdates.contratante = updates.contratante;
+        if (updates.funcion) workerUpdates.funcion = updates.funcion;
+        
+        if (Object.keys(workerUpdates).length > 0) {
+            await supabase
+                .schema('core_personal')
+                .from('workers')
+                .update(workerUpdates)
+                .eq('cod_colab', workerCodColab);
+        }
+    }
 }

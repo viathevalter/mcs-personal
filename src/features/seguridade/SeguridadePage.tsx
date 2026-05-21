@@ -82,7 +82,7 @@ export function SeguridadePage() {
 
     const pendentes = filteredStatuses.filter(s => s.status === 'pendente');
     const confirmados = filteredStatuses.filter(s => s.status === 'confirmado');
-    const erros = filteredStatuses.filter(s => s.status === 'erro' || s.status === 'cancelado');
+    const erros = filteredStatuses.filter(s => s.status === 'erro');
 
     return (
         <div className="space-y-6">
@@ -249,7 +249,7 @@ export function SeguridadePage() {
                         </div>
                     </div>
 
-                    {/* Board Column: Em Erro / Cancelado */}
+                    {/* Board Column: Em Erro (Atenção Requerida) */}
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between border-b pb-2">
                             <h2 className="font-semibold text-lg flex items-center gap-2">
