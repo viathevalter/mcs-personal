@@ -1,381 +1,770 @@
 {
-    "navigation": {
-        "dashboard": "Dashboard",
-        "workers": "Trabalhadores",
-        "socialSecurity": "Seguridade Social",
-        "benefits": "Benefícios",
-        "holerites": "Gestão de Folhas",
-        "bankAccounts": "Gestão de Contas Bancárias e Iban",
-        "ledger": "Ledger / Caixas",
-        "settlements": "Settlements",
-        "documents": "Documentos",
-        "mainMenu": "Menu Principal",
-        "expand": "Expandir menu",
-        "collapse": "Recolher menu"
+  "navigation": {
+    "dashboard": "Dashboard",
+    "workers": "Trabalhadores",
+    "socialSecurity": "Seguridade Social",
+    "benefits": "Benefícios",
+    "holerites": "Gestão de Folhas",
+    "bankAccounts": "Gestão de Contas Bancárias e Iban",
+    "ledger": "Ledger / Caixas",
+    "settlements": "Settlements",
+    "documents": "Documentos",
+    "mainMenu": "Menu Principal",
+    "expand": "Expandir menu",
+    "collapse": "Recolher menu"
+  },
+  "topbar": {
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Sistema",
+    "language": "Idioma",
+    "profile": "Meu Perfil",
+    "logout": "Sair"
+  },
+  "common": {
+    "loading": "Carregando...",
+    "filters_global": "Filtros Globais",
+    "period": "Período",
+    "company": "Empresa",
+    "all_companies": "Todas as Empresas",
+    "not_assigned": "Não atribuído",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "search": "Buscar...",
+    "next": "Próximo",
+    "previous": "Anterior",
+    "show": "Exibir:",
+    "actions": "Ações",
+    "error": "Ocorreu um erro",
+    "success": "Operação realizada com sucesso"
+  },
+  "workerPortal": {
+    "login": {
+      "title": "Portal do Trabalhador",
+      "subtitle": "Acesso exclusivo para envio de folhas de horas",
+      "cardTitle": "Acessar sua conta",
+      "cardDesc": "Informe seu Nome Completo e o número do seu Passaporte para entrar.",
+      "nameLabel": "Nome Completo",
+      "namePlaceholder": "Ex: João da Silva",
+      "passportLabel": "Número do Passaporte",
+      "passportPlaceholder": "Digite o número exato",
+      "btnEntering": "Entrando...",
+      "btnEnter": "Entrar no Portal",
+      "error": {
+        "emptyFields": "Preencha o Nome e o Número do Passaporte",
+        "invalidCredentials": "Credenciais inválidas. Verifique seu nome e passaporte.",
+        "generic": "Ocorreu um erro ao tentar fazer login."
+      },
+      "success": "Bem-vindo, {{name}}!"
     },
-    "topbar": {
-        "themeLight": "Claro",
-        "themeDark": "Escuro",
-        "themeSystem": "Sistema",
-        "language": "Idioma",
-        "profile": "Meu Perfil",
-        "logout": "Sair"
+    "layout": {
+      "title": "Portal do Trabalhador",
+      "logout": {
+        "toast": "Sessão encerrada",
+        "btn": "Sair"
+      }
     },
-    "common": {
-        "loading": "Carregando...",
-        "search": "Buscar...",
-        "next": "Próximo",
-        "previous": "Anterior",
-        "show": "Exibir:",
-        "actions": "Ações",
-        "save": "Salvar",
-        "cancel": "Cancelar",
-        "error": "Ocorreu um erro",
-        "success": "Operação realizada com sucesso"
+    "dashboard": {
+      "title": "Suas Folhas de Horas",
+      "subtitle": "Visualize e envie suas folhas de horas assinadas referentes aos meses trabalhados.",
+      "clientLabel": "Cliente: ",
+      "btnUpload": "Enviar Arquivo",
+      "errorFetching": "Erro ao buscar pendências",
+      "statusInfo": {
+        "pending": "Você precisa enviar a folha de horas assinada deste mês.",
+        "sent": "Arquivo enviado. Aguardando validação do escritório.",
+        "validated": "Folha de horas validada. Tudo certo!"
+      },
+      "badge": {
+        "pending": "Pendente",
+        "sent": "Enviado",
+        "validated": "Validado"
+      },
+      "empty": {
+        "title": "Tudo em dia!",
+        "desc": "Você não possui meses pendentes de envio."
+      }
     },
-    "workerPortal": {
-        "login": {
-            "title": "Portal do Trabalhador",
-            "subtitle": "Acesso exclusivo para envio de folhas de horas",
-            "cardTitle": "Acessar sua conta",
-            "cardDesc": "Informe seu Nome Completo e o número do seu Passaporte para entrar.",
-            "nameLabel": "Nome Completo",
-            "namePlaceholder": "Ex: João da Silva",
-            "passportLabel": "Número do Passaporte",
-            "passportPlaceholder": "Digite o número exato",
-            "btnEntering": "Entrando...",
-            "btnEnter": "Entrar no Portal",
-            "error": {
-                "emptyFields": "Preencha o Nome e o Número do Passaporte",
-                "invalidCredentials": "Credenciais inválidas. Verifique seu nome e passaporte.",
-                "generic": "Ocorreu um erro ao tentar fazer login."
-            },
-            "success": "Bem-vindo, {{name}}!"
-        },
-        "layout": {
-            "title": "Portal do Trabalhador",
-            "logout": {
-                "toast": "Sessão encerrada",
-                "btn": "Sair"
-            }
-        },
-        "dashboard": {
-            "title": "Suas Folhas de Horas",
-            "subtitle": "Visualize e envie suas folhas de horas assinadas referentes aos meses trabalhados.",
-            "clientLabel": "Cliente: ",
-            "btnUpload": "Enviar Arquivo",
-            "errorFetching": "Erro ao buscar pendências",
-            "statusInfo": {
-                "pending": "Você precisa enviar a folha de horas assinada deste mês.",
-                "sent": "Arquivo enviado. Aguardando validação do escritório.",
-                "validated": "Folha de horas validada. Tudo certo!"
-            },
-            "badge": {
-                "pending": "Pendente",
-                "sent": "Enviado",
-                "validated": "Validado"
-            },
-            "empty": {
-                "title": "Tudo em dia!",
-                "desc": "Você não possui meses pendentes de envio."
-            }
-        },
-        "upload": {
-            "title": "Enviar Folha de Horas",
-            "monthRef": "Mês de Referência:",
-            "fileLabel": "Selecione o PDF ou Foto da sua folha de horas assinada",
-            "btnCancel": "Cancelar",
-            "btnConfirm": "Confirmar Envio",
-            "success": "Folha enviada com sucesso!",
-            "error": {
-                "noFile": "Por favor, selecione um arquivo primeiro.",
-                "uploadFailed": "Falha ao enviar arquivo",
-                "updateFailed": "Falha ao atualizar status",
-                "unexpected": "Erro inesperado ao enviar arquivo"
-            }
-        }
-    },
-    "workerDetails": {
-        "backToList": "Voltar para lista",
-        "back": "Voltar",
-        "newWorker": {
-            "title": "Novo Trabalhador",
-            "desc": "A funcionalidade de criação de trabalhadores está em desenvolvimento."
-        },
-        "loading": "Carregando perfil do trabalhador...",
-        "error": {
-            "title": "Erro ao carregar o trabalhador",
-            "notFound": "Trabalhador não encontrado."
-        },
-        "code": "Cód:",
-        "legalStatus": "Status Legal",
-        "tabs": {
-            "overview": "Visão Geral",
-            "vidaLaboral": "Vida Laboral",
-            "allocations": "Alocações",
-            "benefits": "Benefícios",
-            "ledger": "Holerites e Lançamentos",
-            "bankAccounts": "Contas Bancárias (IBAN)",
-            "documents": "Documentos"
-        }
-    },
-    "editWorker": {
-        "btnTooltip": "Editar informações básicas",
-        "btnLabel": "Editar Perfil",
-        "title": "Editar Trabalhador",
-        "desc": "Preencha os dados abaixo para modificar as informações básicas do funcionário.",
-        "fields": {
-            "name": "Nome Completo *",
-            "workerStatus": "Status Trabalhador",
-            "securityStatus": "Status Seguridade",
-            "mobile": "Telemóvel",
-            "email": "Email",
-            "nationality": "Nacionalidade",
-            "birthDate": "Data de Nascimento",
-            "docsPt": "Documentos Portugal",
-            "docsEs": "Documentos Espanha",
-            "passport": "Passaporte",
-            "driversLicense": "Licença de Conduzir"
-        },
-        "placeholders": {
-            "name": "Nome do trabalhador",
-            "select": "Selecione...",
-            "mobile": "+351 900 000 000",
-            "email": "email@exemplo.com",
-            "nationality": "Nacionalidade",
-            "birthDate": "DD/MM/AAAA",
-            "niss": "Nº NISS",
-            "nif": "Nº NIF",
-            "dni": "Nº DNI",
-            "nie": "Nº NIE",
-            "nuss": "Nº NUSS",
-            "passport": "Nº Passaporte",
-            "selectOption": "Selecione"
-        },
-        "status": {
-            "active": "Ativo",
-            "inactive": "Inativo",
-            "pendingEntry": "Pendente Ingresso"
-        },
-        "security": {
-            "alta": "Alta",
-            "pendingAlta": "Pendente Alta",
-            "baixa": "Baixa",
-            "pendingBaixa": "Pendente Baixa"
-        },
-        "options": {
-            "yes": "Sim",
-            "no": "Não"
-        },
-        "btnCancel": "Cancelar",
-        "btnSave": "Salvar",
-        "btnSaving": "Salvando...",
-        "messages": {
-            "success": "Trabalhador atualizado com sucesso!",
-            "error": "Erro ao atualizar trabalhador."
-        }
-    },
-    "hoursControl": {
-        "title": "Controle de Horas",
-        "subtitle": "Gestão de folhas de pagamento dos trabalhadores",
-        "month": "Mês Referência",
-        "year": "Ano",
-        "filterCompany": "Filtrar por empresa...",
-        "noCompany": "Nenhuma empresa",
-        "filterClient": "Filtrar por cliente...",
-        "filterStatus": "Status Trabalhador",
-        "statusAll": "Todos os Status",
-        "statusActive": "Com Ativos",
-        "statusInactive": "Com Inativos",
-        "kpis": {
-            "active": "Ativos no Mês",
-            "pending": "Faltam Enviar",
-            "toValidate": "Para Validar",
-            "validated": "Validadas"
-        },
-        "table": {
-            "client": "Cliente",
-            "activeWorkers": "Trabalhadores Ativos",
-            "pending": "Horas Pendentes",
-            "submitted": "Enviadas (A Validar)",
-            "validated": "Validadas",
-            "status": "Status Geral"
-        },
-        "empty": {
-            "selectCompany": "Selecione uma empresa para visualizar os dados.",
-            "loading": "Carregando dados...",
-            "error": "Falha ao carregar os dados.",
-            "noClients": "Nenhum cliente com trabalhadores ativos encontrado."
-        },
-        "badges": {
-            "missing": "faltam",
-            "toValidate": "p/ validar",
-            "ready": "prontas"
-        },
-        "status": {
-            "collecting": "Coletando",
-            "review": "Revisar",
-            "completed": "Completo"
-        },
-        "exportPending": {
-            "btn": "Exportar Faltantes",
-            "title": "Exportar Faltam Enviar (Excel)",
-            "desc": "Selecione as colunas para a planilha de cobrança.\nA exportação trará apenas os trabalhadores que ainda NÃO enviaram a folha neste mês, de acordo com os filtros de contratante e cliente.",
-            "fields": "Campos para exportar",
-            "selectAll": "Marcar todos",
-            "deselectAll": "Desmarcar todos",
-            "cancel": "Cancelar",
-            "exporting": "Processando Arquivo...",
-            "exportBtn": "Baixar Planilha",
-            "noWorkers": "Nenhum trabalhador pendente encontrado com os filtros atuais.",
-            "error": "Erro ao exportar planilha. Tente novamente."
-        }
-    },
-    "clientHoursDetail": {
-        "activeWorkers": "Trabalhadores ativos no período",
-        "btnSyncSharePoint": "Sincronizar com SharePoint",
-        "table": {
-            "worker": "Trabalhador",
-            "passport": "Passaporte",
-            "phone": "Telefone",
-            "status": "Status",
-            "file": "Arquivo",
-            "actions": "Ações"
-        },
-        "emptyWorkers": "Nenhum trabalhador encontrado para este cliente.",
-        "copied": {
-            "name": "Nome copiado!",
-            "passport": "Passaporte copiado!",
-            "phone": "Telefone copiado!",
-            "openWhatsApp": "Abrir WhatsApp"
-        },
-        "notInformed": "Não informado",
-        "copyData": "Nome: {{name}}\nPassaporte: {{passport}}\nTelefone: {{phone}}",
-        "badges": {
-            "pending": "Pendente",
-            "submitted": "Enviado",
-            "validated": "Validado"
-        },
-        "tooltips": {
-            "copyName": "Copiar Nome",
-            "copyPassport": "Copiar Passaporte",
-            "copyPhoneWhatsApp": "Copiar dados do trabalhador e abrir WhatsApp",
-            "sendSheet": "Enviar folha pelo trabalhador",
-            "syncSuccess": "Já Sincronizado com SharePoint",
-            "syncing": "Sincronizando...",
-            "syncFailed": "Erro na sincronização: {{error}}",
-            "syncStart": "Sincronizar com SharePoint",
-            "validate": "Validar Arquivo",
-            "reject": "Excluir Arquivo / Rejeitar"
-        },
-        "messages": {
-            "loadError": "Erro ao carregar os dados dos trabalhadores.",
-            "generatingLink": "Gerando link seguro...",
-            "fileOpened": "Arquivo aberto!",
-            "openError": "Erro ao abrir o arquivo.",
-            "notAvailable": "Arquivo não disponível para download.",
-            "generatingDl": "Gerando link seguro para download...",
-            "dlStarted": "Download iniciado!",
-            "dlError": "Erro ao baixar o arquivo.",
-            "validated": "Folha validada com sucesso!",
-            "validateError": "Erro ao validar a folha.",
-            "confirmReject": "Tem certeza que deseja REJEITAR esta folha? O arquivo será apagado e o trabalhador precisará enviar novamente.",
-            "rejected": "Folha rejeitada. O trabalhador foi liberado para reenviar.",
-            "rejectError": "Erro ao rejeitar a folha.",
-            "syncStarted": "Iniciando sincronização com Microsoft SharePoint...",
-            "syncSuccess": "Arquivo sincronizado com SharePoint!",
-            "syncUnknownError": "Erro desconhecido na sincronização com SharePoint.",
-            "syncError": "Erro ao sincronizar com SharePoint: {{error}}",
-            "massSyncNotImpl": "Sincronização em massa não implementada ainda."
-        }
-    },
-    "workersPage": {
-        "title": "Trabalhadores",
-        "subtitle": "Gestão de recursos humanos",
-        "filters": {
-            "toggle": "Alternar filtro de busca",
-            "worker": "Trabalhador",
-            "client": "Cliente",
-            "searchWorker": "Buscar trabalhador...",
-            "searchClient": "Buscar cliente...",
-            "statusTrab": "Status Trab...",
-            "security": "Seguridade...",
-            "company": "Empresa",
-            "noCompany": "Nenhuma empresa",
-            "profile": "Perfil",
-            "noProfile": "Nenhum perfil",
-            "statusTrabOptions": {
-                "ativos": "Ativos",
-                "inativos": "Inativos",
-                "pendentes_ingresso": "Pendentes Ingresso"
-            },
-            "securityOptions": {
-                "alta": "Alta",
-                "pendentes_alta": "Pendentes Alta",
-                "baixa": "Baixa",
-                "pendentes_baixa": "Pendentes Baixa",
-                "em_regularizacao": "Em Regularização"
-            }
-        },
-        "statusValues": {
-            "trabajador": {
-                "ativo": "Ativo",
-                "activo": "Ativo",
-                "inativo": "Inativo",
-                "inactivo": "Inativo",
-                "pendente_ingresso": "Pendente Ingresso",
-                "pendiente_ingreso": "Pendente Ingresso",
-                "pendiente_ingresar": "Pendente Ingresso"
-            },
-            "seguridad": {
-                "alta": "Alta",
-                "pendente_alta": "Pendente Alta",
-                "pendiente_alta": "Pendente Alta",
-                "baixa": "Baixa",
-                "baja": "Baixa",
-                "pendente_baixa": "Pendente Baixa",
-                "pendiente_baja": "Pendente Baixa",
-                "em_regularizacao": "Em Regularização",
-                "em_regularização": "Em Regularização",
-                "em_regularizacion": "Em Regularização",
-                "en_regularizacion": "Em Regularização"
-            }
-        },
-        "kpi": {
-            "errorTitle": "Erro ao carregar os KPIs",
-            "errorMsg": "Falha ao processar os indicadores.",
-            "errorAction": "Por favor, verifique se o script 'update_kpi_rpc.sql' foi executado corretamente no banco de dados.",
-            "statusTitle": "Status do Trabalhador",
-            "active": "ATIVOS",
-            "inactive": "INATIVOS",
-            "pendingEntry": "PENDENTES INGRESSO",
-            "securityTitle": "Seguridade Social",
-            "alta": "Alta",
-            "pendingAlta": "Pendente Alta",
-            "baixa": "Baixa",
-            "pendingBaixa": "Pendente Baixa"
-        },
-        "table": {
-            "cod": "Cód. Colab",
-            "name": "Nome",
-            "contractor": "Contratante",
-            "role": "Função",
-            "client": "Cliente",
-            "statusTrab": "Status Trab.",
-            "security": "Seguridade"
-        },
-        "messages": {
-            "selectCompany": "Selecione uma empresa para carregar os trabalhadores.",
-            "loading": "Carregando trabalhadores...",
-            "loadError": "Falha ao carregar os dados. {{error}}",
-            "noWorkers": "Nenhum trabalhador encontrado."
-        },
-        "pagination": {
-            "showing": "Mostrando {{start}} até {{end}} de",
-            "results": "resultados",
-            "show": "Exibir:",
-            "prev": "Anterior",
-            "next": "Próximo"
-        }
+    "upload": {
+      "title": "Enviar Folha de Horas",
+      "monthRef": "Mês de Referência:",
+      "fileLabel": "Selecione o PDF ou Foto da sua folha de horas assinada",
+      "btnCancel": "Cancelar",
+      "btnConfirm": "Confirmar Envio",
+      "success": "Folha enviada com sucesso!",
+      "error": {
+        "noFile": "Por favor, selecione um arquivo primeiro.",
+        "uploadFailed": "Falha ao enviar arquivo",
+        "updateFailed": "Falha ao atualizar status",
+        "unexpected": "Erro inesperado ao enviar arquivo"
+      }
     }
+  },
+  "workerDetails": {
+    "backToList": "Voltar para lista",
+    "back": "Voltar",
+    "newWorker": {
+      "title": "Novo Trabalhador",
+      "desc": "A funcionalidade de criação de trabalhadores está em desenvolvimento."
+    },
+    "loading": "Carregando perfil do trabalhador...",
+    "error": {
+      "title": "Erro ao carregar o trabalhador",
+      "notFound": "Trabalhador não encontrado."
+    },
+    "code": "Cód:",
+    "legalStatus": "Status Legal",
+    "tabs": {
+      "overview": "Visão Geral",
+      "vidaLaboral": "Vida Laboral",
+      "allocations": "Alocações",
+      "benefits": "Benefícios",
+      "ledger": "Holerites e Lançamentos",
+      "bankAccounts": "Contas Bancárias (IBAN)",
+      "documents": "Documentos"
+    }
+  },
+  "editWorker": {
+    "btnTooltip": "Editar informações básicas",
+    "btnLabel": "Editar Perfil",
+    "title": "Editar Trabalhador",
+    "desc": "Preencha os dados abaixo para modificar as informações básicas do funcionário.",
+    "fields": {
+      "name": "Nome Completo *",
+      "workerStatus": "Status Trabalhador",
+      "securityStatus": "Status Seguridade",
+      "mobile": "Telemóvel",
+      "email": "Email",
+      "nationality": "Nacionalidade",
+      "birthDate": "Data de Nascimento",
+      "docsPt": "Documentos Portugal",
+      "docsEs": "Documentos Espanha",
+      "passport": "Passaporte",
+      "driversLicense": "Licença de Conduzir"
+    },
+    "placeholders": {
+      "name": "Nome do trabalhador",
+      "select": "Selecione...",
+      "mobile": "+351 900 000 000",
+      "email": "email@exemplo.com",
+      "nationality": "Nacionalidade",
+      "birthDate": "DD/MM/AAAA",
+      "niss": "Nº NISS",
+      "nif": "Nº NIF",
+      "dni": "Nº DNI",
+      "nie": "Nº NIE",
+      "nuss": "Nº NUSS",
+      "passport": "Nº Passaporte",
+      "selectOption": "Selecione"
+    },
+    "status": {
+      "active": "Ativo",
+      "inactive": "Inativo",
+      "pendingEntry": "Pendente Ingresso"
+    },
+    "security": {
+      "alta": "Alta",
+      "pendingAlta": "Pendente Alta",
+      "baixa": "Baixa",
+      "pendingBaixa": "Pendente Baixa"
+    },
+    "options": {
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "btnCancel": "Cancelar",
+    "btnSave": "Salvar",
+    "btnSaving": "Salvando...",
+    "messages": {
+      "success": "Trabalhador atualizado com sucesso!",
+      "error": "Erro ao atualizar trabalhador."
+    }
+  },
+  "hoursControl": {
+    "title": "Controle de Horas",
+    "subtitle": "Gestão de folhas de pagamento dos trabalhadores",
+    "month": "Mês Referência",
+    "year": "Ano",
+    "filterCompany": "Filtrar por empresa...",
+    "noCompany": "Nenhuma empresa",
+    "filterClient": "Filtrar por cliente...",
+    "filterStatus": "Status Trabalhador",
+    "statusAll": "Todos os Status",
+    "statusActive": "Com Ativos",
+    "statusInactive": "Com Inativos",
+    "kpis": {
+      "active": "Ativos no Mês",
+      "pending": "Faltam Enviar",
+      "toValidate": "Para Validar",
+      "validated": "Validadas"
+    },
+    "table": {
+      "client": "Cliente",
+      "activeWorkers": "Trabalhadores Ativos",
+      "pending": "Horas Pendentes",
+      "submitted": "Enviadas (A Validar)",
+      "validated": "Validadas",
+      "status": "Status Geral"
+    },
+    "empty": {
+      "selectCompany": "Selecione uma empresa para visualizar os dados.",
+      "loading": "Carregando dados...",
+      "error": "Falha ao carregar os dados.",
+      "noClients": "Nenhum cliente com trabalhadores ativos encontrado."
+    },
+    "badges": {
+      "missing": "faltam",
+      "toValidate": "p/ validar",
+      "ready": "prontas"
+    },
+    "status": {
+      "collecting": "Coletando",
+      "review": "Revisar",
+      "completed": "Completo"
+    },
+    "exportPending": {
+      "btn": "Exportar Faltantes",
+      "title": "Exportar Faltam Enviar (Excel)",
+      "desc": "Selecione as colunas para a planilha de cobrança.\nA exportação trará apenas os trabalhadores que ainda NÃO enviaram a folha neste mês, de acordo com os filtros de contratante e cliente.",
+      "fields": "Campos para exportar",
+      "selectAll": "Marcar todos",
+      "deselectAll": "Desmarcar todos",
+      "cancel": "Cancelar",
+      "exporting": "Processando Arquivo...",
+      "exportBtn": "Baixar Planilha",
+      "noWorkers": "Nenhum trabalhador pendente encontrado com os filtros atuais.",
+      "error": "Erro ao exportar planilha. Tente novamente."
+    }
+  },
+  "clientHoursDetail": {
+    "activeWorkers": "Trabalhadores ativos no período",
+    "btnSyncSharePoint": "Sincronizar com SharePoint",
+    "table": {
+      "worker": "Trabalhador",
+      "passport": "Passaporte",
+      "phone": "Telefone",
+      "status": "Status",
+      "file": "Arquivo",
+      "actions": "Ações"
+    },
+    "emptyWorkers": "Nenhum trabalhador encontrado para este cliente.",
+    "copied": {
+      "name": "Nome copiado!",
+      "passport": "Passaporte copiado!",
+      "phone": "Telefone copiado!",
+      "openWhatsApp": "Abrir WhatsApp"
+    },
+    "notInformed": "Não informado",
+    "copyData": "Nome: {{name}}\nPassaporte: {{passport}}\nTelefone: {{phone}}",
+    "badges": {
+      "pending": "Pendente",
+      "submitted": "Enviado",
+      "validated": "Validado"
+    },
+    "tooltips": {
+      "copyName": "Copiar Nome",
+      "copyPassport": "Copiar Passaporte",
+      "copyPhoneWhatsApp": "Copiar dados do trabalhador e abrir WhatsApp",
+      "sendSheet": "Enviar folha pelo trabalhador",
+      "syncSuccess": "Já Sincronizado com SharePoint",
+      "syncing": "Sincronizando...",
+      "syncFailed": "Erro na sincronização: {{error}}",
+      "syncStart": "Sincronizar com SharePoint",
+      "validate": "Validar Arquivo",
+      "reject": "Excluir Arquivo / Rejeitar"
+    },
+    "messages": {
+      "loadError": "Erro ao carregar os dados dos trabalhadores.",
+      "generatingLink": "Gerando link seguro...",
+      "fileOpened": "Arquivo aberto!",
+      "openError": "Erro ao abrir o arquivo.",
+      "notAvailable": "Arquivo não disponível para download.",
+      "generatingDl": "Gerando link seguro para download...",
+      "dlStarted": "Download iniciado!",
+      "dlError": "Erro ao baixar o arquivo.",
+      "validated": "Folha validada com sucesso!",
+      "validateError": "Erro ao validar a folha.",
+      "confirmReject": "Tem certeza que deseja REJEITAR esta folha? O arquivo será apagado e o trabalhador precisará enviar novamente.",
+      "rejected": "Folha rejeitada. O trabalhador foi liberado para reenviar.",
+      "rejectError": "Erro ao rejeitar a folha.",
+      "syncStarted": "Iniciando sincronização com Microsoft SharePoint...",
+      "syncSuccess": "Arquivo sincronizado com SharePoint!",
+      "syncUnknownError": "Erro desconhecido na sincronização com SharePoint.",
+      "syncError": "Erro ao sincronizar com SharePoint: {{error}}",
+      "massSyncNotImpl": "Sincronização em massa não implementada ainda."
+    }
+  },
+  "workersPage": {
+    "title": "Trabalhadores",
+    "subtitle": "Gestão de recursos humanos",
+    "filters": {
+      "toggle": "Alternar filtro de busca",
+      "worker": "Trabalhador",
+      "client": "Cliente",
+      "searchWorker": "Buscar trabalhador...",
+      "searchClient": "Buscar cliente...",
+      "statusTrab": "Status Trab...",
+      "security": "Seguridade...",
+      "company": "Empresa",
+      "noCompany": "Nenhuma empresa",
+      "profile": "Perfil",
+      "noProfile": "Nenhum perfil",
+      "statusTrabOptions": {
+        "ativos": "Ativos",
+        "inativos": "Inativos",
+        "pendentes_ingresso": "Pendentes Ingresso"
+      },
+      "securityOptions": {
+        "alta": "Alta",
+        "pendentes_alta": "Pendentes Alta",
+        "baixa": "Baixa",
+        "pendentes_baixa": "Pendentes Baixa",
+        "em_regularizacao": "Em Regularização"
+      }
+    },
+    "statusValues": {
+      "trabajador": {
+        "ativo": "Ativo",
+        "activo": "Ativo",
+        "inativo": "Inativo",
+        "inactivo": "Inativo",
+        "pendente_ingresso": "Pendente Ingresso",
+        "pendiente_ingreso": "Pendente Ingresso",
+        "pendiente_ingresar": "Pendente Ingresso"
+      },
+      "seguridad": {
+        "alta": "Alta",
+        "pendente_alta": "Pendente Alta",
+        "pendiente_alta": "Pendente Alta",
+        "baixa": "Baixa",
+        "baja": "Baixa",
+        "pendente_baixa": "Pendente Baixa",
+        "pendiente_baja": "Pendente Baixa",
+        "em_regularizacao": "Em Regularização",
+        "em_regularização": "Em Regularização",
+        "em_regularizacion": "Em Regularização",
+        "en_regularizacion": "Em Regularização"
+      }
+    },
+    "kpi": {
+      "errorTitle": "Erro ao carregar os KPIs",
+      "errorMsg": "Falha ao processar os indicadores.",
+      "errorAction": "Por favor, verifique se o script 'update_kpi_rpc.sql' foi executado corretamente no banco de dados.",
+      "statusTitle": "Status do Trabalhador",
+      "active": "ATIVOS",
+      "inactive": "INATIVOS",
+      "pendingEntry": "PENDENTES INGRESSO",
+      "securityTitle": "Seguridade Social",
+      "alta": "Alta",
+      "pendingAlta": "Pendente Alta",
+      "baixa": "Baixa",
+      "pendingBaixa": "Pendente Baixa"
+    },
+    "table": {
+      "cod": "Cód. Colab",
+      "name": "Nome",
+      "contractor": "Contratante",
+      "role": "Função",
+      "client": "Cliente",
+      "statusTrab": "Status Trab.",
+      "security": "Seguridade"
+    },
+    "messages": {
+      "selectCompany": "Selecione uma empresa para carregar os trabalhadores.",
+      "loading": "Carregando trabalhadores...",
+      "loadError": "Falha ao carregar os dados. {{error}}",
+      "noWorkers": "Nenhum trabalhador encontrado."
+    },
+    "pagination": {
+      "showing": "Mostrando {{start}} até {{end}} de",
+      "results": "resultados",
+      "show": "Exibir:",
+      "prev": "Anterior",
+      "next": "Próximo"
+    }
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "estimaciones": "Estimativas",
+    "pedidos": "Pedidos",
+    "operacao": "Operação",
+    "minhas_tarefas": "Minhas Tarefas",
+    "incidencias": "Incidências",
+    "admin": "Administração",
+    "playbooks": "Playbooks",
+    "tarefas_modelo": "Modelos de Tarefas",
+    "departamentos": "Departamentos",
+    "funcionarios": "Funcionários",
+    "clientes": "Clientes",
+    "comissoes": "Gestão de Comissões",
+    "importar_dados": "Importar Dados",
+    "usuarios": "Usuários (Login)",
+    "sair": "Sair",
+    "main_menu": "Menu Principal",
+    "daily_mgmt": "Gestão Diária",
+    "version": "v2.5.0 (Operações)",
+    "app_name": "MCS Operações",
+    "app_subtitle": "Mastercorp Suite"
+  },
+  "dashboard": {
+    "title": "Dashboard Diretoria",
+    "subtitle": "Visão Consolidada",
+    "kpi": {
+      "pedidos": "Pedidos",
+      "estimaciones": "Orçamentos",
+      "firmados": "Fechados",
+      "conv_pedido": "Conv. Pedido",
+      "fill_rate": "Taxa de Atend."
+    },
+    "charts": {
+      "performance": "Performance Mensal (Stack)",
+      "profile_mix": "Mix de Perfis (Demanda vs Oferta)",
+      "top_companies": "Top Empresas",
+      "top_sales": "Top Comerciais",
+      "top_clients": "Top Clientes"
+    },
+    "table": {
+      "profile": "Perfil",
+      "demand": "Demanda",
+      "supply": "Oferta",
+      "gap": "Gap"
+    }
+  },
+  "incidencias": {
+    "title": "Central de Incidências",
+    "tabs": {
+      "resumo": "Resumo Gerencial",
+      "lista": "Lista de Incidências",
+      "fila": "Fila de Tarefas"
+    },
+    "btn_new": "Nova Incidência",
+    "btn_quick_task": "Nova Tarefa",
+    "btn_new_process": "Iniciar Processo",
+    "filters": {
+      "search_placeholder": "Buscar ID, título...",
+      "status_all": "Status: Todos",
+      "impact_all": "Impacto: Todos"
+    },
+    "table": {
+      "id": "ID",
+      "status": "Status",
+      "titulo": "Título / Cliente",
+      "criado_por": "Criado Por",
+      "dept_impacto": "Dept. Impacto",
+      "progresso": "Progresso",
+      "tempo_restante": "Tempo Restante"
+    },
+    "status": {
+      "Aberto": "Aberto",
+      "Em Andamento": "Em Andamento",
+      "Resolvido": "Resolvido",
+      "Fechado": "Fechado"
+    },
+    "impacto": {
+      "Baixo": "Baixo",
+      "Médio": "Médio",
+      "Alto": "Alto",
+      "Crítico": "Crítico"
+    },
+    "detail": {
+      "back": "Voltar para Lista",
+      "open": "Abertura",
+      "closed": "Fechado",
+      "origin": "Origem",
+      "client": "Cliente",
+      "responsible": "Responsável",
+      "checklist": "Checklist & Tarefas",
+      "add_task": "Adicionar",
+      "timeline": "Timeline & Log",
+      "no_tasks": "Nenhuma tarefa pendente.",
+      "no_logs": "Nenhum registro ainda.",
+      "comment_placeholder": "Adicionar comentário ou atualização...",
+      "save_task": "Salvar Tarefa",
+      "not_found": "Incidência não encontrada.",
+      "task_title": "Título da Tarefa",
+      "deadline": "Prazo Limite",
+      "assign_to": "Atribuir a (Opcional)",
+      "unassigned": "Não atribuir (Fica livre)"
+    },
+    "modal_nova_tarefa": {
+      "title_process": "Iniciar Novo Processo",
+      "title_quick": "Nova Tarefa Rápida",
+      "desc_quick": "Cria uma ação imediata no quadro de tarefas, sem a complexidade de um processo completo.",
+      "context_label": "CONTEXTO (VINCULAR A...)",
+      "context_general": "Geral (Sem vínculo)",
+      "context_client": "Cliente (Projetos, CS)",
+      "context_worker": "Colaborador (RH, DP)",
+      "context_order": "Pedido (Dpto. Técnico)",
+      "what_needs_to_be_done": "O que precisa ser feito?",
+      "what_needs_to_be_done_placeholder": "Ex: Ligar para Cliente X...",
+      "department": "Departamento",
+      "priority": "Prioridade",
+      "scheduled_for": "Agendado Para",
+      "sla_deadline": "Prazo (SLA)",
+      "additional_details": "Detalhes Adicionais (Opcional)",
+      "additional_details_placeholder": "Instruções...",
+      "btn_cancel": "Cancelar",
+      "btn_create": "Criar Incidência",
+      "search_client": "Buscar Cliente",
+      "search_client_placeholder": "Nome do cliente...",
+      "search_worker": "Buscar Colaborador",
+      "search_worker_placeholder": "Nome...",
+      "search_order": "Buscar Pedido",
+      "search_order_placeholder": "Código...",
+      "time_hours": "Horas",
+      "time_days": "Dias"
+    },
+    "messages": {
+      "log_success": "Log registrado com sucesso",
+      "log_error": "Erro ao registrar log",
+      "task_status_updated": "Status da tarefa atualizado: {{status}}",
+      "task_status_error": "Erro ao atualizar status da tarefa",
+      "update_success": "Incidência atualizada com sucesso",
+      "update_error": "Erro ao atualizar incidência",
+      "task_assigned_success": "Tarefa atribuída a você",
+      "task_assigned_error": "Erro ao atribuir tarefa",
+      "task_update_success": "Tarefa atualizada com sucesso",
+      "task_create_success": "Tarefa criada com sucesso",
+      "task_save_error": "Erro ao salvar tarefa",
+      "task_delete_success": "Tarefa excluída",
+      "task_delete_error": "Erro ao excluir tarefa"
+    },
+    "logs": {
+      "auto_status_change": "Status alterado automaticamente para '{{status}}'",
+      "manual_edit": "Detalhes da incidência editados manualmente."
+    }
+  },
+  "tasks": {
+    "title": "Gestão de Tarefas",
+    "subtitle": "Acompanhe sua fila de trabalho.",
+    "tabs": {
+      "minhas": "Minhas Tarefas",
+      "setor": "Meu Setor",
+      "todas": "Todas"
+    },
+    "kpi": {
+      "pendentes": "Minhas Pendentes",
+      "vencidas": "Vencidas",
+      "hoje": "Vencem Hoje"
+    },
+    "table": {
+      "tarefa": "Tarefa",
+      "contexto": "Contexto",
+      "setor": "Setor",
+      "prazo": "Prazo",
+      "responsavel": "Responsável",
+      "acao": "Ação"
+    },
+    "status": {
+      "Pendente": "Pendente",
+      "Em Andamento": "Em Andamento",
+      "Concluida": "Concluída"
+    },
+    "actions": {
+      "assumir": "Assumir",
+      "iniciar": "Iniciar",
+      "concluir": "Concluir",
+      "feito": "Feito"
+    },
+    "atrasado": "ATRASADO",
+    "vencida_ha": "Vencida há {{days}} dias",
+    "assigned_to": "Atribuído a",
+    "messages": {
+      "delete_success": "Tarefa excluída",
+      "delete_error": "Erro ao excluir tarefa",
+      "update_success": "Tarefa atualizada",
+      "update_error": "Erro ao atualizar tarefa"
+    }
+  },
+  "funcionarios": {
+    "title": "Funcionários",
+    "subtitle": "Gerencie o cadastro de colaboradores",
+    "btn_new": "Novo Funcionário",
+    "filters": {
+      "search_placeholder": "Buscar por nome, departamento, empresa ou usuário...",
+      "all_departments": "Todos os Departamentos",
+      "all_companies": "Todas as Empresas Contratantes"
+    },
+    "table": {
+      "name": "Nome / Usuário",
+      "department": "Departamento",
+      "company": "Empresa (Contratante)",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "status": {
+      "Ativo": "Ativo",
+      "Inativo": "Inativo",
+      "Desligado": "Desligado",
+      "Indefinido": "Indefinido"
+    },
+    "empty_search": "Nenhum funcionário encontrado.",
+    "modal": {
+      "title_new": "Novo Funcionário",
+      "title_edit": "Editar Funcionário",
+      "personal_info": "Informações Pessoais",
+      "full_name": "Nome Completo *",
+      "birth_date": "Data de Nascimento",
+      "contact": "Contato",
+      "email": "Email Empresarial",
+      "phone": "Telefone Direto",
+      "extension": "Ramal",
+      "contract_data": "Dados Contratuais",
+      "department": "Departamento *",
+      "select_department": "Selecione um departamento",
+      "responsibility_code": "Código de Responsabilidade",
+      "hiring_company": "Empresa Contratante",
+      "select_company": "Selecione a empresa...",
+      "service_company": "Empresa de Serviços",
+      "workplace": "Local de Trabalho",
+      "start_date": "Data de Início",
+      "iban": "IBAN",
+      "system_user": "Usuário (Sistema)",
+      "btn_cancel": "Cancelar",
+      "btn_save": "Salvar Alterações",
+      "btn_create": "Criar Funcionário",
+      "placeholder_name": "Ex: João da Silva",
+      "placeholder_email": "email@empresa.com",
+      "placeholder_phone": "(00) 0000-0000",
+      "placeholder_extension": "Ex: 123",
+      "placeholder_iban": "PT50...",
+      "placeholder_user": "Nome de usuário ou login"
+    },
+    "messages": {
+      "error_loading": "Erro ao carregar dados. Por favor, tente novamente.",
+      "error_mandatory": "Nome completo e Departamento são obrigatórios.",
+      "error_update": "Erro ao atualizar funcionário.",
+      "error_create": "Erro ao criar funcionário.",
+      "error_save": "Ocorreu um erro ao salvar.",
+      "confirm_delete": "Tem certeza que deseja excluir este funcionário?",
+      "error_delete": "Erro ao excluir funcionário."
+    }
+  },
+  "operacao": {
+    "title": "Operação: Reemplazos & Reubicaciones",
+    "filters": {
+      "search": "Buscar cliente ou código...",
+      "type_all": "Todos",
+      "type_reemplazo": "Reemplazo",
+      "type_reubicacion": "Reubicacion"
+    },
+    "table": {
+      "recent_events": "Eventos Recentes ({{count}})",
+      "operation": "Operação",
+      "client": "Cliente",
+      "type": "Tipo",
+      "date": "Data",
+      "qty_people": "Qtd. Pessoas"
+    },
+    "drawer": {
+      "details": "Detalhes da {{type}}",
+      "close": "Fechar",
+      "summary_client": "Cliente",
+      "summary_date": "Data Início",
+      "summary_status": "Status",
+      "summary_reason": "Motivo",
+      "movement_title": "Movimentação de Pessoal",
+      "collab": "Colaborador",
+      "role": "Função",
+      "movement": "Movimento",
+      "empty_movement": "Nenhuma movimentação registrada.",
+      "profiles_title": "Perfis Solicitados",
+      "profile": "Perfil",
+      "qty": "Qtd",
+      "empty_profiles": "Nenhum item solicitado."
+    }
+  },
+  "import_funcionarios": {
+    "title": "Importar Funcionários",
+    "subtitle": "Suporta arquivos .CSV e .XLSX (Excel)",
+    "click_to_select": "Clique para selecionar arquivo (CSV ou Excel)",
+    "supported_formats": "Formatos suportados: .csv, .xlsx, .xls",
+    "success": "Sucesso",
+    "errors": "Erros",
+    "btn_start": "Iniciar Importação",
+    "btn_processing": "Processando...",
+    "logs": {
+      "error_companies": "Erro ao buscar empresas",
+      "reading_file": "Lendo arquivo",
+      "read_success": "Arquivo lido com sucesso! {{count}} linhas encontradas.",
+      "read_error": "Erro ao ler arquivo",
+      "no_data": "Nenhum dado para processar.",
+      "starting": "Iniciando processamento...",
+      "header_detected": "Cabeçalho detectado na linha 1.",
+      "error_dept": "ERRO - ID Depto \"{{dept}}\" desconhecido.",
+      "db_error": "Falha no DB",
+      "exception": "Exceção",
+      "row": "Linha",
+      "end_process": "--- FIM DO PROCESSO ---"
+    }
+  },
+  "comissoes": {
+    "title": "Gestão de Comissões",
+    "subtitle": "Controle de bônus, recebíveis e contas correntes",
+    "filters": {
+      "start_date": "Data Início",
+      "end_date": "Data Fim",
+      "all_sellers": "Todos os Vendedores",
+      "label": "Filtros:",
+      "client_placeholder": "Filtrar por Cliente...",
+      "order_placeholder": "Pedido (PO-...)",
+      "all_entries": "Todos os Lançamentos",
+      "type_hire": "(+) Contratação Base",
+      "type_bonus": "(+) Bônus Novo Cliente",
+      "type_discount": "(-) Substituições (Desc.)",
+      "type_adjust": "Ajustes / Pagamentos"
+    },
+    "cards": {
+      "to_receive": "A Receber / Saldo",
+      "total_paid": "Total Pago (Mês)",
+      "adjustments": "Lançamentos / Ajustes",
+      "rules": "Regras Comerciais"
+    },
+    "rules": {
+      "base": "Base",
+      "new_client": "Cliente Novo",
+      "grace_period": "Carência Desconto",
+      "days": "dias"
+    },
+    "table": {
+      "title": "Extrato Detalhado",
+      "btn_export": "Exportar Excel",
+      "btn_extra": "Lançamento Extra",
+      "btn_pay": "Pagar",
+      "col_date": "Data",
+      "col_seller": "Vendedor",
+      "col_history": "Histórico",
+      "col_value": "Valor (€)",
+      "col_status": "Status",
+      "empty": "Nenhum lançamento no período selecionado.",
+      "paid_on": "Pago em"
+    },
+    "modal": {
+      "title": "Novo Acerto / Lançamento",
+      "table_label": "Tabela de Lançamento",
+      "type_pos": "Ajuste Positivo (+)",
+      "type_neg": "Ajuste Negativo (-)",
+      "type_pay": "Pagamento Avulso (-)",
+      "seller_label": "Vendedor",
+      "seller_placeholder": "Selecione um vendedor existente...",
+      "desc_label": "Descrição",
+      "desc_placeholder": "Ex: Pagamento Adiantado / Desconto Avarias",
+      "value_label": "Valor (€)",
+      "value_hint": "Sempre lance o valor positivo absoluto. O sistema fará a subtração se for ajuste negativo ou adiantamento.",
+      "btn_cancel": "Cancelar",
+      "btn_save": "Salvar Lançamento"
+    },
+    "messages": {
+      "adj_value": "Valor (Ex: 50.00)",
+      "adj_desc": "Descrição do Ajuste",
+      "confirm_pay": "Confirmar o pagamento de {{count}} comissões selecionadas?",
+      "confirm_revert": "Tem certeza que deseja reverter este pagamento/ajuste?",
+      "pay_success": "Pagamentos registrados com sucesso!",
+      "pay_error": "Erro ao registrar pagamentos.",
+      "save_error": "Erro ao salvar o lançamento extra.",
+      "revert_success": "Lançamento revertido com sucesso!",
+      "revert_error": "Erro ao reverter o lançamento.",
+      "load_error": "Falha ao carregar comissões."
+    }
+  }
 }

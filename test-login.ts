@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config({ path: '.env.local' });
 
@@ -11,17 +11,16 @@ if (!supabaseUrl || !supabaseKey) {
     process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 async function run() {
-    const { data, error } = await supabase
-        .schema('core_personal')
-        .from('workers')
-        .select('id, nome, pasaporte, empresa_id, status_trabajador, cliente_nombre')
-        .ilike('nome', '%WILLIAM%');
+    const headers = {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+    };
 
-    console.log('Data:', JSON.stringify(data, null, 2));
-    console.log('Error:', error);
+    const res = await fetch(`${supabaseUrl}/rest/v1/`, { headers });
+    const spec = await res.json();
+    fs.writeFileSync('spec.json', JSON.stringify(spec, null, 2));
+    console.log('Spec written to spec.json, keys:', Object.keys(spec));
 }
 
 run();

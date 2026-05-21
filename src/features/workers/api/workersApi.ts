@@ -220,7 +220,7 @@ export async function upsertWorker(payload: Partial<Worker> & { empresa_id: stri
 }
 
 export interface WorkerAlocacao {
-    id: number;
+    id: string | number;
     codpedido: string;
     cliente_nombre: string;
     contratante: string;
@@ -235,8 +235,8 @@ export interface WorkerAlocacao {
 
 export async function getWorkerAlocacoes(workerCodColab: string): Promise<WorkerAlocacao[]> {
     const { data, error } = await supabase
-        .schema('public')
-        .from('colaborador_por_pedido')
+        .schema('core_personal')
+        .from('vw_worker_allocations')
         .select('*')
         .eq('cod_colab', workerCodColab)
         .order('inserted_at', { ascending: false });
