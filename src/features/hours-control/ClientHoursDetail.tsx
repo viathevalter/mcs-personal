@@ -496,7 +496,7 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-right align-top pt-4">
                                         <div className="flex justify-end gap-2">
-                                            {worker.status === 'pendente' && worker.hour_record_id && (role === 'super_admin' || role === 'admin_rh') && (
+                                            {worker.status === 'pendente' && (role === 'super_admin' || role === 'admin_rh') && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -592,6 +592,7 @@ export function ClientHoursDetail() {
                 periodMonth={month}
                 contratante={uploadDialogState.contratante}
                 hourRecordId={uploadDialogState.hourRecordId}
+                empresaId={selectedEmpresaId as string}
                 onSuccess={() => {
                     setUploadDialogState(prev => ({ ...prev, open: false }));
                     fetchClientWorkers();

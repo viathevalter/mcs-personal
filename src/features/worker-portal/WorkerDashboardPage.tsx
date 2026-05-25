@@ -58,23 +58,39 @@ export function WorkerDashboardPage() {
                 const isAtivo = profile.status_trabajador?.toLowerCase().includes('at') ||
                     profile.status_trabajador?.toLowerCase().includes('ac');
 
-                if (isAtivo) {
+                let isEligibleCurrent = isAtivo;
+                let isEligiblePrev = isAtivo;
+
+                if (!isAtivo && profile.data_baixa) {
+                    const baixaDate = new Date(profile.data_baixa + 'T00:00:00');
+                    const baixaYear = baixaDate.getFullYear();
+                    const baixaMonth = baixaDate.getMonth() + 1;
+
+                    if (baixaYear > currentYear || (baixaYear === currentYear && baixaMonth >= currentMonth)) {
+                        isEligibleCurrent = true;
+                    }
+                    if (baixaYear > prevYear || (baixaYear === prevYear && baixaMonth >= prevMonth)) {
+                        isEligiblePrev = true;
+                    }
+                }
+
+                if (isEligibleCurrent || isEligiblePrev) {
                     const profileRecords = allRecords.filter(r => r.worker_id === profile.id);
                     const hasCurrentMonth = profileRecords.some(r => r.period_year === currentYear && r.period_month === currentMonth);
                     const hasPrevMonth = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth);
 
                     const toInsert = [];
                     
-                    let shouldHaveCurrentMonth = true;
-                    let shouldHavePrevMonth = true;
+                    let shouldHaveCurrentMonth = isEligibleCurrent;
+                    let shouldHavePrevMonth = isEligiblePrev;
 
                     if (profile.data_ingresso) {
                         const admissionDate = new Date(profile.data_ingresso);
                         const admissionYear = admissionDate.getFullYear();
                         const admissionMonth = admissionDate.getMonth() + 1;
 
-                        shouldHaveCurrentMonth = admissionYear < currentYear || (admissionYear === currentYear && admissionMonth <= currentMonth);
-                        shouldHavePrevMonth = admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth);
+                        shouldHaveCurrentMonth = shouldHaveCurrentMonth && (admissionYear < currentYear || (admissionYear === currentYear && admissionMonth <= currentMonth));
+                        shouldHavePrevMonth = shouldHavePrevMonth && (admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth));
                     }
 
                     // Regra específica: bloquear geração de mês de março de 2026

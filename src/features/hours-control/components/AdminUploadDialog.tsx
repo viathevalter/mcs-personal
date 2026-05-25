@@ -24,18 +24,21 @@ interface AdminUploadDialogProps {
     periodMonth: number;
     contratante: string; // The employer specifically for folder structure
     hourRecordId?: string; // If it doesn't exist, we might need to create it, but in our flow it should exist as 'pendente'
+    empresaId?: string; // We need this to create the record if it doesn't exist
     onSuccess: () => void;
 }
 
 export function AdminUploadDialog({
     open,
     onOpenChange,
+    workerId,
     workerName,
     clientXName,
     periodYear,
     periodMonth,
     contratante,
     hourRecordId,
+    empresaId,
     onSuccess
 }: AdminUploadDialogProps) {
     const [file, setFile] = useState<File | null>(null);
@@ -55,11 +58,6 @@ export function AdminUploadDialog({
     const handleUpload = async () => {
         if (!file) {
             toast.error('Por favor, selecione um arquivo primeiro.');
-            return;
-        }
-
-        if (!hourRecordId) {
-            toast.error('Erro de integridade: Registro de horas não encontrado no banco.');
             return;
         }
 
@@ -92,22 +90,46 @@ export function AdminUploadDialog({
 
             const fileUrl = uploadData.path;
 
-            // Update Database Record
-            const { error: dbError } = await supabase
-                .schema('core_personal')
-                .from('worker_hours')
-                .update({
-                    status: 'enviado',
-                    file_url: fileUrl,
-                    file_name: file.name,
-                    contratante: contratante,
-                    cliente_nombre: clientXName
-                })
-                .eq('id', hourRecordId);
+            if (hourRecordId) {
+                // Update Database Record
+                const { error: dbError } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .update({
+                        status: 'enviado',
+                        file_url: fileUrl,
+                        file_name: file.name,
+                        contratante: contratante,
+                        cliente_nombre: clientXName
+                    })
+                    .eq('id', hourRecordId);
 
-            if (dbError) {
-                console.error('DB Update error:', dbError);
-                throw new Error('Falha ao registrar arquivo no banco de dados');
+                if (dbError) {
+                    console.error('DB Update error:', dbError);
+                    throw new Error('Falha ao registrar arquivo no banco de dados');
+                }
+            } else {
+                if (!empresaId) throw new Error('ID da empresa não encontrado');
+                // Insert New Record
+                const { error: insertError } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .insert({
+                        empresa_id: empresaId,
+                        worker_id: workerId,
+                        period_year: periodYear,
+                        period_month: periodMonth,
+                        status: 'enviado',
+                        file_url: fileUrl,
+                        file_name: file.name,
+                        contratante: contratante,
+                        cliente_nombre: clientXName
+                    });
+
+                if (insertError) {
+                    console.error('DB Insert error:', insertError);
+                    throw new Error('Falha ao criar e registrar arquivo no banco de dados');
+                }
             }
 
             toast.success('Folha enviada com sucesso em nome do trabalhador!');
