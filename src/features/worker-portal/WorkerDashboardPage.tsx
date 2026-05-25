@@ -93,11 +93,11 @@ export function WorkerDashboardPage() {
                         shouldHavePrevMonth = shouldHavePrevMonth && (admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth));
                     }
 
-                    // Regra específica: bloquear geração de mês de março de 2026
-                    if (prevYear === 2026 && prevMonth === 3) {
+                    // Regra específica: bloquear geração de mês de março e abril de 2026
+                    if (prevYear === 2026 && (prevMonth === 3 || prevMonth === 4)) {
                         shouldHavePrevMonth = false;
                     }
-                    if (currentYear === 2026 && currentMonth === 3) {
+                    if (currentYear === 2026 && (currentMonth === 3 || currentMonth === 4)) {
                         shouldHaveCurrentMonth = false;
                     }
 
@@ -144,9 +144,9 @@ export function WorkerDashboardPage() {
 
             allRecords = Array.from(uniqueRecordsMap.values());
 
-            // Regra específica: bloquear envio (status pendente) para Março de 2026 no portal para todos
+            // Regra específica: bloquear envio (status pendente) para Março e Abril de 2026 no portal para todos
             allRecords = allRecords.filter(record => {
-                if (record.period_year === 2026 && record.period_month === 3 && record.status === 'pendente') {
+                if (record.period_year === 2026 && (record.period_month === 3 || record.period_month === 4) && record.status === 'pendente') {
                     return false;
                 }
                 return true;
