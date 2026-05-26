@@ -18,6 +18,7 @@ export const empresaSchema = z.object({
   mobile: z.string().nullable().optional(),
   email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),
   billing_email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),
+  proposal_sender_email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),
   iban: z.string().nullable().optional(),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),

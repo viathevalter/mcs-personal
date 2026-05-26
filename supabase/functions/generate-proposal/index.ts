@@ -1,0 +1,467 @@
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createReport } from "npm:docx-templates@4.13.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+async function sendMailViaGraph(
+  senderEmail: string,
+  senderName: string,
+  targetEmail: string,
+  subject: string,
+  htmlContent: string
+): Promise<{ success: boolean; error?: string; tokenClaims?: any }> {
+  try {
+    const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
+    const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
+    const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+
+    if (!tenantId || !clientId || !clientSecret) {
+      console.warn("Microsoft Graph configurations are missing in Supabase secrets.");
+      return { success: false, error: "Microsoft Graph secrets are missing (SHAREPOINT_TENANT_ID, CLIENT_ID, CLIENT_SECRET)." };
+    }
+
+    // 1. Obter Token de Acesso
+    const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+    const formData = new URLSearchParams();
+    formData.append('client_id', clientId);
+    formData.append('client_secret', clientSecret);
+    formData.append('scope', 'https://graph.microsoft.com/.default');
+    formData.append('grant_type', 'client_credentials');
+
+    const tokenRes = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error("Failed to authenticate Microsoft Graph token:", errText);
+      return { success: false, error: `Auth Token Error: ${errText}` };
+    }
+
+    const { access_token } = await tokenRes.json();
+
+    // Decode token claims for debugging
+    let tokenClaims = {};
+    try {
+      const parts = access_token.split('.');
+      if (parts.length > 1) {
+        const payloadDecoded = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+        tokenClaims = JSON.parse(payloadDecoded);
+      }
+    } catch (e) {
+      console.error("Error decoding token claims:", e);
+    }
+
+    // 2. Disparar email via Microsoft Graph API
+    const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
+    const mailPayload = {
+      message: {
+        subject: subject,
+        body: {
+          contentType: "HTML",
+          content: htmlContent,
+        },
+        toRecipients: [
+          {
+            emailAddress: {
+              address: targetEmail,
+            },
+          },
+        ],
+      },
+      saveToSentItems: "true",
+    };
+
+    console.log(`Disparando e-mail Microsoft Graph via ${senderEmail} para ${targetEmail}`);
+    const graphRes = await fetch(sendMailUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(mailPayload),
+    });
+
+    if (graphRes.ok) {
+      console.log("E-mail enviado com sucesso via Microsoft Graph e gravado nos itens enviados.");
+      return { success: true, tokenClaims };
+    } else {
+      const errText = await graphRes.text();
+      console.error("Falha no Microsoft Graph sendMail:", errText);
+      return { success: false, error: `Microsoft Graph API Error (Status ${graphRes.status}): ${errText}`, tokenClaims };
+    }
+  } catch (err) {
+    console.error("Erro na integração do e-mail via Microsoft Graph:", err);
+    return { success: false, error: `Exception: ${err.message || err}` };
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse do body
+    const { estimacion_id } = await req.json();
+
+    if (!estimacion_id) {
+      return new Response(
+        JSON.stringify({ error: "Parâmetro estimacion_id é obrigatório." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 1. Buscar a estimación base
+    const { data: est, error: estErr } = await supabase
+      .schema("core_comercial")
+      .from("estimaciones")
+      .select("*")
+      .eq("id", estimacion_id)
+      .single();
+
+    if (estErr || !est) {
+      throw new Error(`Estimación não encontrada: ${estErr?.message}`);
+    }
+
+    // 2. Buscar dados da empresa remetente
+    const { data: empresa, error: empErr } = await supabase
+      .schema("core_common")
+      .from("empresas")
+      .select("*")
+      .eq("id", est.empresa_id)
+      .single();
+
+    if (empErr || !empresa) {
+      throw new Error(`Empresa não encontrada: ${empErr?.message}`);
+    }
+
+    const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
+    const senderName = `${empresa.trade_name || empresa.legal_name || "Vendas"}`;
+
+    // 3. Buscar dados do Cliente ou Lead (incluindo morada e nif do cliente)
+    let targetName = "";
+    let targetEmail = "";
+    let targetPhone = "";
+    let targetCompany = "";
+    let clientAddress = "";
+    let clientTaxId = "";
+
+    if (est.client_id) {
+      const { data: client, error: clientErr } = await supabase
+        .schema("core_common")
+        .from("clients")
+        .select("*")
+        .eq("id", est.client_id)
+        .single();
+      
+      if (!clientErr && client) {
+        targetName = est.contact_name || client.trade_name || client.legal_name || "";
+        targetEmail = est.contact_email || client.email || "";
+        targetPhone = client.phone || "";
+        targetCompany = client.legal_name || client.trade_name || "";
+        clientTaxId = client.tax_id || client.vat_id || "";
+        clientAddress = `${client.address_line || ""}, ${client.city || ""}, ${client.postal_code || ""} (${client.province || ""})`;
+      }
+    } else if (est.lead_id) {
+      const { data: lead, error: leadErr } = await supabase
+        .schema("core_comercial")
+        .from("leads")
+        .select("*")
+        .eq("id", est.lead_id)
+        .single();
+      
+      if (!leadErr && lead) {
+        targetName = lead.name;
+        targetEmail = lead.email;
+        targetPhone = lead.phone || "";
+        targetCompany = lead.company_name || "";
+        clientAddress = lead.notes || ""; // Fallback
+      }
+    }
+
+    // 3.5. Buscar dados do Obra/Local (client_site) para morada da obra
+    let siteAddress = "";
+    if (est.client_site_id) {
+      const { data: site } = await supabase
+        .schema("core_common")
+        .from("client_sites")
+        .select("*")
+        .eq("id", est.client_site_id)
+        .single();
+      if (site) {
+        siteAddress = `${site.address_line || ""}, ${site.city || ""}, ${site.postal_code || ""} (${site.province || ""})`;
+      }
+    }
+
+    // 4. Buscar a versão atual e seus itens
+    const versionId = est.current_version_id;
+    if (!versionId) {
+      throw new Error("A estimación não possui uma versão atual cadastrada.");
+    }
+
+    const { data: version, error: verErr } = await supabase
+      .schema("core_comercial")
+      .from("estimacion_versions")
+      .select("*")
+      .eq("id", versionId)
+      .single();
+
+    if (verErr || !version) {
+      throw new Error(`Versão não encontrada: ${verErr?.message}`);
+    }
+
+    const { data: items, error: itemsErr } = await supabase
+      .schema("core_comercial")
+      .from("estimacion_items")
+      .select(`
+        *,
+        job_function:job_functions(name)
+      `)
+      .eq("estimacion_version_id", versionId);
+
+    if (itemsErr) {
+      throw new Error(`Erro ao buscar itens da estimativa: ${itemsErr.message}`);
+    }
+
+    const formattedItems = (items || []).map((item: any) => {
+      const totalHours = Number(item.planned_total_hours || item.total_hours || 0);
+      const sellRate = Number(item.sell_rate_hour || 0);
+      const quantity = Number(item.quantity || 0);
+      return {
+        funcao: item.job_function_name_snapshot || item.job_function?.name || "Perfil",
+        quantidade: quantity,
+        horas_dia: item.planned_hours_per_day,
+        dias_semana: item.planned_days_per_week,
+        total_horas: totalHours,
+        tarifa_venda: sellRate,
+        valor_total: (quantity * totalHours * sellRate).toFixed(2),
+      };
+    });
+
+    // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
+    const templateFileName = `${empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default"}/proposta.docx`;
+    console.log(`Buscando template de proposta no storage: ${templateFileName}`);
+
+    let templateBlob;
+    const { data: blob, error: downloadErr } = await supabase.storage
+      .from("proposal-templates")
+      .download(templateFileName);
+
+    if (downloadErr || !blob) {
+      console.warn(`Template customizado de proposta não encontrado (${templateFileName}), usando default.`);
+      const { data: defaultBlob, error: defaultErr } = await supabase.storage
+        .from("proposal-templates")
+        .download("default.docx");
+
+      if (defaultErr || !defaultBlob) {
+        throw new Error("Template de proposta default.docx não encontrado em proposal-templates. Por favor faça upload.");
+      }
+      templateBlob = defaultBlob;
+    } else {
+      templateBlob = blob;
+    }
+
+    const templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
+
+    // 5.5. Baixar o template DOCX do contrato do storage 'proposal-templates'
+    const contractTemplateFileName = `${empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default"}/contrato.docx`;
+    console.log(`Buscando template de contrato no storage: ${contractTemplateFileName}`);
+
+    let contractTemplateBlob;
+    const { data: contractBlob, error: contractDownloadErr } = await supabase.storage
+      .from("proposal-templates")
+      .download(contractTemplateFileName);
+
+    if (contractDownloadErr || !contractBlob) {
+      console.warn(`Template customizado de contrato não encontrado (${contractTemplateFileName}), usando default_contrato.docx.`);
+      const { data: defaultContractBlob, error: defaultContractErr } = await supabase.storage
+        .from("proposal-templates")
+        .download("default_contrato.docx");
+
+      if (defaultContractErr || !defaultContractBlob) {
+        throw new Error("Template de contrato default_contrato.docx não encontrado em proposal-templates. Por favor faça upload.");
+      }
+      contractTemplateBlob = defaultContractBlob;
+    } else {
+      contractTemplateBlob = contractBlob;
+    }
+
+    const contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
+
+    // 6. Mesclar os dados usando docx-templates
+    const mergeData = {
+      empresa_nome: empresa.legal_name || empresa.trade_name || "",
+      empresa_nif: empresa.tax_id || empresa.vat_id || "",
+      empresa_telefone: empresa.phone || empresa.mobile || "",
+      empresa_email: senderEmail,
+      empresa_morada: empresa.address_line || "",
+      
+      proposta_codigo: est.codigo || "",
+      proposta_data: new Date(est.created_at).toLocaleDateString("pt-PT"),
+      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString("pt-PT") : "",
+      proposta_pagamento: est.payment_terms || "A combinar",
+      proposta_notas: est.general_notes || "",
+      
+      cliente_nome: targetName,
+      cliente_empresa: targetCompany,
+      cliente_email: targetEmail,
+      cliente_telefone: targetPhone,
+      cliente_morada: clientAddress,
+      cliente_nif: clientTaxId,
+
+      obra_morada: siteAddress || "Instalações do Cliente",
+      tarifa_tipo: "Completa",
+      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("pt-PT") : "",
+      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("pt-PT") : "",
+      condicoes_pagamento: est.payment_terms || "A combinar",
+
+      itens: formattedItems,
+      
+      total_custo: (version.total_cost || 0).toFixed(2),
+      total_receita: (version.total_revenue || 0).toFixed(2),
+      margem_percentual: (version.margin_percent || 0).toFixed(2),
+    };
+
+    console.log("Gerando proposta preenchida...");
+    const generatedDoc = await createReport({
+      template: templateBuffer,
+      data: mergeData,
+      cmdDelimiter: ["{{", "}}"],
+      noSandbox: true,
+      errorHandler: (err, command_code) => {
+        console.error(`Erro ao processar tag proposta "${command_code}":`, err);
+        return "";
+      }
+    });
+
+    console.log("Gerando contrato preenchido...");
+    const generatedContractDoc = await createReport({
+      template: contractTemplateBuffer,
+      data: mergeData,
+      cmdDelimiter: ["{{", "}}"],
+      noSandbox: true,
+      errorHandler: (err, command_code) => {
+        console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+        return "";
+      }
+    });
+
+    // 7. Salvar ambos no bucket 'proposal-signatures'
+    const docPath = `${est.id}/proposta_${Date.now()}.docx`;
+    const { error: uploadErr } = await supabase.storage
+      .from("proposal-signatures")
+      .upload(docPath, generatedDoc, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        upsert: true,
+      });
+
+    if (uploadErr) {
+      throw new Error(`Falha ao salvar proposta gerada no storage: ${uploadErr.message}`);
+    }
+
+    const contractDocPath = `${est.id}/contrato_${Date.now()}.docx`;
+    const { error: uploadContractErr } = await supabase.storage
+      .from("proposal-signatures")
+      .upload(contractDocPath, generatedContractDoc, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        upsert: true,
+      });
+
+    if (uploadContractErr) {
+      throw new Error(`Falha ao salvar contrato gerado no storage: ${uploadContractErr.message}`);
+    }
+
+    // 8. Gerar OTP e signature token
+    const signatureToken = crypto.randomUUID();
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // OTP 6 dígitos
+    const otpExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 horas de validade
+
+    // Inserir registro em core_comercial.proposal_signatures
+    const sigPayload = {
+      empresa_id: est.empresa_id,
+      estimacion_id: est.id,
+      status: "pending_signature",
+      document_url: docPath,
+      contract_document_url: contractDocPath,
+      signature_token: signatureToken,
+      otp_code: otpCode,
+      otp_expires_at: otpExpiresAt.toISOString(),
+      sent_at: new Date().toISOString(),
+    };
+
+    const { data: sigRecord, error: sigInsertErr } = await supabase
+      .schema("core_comercial")
+      .from("proposal_signatures")
+      .insert(sigPayload)
+      .select()
+      .single();
+
+    if (sigInsertErr || !sigRecord) {
+      throw new Error(`Falha ao registrar assinatura no banco: ${sigInsertErr?.message}`);
+    }
+
+    // Atualizar estimación status para sent
+    await supabase
+      .schema("core_comercial")
+      .from("estimaciones")
+      .update({ status: "sent", updated_at: new Date().toISOString() })
+      .eq("id", est.id);
+
+    // 9. Enviar o email via Microsoft Graph API (Opção B)
+    const origin = req.headers.get("origin") || "http://localhost:5173";
+    const signingLink = `${origin}/assinar-proposta/${signatureToken}`;
+    let emailSent = false;
+    let emailError: string | undefined = undefined;
+
+    if (targetEmail) {
+      const subject = `Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+      const htmlContent = `
+        <h2>Olá, ${targetName}!</h2>
+        <p>A empresa <strong>${empresa.trade_name}</strong> enviou a proposta comercial e o respectivo contrato para sua análise.</p>
+        <p>Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica de ambos os documentos de forma unificada:</p>
+        <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Documentos</a></p>
+        <br/>
+        <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
+        <p>Este link e o código expiram em 48 horas.</p>
+        <p>Se tiver alguma dúvida, responda diretamente a este e-mail.</p>
+      `;
+
+      const mailResult = await sendMailViaGraph(senderEmail, senderName, targetEmail, subject, htmlContent);
+      emailSent = mailResult.success;
+      emailError = mailResult.error;
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        proposal_signature_id: sigRecord.id,
+        signature_token: signatureToken,
+        otp_code: otpCode,
+        signing_link: signingLink,
+        email_sent: emailSent,
+        email_error: emailError,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("Erro ao gerar proposta:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
