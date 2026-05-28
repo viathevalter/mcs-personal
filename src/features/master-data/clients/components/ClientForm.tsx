@@ -104,11 +104,24 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
 
   const onSubmit = async (data: CreateClientDTO) => {
     try {
+      const payload = {
+        ...data,
+        codigo: data.codigo?.trim() === '' ? null : data.codigo,
+        email: data.email?.trim() === '' ? null : data.email,
+        billing_email: data.billing_email?.trim() === '' ? null : data.billing_email,
+        phone: data.phone?.trim() === '' ? null : data.phone,
+        province: data.province?.trim() === '' ? null : data.province,
+        city: data.city?.trim() === '' ? null : data.city,
+        postal_code: data.postal_code?.trim() === '' ? null : data.postal_code,
+        address_line: data.address_line?.trim() === '' ? null : data.address_line,
+        notes: data.notes?.trim() === '' ? null : data.notes,
+      };
+
       if (isEditing && client.id) {
-        await updateClient({ id: client.id, payload: data });
+        await updateClient({ id: client.id, payload });
         toast.success('Cliente atualizado com sucesso!');
       } else {
-        await createClient(data);
+        await createClient(payload);
         toast.success('Cliente cadastrado com sucesso!');
       }
       onSuccess?.();
