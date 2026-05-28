@@ -12,5 +12,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // so the UI can still render and we can test the DEV fallback logic.
 export const supabase = createClient(
     supabaseUrl || 'https://dummy-project.supabase.co',
-    supabaseAnonKey || 'dummy-anon-key'
+    supabaseAnonKey || 'dummy-anon-key',
+    {
+        auth: {
+            lock: async (name, acquireTimeout, fn) => {
+                return await fn();
+            }
+        }
+    }
 );
