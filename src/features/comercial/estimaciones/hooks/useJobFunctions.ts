@@ -23,3 +23,25 @@ export function useJobFunctions() {
     enabled: !!selectedEmpresaId,
   });
 }
+
+export function useAllJobFunctionRates() {
+  const { selectedEmpresaId } = useEmpresa();
+
+  return useQuery({
+    queryKey: ['all-job-function-rates', selectedEmpresaId],
+    queryFn: async () => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('job_function_rate_refs')
+        .select('*')
+        .eq('empresa_id', selectedEmpresaId)
+        .neq('status', 'archived');
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmpresaId,
+  });
+}

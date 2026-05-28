@@ -21,7 +21,10 @@ export function NewEstimacionPage() {
   const [payload, setPayload] = useState<any>({
     empresa_id: selectedEmpresaId,
     client_id: '',
+    lead_id: '',
     client_site_id: '',
+    country_id: '',
+    postal_code: '',
     estimation_type: 'new_allocation',
     contact_name: '',
     contact_email: '',
@@ -51,7 +54,10 @@ export function NewEstimacionPage() {
       empresa_id: selectedEmpresaId,
       status,
       client_id: payload.client_id || null,
+      lead_id: payload.lead_id || null,
       client_site_id: payload.client_site_id || null,
+      country_id: payload.country_id || null,
+      postal_code: payload.postal_code || null,
       expected_start_date: payload.expected_start_date || null,
       expected_end_date: payload.expected_end_date || null,
       validity_date: payload.validity_date || null,
@@ -92,7 +98,7 @@ export function NewEstimacionPage() {
           {[1, 2, 3, 4].map(step => (
             <div 
               key={step} 
-              className={`h-2 flex-1 rounded-full ${currentStep >= step ? 'bg-primary' : 'bg-slate-200'}`}
+              className={`h-2 flex-1 rounded-full ${currentStep >= step ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800'}`}
             />
           ))}
         </div>
@@ -105,7 +111,7 @@ export function NewEstimacionPage() {
         </div>
 
         {/* Fixed Footer Actions */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t flex justify-between z-10 md:pl-64">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-between z-10 md:pl-64">
           <div className="max-w-5xl mx-auto w-full flex justify-between px-4">
             <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || criarEstimacion.isPending}>
               Voltar

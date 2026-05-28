@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, FileText, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { DollarSign, FileText, Send, CheckCircle2, AlertCircle, PenTool } from 'lucide-react';
 import type { Estimacion } from '../types';
 
 interface Props {
@@ -11,10 +11,11 @@ export function EstimacionKpiCards({ estimaciones }: Props) {
     total: estimaciones.length,
     draft: estimaciones.filter(e => e.status === 'draft').length,
     sent: estimaciones.filter(e => e.status === 'sent').length,
+    signed: estimaciones.filter(e => e.status === 'signed').length,
     approved: estimaciones.filter(e => e.status === 'approved').length,
     rejectedOrExpired: estimaciones.filter(e => ['rejected', 'expired'].includes(e.status)).length,
     totalValue: estimaciones
-      .filter(e => ['approved', 'sent'].includes(e.status))
+      .filter(e => ['approved', 'sent', 'signed'].includes(e.status))
       .reduce((acc, curr) => acc + (curr.current_version?.total_revenue || 0), 0)
   };
 
@@ -23,7 +24,7 @@ export function EstimacionKpiCards({ estimaciones }: Props) {
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+    <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-7">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Total (Abertas)</CardTitle>
@@ -46,11 +47,21 @@ export function EstimacionKpiCards({ estimaciones }: Props) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Enviadas</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Aguardando Assinatura</CardTitle>
           <Send className="h-4 w-4 text-blue-500" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.sent}</div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Contratos Assinados</CardTitle>
+          <PenTool className="h-4 w-4 text-violet-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.signed}</div>
         </CardContent>
       </Card>
 

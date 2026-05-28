@@ -16,3 +16,10 @@ verify_jwt = false
 [functions.sign-contract]
 verify_jwt = false
 
+[functions.generate-proposal]
+verify_jwt = false
+
+[functions.sign-proposal]
+verify_jwt = false
+
+

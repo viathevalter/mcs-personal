@@ -47,16 +47,19 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
       if (!data || data.length === 0) return [];
 
       const clientIds = [...new Set(data.map(d => d.client_id).filter(Boolean))];
+      const leadIds = [...new Set(data.map(d => d.lead_id).filter(Boolean))];
       const siteIds = [...new Set(data.map(d => d.client_site_id).filter(Boolean))];
       
-      const [{ data: clients }, { data: sites }] = await Promise.all([
+      const [{ data: clients }, { data: leads }, { data: sites }] = await Promise.all([
         clientIds.length > 0 ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds) : Promise.resolve({ data: [] }),
+        leadIds.length > 0 ? supabase.schema('core_comercial').from('leads').select('id, name, company_name').in('id', leadIds) : Promise.resolve({ data: [] }),
         siteIds.length > 0 ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds) : Promise.resolve({ data: [] })
       ]);
 
       return data.map(est => ({
         ...est,
         client: clients?.find((c: any) => c.id === est.client_id),
+        lead: leads?.find((l: any) => l.id === est.lead_id),
         client_site: sites?.find((s: any) => s.id === est.client_site_id)
       })) as Estimacion[];
     },

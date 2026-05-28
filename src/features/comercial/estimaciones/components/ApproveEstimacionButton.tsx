@@ -20,8 +20,8 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   const [open, setOpen] = useState(false);
   const { aprovarEstimacion } = useEstimacionMutations();
 
-  // Apenas rascunho ou enviada podem ser aprovadas
-  if (!['draft', 'sent'].includes(estimacion.status)) {
+  // Apenas estimativas com contrato assinado pelo cliente podem ser aprovadas
+  if (estimacion.status !== 'signed') {
     return null;
   }
 

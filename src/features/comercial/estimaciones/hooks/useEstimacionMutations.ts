@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { toast } from 'sonner';
+import { generateProposal } from '@/features/documents/api/proposalsApi';
 
 export function useEstimacionMutations() {
   const queryClient = useQueryClient();
@@ -46,8 +47,27 @@ export function useEstimacionMutations() {
     },
   });
 
+  const enviarProposta = useMutation({
+    mutationFn: async (estimacionId: string) => {
+      return await generateProposal(estimacionId);
+    },
+    onSuccess: (data, estimacionId) => {
+      toast.success('Proposta comercial enviada!', {
+        description: data.email_sent
+          ? 'Link de assinatura enviado com sucesso para o cliente.'
+          : 'Proposta gerada! No entanto, o e-mail não pôde ser disparado (verifique sua chave Resend).'
+      });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, estimacionId] });
+    },
+    onError: (error: any) => {
+      console.error(error);
+      toast.error('Erro ao enviar proposta', { description: error.message });
+    },
+  });
+
   return {
     aprovarEstimacion,
     criarEstimacion,
+    enviarProposta,
   };
 }

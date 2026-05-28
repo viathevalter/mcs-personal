@@ -35,11 +35,32 @@ export function useEstimacionDetail(id: string | undefined) {
       if (!estimacion) throw new Error('Estimación não encontrada ou você não tem acesso a ela nesta empresa.');
 
       // Fetch cross-schema relations
-      const [{ data: client }, { data: client_site }] = await Promise.all([
-        supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, email, phone').eq('id', estimacion.client_id).maybeSingle(),
+      const [
+        { data: client },
+        { data: lead },
+        { data: client_site },
+        { data: country },
+        { data: proposal_signature }
+      ] = await Promise.all([
+        estimacion.client_id
+          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, email, phone').eq('id', estimacion.client_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        estimacion.lead_id
+          ? supabase.schema('core_comercial').from('leads').select('id, name, email, phone, company_name').eq('id', estimacion.lead_id).maybeSingle()
+          : Promise.resolve({ data: null }),
         estimacion.client_site_id 
           ? supabase.schema('core_common').from('client_sites').select('id, name, address').eq('id', estimacion.client_site_id).maybeSingle()
-          : Promise.resolve({ data: null })
+          : Promise.resolve({ data: null }),
+        estimacion.country_id
+          ? supabase.schema('core_common').from('countries').select('id, name').eq('id', estimacion.country_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase.schema('core_comercial')
+          .from('proposal_signatures')
+          .select('*, proposal_audit_logs(*)')
+          .eq('estimacion_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
       ]);
 
       // Find the current version and map it to current_version
@@ -48,9 +69,12 @@ export function useEstimacionDetail(id: string | undefined) {
       return {
         ...estimacion,
         client,
+        lead,
         client_site,
-        current_version: currentVersion
-      } as Estimacion & { versions: any[] };
+        country,
+        current_version: currentVersion,
+        proposal_signature
+      } as Estimacion & { versions: any[]; proposal_signature: any };
     },
     enabled: !!selectedEmpresaId && !!id,
   });

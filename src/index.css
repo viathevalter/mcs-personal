@@ -63,3 +63,37 @@
     --chart-5: 340 75% 55%
   }
 }
+
+/* Custom scrollbar for docx preview container */
+.docx-preview-container-parent::-webkit-scrollbar {
+  width: 12px;
+}
+.docx-preview-container-parent::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+.docx-preview-container-parent::-webkit-scrollbar-thumb {
+  background: #312e81;
+  border-radius: 6px;
+  border: 3px solid #0b0f19;
+}
+.docx-preview-container-parent::-webkit-scrollbar-thumb:hover {
+  background: #4338ca;
+}
+
+/* docx-preview styling overrides */
+.docx-wrapper {
+  background: transparent !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 24px !important;
+}
+.docx-document {
+  margin: 0 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 12px !important;
+}
+.docx-document > section {
+  padding: 40px !important;
+}
