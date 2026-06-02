@@ -48,6 +48,7 @@ export function SalaryReportPage() {
     const search = searchParams.get('search') || '';
     const clienteNombre = searchParams.get('clienteNombre')?.split('||').filter(Boolean) || [];
     const contratante = searchParams.get('contratante') || null;
+    const statusSeguridad = searchParams.get('statusSeguridad')?.split('||').filter(Boolean) || [];
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const sortColumn = searchParams.get('sortColumn') || 'nome';
@@ -102,6 +103,7 @@ export function SalaryReportPage() {
         search: debouncedSearch || undefined,
         clienteNombre: clienteNombre.length > 0 ? clienteNombre : undefined,
         contratante: contratante || undefined,
+        statusSeguridad: statusSeguridad.length > 0 ? statusSeguridad : undefined,
         sortColumn,
         sortDirection,
         page,
@@ -115,7 +117,8 @@ export function SalaryReportPage() {
         periodMonth,
         search: debouncedSearch || null,
         contratante: contratante || null,
-        clienteNombre: clienteNombre.length > 0 ? clienteNombre : null
+        clienteNombre: clienteNombre.length > 0 ? clienteNombre : null,
+        statusSeguridad: statusSeguridad.length > 0 ? statusSeguridad : null
     });
 
     const totalCount = listData?.count || 0;
@@ -193,6 +196,7 @@ export function SalaryReportPage() {
                                 search: debouncedSearch || undefined,
                                 clienteNombre: clienteNombre.length > 0 ? clienteNombre : undefined,
                                 contratante: contratante || undefined,
+                                statusSeguridad: statusSeguridad.length > 0 ? statusSeguridad : undefined,
                                 periodMonth,
                                 periodYear
                             }}
@@ -202,7 +206,7 @@ export function SalaryReportPage() {
             </div>
 
             {/* Quick search and filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full shrink-0">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full shrink-0">
                 <div className="relative flex items-center h-10 rounded-md border border-input bg-card overflow-hidden shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
                     <Search className="h-4 w-4 ml-3 text-muted-foreground shrink-0" />
                     <input
@@ -231,6 +235,21 @@ export function SalaryReportPage() {
                         onChange={(val) => updateSearchParams({ clienteNombre: val, page: '1' })}
                         placeholder="Filtrar por Clientes/Obras alocados"
                         emptyText="Nenhum cliente"
+                    />
+                </div>
+
+                <div className="w-full">
+                    <MultiSelect
+                        options={[
+                            { value: 'alta', label: t('workersPage.filters.securityOptions.alta') },
+                            { value: 'pendentes_alta', label: t('workersPage.filters.securityOptions.pendentes_alta') },
+                            { value: 'em_regularizacao', label: t('workersPage.filters.securityOptions.em_regularizacao') },
+                            { value: 'baixa', label: t('workersPage.filters.securityOptions.baixa') },
+                            { value: 'pendentes_baixa', label: t('workersPage.filters.securityOptions.pendentes_baixa') },
+                        ]}
+                        selected={statusSeguridad}
+                        onChange={(val) => updateSearchParams({ statusSeguridad: val, page: '1' })}
+                        placeholder={t('workersPage.filters.security') || 'Seguridade...'}
                     />
                 </div>
             </div>

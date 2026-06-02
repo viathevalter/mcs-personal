@@ -12,6 +12,7 @@ export function useSalaryReportWorkers(params: ListSalaryReportWorkersParams & {
             restParams.search,
             restParams.contratante,
             restParams.clienteNombre,
+            restParams.statusSeguridad,
             restParams.sortColumn,
             restParams.sortDirection,
             restParams.page,
@@ -30,9 +31,10 @@ export function useSalaryReportKpis(params: {
     search: string | null;
     contratante: string | null;
     clienteNombre: string[] | null;
+    statusSeguridad: string[] | null;
     enabled?: boolean;
 }) {
-    const { enabled = true, empresaId, periodYear, periodMonth, search, contratante, clienteNombre } = params;
+    const { enabled = true, empresaId, periodYear, periodMonth, search, contratante, clienteNombre, statusSeguridad } = params;
     return useQuery<SalaryReportKpis, Error>({
         queryKey: [
             'salary-report-kpis',
@@ -41,9 +43,10 @@ export function useSalaryReportKpis(params: {
             periodMonth,
             search,
             contratante,
-            clienteNombre
+            clienteNombre,
+            statusSeguridad
         ],
-        queryFn: () => getSalaryReportKpis(empresaId, periodYear, periodMonth, search, contratante, clienteNombre),
+        queryFn: () => getSalaryReportKpis(empresaId, periodYear, periodMonth, search, contratante, clienteNombre, statusSeguridad),
         enabled: Boolean(empresaId) && enabled,
         staleTime: 30 * 1000,
     });

@@ -22,6 +22,7 @@ interface ExportSalaryReportDialogProps {
         search?: string;
         clienteNombre?: string[];
         contratante?: string;
+        statusSeguridad?: string[];
         periodMonth: number;
         periodYear: number;
     };

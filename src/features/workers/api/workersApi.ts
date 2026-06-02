@@ -375,6 +375,7 @@ export interface ListSalaryReportWorkersParams {
     search?: string;
     contratante?: string;
     clienteNombre?: string[];
+    statusSeguridad?: string[];
     sortColumn?: string;
     sortDirection?: 'asc' | 'desc';
     page: number;
@@ -399,7 +400,7 @@ export interface SalaryReportKpis {
 }
 
 export async function listSalaryReportWorkers(params: ListSalaryReportWorkersParams): Promise<ListSalaryReportWorkersResponse> {
-    const { empresaId, periodYear, periodMonth, search, contratante, clienteNombre, sortColumn, sortDirection, page, pageSize } = params;
+    const { empresaId, periodYear, periodMonth, search, contratante, clienteNombre, statusSeguridad, sortColumn, sortDirection, page, pageSize } = params;
     
     const rpcArgs: any = {
         p_empresa_id: empresaId,
@@ -411,7 +412,8 @@ export async function listSalaryReportWorkers(params: ListSalaryReportWorkersPar
         p_sort_column: sortColumn || 'nome',
         p_sort_direction: sortDirection || 'asc',
         p_page: page,
-        p_page_size: pageSize
+        p_page_size: pageSize,
+        p_status_seguridad_filter: statusSeguridad && statusSeguridad.length > 0 ? statusSeguridad : null
     };
 
     const { data, error } = await supabase.schema('core_personal').rpc('get_salary_report_workers', rpcArgs);
@@ -436,7 +438,8 @@ export async function getSalaryReportKpis(
     periodMonth: number,
     search: string | null,
     contratante: string | null,
-    clienteNombre: string[] | null
+    clienteNombre: string[] | null,
+    statusSeguridad: string[] | null
 ): Promise<SalaryReportKpis> {
     const { data, error } = await supabase.schema('core_personal').rpc('get_salary_report_kpis', {
         p_empresa_id: empresaId,
@@ -444,7 +447,8 @@ export async function getSalaryReportKpis(
         p_period_month: periodMonth,
         p_search: search || null,
         p_contratante: contratante || null,
-        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null
+        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
+        p_status_seguridad_filter: statusSeguridad && statusSeguridad.length > 0 ? statusSeguridad : null
     });
 
     if (error) {
