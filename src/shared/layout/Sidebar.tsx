@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History, ArrowLeft, ShieldCheck, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '../rbac/RoleGate';
 import type { AppRole } from '../rbac/roles';
@@ -24,6 +24,7 @@ export function Sidebar() {
         { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
         { to: '/workers/history', tKey: 'Histórico de Atividade', icon: History, roles: ['admin', 'rh'] },
+        { to: '/workers/salary-report', tKey: 'Informe de Salários', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'] },
         { to: '/documentacion/tarefas', tKey: 'Documentos e Contratos', icon: FileText, roles: ['admin', 'rh'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
