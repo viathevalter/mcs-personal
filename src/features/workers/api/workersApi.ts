@@ -119,6 +119,8 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             fecha_nacimiento: updates.fecha_nacimiento,
             nuss: updates.nuss,
             foto: updates.foto,
+            status_trabajador: updates.status_trabajador,
+            status_seguridad: updates.status_seguridad,
             camiseta: updates.camiseta,
             pantalones: updates.pantalones,
         })
@@ -364,4 +366,102 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
                 .eq('cod_colab', workerCodColab);
         }
     }
+}
+
+export interface ListSalaryReportWorkersParams {
+    empresaId: string;
+    periodYear: number;
+    periodMonth: number;
+    search?: string;
+    contratante?: string;
+    clienteNombre?: string[];
+    sortColumn?: string;
+    sortDirection?: 'asc' | 'desc';
+    page: number;
+    pageSize: number;
+}
+
+export interface SalaryReportWorker extends Worker {
+    dias_trabalhados: number;
+    data_alta_seguridad: string | null;
+    data_baixa_seguridad: string | null;
+}
+
+export interface ListSalaryReportWorkersResponse {
+    data: SalaryReportWorker[];
+    count: number;
+}
+
+export interface SalaryReportKpis {
+    total_ativos_periodo: number;
+    novos_admitidos: number;
+    desligados: number;
+}
+
+export async function listSalaryReportWorkers(params: ListSalaryReportWorkersParams): Promise<ListSalaryReportWorkersResponse> {
+    const { empresaId, periodYear, periodMonth, search, contratante, clienteNombre, sortColumn, sortDirection, page, pageSize } = params;
+    
+    const rpcArgs: any = {
+        p_empresa_id: empresaId,
+        p_period_year: periodYear,
+        p_period_month: periodMonth,
+        p_search: search || null,
+        p_contratante: contratante || null,
+        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
+        p_sort_column: sortColumn || 'nome',
+        p_sort_direction: sortDirection || 'asc',
+        p_page: page,
+        p_page_size: pageSize
+    };
+
+    const { data, error } = await supabase.schema('core_personal').rpc('get_salary_report_workers', rpcArgs);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    if (!data || data.length === 0) {
+        return { data: [], count: 0 };
+    }
+
+    return {
+        data: data as SalaryReportWorker[],
+        count: Number(data[0].total_count) || 0,
+    };
+}
+
+export async function getSalaryReportKpis(
+    empresaId: string,
+    periodYear: number,
+    periodMonth: number,
+    search: string | null,
+    contratante: string | null,
+    clienteNombre: string[] | null
+): Promise<SalaryReportKpis> {
+    const { data, error } = await supabase.schema('core_personal').rpc('get_salary_report_kpis', {
+        p_empresa_id: empresaId,
+        p_period_year: periodYear,
+        p_period_month: periodMonth,
+        p_search: search || null,
+        p_contratante: contratante || null,
+        p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null
+    });
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        return {
+            total_ativos_periodo: 0,
+            novos_admitidos: 0,
+            desligados: 0
+        };
+    }
+
+    return {
+        total_ativos_periodo: Number(data[0].total_ativos_periodo) || 0,
+        novos_admitidos: Number(data[0].novos_admitidos) || 0,
+        desligados: Number(data[0].desligados) || 0
+    };
 }

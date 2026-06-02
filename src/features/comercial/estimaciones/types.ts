@@ -1,12 +1,28 @@
 import type { Client } from '@/features/master-data/clients/types';
 import type { ClientSite } from '@/features/master-data/client-sites/types';
 
+export interface Lead {
+  id: string;
+  empresa_id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  company_name?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
 export interface Estimacion {
   id: string;
   empresa_id: string;
   codigo: string;
-  client_id: string;
+  client_id?: string;
+  lead_id?: string;
   client_site_id?: string;
+  country_id?: string;
   estimation_type: 'new_allocation' | 'expansion' | 'other';
   contact_name?: string;
   contact_email?: string;
@@ -15,7 +31,7 @@ export interface Estimacion {
   validity_date?: string;
   payment_terms?: string;
   general_notes?: string;
-  status: 'draft' | 'review' | 'sent' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';
+  status: 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';
   current_version_id?: string;
   created_at: string;
   updated_at: string;
@@ -24,7 +40,9 @@ export interface Estimacion {
   
   // Relations mapped by React Query / Supabase
   client?: Client;
+  lead?: Lead;
   client_site?: ClientSite;
+  country?: { id: string; name: string };
   current_version?: EstimacionVersion;
 }
 
@@ -67,6 +85,8 @@ export interface EstimacionItem {
   margin_percent: number;
   risk_level?: string;
   notes?: string;
+  ss_regime?: 'none' | 'local' | 'destacado';
+  custom_lodging_rate?: number;
   created_at: string;
   updated_at: string;
   
@@ -121,6 +141,8 @@ export interface EstimacionCompletaPayload {
     margin_percent: number;
     risk_level?: string;
     notes?: string;
+    ss_regime?: 'none' | 'local' | 'destacado';
+    custom_lodging_rate?: number;
   }>;
   costs?: Array<{
     cost_category: string;

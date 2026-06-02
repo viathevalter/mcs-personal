@@ -4,6 +4,7 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { WorkersPage } from '../features/workers/WorkersPage';
 import { WorkerDetailsPage } from '../features/workers/WorkerDetailsPage';
 import { MovementHistoryPage } from '../features/workers/MovementHistoryPage';
+import { SalaryReportPage } from '../features/workers/pages/SalaryReportPage';
 import { BenefitsPage } from '../features/benefits/BenefitsPage';
 import { TaxesPage } from '../features/taxes/pages/TaxesPage';
 import { DiscountsPage } from '../features/discounts/pages/DiscountsPage';
@@ -14,6 +15,7 @@ import { BankAccountsPage } from '../features/bank-accounts/pages/BankAccountsPa
 import { LoginPage } from '../features/auth/LoginPage';
 import { ContractSigningPage } from '../features/documents/pages/ContractSigningPage';
 import { WorkerDocCapturePage } from '../features/documents/pages/WorkerDocCapturePage';
+import { ProposalSigningPage } from '../features/documents/pages/ProposalSigningPage';
 import UsersPage from '../features/admin/UsersPage';
 import { CategoriesSettingsPage } from '../features/settings/pages/CategoriesSettingsPage';
 import { JobFunctionsPage } from '../features/master-data/job-functions/pages/JobFunctionsPage';
@@ -72,6 +74,7 @@ import { EstimacionesPage } from '../features/comercial/estimaciones/Estimacione
 import { EstimacionDetailPage } from '../features/comercial/estimaciones/EstimacionDetailPage';
 import { NewEstimacionPage } from '../features/comercial/estimaciones/NewEstimacionPage';
 import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
+import { LeadsPage } from '../features/comercial/leads/LeadsPage';
 
 import { FinanceiroLayout } from '../features/financeiro/layout/FinanceiroLayout';
 import { Dashboard as FinanceiroDashboard } from '../features/financeiro/pages/Dashboard';
@@ -97,6 +100,11 @@ export const router = createBrowserRouter([
     {
         path: '/assinar/:token',
         element: <ContractSigningPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/assinar-proposta/:token',
+        element: <ProposalSigningPage />,
         errorElement: <RootErrorBoundary />,
     },
     {
@@ -141,6 +149,7 @@ export const router = createBrowserRouter([
                 children: [
                     { index: true, element: <Navigate to="/comercial/estimaciones" replace /> },
                     { path: 'tarefas', element: <ComercialTasksPage /> },
+                    { path: 'leads', element: <LeadsPage /> },
                     { path: 'estimaciones', element: <EstimacionesPage /> },
                     { path: 'estimaciones/nova', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/:id', element: <EstimacionDetailPage /> }
@@ -382,6 +391,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'workers/history',
                         element: <MovementHistoryPage />,
+                    },
+                    {
+                        path: 'workers/salary-report',
+                        element: <SalaryReportPage />,
                     },
                     {
                         path: 'workers/:id',

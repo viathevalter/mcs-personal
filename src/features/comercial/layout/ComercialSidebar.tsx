@@ -4,7 +4,8 @@ import {
     CheckSquare,
     ChevronLeft, 
     ChevronRight, 
-    ArrowLeft 
+    ArrowLeft,
+    Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -24,6 +25,7 @@ export function ComercialSidebar() {
 
     const links: SidebarLink[] = [
         { to: '/comercial/estimaciones', label: 'Estimaciones', icon: Briefcase, roles: ['admin', 'commercial'] },
+        { to: '/comercial/leads', label: 'Leads de Marketing', icon: Users, roles: ['admin', 'commercial'] },
         { to: '/comercial/tarefas', label: 'Tarefas', icon: CheckSquare, roles: ['admin', 'commercial'] },
     ];
 

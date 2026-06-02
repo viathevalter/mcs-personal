@@ -45,10 +45,19 @@ export function PedidoItemsTab({ items }: Props) {
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="px-4 py-3">
                     <div className="font-medium">{item.job_function?.name || item.job_function_name_snapshot || 'Sem Função'}</div>
-                    <div className="text-xs text-muted-foreground flex gap-2 mt-1">
-                      {item.includes_accommodation_snapshot && <span>✓ Alojamento</span>}
-                      {item.includes_transport_snapshot && <span>✓ Transporte</span>}
-                      {item.includes_ppe_snapshot && <span>✓ EPI</span>}
+                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                      {item.includes_accommodation_snapshot && (
+                        <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
+                          Alojamento{item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? `: €${Number(item.custom_lodging_rate).toFixed(2)}/dia` : ''}
+                        </span>
+                      )}
+                      {item.includes_transport_snapshot && <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">Transporte</span>}
+                      {item.includes_ppe_snapshot && <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">EPI</span>}
+                      {item.ss_regime && item.ss_regime !== 'none' && (
+                        <span className="bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+                          Seg. Social: {item.ss_regime === 'destacado' ? 'Destacado' : 'Local'}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">

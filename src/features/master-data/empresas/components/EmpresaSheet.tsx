@@ -58,6 +58,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       mobile: '',
       email: '',
       billing_email: '',
+      proposal_sender_email: '',
       iban: '',
       latitude: undefined,
       longitude: undefined,
@@ -88,6 +89,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           mobile: empresa.mobile || '',
           email: empresa.email || '',
           billing_email: empresa.billing_email || '',
+          proposal_sender_email: empresa.proposal_sender_email || '',
           iban: empresa.iban || '',
           latitude: empresa.latitude || undefined,
           longitude: empresa.longitude || undefined,
@@ -112,6 +114,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           mobile: '',
           email: '',
           billing_email: '',
+          proposal_sender_email: '',
           iban: '',
           latitude: undefined,
           longitude: undefined,
@@ -391,6 +394,19 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                       <FormLabel>Movil</FormLabel>
                       <FormControl>
                         <Input placeholder="Ex: +351 910 000 000" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="proposal_sender_email"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>E-mail Remetente de Propostas (Outlook)</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: vendas@stoco.es" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -32,10 +32,10 @@ export default function UsersPage() {
 
     // Fetch memberships when a user is selected
     useQuery({
-        queryKey: ['admin_memberships', selectedUser?.id],
+        queryKey: ['admin_memberships', selectedUser?.user_id],
         queryFn: async () => {
             if (!selectedUser) return [];
-            const mems = await getUserMemberships(selectedUser.id);
+            const mems = selectedUser.user_id ? await getUserMemberships(selectedUser.user_id) : [];
             const initialMemForm: Record<string, { role: string; is_active: boolean }> = {};
             empresas?.forEach(emp => {
                 const found = mems.find(m => m.empresa_id === emp.id);

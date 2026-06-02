@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'rh' | 'finance' | 'commercial' | 'user';
+export type AppRole = 'admin' | 'rh' | 'finance' | 'commercial' | 'user' | 'cae_compliance';
 
 export interface UserMembership {
     empresa_id: string;
@@ -12,6 +12,7 @@ export const ROLE_HIERARCHY: Record<AppRole, number> = {
     admin: 100,
     finance: 30,
     rh: 20,
+    cae_compliance: 15,
     commercial: 10,
     user: 1,
 };

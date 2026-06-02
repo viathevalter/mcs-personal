@@ -10,15 +10,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useLodgingRates } from '@/features/comercial/estimaciones/hooks/useLodgingRates';
+import { ConfigureLodgingDialog } from '../components/ConfigureLodgingDialog';
 
 export function RegionsPage() {
   const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
-  
-  // Se nenhum país selecionado, passamos undefined para listar tudo ou não? 
-  // O hook useRegions com countryId undefined não roda (enabled: false), então usamos useAllRegions se quisermos tudo, ou só rodamos com ID.
-  // Vamos buscar por todos ou pelo selecionado.
-  const { data: regions, isLoading, error } = useRegions(selectedCountryId || undefined);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [configuringRegion, setConfiguringRegion] = useState<{ id: string; name: string } | null>(null);
+
+  const { data: regions, isLoading: isLoadingRegions, error: regionsError } = useRegions(selectedCountryId || undefined);
+  const { data: lodgingRates = [], isLoading: isLoadingRates } = useLodgingRates();
+
+  const isLoading = isLoadingRegions || isLoadingRates;
+  const error = regionsError;
 
   return (
     <div className="space-y-6">
@@ -26,7 +32,7 @@ export function RegionsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Regiões e Estados</h2>
           <p className="text-muted-foreground">
-            Gestão de regiões do sistema. Apenas usuários super administradores podem criar ou editar registros nesta tabela.
+            Gestão de regiões do sistema. Configure tarifas de alojamento padrão e sazonais para cada localidade.
           </p>
         </div>
         
@@ -44,53 +50,87 @@ export function RegionsPage() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Código (Opcional)</TableHead>
+              <TableHead>Alojamento Base</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right w-36">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    <span>Carregando regiões...</span>
+                    <span>Carregando dados...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : error ? (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center text-red-500">
+                <TableCell colSpan={5} className="h-24 text-center text-red-500">
                   Erro ao carregar regiões.
                 </TableCell>
               </TableRow>
             ) : !selectedCountryId ? (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                  Selecione um país no filtro acima para visualizar suas regiões.
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  Selecione um país no filtro acima para visualizar suas regiões e cadastrar tarifas.
                 </TableCell>
               </TableRow>
             ) : regions?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                   Nenhuma região encontrada para este país.
                 </TableCell>
               </TableRow>
             ) : (
-              regions?.map((region) => (
-                <TableRow key={region.id}>
-                  <TableCell className="font-medium">{region.name}</TableCell>
-                  <TableCell>{region.code || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant={region.status === 'active' ? 'default' : 'secondary'}>
-                      {region.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))
+              regions?.map((region) => {
+                const regRates = lodgingRates.filter((r) => r.region_id === region.id);
+                const baseRate = regRates.find((r) => !r.start_date && !r.end_date);
+
+                return (
+                  <TableRow key={region.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <TableCell className="font-semibold text-slate-900 dark:text-white">{region.name}</TableCell>
+                    <TableCell className="font-mono text-xs">{region.code || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-850 dark:text-slate-200 font-medium">
+                      {baseRate ? `€${Number(baseRate.rate_per_day).toFixed(2)}/dia` : (
+                        <span className="text-slate-400 italic font-normal">Não configurado</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={region.status === 'active' ? 'default' : 'secondary'}>
+                        {region.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setConfiguringRegion({ id: region.id, name: region.name });
+                          setDialogOpen(true);
+                        }}
+                        className="h-8 border-slate-200 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800 text-xs font-semibold gap-1 text-slate-700 dark:text-slate-300"
+                      >
+                        <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        Alojamento
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
+
+      <ConfigureLodgingDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        region={configuringRegion}
+        countryId={selectedCountryId}
+        lodgingRates={lodgingRates}
+      />
     </div>
   );
 }

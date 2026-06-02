@@ -46,6 +46,8 @@ export interface PedidoItem {
   includes_accommodation_snapshot: boolean;
   includes_transport_snapshot: boolean;
   includes_ppe_snapshot: boolean;
+  ss_regime?: 'none' | 'local' | 'destacado';
+  custom_lodging_rate?: number;
   item_status: 'pending_fulfillment' | 'partially_fulfilled' | 'fulfilled' | 'cancelled';
   created_at: string;
   updated_at: string;

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEstimacionDetail } from './hooks/useEstimacionDetail';
 import { EstimacionStatusBadge } from './components/EstimacionStatusBadge';
 import { ApproveEstimacionButton } from './components/ApproveEstimacionButton';
+import { ProposalSignatureStatusCard } from './components/ProposalSignatureStatusCard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -92,43 +93,47 @@ export function EstimacionDetailPage() {
 
           <TabsContent value="overview" className="mt-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dados do Cliente</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start">
-                    <Users className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Empresa</p>
-                      <p className="text-base">{estimacion.client?.legal_name}</p>
-                      {estimacion.client?.trade_name && (
-                        <p className="text-sm text-muted-foreground">{estimacion.client.trade_name}</p>
-                      )}
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dados do Cliente</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-start">
+                      <Users className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Empresa</p>
+                        <p className="text-base">{estimacion.client?.legal_name}</p>
+                        {estimacion.client?.trade_name && (
+                          <p className="text-sm text-muted-foreground">{estimacion.client.trade_name}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start">
-                    <MapPin className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Obra / Local</p>
-                      <p className="text-base">{estimacion.client_site?.name || 'Não especificado'}</p>
-                      {estimacion.client_site?.address && (
-                        <p className="text-sm text-muted-foreground">{estimacion.client_site.address}</p>
-                      )}
+                    <div className="flex items-start">
+                      <MapPin className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Obra / Local</p>
+                        <p className="text-base">{estimacion.client_site?.name || 'Não especificado'}</p>
+                        {estimacion.client_site?.address && (
+                          <p className="text-sm text-muted-foreground">{estimacion.client_site.address}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start border-t pt-4">
-                    <FileText className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Contato da Proposta</p>
-                      <p className="text-base">{estimacion.contact_name || 'Não especificado'}</p>
-                      {estimacion.contact_email && (
-                        <p className="text-sm text-muted-foreground">{estimacion.contact_email}</p>
-                      )}
+                    <div className="flex items-start border-t pt-4">
+                      <FileText className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Contato da Proposta</p>
+                        <p className="text-base">{estimacion.contact_name || 'Não especificado'}</p>
+                        {estimacion.contact_email && (
+                          <p className="text-sm text-muted-foreground">{estimacion.contact_email}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                <ProposalSignatureStatusCard estimacion={estimacion} />
+              </div>
 
               <Card>
                 <CardHeader>
@@ -142,6 +147,22 @@ export function EstimacionDetailPage() {
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center">
+                      <MapPin className="h-4 w-4 text-muted-foreground mr-2" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">País</p>
+                        <p className="text-sm font-medium">
+                          {estimacion.country?.name || 'Padrão / Global'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <DollarSign className="h-4 w-4 text-muted-foreground mr-2" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Condições de Pagamento</p>
+                        <p className="text-sm font-medium">{estimacion.payment_terms || '-'}</p>
+                      </div>
+                    </div>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 text-muted-foreground mr-2" />
                       <div>
@@ -191,10 +212,19 @@ export function EstimacionDetailPage() {
                           <tr key={item.id}>
                             <td className="py-3">
                               <div className="font-medium">{item.job_function?.name}</div>
-                              <div className="text-xs text-muted-foreground flex gap-2 mt-1">
-                                {item.includes_accommodation && <span>✓ Alojamento</span>}
-                                {item.includes_transport && <span>✓ Transporte</span>}
-                                {item.includes_ppe && <span>✓ EPIs</span>}
+                              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                                {item.includes_accommodation && (
+                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
+                                    Alojamento{item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? `: €${Number(item.custom_lodging_rate).toFixed(2)}/dia` : ''}
+                                  </span>
+                                )}
+                                {item.includes_transport && <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">Transporte</span>}
+                                {item.includes_ppe && <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">EPIs</span>}
+                                {item.ss_regime && item.ss_regime !== 'none' && (
+                                  <span className="bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+                                    Seg. Social: {item.ss_regime === 'destacado' ? 'Destacado' : 'Local'}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-3 text-center">{item.quantity}</td>
@@ -273,24 +303,24 @@ export function EstimacionDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-3 gap-6">
-                  <div className="bg-slate-50 rounded-lg p-6 border">
-                    <p className="text-sm font-medium text-slate-500 mb-2">Custo Total Previsto</p>
-                    <p className="text-3xl font-bold text-slate-900">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg p-6 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Custo Total Previsto</p>
+                    <p className="text-3xl font-bold text-slate-900 dark:text-white">
                       {formatCurrency(estimacion.current_version?.total_cost || 0)}
                     </p>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-6 border border-blue-100">
-                    <p className="text-sm font-medium text-blue-600 mb-2">Receita Total Prevista</p>
-                    <p className="text-3xl font-bold text-blue-900">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg p-6 border border-blue-100 dark:border-blue-950/40 text-blue-900 dark:text-blue-100">
+                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">Receita Total Prevista</p>
+                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-400">
                       {formatCurrency(estimacion.current_version?.total_revenue || 0)}
                     </p>
                   </div>
                   <div className={`rounded-lg p-6 border ${
-                    (estimacion.current_version?.margin_percent || 0) >= 20 ? 'bg-emerald-50 border-emerald-100' :
-                    (estimacion.current_version?.margin_percent || 0) >= 10 ? 'bg-amber-50 border-amber-100' :
-                    'bg-red-50 border-red-100'
+                    (estimacion.current_version?.margin_percent || 0) >= 20 ? 'bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-950/40 text-emerald-700 dark:text-emerald-400' :
+                    (estimacion.current_version?.margin_percent || 0) >= 10 ? 'bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-950/40 text-amber-700 dark:text-amber-400' :
+                    'bg-white dark:bg-slate-900 border-red-100 dark:border-red-950/40 text-red-700 dark:text-red-400'
                   }`}>
-                    <p className="text-sm font-medium mb-2 opacity-80">Margem Global (Lucro)</p>
+                    <p className="text-sm font-medium mb-2 opacity-80 text-slate-600 dark:text-slate-400">Margem Global (Lucro)</p>
                     <div className="flex items-baseline space-x-2">
                       <p className="text-3xl font-bold">
                         {estimacion.current_version?.margin_percent || 0}%

@@ -72,8 +72,12 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
                 </div>
               </TableCell>
               <TableCell>
-                <div className="font-medium text-slate-900">{est.client?.trade_name || est.client?.legal_name}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{est.client_site?.name || 'Local não definido'}</div>
+                <div className="font-medium text-slate-900 dark:text-slate-200">
+                  {est.client ? (est.client.trade_name || est.client.legal_name) : est.lead ? `${est.lead.name} (Lead)` : 'Sem Cliente/Lead'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {est.client_site?.name || (est.lead?.company_name ? `Empresa: ${est.lead.company_name}` : 'Local não definido')}
+                </div>
               </TableCell>
               <TableCell>
                 <span className="text-sm">{getSolicitudTypeLabel(est.estimation_type)}</span>

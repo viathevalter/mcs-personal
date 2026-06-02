@@ -75,7 +75,8 @@ export function EstimacionesPage() {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="draft">Rascunho</SelectItem>
-                <SelectItem value="sent">Enviada</SelectItem>
+                <SelectItem value="sent">Aguardando Assinatura</SelectItem>
+                <SelectItem value="signed">Contrato Assinado</SelectItem>
                 <SelectItem value="approved">Aprovada</SelectItem>
                 <SelectItem value="rejected">Rejeitada</SelectItem>
               </SelectContent>

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useWorkerDocuments, useUploadDocument, useDeleteDocument, useDocumentDownload } from '@/features/workers/hooks/useWorkerDocuments';
 import { updateWorker } from '@/features/workers/api/workersApi';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,8 +40,15 @@ const DOC_TYPES = [
     { value: 'prova_vida', label: 'Prova de Vida' },
     { value: 'nomina', label: 'Recibo de Vencimento (Nómina)' },
     { value: 'identificacao', label: 'Doc. Identificação Genérica' },
+    { value: 'a1', label: 'Certificado A1' },
+    { value: 'apto_medico', label: 'Apto Médico' },
+    { value: 'prl_certificate', label: 'Certificado PRL' },
+    { value: 'epi_recibo', label: 'Recibo de EPIs' },
+    { value: 'formacao_seguranca', label: 'Formação de Posto / Segurança' },
     { value: 'outros', label: 'Outros' }
 ];
+
+const RESTRICTED_DOC_TYPES = ['a1', 'apto_medico', 'prl_certificate', 'formacao_seguranca'];
 
 function formatBytes(bytes: number | null, decimals = 2) {
     if (bytes === null || bytes === 0) return '0 Bytes';
@@ -53,6 +61,7 @@ function formatBytes(bytes: number | null, decimals = 2) {
 
 export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
     const { role } = useEmpresa();
+    const { role: globalRole } = useRole();
     const queryClient = useQueryClient();
     const { data: documents, isLoading, isError } = useWorkerDocuments(workerId);
     const uploadMutation = useUploadDocument();
@@ -62,9 +71,25 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
     const [selectedDocType, setSelectedDocType] = useState('contrato_trabalho');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+    const hasAccessToRestricted = role === 'cae_compliance' || globalRole === 'super_admin';
+
     const safeDocs = documents || [];
+    const filteredDocs = safeDocs.filter(doc => {
+        if (RESTRICTED_DOC_TYPES.includes(doc.doc_type)) {
+            return hasAccessToRestricted;
+        }
+        return true;
+    });
+
+    const allowedDocTypes = DOC_TYPES.filter(type => {
+        if (RESTRICTED_DOC_TYPES.includes(type.value)) {
+            return hasAccessToRestricted;
+        }
+        return true;
+    });
+
     const isAdmin = role === 'admin';
-    const canUpload = role === 'admin' || role === 'rh';
+    const canUpload = role === 'admin' || role === 'rh' || role === 'cae_compliance';
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -157,7 +182,7 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                                     value={selectedDocType}
                                     onChange={e => setSelectedDocType(e.target.value)}
                                 >
-                                    {DOC_TYPES.map(type => (
+                                    {allowedDocTypes.map(type => (
                                         <option key={type.value} value={type.value}>{type.label}</option>
                                     ))}
                                 </select>
@@ -226,14 +251,14 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                                         </TableCell>
                                     </TableRow>
                                 )}
-                                {!isLoading && !isError && safeDocs.length === 0 && (
+                                {!isLoading && !isError && filteredDocs.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                                             Nenhum documento anexado.
                                         </TableCell>
                                     </TableRow>
                                 )}
-                                {!isLoading && !isError && safeDocs.map((doc) => {
+                                {!isLoading && !isError && filteredDocs.map((doc) => {
                                     const tipoLabel = DOC_TYPES.find(t => t.value === doc.doc_type)?.label || doc.doc_type;
                                     const date = new Date(doc.created_at).toLocaleDateString('pt-PT');
 
