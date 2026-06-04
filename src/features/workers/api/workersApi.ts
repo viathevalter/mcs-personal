@@ -263,11 +263,11 @@ export interface AddManualAllocationParams {
 export async function addManualAllocation(params: AddManualAllocationParams): Promise<void> {
     const fakeSpId = 9900000 + Math.floor(Math.random() * 100000); // 9.9M range to avoid collisions
     
-    // First, check current worker status
+    // First, check current worker status and retrieve ID
     const { data: worker, error: fetchError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('status_seguridad, status_trabajador, niss')
+        .select('id, status_seguridad, status_trabajador, niss')
         .eq('cod_colab', params.workerCodColab)
         .single();
         
@@ -300,19 +300,49 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
 
     if (allocError) throw mapSupabaseError(allocError);
 
+    // Resolve the company UUID from core_common.empresas matching params.contratante
+    const { data: empresa } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('id')
+        .ilike('nome', params.contratante)
+        .maybeSingle();
+
+    const companyId = empresa?.id;
+
+    const workerUpdates: any = {
+        cliente: params.cliente_nombre,
+        contratante: params.contratante,
+        funcion: params.funcion,
+        status_trabajador: 'Ativo',
+        status_seguridad: newStatusSeguridad
+    };
+
+    if (companyId) {
+        workerUpdates.empresa_id = companyId;
+    }
+
     const { error: workerError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .update({
-            cliente: params.cliente_nombre,
-            contratante: params.contratante,
-            funcion: params.funcion,
-            status_trabajador: 'Ativo',
-            status_seguridad: newStatusSeguridad
-        })
+        .update(workerUpdates)
         .eq('cod_colab', params.workerCodColab);
         
     if (workerError) throw mapSupabaseError(workerError);
+
+    // If companyId is resolved, update any active/pending or error tickets for the worker
+    if (companyId && worker) {
+        await supabase
+            .schema('core_personal')
+            .from('seguridade_status')
+            .update({
+                empresa_id: companyId,
+                origem_cliente_nome: params.cliente_nombre,
+                origem_contratante: params.contratante
+            })
+            .eq('worker_id', worker.id)
+            .in('status', ['pendente', 'erro']);
+    }
 }
 
 export interface UpdateWorkerAlocacaoParams {
@@ -358,12 +388,51 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
         if (updates.contratante) workerUpdates.contratante = updates.contratante;
         if (updates.funcion) workerUpdates.funcion = updates.funcion;
         
+        let companyId: string | undefined;
+        if (updates.contratante) {
+            const { data: empresa } = await supabase
+                .schema('core_common')
+                .from('empresas')
+                .select('id')
+                .ilike('nome', updates.contratante)
+                .maybeSingle();
+            if (empresa?.id) {
+                companyId = empresa.id;
+                workerUpdates.empresa_id = companyId;
+            }
+        }
+
         if (Object.keys(workerUpdates).length > 0) {
             await supabase
                 .schema('core_personal')
                 .from('workers')
                 .update(workerUpdates)
                 .eq('cod_colab', workerCodColab);
+        }
+
+        // If we updated the contractor, sync the tickets too
+        if (companyId) {
+            const { data: worker } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id')
+                .eq('cod_colab', workerCodColab)
+                .single();
+
+            if (worker) {
+                const ticketUpdates: any = {
+                    empresa_id: companyId
+                };
+                if (updates.cliente_nombre) ticketUpdates.origem_cliente_nome = updates.cliente_nombre;
+                if (updates.contratante) ticketUpdates.origem_contratante = updates.contratante;
+
+                await supabase
+                    .schema('core_personal')
+                    .from('seguridade_status')
+                    .update(ticketUpdates)
+                    .eq('worker_id', worker.id)
+                    .in('status', ['pendente', 'erro']);
+            }
         }
     }
 }
