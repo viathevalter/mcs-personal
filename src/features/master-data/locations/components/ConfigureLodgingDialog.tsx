@@ -161,7 +161,7 @@ export function ConfigureLodgingDialog({ open, onOpenChange, region, countryId, 
                   placeholder="Ex: Alta Temporada Verão"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  className="h-9 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850"
+                  className="h-9 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
                 />
               </div>
               <div className="space-y-1.5">
@@ -175,7 +175,7 @@ export function ConfigureLodgingDialog({ open, onOpenChange, region, countryId, 
                     placeholder="Ex: 55.00"
                     value={rateVal}
                     onChange={(e) => setRateVal(e.target.value)}
-                    className="pl-7 h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850"
+                    className="pl-7 h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -186,7 +186,7 @@ export function ConfigureLodgingDialog({ open, onOpenChange, region, countryId, 
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850"
+                  className="h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
                 />
               </div>
               <div className="space-y-1.5">
@@ -196,7 +196,7 @@ export function ConfigureLodgingDialog({ open, onOpenChange, region, countryId, 
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850"
+                  className="h-9 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
                 />
               </div>
             </div>

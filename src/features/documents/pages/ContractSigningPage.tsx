@@ -244,7 +244,7 @@ export function ContractSigningPage() {
                                 >
                                     <Download className="h-4 w-4" /> Baixar Cópia Assinada
                                 </button>
-                                <div className="text-center text-xs text-slate-500 bg-slate-950 p-3 rounded-lg border border-slate-850">
+                                <div className="text-center text-xs text-slate-500 bg-slate-950 p-3 rounded-lg border border-slate-800">
                                     <span className="block font-semibold text-emerald-500">Documento Assinado!</span>
                                     IP: {ipInfo.ip} <br />
                                     Data: {new Date(contract.signed_at || '').toLocaleString('pt-PT')}

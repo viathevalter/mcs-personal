@@ -92,7 +92,7 @@ export function RegionsPage() {
                   <TableRow key={region.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <TableCell className="font-semibold text-slate-900 dark:text-white">{region.name}</TableCell>
                     <TableCell className="font-mono text-xs">{region.code || '-'}</TableCell>
-                    <TableCell className="font-mono text-xs text-slate-850 dark:text-slate-200 font-medium">
+                    <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200 font-medium">
                       {baseRate ? `€${Number(baseRate.rate_per_day).toFixed(2)}/dia` : (
                         <span className="text-slate-400 italic font-normal">Não configurado</span>
                       )}

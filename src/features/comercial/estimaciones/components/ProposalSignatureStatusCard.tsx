@@ -95,7 +95,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="bg-white dark:bg-slate-905 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm mb-4">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm mb-4">
             <p className="text-muted-foreground flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-indigo-500" />
               O e-mail será disparado para: <strong className="text-slate-900 dark:text-slate-200">{estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email || 'Nenhum e-mail cadastrado'}</strong>
@@ -183,7 +183,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           <div className="flex space-x-3">
             <Button 
               variant="outline"
-              className="flex-1 text-slate-700 dark:text-slate-350 border-slate-200 dark:border-slate-850 hover:bg-slate-100"
+              className="flex-1"
               onClick={handleDownloadDoc}
               disabled={downloading}
             >
@@ -243,13 +243,13 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
             <div className="grid grid-cols-2 gap-4 text-xs mt-2">
               <div>
                 <span className="text-slate-500 block font-medium">Assinante verificado</span>
-                <span className="font-semibold text-slate-850 dark:text-slate-200 break-all">
+                <span className="font-semibold text-slate-900 dark:text-slate-200 break-all">
                   {estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email}
                 </span>
               </div>
               <div>
                 <span className="text-slate-500 block font-medium">IP de Assinatura</span>
-                <span className="font-semibold text-slate-850 dark:text-slate-200 font-mono">
+                <span className="font-semibold text-slate-900 dark:text-slate-200 font-mono">
                   {sig.proposal_audit_logs?.[0]?.ip_address || 'Registrado em Auditoria'}
                 </span>
               </div>
@@ -266,7 +266,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
           <Button 
             variant="outline"
-            className="w-full text-slate-700 dark:text-slate-350 border-slate-200 dark:border-slate-850 hover:bg-slate-100"
+            className="w-full"
             onClick={handleDownloadDoc}
             disabled={downloading}
           >

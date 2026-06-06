@@ -144,11 +144,11 @@ export function LeadsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <UserPlus className="h-8 w-8 text-yellow-500" />
             Leads de Marketing
           </h1>
-          <p className="text-slate-400">
+          <p className="text-muted-foreground">
             Gerencie contatos e potenciais clientes capturados em campanhas de marketing.
           </p>
         </div>
@@ -162,12 +162,12 @@ export function LeadsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md">
+      <div className="flex items-center bg-card border p-4 rounded-xl shadow-sm">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, e-mail, empresa ou telefone..."
-            className="pl-10 bg-slate-950 border-slate-800 text-white placeholder-slate-500 focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
+            className="pl-10 focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -186,72 +186,72 @@ export function LeadsPage() {
       ) : isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-slate-900/50 animate-pulse rounded-xl border border-slate-850" />
+            <div key={i} className="h-16 bg-muted/20 animate-pulse rounded-xl border" />
           ))}
         </div>
       ) : filteredLeads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-850 rounded-xl bg-slate-900/20 text-center">
-          <div className="h-16 w-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 border border-slate-800">
-            <UserPlus className="h-8 w-8 text-slate-400" />
+        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/10 text-center">
+          <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4 border">
+            <UserPlus className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="text-xl font-semibold text-white mb-2">Nenhum Lead Encontrado</h3>
-          <p className="text-slate-400 max-w-md mb-6">
-            {searchTerm ? 'Nenhum lead corresponde aos filtros de busca informados.' : 'Cadastre seu primeiro Lead de Marketing clicando no botão acima para iniciar a prospecção.'}
+          <h3 className="text-xl font-semibold text-foreground mb-2">Nenhum Lead Encontrado</h3>
+          <p className="text-muted-foreground max-w-md mb-6">
+            {searchTerm ? 'Nenhum lead corresponds aos filtros de busca informados.' : 'Cadastre seu primeiro Lead de Marketing clicando no botão acima para iniciar a prospecção.'}
           </p>
           {searchTerm && (
-            <Button variant="outline" onClick={() => setSearchTerm('')} className="border-slate-800 hover:bg-slate-900 text-white">
+            <Button variant="outline" onClick={() => setSearchTerm('')}>
               Limpar Filtros
             </Button>
           )}
         </div>
       ) : (
-        <div className="bg-slate-900 border border-slate-850 rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-slate-950 border-b border-slate-850">
-                <TableRow className="hover:bg-slate-950/50 border-b border-slate-850">
-                  <TableHead className="text-slate-400 font-semibold py-4">Nome</TableHead>
-                  <TableHead className="text-slate-400 font-semibold py-4">Empresa / Organização</TableHead>
-                  <TableHead className="text-slate-400 font-semibold py-4">Contato</TableHead>
-                  <TableHead className="text-slate-400 font-semibold py-4">Observações</TableHead>
-                  <TableHead className="text-slate-400 font-semibold py-4">Data Cadastro</TableHead>
-                  <TableHead className="text-slate-400 font-semibold py-4 text-right">Ações</TableHead>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="py-4">Nome</TableHead>
+                  <TableHead className="py-4">Empresa / Organização</TableHead>
+                  <TableHead className="py-4">Contato</TableHead>
+                  <TableHead className="py-4">Observações</TableHead>
+                  <TableHead className="py-4">Data Cadastro</TableHead>
+                  <TableHead className="py-4 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLeads.map((lead) => (
-                  <TableRow key={lead.id} className="hover:bg-slate-950/40 border-b border-slate-850/50 transition-colors">
-                    <TableCell className="font-medium text-white py-4">
+                  <TableRow key={lead.id}>
+                    <TableCell className="font-medium text-foreground py-4">
                       {lead.name}
                     </TableCell>
                     <TableCell className="py-4">
                       {lead.company_name ? (
-                        <span className="flex items-center gap-2 text-slate-300">
-                          <Building className="h-4 w-4 text-slate-500 shrink-0" />
+                        <span className="flex items-center gap-2 text-foreground/90">
+                          <Building className="h-4 w-4 text-muted-foreground/75 shrink-0" />
                           {lead.company_name}
                         </span>
                       ) : (
-                        <span className="text-slate-600 italic text-sm">Não informada</span>
+                        <span className="text-muted-foreground/60 italic text-sm">Não informada</span>
                       )}
                     </TableCell>
                     <TableCell className="py-4 space-y-1">
-                      <div className="flex items-center gap-2 text-slate-300 text-sm">
-                        <Mail className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                        <span className="hover:text-yellow-400 transition-colors">{lead.email}</span>
+                      <div className="flex items-center gap-2 text-foreground/90 text-sm">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
+                        <span className="hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors">{lead.email}</span>
                       </div>
                       {lead.phone && (
-                        <div className="flex items-center gap-2 text-slate-400 text-xs">
-                          <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
                           <span>{lead.phone}</span>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="py-4 text-slate-400 max-w-xs truncate text-sm">
-                      {lead.notes || <span className="text-slate-600 italic">Sem observações</span>}
+                    <TableCell className="py-4 text-muted-foreground max-w-xs truncate text-sm">
+                      {lead.notes || <span className="text-muted-foreground/50 italic">Sem observações</span>}
                     </TableCell>
                     <TableCell className="py-4">
-                      <div className="flex items-center gap-2 text-slate-400 text-sm">
-                        <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                        <Calendar className="h-4 w-4 text-muted-foreground/75 shrink-0" />
                         <span>{formatDate(lead.created_at)}</span>
                       </div>
                     </TableCell>
@@ -261,7 +261,7 @@ export function LeadsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenEdit(lead)}
-                          className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-850"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           title="Editar Lead"
                         >
                           <Edit className="h-4 w-4" />
@@ -270,7 +270,7 @@ export function LeadsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenDelete(lead)}
-                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           title="Excluir Lead"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -287,44 +287,44 @@ export function LeadsPage() {
 
       {/* Form Modal (Create / Edit) */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="bg-slate-900 border border-slate-800 text-white sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-white">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-yellow-500" />
               {selectedLead ? 'Editar Lead de Marketing' : 'Criar Novo Lead'}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription>
               Preencha os campos abaixo para {selectedLead ? 'atualizar' : 'salvar'} as informações deste lead.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-slate-300">Nome do Contato <span className="text-red-500">*</span></Label>
+              <Label htmlFor="name">Nome do Contato <span className="text-red-500">*</span></Label>
               <Input
                 id="name"
                 required
                 placeholder="Ex: Ana Souza"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                className="focus-visible:ring-yellow-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="company_name" className="text-slate-300">Empresa / Organização</Label>
+              <Label htmlFor="company_name">Empresa / Organização</Label>
               <Input
                 id="company_name"
                 placeholder="Ex: Luminous Tech"
                 value={formData.company_name}
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                className="focus-visible:ring-yellow-500"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-300">E-mail <span className="text-red-500">*</span></Label>
+                <Label htmlFor="email">E-mail <span className="text-red-500">*</span></Label>
                 <Input
                   id="email"
                   type="email"
@@ -332,35 +332,35 @@ export function LeadsPage() {
                   placeholder="Ex: ana@empresa.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                  className="focus-visible:ring-yellow-500"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-slate-300">Telefone</Label>
+                <Label htmlFor="phone">Telefone</Label>
                 <Input
                   id="phone"
                   placeholder="Ex: +34 600 123 456"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                  className="focus-visible:ring-yellow-500"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes" className="text-slate-300">Observações / Detalhes de Prospecção</Label>
+              <Label htmlFor="notes">Observações / Detalhes de Prospecção</Label>
               <Textarea
                 id="notes"
                 placeholder="Registros adicionais, necessidades do cliente, interesses e histórico de contatos..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="min-h-[100px] bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                className="min-h-[100px] focus-visible:ring-yellow-500"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-slate-800">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} className="border-slate-800 hover:bg-slate-800 text-slate-300">
+            <DialogFooter className="pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={isCreating || isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold px-6">
@@ -373,19 +373,19 @@ export function LeadsPage() {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="bg-slate-900 border border-slate-800 text-white sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-red-500">
               <AlertCircle className="h-5 w-5" />
               Confirmar Exclusão
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              Esta ação é permanente e não poderá ser desfeita. Você tem certeza que deseja excluir o lead <strong className="text-white">{selectedLead?.name}</strong>?
+            <DialogDescription>
+              Esta ação é permanente e não poderá ser desfeita. Você tem certeza que deseja excluir o lead <strong className="text-foreground">{selectedLead?.name}</strong>?
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="pt-4 border-t border-slate-800 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="border-slate-800 hover:bg-slate-800 text-slate-300">
+          <DialogFooter className="pt-4 border-t flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
               Cancelar
             </Button>
             <Button onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white font-semibold">

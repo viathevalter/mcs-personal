@@ -338,7 +338,7 @@ export function ProposalSigningPage() {
                 {/* Visualizador de Documentos com Abas */}
                 <main className="flex-1 flex flex-col overflow-hidden bg-slate-900/40 border-r border-slate-900">
                     {/* Seletor de Abas Premium */}
-                    <div className="bg-slate-950 px-6 py-3 border-b border-slate-850 flex gap-4">
+                    <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 flex gap-4">
                         <button
                             onClick={() => setActiveTab('proposal')}
                             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide transition duration-150 ${
@@ -374,7 +374,7 @@ export function ProposalSigningPage() {
                 <aside className="w-full md:w-[420px] bg-slate-900/60 backdrop-blur-md p-6 flex flex-col justify-between overflow-y-auto border-t md:border-t-0 md:border-l border-slate-800/80 shadow-xl">
                     <div className="space-y-6">
                         {/* Informações da Proposta */}
-                        <div className="bg-slate-950/75 rounded-2xl p-5 border border-slate-850 shadow-inner space-y-4">
+                        <div className="bg-slate-950/75 rounded-2xl p-5 border border-slate-800 shadow-inner space-y-4">
                             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2">Detalhes do Destinatário</h3>
                             <div className="space-y-3.5 text-sm">
                                 <div>
@@ -450,19 +450,19 @@ export function ProposalSigningPage() {
                             <div className="space-y-3 animate-fade-in">
                                 <button
                                     onClick={() => handleDownloadCopy('proposal')}
-                                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-750 transition duration-150 shadow-md text-xs"
+                                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-800 transition duration-150 shadow-md text-xs"
                                 >
                                     <Download className="h-4 w-4" /> Baixar Proposta Comercial
                                 </button>
                                 {contractBlob && (
                                     <button
                                         onClick={() => handleDownloadCopy('contract')}
-                                        className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-750 transition duration-150 shadow-md text-xs"
+                                        className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-800 transition duration-150 shadow-md text-xs"
                                     >
                                         <Download className="h-4 w-4" /> Baixar Contrato Comercial
                                     </button>
                                 )}
-                                <div className="text-center text-[11px] text-slate-500 bg-slate-950/85 p-3 rounded-xl border border-slate-850">
+                                <div className="text-center text-[11px] text-slate-500 bg-slate-950/85 p-3 rounded-xl border border-slate-800">
                                     <span className="block font-bold text-emerald-400 text-xs mb-1">✓ Documentos Assinados!</span>
                                     IP de Assinatura: {ipInfo.ip} <br />
                                     Data/Hora: {new Date(proposal.signed_at || '').toLocaleString('pt-PT')}
@@ -515,7 +515,7 @@ export function ProposalSigningPage() {
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setOtpModalOpen(false)}
-                                className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl border border-slate-750 transition text-sm"
+                                className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl border border-slate-800 transition text-sm"
                             >
                                 Cancelar
                             </button>
