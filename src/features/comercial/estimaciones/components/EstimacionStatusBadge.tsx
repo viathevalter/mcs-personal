@@ -1,19 +1,26 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { FileText, Send, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
-  status: 'draft' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+  status: 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'cancelled' | 'superseded';
   className?: string;
   showIcon?: boolean;
 }
 
 export function EstimacionStatusBadge({ status, className, showIcon = true }: Props) {
+  const { t } = useTranslation();
   const config = {
     draft: {
       label: 'Rascunho',
       color: 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/20',
       icon: FileText,
+    },
+    review: {
+      label: 'Pendente de Aprovação',
+      color: 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20',
+      icon: Clock,
     },
     sent: {
       label: 'Aguardando Assinatura',
@@ -45,14 +52,18 @@ export function EstimacionStatusBadge({ status, className, showIcon = true }: Pr
       color: 'bg-red-500/10 text-red-500 hover:bg-red-500/20',
       icon: AlertCircle,
     },
+    superseded: {
+      color: 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/20',
+      icon: FileText,
+    },
   };
 
-  const { label, color, icon: Icon } = config[status] || config.draft;
+  const { color, icon: Icon } = config[status] || config.draft;
 
   return (
     <Badge variant="outline" className={cn('border-none font-medium', color, className)}>
       {showIcon && <Icon className="mr-1.5 h-3.5 w-3.5" />}
-      {label}
+      {t(`comercial.status.${status}`)}
     </Badge>
   );
 }

@@ -7,7 +7,7 @@ import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { 
   FileText, Send, CheckCircle2, Clock, Copy, 
   ExternalLink, Lock, Mail, RefreshCw, Download, 
-  Check, ShieldCheck, AlertCircle
+  Check, ShieldCheck, AlertCircle, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,8 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const { enviarProposta } = useEstimacionMutations();
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingContract, setDownloadingContract] = useState(false);
+  const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
 
   const sig = estimacion.proposal_signature;
   const status = sig?.status || 'draft';
@@ -66,6 +68,60 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     }
   };
 
+  const handleDownloadContract = async () => {
+    if (!sig?.contract_document_url) return;
+    try {
+      setDownloadingContract(true);
+      const { data, error } = await supabase.storage
+        .from('proposal-signatures')
+        .download(sig.contract_document_url);
+
+      if (error) throw error;
+
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_${estimacion.codigo || 'comercial'}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Contrato baixado com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao baixar contrato', { description: err.message });
+    } finally {
+      setDownloadingContract(false);
+    }
+  };
+
+  const handleDownloadSignedContract = async () => {
+    if (!sig?.contract_signed_document_url) return;
+    try {
+      setDownloadingSignedContract(true);
+      const { data, error } = await supabase.storage
+        .from('proposal-signatures')
+        .download(sig.contract_signed_document_url);
+
+      if (error) throw error;
+
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_assinado_${estimacion.codigo || 'comercial'}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Contrato assinado baixado com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao baixar contrato assinado', { description: err.message });
+    } finally {
+      setDownloadingSignedContract(false);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('pt-PT', {
       day: '2-digit',
@@ -78,6 +134,9 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
   // Render para Rascunho / Não Enviada
   if (status === 'draft') {
+    const hasUnapprovedContract = !!estimacion.custom_contract_url && !estimacion.is_custom_contract_approved;
+    const isUnderReview = estimacion.status === 'review';
+
     return (
       <Card className="border-dashed bg-slate-50/50 dark:bg-slate-900/10">
         <CardHeader className="pb-3">
@@ -87,11 +146,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               <CardTitle className="text-base font-semibold">Proposta Comercial</CardTitle>
             </div>
             <Badge variant="secondary" className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              Não Enviada
+              {isUnderReview ? 'Em Revisão' : 'Não Enviada'}
             </Badge>
           </div>
           <CardDescription>
-            Gere a proposta em formato Microsoft Word baseada neste orçamento e envie o link de assinatura para o cliente.
+            {isUnderReview 
+              ? 'Este orçamento está sob análise do gerente comercial. O envio de propostas estará disponível após a aprovação.' 
+              : hasUnapprovedContract 
+              ? 'O contrato deste orçamento foi customizado. É necessário que o gerente aprove as alterações jurídicas na seção de customização de contrato antes do envio.' 
+              : 'Gere a proposta em formato Microsoft Word baseada neste orçamento e envie o link de assinatura para o cliente.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
@@ -106,23 +169,42 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               </p>
             )}
           </div>
-          <Button 
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-            onClick={handleSendOrRecreate}
-            disabled={enviarProposta.isPending || (!estimacion.contact_email && !estimacion.client?.email && !estimacion.lead?.email)}
-          >
-            {enviarProposta.isPending ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Gerando Proposta...
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Gerar e Enviar Proposta
-              </>
-            )}
-          </Button>
+          
+          {isUnderReview ? (
+            <Button 
+              className="w-full bg-slate-250 dark:bg-slate-850 text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium"
+              disabled={true}
+            >
+              <Clock className="mr-2 h-4 w-4 animate-spin text-amber-500" />
+              Aguardando Aprovação do Gerente
+            </Button>
+          ) : hasUnapprovedContract ? (
+            <Button 
+              className="w-full bg-slate-250 dark:bg-slate-850 text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium"
+              disabled={true}
+            >
+              <Lock className="mr-2 h-4 w-4 text-amber-500" />
+              Envio Bloqueado (Requer Aprovação do Contrato)
+            </Button>
+          ) : (
+            <Button 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+              onClick={handleSendOrRecreate}
+              disabled={enviarProposta.isPending || (!estimacion.contact_email && !estimacion.client?.email && !estimacion.lead?.email)}
+            >
+              {enviarProposta.isPending ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando Proposta...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Gerar e Enviar Proposta
+                </>
+              )}
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -180,18 +262,31 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
             </div>
           </div>
 
-          <div className="flex space-x-3">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex space-x-3">
+              <Button 
+                variant="outline"
+                className="flex-1"
+                onClick={handleDownloadDoc}
+                disabled={downloading}
+              >
+                {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Baixar Proposta
+              </Button>
+              {sig?.contract_document_url && (
+                <Button 
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleDownloadContract}
+                  disabled={downloadingContract}
+                >
+                  {downloadingContract ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Baixar Contrato
+                </Button>
+              )}
+            </div>
             <Button 
-              variant="outline"
-              className="flex-1"
-              onClick={handleDownloadDoc}
-              disabled={downloading}
-            >
-              {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Baixar Documento
-            </Button>
-            <Button 
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
               onClick={handleSendOrRecreate}
               disabled={enviarProposta.isPending}
             >
@@ -264,15 +359,28 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
             )}
           </div>
 
-          <Button 
-            variant="outline"
-            className="w-full"
-            onClick={handleDownloadDoc}
-            disabled={downloading}
-          >
-            {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Baixar Cópia da Proposta Assinada (.docx)
-          </Button>
+          <div className="flex flex-col gap-2.5">
+            <Button 
+              variant="outline"
+              className="w-full"
+              onClick={handleDownloadDoc}
+              disabled={downloading}
+            >
+              {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Baixar Cópia da Proposta Assinada (.docx)
+            </Button>
+            {sig?.contract_signed_document_url && (
+              <Button 
+                variant="outline"
+                className="w-full"
+                onClick={handleDownloadSignedContract}
+                disabled={downloadingSignedContract}
+              >
+                {downloadingSignedContract ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="mr-2 h-4 w-4" />}
+                Baixar Cópia do Contrato Assinado (.docx)
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );

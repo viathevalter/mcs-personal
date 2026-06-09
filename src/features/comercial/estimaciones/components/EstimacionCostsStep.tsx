@@ -32,11 +32,13 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
     let cost = 0;
     let rev = 0;
     data.items.forEach((item: any) => {
-      cost += Number(item.base_cost_hour) * Number(item.total_hours);
+      const cssh = item.ss_cost_hour || 0;
+      cost += (Number(item.base_cost_hour) + cssh) * Number(item.total_hours);
       rev += Number(item.sell_rate_hour) * Number(item.total_hours);
     });
     
     newCosts.forEach((c: any) => {
+      if (c.cost_category === 'social_security') return;
       cost += Number(c.amount);
       if (c.is_rechargeable) {
         rev += Number(c.amount) * (1 + (Number(c.markup_percent) / 100));
@@ -61,11 +63,13 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
     let cost = 0;
     let rev = 0;
     data.items.forEach((item: any) => {
-      cost += Number(item.base_cost_hour) * Number(item.total_hours);
+      const cssh = item.ss_cost_hour || 0;
+      cost += (Number(item.base_cost_hour) + cssh) * Number(item.total_hours);
       rev += Number(item.sell_rate_hour) * Number(item.total_hours);
     });
     
     newCosts.forEach((c: any) => {
+      if (c.cost_category === 'social_security') return;
       cost += Number(c.amount);
       if (c.is_rechargeable) {
         rev += Number(c.amount) * (1 + (Number(c.markup_percent) / 100));
@@ -132,6 +136,7 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
                     <SelectItem value="housing">Alojamento</SelectItem>
                     <SelectItem value="transport">Transporte / Voos</SelectItem>
                     <SelectItem value="epi">EPIs</SelectItem>
+                    <SelectItem value="social_security">Segurança Social</SelectItem>
                     <SelectItem value="documentation">Documentação</SelectItem>
                     <SelectItem value="other">Outros</SelectItem>
                   </SelectContent>

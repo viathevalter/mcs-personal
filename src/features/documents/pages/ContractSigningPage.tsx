@@ -5,15 +5,19 @@ import { supabase } from '@/shared/supabase/client';
 import { getContractByToken, signContract, type Contract } from '../api/contractsApi';
 import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 export function ContractSigningPage() {
     const { token } = useParams<{ token: string }>();
+    const { t, i18n } = useTranslation();
     const docContainerRef = useRef<HTMLDivElement>(null);
     const [contract, setContract] = useState<Contract | null>(null);
     const [fileBlob, setFileBlob] = useState<Blob | null>(null);
     const [loading, setLoading] = useState(true);
     const [signing, setSigning] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [auditLog, setAuditLog] = useState<any | null>(null);
     
     // OTP Modal states
     const [otpModalOpen, setOtpModalOpen] = useState(false);
@@ -41,6 +45,19 @@ export function ContractSigningPage() {
 
                 if (data.status === 'signed') {
                     setSuccess(true);
+                    
+                    // Buscar logs de auditoria
+                    const { data: auditData } = await supabase
+                        .schema('core_personal')
+                        .from('contract_audit_logs')
+                        .select('*')
+                        .eq('contract_id', data.id)
+                        .order('verified_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (auditData) {
+                        setAuditLog(auditData);
+                    }
                 }
 
                 if (data.document_url) {
@@ -54,7 +71,7 @@ export function ContractSigningPage() {
                 }
             } catch (err: any) {
                 console.error("Erro ao carregar contrato:", err);
-                toast.error("Contrato inválido, expirado ou não encontrado.");
+                toast.error(t('signing.errorDescContract'));
             } finally {
                 setLoading(false);
             }
@@ -104,7 +121,7 @@ export function ContractSigningPage() {
     const handleSignContract = async () => {
         const otpCode = otpValues.join('');
         if (otpCode.length < 6) {
-            toast.error("Por favor, insira o código OTP de 6 dígitos.");
+            toast.error(t('signing.toastOtpRequired'));
             return;
         }
 
@@ -117,38 +134,172 @@ export function ContractSigningPage() {
                 user_agent: ipInfo.ua
             });
 
-            toast.success("Contrato assinado eletronicamente com sucesso!");
+            toast.success(t('signing.toastSuccessContract'));
             setSuccess(true);
             setOtpModalOpen(false);
-            if (contract) {
-                setContract({ ...contract, status: 'signed' });
+            
+            // Recarregar os dados do contrato
+            const updatedContract = await getContractByToken(token!);
+            setContract(updatedContract);
+            
+            const { data: auditData } = await supabase
+                .schema('core_personal')
+                .from('contract_audit_logs')
+                .select('*')
+                .eq('contract_id', updatedContract.id)
+                .order('verified_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (auditData) {
+                setAuditLog(auditData);
             }
         } catch (err: any) {
             console.error("Erro na assinatura:", err);
-            toast.error(err.message || "Código incorreto ou expirado. Tente novamente.");
+            toast.error(err.message || t('signing.toastErrorFallback'));
         } finally {
             setSigning(false);
         }
     };
 
-    // 5. Baixar cópia do contrato
-    const handleDownloadCopy = () => {
-        if (!fileBlob) return;
-        const url = window.URL.createObjectURL(fileBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${contract?.contract_type || 'contrato'}_assinado.docx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+    // 5. Baixar PDF com Alta Fidelidade (via iframe print isolado)
+    const handlePrintPdf = () => {
+        const docElement = docContainerRef.current?.querySelector('.docx-document');
+        if (!docElement) {
+            toast.error(t('signing.errorNotRendered', { defaultValue: 'Documento não renderizado ainda.' }));
+            return;
+        }
+
+        // Criar iframe oculto para impressão
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (!iframeDoc) return;
+
+        // Clonar o elemento do documento
+        const cloned = docElement.cloneNode(true) as HTMLElement;
+
+        // Injetar estilos e conteúdo no iframe
+        iframeDoc.write('<html><head><title>' + (contract?.contract_type || 'Contrato') + '</title>');
+        
+        // Copiar estilos da página principal
+        const styles = document.querySelectorAll('link[rel="stylesheet"], style');
+        styles.forEach(style => {
+            iframeDoc.write(style.outerHTML);
+        });
+
+        // Adicionar estilos específicos de impressão
+        iframeDoc.write(`
+            <style>
+                body {
+                    background: white !important;
+                    color: black !important;
+                    margin: 0 !important;
+                    padding: 20px !important;
+                    font-family: sans-serif;
+                }
+                .docx-wrapper {
+                    background: transparent !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                }
+                .docx-document {
+                    box-shadow: none !important;
+                    border: none !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .print-signature-block {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 2px solid #e2e8f0;
+                    page-break-inside: avoid;
+                }
+                @media print {
+                    body { padding: 0 !important; }
+                    @page {
+                        size: A4;
+                        margin: 15mm;
+                    }
+                }
+            </style>
+        `);
+
+        iframeDoc.write('</head><body>');
+        iframeDoc.write('<div class="docx-wrapper">');
+        iframeDoc.write(cloned.outerHTML);
+
+        // Se estiver assinado, adicionar o carimbo de auditoria
+        if (success && contract) {
+            const auditIp = auditLog?.ip_address || ipInfo.ip;
+            const auditDate = contract.signed_at 
+                ? new Date(contract.signed_at).toLocaleString('pt-PT') 
+                : new Date().toLocaleString('pt-PT');
+
+            iframeDoc.write(`
+                <div class="print-signature-block">
+                    <h3 style="font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px;">
+                        Assinatura Eletrónica e Carimbo de Integridade (eIDAS)
+                    </h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #334155;">
+                        <tr>
+                            <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Assinante</strong>
+                                    <span style="font-weight: bold; font-size: 12px; color: #1e293b;">${contract.worker?.nome}</span>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Documento de Identificação</strong>
+                                    <span>${contract.worker?.nif || contract.worker?.dni || contract.worker?.nie || contract.worker?.pasaporte || '-'}</span>
+                                </div>
+                            </td>
+                            <td style="width: 50%; vertical-align: top;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Contratante</strong>
+                                    <span>${contract.contratante}</span>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Metadados de Segurança</strong>
+                                    <span style="font-family: monospace; font-size: 10px;">IP: ${auditIp}</span><br/>
+                                    <span style="font-family: monospace; font-size: 10px;">Data: ${auditDate}</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <p style="font-size: 8.5px; color: #94a3b8; margin-top: 15px; line-height: 1.4;">
+                        Este documento foi assinado eletronicamente em conformidade com o Regulamento (UE) nº 910/2014 (eIDAS). A autenticidade e integridade desta cópia são garantidas pelo carimbo de verificação de integridade OTP/SMS armazenado de forma permanente nos registos de auditoria do sistema.
+                    </p>
+                </div>
+            `);
+        }
+
+        iframeDoc.write('</div></body></html>');
+        iframeDoc.close();
+
+        // Aguardar o carregamento e chamar a tela de impressão
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+            iframe.contentWindow?.print();
+            // Limpar iframe do DOM
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        }, 500);
     };
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6">
                 <Loader2 className="h-10 w-10 animate-spin text-indigo-500 mb-4" />
-                <p className="text-slate-400 font-medium">Carregando visualizador de contratos...</p>
+                <p className="text-slate-400 font-medium">{t('signing.loadingContract')}</p>
             </div>
         );
     }
@@ -157,8 +308,8 @@ export function ContractSigningPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6 text-center">
                 <AlertTriangle className="h-16 w-16 text-amber-500 mb-4" />
-                <h1 className="text-2xl font-bold mb-2">Contrato Inexistente ou Expirado</h1>
-                <p className="text-slate-400 max-w-md">O link de assinatura utilizado é inválido ou já expirou. Entre em contato com a equipe de RH para solicitar um novo link.</p>
+                <h1 className="text-2xl font-bold mb-2">{t('signing.errorTitleContract')}</h1>
+                <p className="text-slate-400 max-w-md">{t('signing.errorDescContract')}</p>
             </div>
         );
     }
@@ -172,19 +323,20 @@ export function ContractSigningPage() {
                         <FileText className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="font-bold text-lg leading-tight">Assinatura Digital de Contrato</h1>
-                        <p className="text-xs text-slate-400">Mastercorp Ecosystem</p>
+                        <h1 className="font-bold text-lg leading-tight">{t('signing.headerContract')}</h1>
+                        <p className="text-xs text-slate-400">{t('signing.subtitleContract')}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <LanguageToggle />
                     {success ? (
                         <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full text-xs font-semibold">
-                            <CheckCircle2 className="h-4 w-4" /> Assinado Digitalmente
+                            <CheckCircle2 className="h-4 w-4" /> {t('signing.statusSigned')}
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1.5 rounded-full text-xs font-semibold">
-                            <Lock className="h-4 w-4" /> Aguardando Assinatura
+                            <Lock className="h-4 w-4" /> {t('signing.statusPending')}
                         </div>
                     )}
                 </div>
@@ -194,7 +346,7 @@ export function ContractSigningPage() {
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {/* Visualizador de Contrato */}
                 <main className="flex-1 overflow-y-auto bg-slate-900 p-4 md:p-8 flex justify-center">
-                    <div className="w-full max-w-4xl bg-white text-slate-950 p-6 md:p-12 shadow-2xl rounded-xl border border-slate-200 overflow-x-auto min-h-[842px] docx-preview-container">
+                    <div className="w-full max-w-4xl overflow-x-auto docx-preview-container">
                         <div ref={docContainerRef} className="docx-wrapper" />
                     </div>
                 </main>
@@ -203,24 +355,24 @@ export function ContractSigningPage() {
                 <aside className="w-full md:w-96 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 p-6 flex flex-col justify-between overflow-y-auto">
                     <div className="space-y-6">
                         <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Informações Cadastrais</h3>
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{t('signing.registrationInfo')}</h3>
                             <div className="space-y-3 text-sm">
                                 <div>
-                                    <label className="text-slate-400 text-xs block">Nome Completo</label>
+                                    <label className="text-slate-400 text-xs block">{t('signing.labelFullName')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.worker?.nome}</span>
                                 </div>
                                 <div>
-                                    <label className="text-slate-400 text-xs block">Documento de Identidade</label>
+                                    <label className="text-slate-400 text-xs block">{t('signing.labelIdentity')}</label>
                                     <span className="font-semibold text-slate-200 block">
                                         {contract.worker?.nif || contract.worker?.dni || contract.worker?.nie || contract.worker?.pasaporte}
                                     </span>
                                 </div>
                                 <div>
-                                    <label className="text-slate-400 text-xs block">Contratante (Empresa)</label>
+                                    <label className="text-slate-400 text-xs block">{t('signing.labelContractor')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.contratante}</span>
                                 </div>
                                 <div>
-                                    <label className="text-slate-400 text-xs block">E-mail Cadastrado</label>
+                                    <label className="text-slate-400 text-xs block">{t('signing.labelRegisteredEmail')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.worker?.email}</span>
                                 </div>
                             </div>
@@ -228,10 +380,10 @@ export function ContractSigningPage() {
 
                         <div className="bg-indigo-950/30 rounded-xl p-4 border border-indigo-500/20 text-indigo-300 text-xs space-y-2">
                             <p className="font-semibold flex items-center gap-1.5 text-indigo-200">
-                                <Lock className="h-3.5 w-3.5" /> Assinatura Digital Certificada
+                                <Lock className="h-3.5 w-3.5" /> {t('signing.termsTitleCert')}
                             </p>
-                            <p>Ao assinar eletronicamente este documento, você concorda com a validade jurídica plena desta assinatura sob as diretrizes do regulamento europeu eIDAS.</p>
-                            <p>O processo registrará seu IP, data/hora e o código OTP enviado ao seu e-mail cadastrado.</p>
+                            <p>{t('signing.termsBodyContract1')}</p>
+                            <p>{t('signing.termsBodyContract2')}</p>
                         </div>
                     </div>
 
@@ -239,15 +391,15 @@ export function ContractSigningPage() {
                         {success ? (
                             <div className="space-y-3">
                                 <button
-                                    onClick={handleDownloadCopy}
-                                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-700 transition duration-150"
+                                    onClick={handlePrintPdf}
+                                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl border border-indigo-600 transition duration-150 shadow-md shadow-indigo-600/10"
                                 >
-                                    <Download className="h-4 w-4" /> Baixar Cópia Assinada
+                                    <Download className="h-4 w-4" /> {t('signing.btnDownloadSignedPdf', { defaultValue: 'Baixar Contrato (PDF)' })}
                                 </button>
                                 <div className="text-center text-xs text-slate-500 bg-slate-950 p-3 rounded-lg border border-slate-800">
-                                    <span className="block font-semibold text-emerald-500">Documento Assinado!</span>
+                                    <span className="block font-semibold text-emerald-500">{t('signing.documentSigned')}</span>
                                     IP: {ipInfo.ip} <br />
-                                    Data: {new Date(contract.signed_at || '').toLocaleString('pt-PT')}
+                                    Data: {new Date(contract.signed_at || '').toLocaleString(i18n.resolvedLanguage || 'pt')}
                                 </div>
                             </div>
                         ) : (
@@ -255,10 +407,10 @@ export function ContractSigningPage() {
                                 onClick={() => setOtpModalOpen(true)}
                                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4.5 px-4 rounded-xl shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/40 transform hover:-translate-y-0.5 transition duration-150 text-center"
                             >
-                                Assinar Contrato
+                                {t('signing.btnSignContract')}
                             </button>
                         )}
-                        <p className="text-[10px] text-center text-slate-500">Dispositivo conectado via IP: {ipInfo.ip}</p>
+                        <p className="text-[10px] text-center text-slate-500">{t('signing.ipDevice', { ip: ipInfo.ip })}</p>
                     </div>
                 </aside>
             </div>
@@ -268,10 +420,10 @@ export function ContractSigningPage() {
                 <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
                         <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2 mb-2">
-                            <Smartphone className="h-5 w-5 text-indigo-400" /> Confirmar Identidade
+                            <Smartphone className="h-5 w-5 text-indigo-400" /> {t('signing.modalTitleIdentity')}
                         </h2>
                         <p className="text-sm text-slate-400 mb-6">
-                            Enviamos um código de verificação OTP de 6 dígitos para o e-mail <strong>{contract.worker?.email}</strong>. Digite-o abaixo para assinar o documento.
+                            {t('signing.modalDescContract', { email: contract.worker?.email })}
                         </p>
 
                         {/* Campos OTP */}
@@ -296,19 +448,19 @@ export function ContractSigningPage() {
                                 onClick={() => setOtpModalOpen(false)}
                                 className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl border border-slate-700 transition"
                             >
-                                Cancelar
+                                {t('signing.btnCancel')}
                             </button>
                             <button
                                 onClick={handleSignContract}
                                 disabled={signing}
-                                className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+                                className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-750 text-white font-semibold rounded-xl shadow-lg transition flex items-center justify-center gap-2"
                             >
                                 {signing ? (
                                     <>
-                                        <Loader2 className="h-4 w-4 animate-spin" /> Assinando...
+                                        <Loader2 className="h-4 w-4 animate-spin" /> {t('signing.signing')}
                                     </>
                                 ) : (
-                                    "Confirmar Assinatura"
+                                    t('signing.btnConfirmSignContract')
                                 )}
                             </button>
                         </div>

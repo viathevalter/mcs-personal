@@ -114,7 +114,16 @@ export async function signProposal(payload: SignProposalPayload): Promise<{ succ
     });
 
     if (error) {
-        throw new Error(error.message || 'Erro ao realizar a assinatura da proposta.');
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao realizar a assinatura da proposta.');
     }
 
     return data;
@@ -133,9 +142,19 @@ export async function generateProposal(estimacionId: string): Promise<{
     });
 
     if (error) {
-        throw new Error(error.message || 'Erro ao gerar e enviar a proposta comercial.');
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao gerar e enviar a proposta comercial.');
     }
 
     return data;
 }
+
 

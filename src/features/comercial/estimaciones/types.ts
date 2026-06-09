@@ -31,7 +31,9 @@ export interface Estimacion {
   validity_date?: string;
   payment_terms?: string;
   general_notes?: string;
+  document_language?: 'pt' | 'es' | 'en' | 'it' | 'fr';
   status: 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';
+  is_approved_by_manager?: boolean;
   current_version_id?: string;
   created_at: string;
   updated_at: string;
@@ -87,6 +89,8 @@ export interface EstimacionItem {
   notes?: string;
   ss_regime?: 'none' | 'local' | 'destacado';
   custom_lodging_rate?: number;
+  custom_epi_rate?: number;
+  custom_transport_rate?: number;
   created_at: string;
   updated_at: string;
   
@@ -95,6 +99,7 @@ export interface EstimacionItem {
     id: string;
     code: string;
     title: string;
+    name?: string;
   };
 }
 

@@ -95,12 +95,25 @@
   flex-direction: column !important;
   align-items: center !important;
   gap: 24px !important;
+  width: 100% !important;
 }
 .docx-document {
-  margin: 0 !important;
+  margin: 0 auto !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
   border-radius: 12px !important;
+  background: white !important;
+  color: #0f172a !important;
+  width: 100% !important;
+  max-width: 816px !important; /* Standard A4 page width */
+  box-sizing: border-box !important;
 }
 .docx-document > section {
-  padding: 40px !important;
+  padding: 24px !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 768px) {
+  .docx-document > section {
+    padding: 48px !important;
+  }
 }

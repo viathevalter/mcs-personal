@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, HelpCircle } from 'lucide-react';
-import { useJobFunctions, useAllJobFunctionRates } from '../hooks/useJobFunctions';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Trash2, HelpCircle, Building, Shield, Truck, DollarSign, AlertTriangle } from 'lucide-react';
+import { useJobFunctions, useAllJobFunctionRates, useAllJobFunctionEpis } from '../hooks/useJobFunctions';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useSpainProvinces } from '../hooks/useSpainProvinces';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { useCountries } from '@/features/master-data/locations/hooks/useLocations';
@@ -154,10 +156,40 @@ function calculateEffectiveLodgingRate({
   return totalCost / totalDays;
 }
 
+const getRiskBadge = (risk: string) => {
+  switch (risk) {
+    case 'low':
+      return (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-250 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50">
+          Baixo
+        </span>
+      );
+    case 'medium':
+      return (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-250 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50">
+          Médio
+        </span>
+      );
+    case 'high':
+      return (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-250 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50">
+          Alto
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-50 text-slate-700 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800">
+          Normal
+        </span>
+      );
+  }
+};
 
 export function EstimacionItemsStep({ data, onChange }: Props) {
+  const { selectedEmpresaId } = useEmpresa();
   const { data: jobFunctions = [] } = useJobFunctions();
   const { data: rateRefs = [] } = useAllJobFunctionRates();
+  const { data: jobFunctionEpis = [], isLoading: isLoadingJobFunctionEpis } = useAllJobFunctionEpis();
   const { data: spainProvinces = [] } = useSpainProvinces();
   const { data: sites = [] } = useClientSites(data.client_id || undefined);
   const { data: countries = [] } = useCountries();
@@ -200,6 +232,126 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
 
   const destTaxParam = taxParams.find((t: any) => t.country_id === data.country_id);
   const ssDestacadoBase = destTaxParam ? Number(destTaxParam.destacado_base_salary) : 920.00;
+
+  // Parâmetros Globais Padrão
+  const [globalAlojamento, setGlobalAlojamento] = useState(true);
+  const [globalLodgingRate, setGlobalLodgingRate] = useState<number | null>(null);
+  const [globalEpi, setGlobalEpi] = useState(true);
+  const [globalEpiRate, setGlobalEpiRate] = useState<number | null>(null);
+  const [globalTransport, setGlobalTransport] = useState(false);
+  const [globalTransportRate, setGlobalTransportRate] = useState<number>(0);
+  const [globalBroker, setGlobalBroker] = useState(!!data.includes_zentralcom);
+
+  // Form de Inclusão Individual
+  const [newJobFunctionId, setNewJobFunctionId] = useState('');
+  const [newQuantity, setNewQuantity] = useState(1);
+  const [newBaseCost, setNewBaseCost] = useState(0);
+  const [newSellRate, setNewSellRate] = useState(0);
+  const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>('local');
+
+  // Atualizar taxas globais com a província quando carregar
+  useEffect(() => {
+    if (province) {
+      if (globalLodgingRate === null) setGlobalLodgingRate(Number(province.valor_dia));
+      if (globalEpiRate === null) setGlobalEpiRate(Number(province.coste_envio));
+    }
+  }, [province]);
+
+  const handleGlobalBrokerChange = (checked: boolean) => {
+    setGlobalBroker(checked);
+    const result = recalculateTotals(data.items, checked, province);
+    onChange({
+      includes_zentralcom: checked,
+      ...result
+    });
+  };
+
+  const handleGlobalAlojamentoChange = (checked: boolean) => {
+    setGlobalAlojamento(checked);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      includes_accommodation: checked,
+      custom_lodging_rate: checked ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleGlobalLodgingRateChange = (rate: number | null) => {
+    setGlobalLodgingRate(rate);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      custom_lodging_rate: item.includes_accommodation ? rate : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleGlobalEpiChange = (checked: boolean) => {
+    setGlobalEpi(checked);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      includes_ppe: checked,
+      custom_epi_rate: checked ? (item.custom_epi_rate ?? globalEpiRate ?? (province ? Number(province.coste_envio) : 10)) : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleGlobalEpiRateChange = (rate: number | null) => {
+    setGlobalEpiRate(rate);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      custom_epi_rate: item.includes_ppe ? rate : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleGlobalTransportChange = (checked: boolean) => {
+    setGlobalTransport(checked);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      includes_transport: checked,
+      custom_transport_rate: checked ? (item.custom_transport_rate ?? globalTransportRate ?? 0) : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleGlobalTransportRateChange = (rate: number) => {
+    setGlobalTransportRate(rate);
+    const newItems = data.items.map((item: any) => ({
+      ...item,
+      custom_transport_rate: item.includes_transport ? rate : null
+    }));
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange(result);
+  };
+
+  const handleJobFunctionChange = (val: string) => {
+    setNewJobFunctionId(val);
+    const jfRates = rateRefs.filter((r: any) => r.job_function_id === val);
+    
+    let rateToUse = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId);
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => r.country_id === data.country_id);
+    }
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId);
+    }
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => r.country_id === null || !r.country_id);
+    }
+
+    if (rateToUse) {
+      setNewBaseCost(Number(rateToUse.base_cost_hour));
+      setNewSellRate(Number(rateToUse.recommended_sell_rate_hour));
+    } else {
+      setNewBaseCost(0);
+      setNewSellRate(0);
+    }
+  };
 
   const recalculateTotals = (currentItems: any[], includesZentralcom: boolean, prov: any) => {
     const w = countWeekdays(data.expected_start_date, data.expected_end_date);
@@ -265,18 +417,93 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       });
     }
 
-    // 2. EPIs: quantity * coste_envio * Math.max(1, Math.ceil(total_days / 30)) (for items with includes_ppe === true)
-    if (prov && totalDays > 0) {
-      const ppeItems = updatedItems.filter(item => item.includes_ppe);
-      const totalPpeQty = ppeItems.reduce((acc, item) => acc + item.quantity, 0);
-      if (totalPpeQty > 0) {
+    // 2. EPIs: custom rate or fallback + material costs
+    let totalEpiAmount = 0;
+    const epiDetails: string[] = [];
+    updatedItems.forEach(item => {
+      if (item.includes_ppe && totalDays > 0) {
+        const defaultRate = prov ? Number(prov.coste_envio) : 10;
+        const epiRate = item.custom_epi_rate !== undefined && item.custom_epi_rate !== null
+          ? Number(item.custom_epi_rate)
+          : defaultRate;
         const blocks = Math.max(1, Math.ceil(totalDays / 30));
-        const ppeAmount = totalPpeQty * Number(prov.coste_envio) * blocks;
+
+        // Find matching EPIs for this job function
+        const jfEpisForFunction = jobFunctionEpis.filter((jfe: any) => jfe.job_function_id === item.job_function_id);
+        const materialsCost = jfEpisForFunction.reduce((sum: number, jfe: any) => {
+          const defaultCost = jfe.epi?.default_cost !== null && jfe.epi?.default_cost !== undefined
+            ? Number(jfe.epi.default_cost)
+            : 0;
+          return sum + (Number(jfe.quantity) * defaultCost);
+        }, 0);
+
+        const itemEpiShipping = item.quantity * epiRate * blocks;
+        const itemEpiMaterials = item.quantity * materialsCost;
+        const itemEpiAmount = itemEpiShipping + itemEpiMaterials;
+        totalEpiAmount += itemEpiAmount;
+        
+        const funcName = jobFunctions.find((jf: any) => jf.id === item.job_function_id)?.name || 'Perfil';
+        const matText = materialsCost > 0 ? ` + €${materialsCost.toFixed(2)} mat.` : '';
+        epiDetails.push(`${item.quantity}x ${funcName} (€${epiRate.toFixed(2)}/envio, ${blocks} blc${matText})`);
+      }
+    });
+
+    if (totalEpiAmount > 0) {
+      autoCosts.push({
+        id: 'auto-epi',
+        cost_category: 'epi',
+        description: `EPIs Automático (${epiDetails.join(', ')})`,
+        amount: Number(totalEpiAmount.toFixed(2)),
+        is_rechargeable: false,
+        markup_percent: 0,
+        is_auto: true
+      });
+    }
+
+    // 3. Transporte: custom rate
+    let totalTransportAmount = 0;
+    const transportDetails: string[] = [];
+    updatedItems.forEach(item => {
+      if (item.includes_transport) {
+        const transportRate = item.custom_transport_rate !== undefined && item.custom_transport_rate !== null
+          ? Number(item.custom_transport_rate)
+          : 0;
+        const itemTransportAmount = item.quantity * transportRate;
+        totalTransportAmount += itemTransportAmount;
+        
+        const funcName = jobFunctions.find((jf: any) => jf.id === item.job_function_id)?.name || 'Perfil';
+        transportDetails.push(`${item.quantity}x ${funcName} (€${transportRate.toFixed(2)}/pessoa)`);
+      }
+    });
+
+    if (totalTransportAmount > 0) {
+      autoCosts.push({
+        id: 'auto-transport',
+        cost_category: 'transport',
+        description: `Transporte Automático (${transportDetails.join(', ')})`,
+        amount: Number(totalTransportAmount.toFixed(2)),
+        is_rechargeable: false,
+        markup_percent: 0,
+        is_auto: true
+      });
+    }
+
+    // 4. Broker fee (anteriormente Zentralcom)
+    if (includesZentralcom) {
+      const totalQty = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
+      const totalHoursSum = updatedItems.reduce((acc, item) => acc + item.total_hours, 0);
+      
+      let BrokerAmount = (totalHoursSum * 2) + (totalQty * 20);
+      if (data.estimation_type === 'new_allocation') {
+        BrokerAmount += 30;
+      }
+
+      if (BrokerAmount > 0) {
         autoCosts.push({
-          id: 'auto-epi',
-          cost_category: 'epi',
-          description: `EPIs Automático (Província: ${prov.provincia}, ${blocks} bloco(s) de 30 dias, ${totalPpeQty} pessoas)`,
-          amount: Number(ppeAmount.toFixed(2)),
+          id: 'auto-zentralcom',
+          cost_category: 'other',
+          description: `Comissão Broker (${totalHoursSum}h x €2 + ${totalQty} pessoas x €20${data.estimation_type === 'new_allocation' ? ' + €30 taxa fixa' : ''})`,
+          amount: Number(BrokerAmount.toFixed(2)),
           is_rechargeable: false,
           markup_percent: 0,
           is_auto: true
@@ -284,27 +511,28 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       }
     }
 
-    // 3. Zentralcom broker fee
-    if (includesZentralcom) {
-      const totalQty = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
-      const totalHoursSum = updatedItems.reduce((acc, item) => acc + item.total_hours, 0);
-      
-      let zentralcomAmount = (totalHoursSum * 2) + (totalQty * 20);
-      if (data.estimation_type === 'new_allocation') {
-        zentralcomAmount += 30;
+    // 5. Seguridade Social
+    let totalSsAmount = 0;
+    const ssDetails: string[] = [];
+    updatedItems.forEach(item => {
+      const itemSs = (item.ss_cost_hour || 0) * item.total_hours;
+      if (itemSs > 0) {
+        totalSsAmount += itemSs;
+        const funcName = jobFunctions.find((jf: any) => jf.id === item.job_function_id)?.name || 'Perfil';
+        ssDetails.push(`${item.quantity}x ${funcName} (€${(item.ss_cost_hour || 0).toFixed(2)}/h)`);
       }
+    });
 
-      if (zentralcomAmount > 0) {
-        autoCosts.push({
-          id: 'auto-zentralcom',
-          cost_category: 'other',
-          description: `Comissão Zentralcom (${totalHoursSum}h x €2 + ${totalQty} pessoas x €20${data.estimation_type === 'new_allocation' ? ' + €30 taxa fixa' : ''})`,
-          amount: Number(zentralcomAmount.toFixed(2)),
-          is_rechargeable: false,
-          markup_percent: 0,
-          is_auto: true
-        });
-      }
+    if (totalSsAmount > 0) {
+      autoCosts.push({
+        id: 'auto-ss',
+        cost_category: 'social_security',
+        description: `Segurança Social Estimada (${ssDetails.join(', ')})`,
+        amount: Number(totalSsAmount.toFixed(2)),
+        is_rechargeable: false,
+        markup_percent: 0,
+        is_auto: true
+      });
     }
 
     const manualCosts = (data.costs || []).filter((c: any) => !c.is_auto);
@@ -321,6 +549,10 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     });
 
     allCosts.forEach(c => {
+      if (c.cost_category === 'social_security') {
+        // Ignorar no cálculo do custo total pois já está embutido no custo da hora do perfil (evita dupla contagem)
+        return;
+      }
       totalCost += Number(c.amount);
       if (c.is_rechargeable) {
         totalRevenue += Number(c.amount) * (1 + (Number(c.markup_percent) / 100));
@@ -343,7 +575,8 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   const countriesLoaded = countries.length > 0;
   const lodgingRatesLoaded = lodgingRates.length > 0;
   const taxParamsLoaded = taxParams.length > 0;
-  const allLoaded = provincesLoaded && sitesLoaded && countriesLoaded && lodgingRatesLoaded && taxParamsLoaded;
+  const jobFunctionEpisLoaded = !isLoadingJobFunctionEpis;
+  const allLoaded = provincesLoaded && sitesLoaded && countriesLoaded && lodgingRatesLoaded && taxParamsLoaded && jobFunctionEpisLoaded;
   
   useEffect(() => {
     if (allLoaded) {
@@ -372,327 +605,628 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   }, [allLoaded, data.expected_start_date, data.expected_end_date, data.items.length, data.client_site_id, data.postal_code, data.includes_zentralcom]);
 
   const addItem = () => {
+    if (!newJobFunctionId) return;
+
+    const jf = jobFunctions.find((j: any) => j.id === newJobFunctionId);
+    const jfRates = rateRefs.filter((r: any) => r.job_function_id === newJobFunctionId);
+    let rateToUse = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId);
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => r.country_id === data.country_id);
+    }
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId);
+    }
+    if (!rateToUse) {
+      rateToUse = jfRates.find((r: any) => r.country_id === null || !r.country_id);
+    }
+
+    const lodgingRate = globalAlojamento ? (globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null;
+    const epiRate = globalEpi ? (globalEpiRate ?? (province ? Number(province.coste_envio) : 10)) : null;
+    const transportRate = globalTransport ? globalTransportRate : null;
+
     const newItem = {
       id: crypto.randomUUID(),
-      job_function_id: '',
-      quantity: 1,
+      job_function_id: newJobFunctionId,
+      quantity: newQuantity,
       planned_hours_per_day: 8,
       planned_days_per_week: 5,
       total_hours: 160,
-      includes_accommodation: false,
-      includes_transport: false,
-      includes_ppe: false,
-      base_cost_hour: 0,
-      recommended_sell_rate: 0,
-      minimum_sell_rate: 0,
-      sell_rate_hour: 0,
+      includes_accommodation: globalAlojamento,
+      custom_lodging_rate: lodgingRate,
+      includes_transport: globalTransport,
+      custom_transport_rate: transportRate,
+      includes_ppe: globalEpi,
+      custom_epi_rate: epiRate,
+      base_cost_hour: newBaseCost,
+      recommended_sell_rate: rateToUse ? Number(rateToUse.recommended_sell_rate_hour) : 0,
+      minimum_sell_rate: rateToUse ? Number(rateToUse.minimum_sell_rate_hour) : 0,
+      sell_rate_hour: newSellRate,
       margin_percent: 0,
-      risk_level: 'medium',
+      risk_level: jf?.risk_level || 'medium',
       notes: '',
-      ss_regime: 'local',
-      custom_lodging_rate: null
+      ss_regime: newSsRegime,
     };
+
     const newItems = [...data.items, newItem];
-    const result = recalculateTotals(newItems, !!data.includes_zentralcom, province);
-    onChange(result);
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange({
+      includes_zentralcom: globalBroker,
+      ...result
+    });
+
+    // Limpar form
+    setNewJobFunctionId('');
+    setNewQuantity(1);
+    setNewBaseCost(0);
+    setNewSellRate(0);
+    setNewSsRegime('local');
   };
 
   const removeItem = (index: number) => {
     const newItems = [...data.items];
     newItems.splice(index, 1);
-    const result = recalculateTotals(newItems, !!data.includes_zentralcom, province);
-    onChange(result);
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange({
+      includes_zentralcom: globalBroker,
+      ...result
+    });
   };
 
   const updateItem = (index: number, updates: Record<string, any>) => {
     const newItems = [...data.items];
     newItems[index] = { ...newItems[index], ...updates };
-    const result = recalculateTotals(newItems, !!data.includes_zentralcom, province);
-    onChange(result);
+    const result = recalculateTotals(newItems, globalBroker, province);
+    onChange({
+      includes_zentralcom: globalBroker,
+      ...result
+    });
   };
 
   const totalDays = countTotalDays(data.expected_start_date, data.expected_end_date);
   const weekdays = countWeekdays(data.expected_start_date, data.expected_end_date);
+  const weeksVal = totalDays / 7;
+  const formattedWeeks = Number.isInteger(weeksVal) ? weeksVal.toString() : weeksVal.toFixed(1);
+  const monthsVal = totalDays / 30;
+  const formattedMonths = Number.isInteger(monthsVal) ? monthsVal.toString() : monthsVal.toFixed(1);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold mb-1">Perfis Profissionais e Serviços</h2>
-          <p className="text-sm text-muted-foreground">Adicione os perfis, horas e calcule as tarifas.</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            Perfis Profissionais e Serviços
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Adicione os perfis, configure taxas locais e controle a margem comercial.
+          </p>
         </div>
-        <Button onClick={addItem} size="sm" className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-950 border border-slate-700 dark:border-slate-300">
-          <Plus className="mr-2 h-4 w-4" />
-          Adicionar Perfil
-        </Button>
       </div>
 
       {/* Resumo da Localidade e Datas */}
-      <div className="p-4 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs shadow-sm">
         <div>
           <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">Duração do Projeto</span>
           {data.expected_start_date && data.expected_end_date ? (
-            <span className="text-slate-900 dark:text-white font-medium">{totalDays} dias corridos ({weekdays} dias de semana)</span>
-          ) : (
-            <span className="text-amber-600 dark:text-amber-400 font-medium">Insira as datas no passo anterior</span>
-          )}
-        </div>
-        <div>
-          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">Código Postal</span>
-          {postalCode ? (
-            <span className="text-slate-900 dark:text-white font-medium">{postalCode}</span>
-          ) : (
-            <span className="text-amber-600 dark:text-amber-400 font-medium">Não informado (Leads sem site ou CEP em falta)</span>
-          )}
-        </div>
-        <div>
-          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">Província / Taxas</span>
-          {province ? (
-            <span className="text-slate-900 dark:text-white font-medium">
-              {province.provincia} (Alojamento: €{province.valor_dia}/dia, EPI: €{province.coste_envio}/envio)
+            <span className="text-slate-900 dark:text-white font-semibold flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+              {totalDays} dias corridos (~{formattedMonths} {Number(formattedMonths) === 1 ? 'mês' : 'meses'})
+              <span className="text-slate-400">|</span>
+              {weekdays} dias de semana ({formattedWeeks} semanas)
             </span>
           ) : (
-            <span className="text-slate-500">Nenhuma província de Espanha identificada</span>
+            <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" /> Insira as datas no passo anterior
+            </span>
+          )}
+        </div>
+        <div>
+          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">Código Postal / Localidade</span>
+          {postalCode ? (
+            <span className="text-slate-900 dark:text-white font-semibold">{postalCode}</span>
+          ) : (
+            <span className="text-slate-400 font-medium italic">Não informado</span>
+          )}
+        </div>
+        <div>
+          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">Província / Taxas Referência</span>
+          {province ? (
+            <span className="text-slate-900 dark:text-white font-semibold">
+              {province.provincia} (Alojamento: €{province.valor_dia}/dia, EPI: €{province.coste_envio}/bloco)
+            </span>
+          ) : (
+            <span className="text-slate-450 dark:text-slate-400 italic">Nenhuma província de Espanha identificada</span>
           )}
         </div>
       </div>
 
-      {data.items.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-950/20 text-slate-500">
-          Nenhum perfil adicionado ainda. Clique em "Adicionar Perfil" para começar.
+      {/* Parâmetros Globais Padrão */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold uppercase tracking-wider text-slate-555 dark:text-slate-400">Parâmetros Globais de Proposta</Label>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {data.items.map((item: any, idx: number) => {
-            const rateToUse = rateRefs.find((r: any) => r.job_function_id === item.job_function_id && r.country_id === data.country_id) 
-              || rateRefs.find((r: any) => r.job_function_id === item.job_function_id && (r.country_id === null || !r.country_id));
-
-            return (
-              <div key={item.id} className="p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-950/40 relative">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute top-2 right-2 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-100/30 dark:hover:bg-red-950/30"
-                  onClick={() => removeItem(idx)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pr-10">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Função / Perfil</Label>
-                    <Select 
-                      value={item.job_function_id} 
-                      onValueChange={(val) => {
-                        const jf = jobFunctions.find((j: any) => j.id === val);
-                        
-                        const matchingRate = rateRefs.find((r: any) => r.job_function_id === val && r.country_id === data.country_id);
-                        const fallbackRate = rateRefs.find((r: any) => r.job_function_id === val && (r.country_id === null || !r.country_id));
-                        const rateToUseForSelect = matchingRate || fallbackRate;
-
-                        updateItem(idx, {
-                          job_function_id: val,
-                          ...(jf ? { risk_level: jf.risk_level || 'medium' } : {}),
-                          base_cost_hour: rateToUseForSelect ? rateToUseForSelect.base_cost_hour : 0,
-                          sell_rate_hour: rateToUseForSelect ? rateToUseForSelect.recommended_sell_rate_hour : 0,
-                          recommended_sell_rate: rateToUseForSelect ? rateToUseForSelect.recommended_sell_rate_hour : 0,
-                          minimum_sell_rate: rateToUseForSelect ? rateToUseForSelect.minimum_sell_rate_hour : 0,
-                        });
-                      }}
-                    >
-                    <SelectTrigger className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                      <SelectValue placeholder="Selecione a Função" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                      {jobFunctions.map((jf: any) => (
-                        <SelectItem key={jf.id} value={jf.id}>{jf.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Quantidade</Label>
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    value={item.quantity}
-                    onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
-                    className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Horas Totais</Label>
-                  <Input 
-                    type="number" 
-                    value={item.total_hours}
-                    disabled
-                    className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono"
-                  />
-                </div>
-
-                {/* Linha 2 */}
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Custo Base Hora (€)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={item.base_cost_hour}
-                    onChange={(e) => updateItem(idx, { base_cost_hour: e.target.value })}
-                    className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono"
-                  />
-                  {item.ss_cost_hour > 0 && (
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 min-h-[15px]">
-                      <span>+ €{Number(item.ss_cost_hour).toFixed(2)}/h Seg. Social ({item.ss_regime === 'destacado' ? 'Destacado' : 'Local'})</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Tarifa Venda (€)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={item.sell_rate_hour}
-                    onChange={(e) => updateItem(idx, { sell_rate_hour: e.target.value })}
-                    className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-750 text-slate-900 dark:text-white focus-visible:ring-blue-650 font-mono"
-                  />
-                  {rateToUse && (
-                    <div className="text-[10px] text-muted-foreground mt-1 min-h-[15px]">
-                      {Number(item.base_cost_hour) === Number(rateToUse.base_cost_hour) && Number(item.sell_rate_hour) === Number(rateToUse.recommended_sell_rate_hour) ? (
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">✓ Valores estimados padrão</span>
-                      ) : (
-                        <span>Padrão: Custo €{Number(rateToUse.base_cost_hour).toFixed(2)} / Venda €{Number(rateToUse.recommended_sell_rate_hour).toFixed(2)}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Margem (%)</Label>
-                  <Input 
-                    type="text" 
-                    value={item.margin_percent + '%'}
-                    disabled
-                    className={`font-semibold ${
-                      item.margin_percent >= 25 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50' : 
-                      item.margin_percent >= 15 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50' : 
-                      'text-red-650 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50'
-                    }`}
-                  />
-                </div>
-
-                <div className="flex flex-col space-y-2 pt-6 md:col-span-1">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`acc-${idx}`} 
-                      checked={item.includes_accommodation}
-                      onCheckedChange={(c) => updateItem(idx, { includes_accommodation: c })}
-                      className="border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
-                    />
-                    <label htmlFor={`acc-${idx}`} className="text-xs text-slate-650 dark:text-slate-300 cursor-pointer font-medium">Alojamento</label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`trans-${idx}`} 
-                      checked={item.includes_transport}
-                      onCheckedChange={(c) => updateItem(idx, { includes_transport: c })}
-                      className="border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
-                    />
-                    <label htmlFor={`trans-${idx}`} className="text-xs text-slate-650 dark:text-slate-300 cursor-pointer font-medium">Transporte</label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`ppe-${idx}`} 
-                      checked={item.includes_ppe}
-                      onCheckedChange={(c) => updateItem(idx, { includes_ppe: c })}
-                      className="border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
-                    />
-                    <label htmlFor={`ppe-${idx}`} className="text-xs text-slate-650 dark:text-slate-300 cursor-pointer font-medium">EPIs (Vestuário/Segur.)</label>
-                  </div>
-                </div>
-
-                {/* Linha 3: Seguridade Social e Alojamento Customizado */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Seguridade Social (Encargos)</Label>
-                  <Select 
-                    value={item.ss_regime || 'local'} 
-                    onValueChange={(val) => updateItem(idx, { ss_regime: val })}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                      <SelectValue placeholder="Selecione o Regime" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                      <SelectItem value="none">Isento / Não Aplicável</SelectItem>
-                      <SelectItem value="local">Local ({ssPercentageText} sobre custo da hora)</SelectItem>
-                      <SelectItem value="destacado">Destacado (Base €{ssDestacadoBase.toFixed(2)}/mês de destino)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Diária Alojamento (€)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    disabled={!item.includes_accommodation}
-                    value={item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? item.custom_lodging_rate : ''}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? null : Number(e.target.value);
-                      updateItem(idx, { custom_lodging_rate: val });
-                    }}
-                    placeholder={defaultLodgingRate ? `${defaultLodgingRate.toFixed(2)} (Padrão)` : '0.00'}
-                    className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-400 font-mono"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300 text-xs font-medium">Custo Total c/ Encargos (€)</Label>
-                  <Input 
-                    type="text" 
-                    value={'€' + (Number(item.base_cost_hour) + (item.ss_cost_hour || 0)).toFixed(2)}
-                    disabled
-                    className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono font-medium"
-                  />
-                </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl">
+          {/* Alojamento */}
+          <div className="space-y-2 p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Building className="h-4 w-4 text-blue-500" /> Alojamento
+              </Label>
+              <Switch 
+                checked={globalAlojamento} 
+                onCheckedChange={handleGlobalAlojamentoChange} 
+              />
+            </div>
+            <div className="pt-1">
+              <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">Diária Padrão (€)</Label>
+              <div className="relative flex items-center mt-0.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalAlojamento}
+                  value={globalLodgingRate ?? ''}
+                  onChange={(e) => handleGlobalLodgingRateChange(e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
+                />
+                <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
               </div>
             </div>
-          );
-        })}
-          
-        </div>
-      )}
+          </div>
 
-      {/* Seção Zentralcom Broker */}
-      <div className="p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-950/60 flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <Label htmlFor="includes_zentralcom" className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
-            Comissão Zentralcom (Broker / Intermediação)
-          </Label>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl">
-            Ative para incluir a taxa Zentralcom no cálculo dos custos da proposta. Adiciona €2/hora por pessoa alocada, €20 por pessoa e uma taxa administrativa fixa de €30 se for uma Nova Alocação.
-          </p>
+          {/* EPI */}
+          <div className="space-y-2 p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-emerald-500" /> EPIs (Envio)
+              </Label>
+              <Switch 
+                checked={globalEpi} 
+                onCheckedChange={handleGlobalEpiChange} 
+              />
+            </div>
+            <div className="pt-1">
+              <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">Custo Padrão (€/bloco 30d)</Label>
+              <div className="relative flex items-center mt-0.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalEpi}
+                  value={globalEpiRate ?? ''}
+                  onChange={(e) => handleGlobalEpiRateChange(e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
+                />
+                <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Transporte */}
+          <div className="space-y-2 p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Truck className="h-4 w-4 text-amber-500" /> Transporte
+              </Label>
+              <Switch 
+                checked={globalTransport} 
+                onCheckedChange={handleGlobalTransportChange} 
+              />
+            </div>
+            <div className="pt-1">
+              <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">Custo Padrão (€/pessoa)</Label>
+              <div className="relative flex items-center mt-0.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalTransport}
+                  value={globalTransportRate}
+                  onChange={(e) => handleGlobalTransportRateChange(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
+                />
+                <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Broker / Intermediação */}
+          <div className="space-y-2 p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <DollarSign className="h-4 w-4 text-purple-500" /> Comissão Broker
+              </Label>
+              <Switch 
+                checked={globalBroker} 
+                onCheckedChange={handleGlobalBrokerChange} 
+              />
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal pt-1">
+              Taxa de intermediação: €2/h por pessoa + €20 taxa operacional por pessoa (+ €30 se alocação nova).
+            </div>
+          </div>
         </div>
-        <Checkbox 
-          id="includes_zentralcom" 
-          checked={!!data.includes_zentralcom}
-          onCheckedChange={(c) => {
-            const val = !!c;
-            const result = recalculateTotals(data.items, val, province);
-            onChange({
-              includes_zentralcom: val,
-              items: result.items,
-              costs: result.costs,
-              total_estimated_cost: result.total_estimated_cost,
-              total_estimated_revenue: result.total_estimated_revenue,
-              estimated_margin_percent: result.estimated_margin_percent
-            });
-          }}
-          className="border-slate-300 dark:border-slate-750 w-5 h-5 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
-        />
+      </div>
+
+      {/* Compact Inclusion Form */}
+      <div className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Incluir Perfil Profissional</h3>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+          {/* Função / Perfil */}
+          <div className="space-y-1.5 md:col-span-3">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Função / Perfil</Label>
+            <Select value={newJobFunctionId} onValueChange={handleJobFunctionChange}>
+              <SelectTrigger className="h-9 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm">
+                <SelectValue placeholder="Selecione a Função" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                {jobFunctions.map((jf: any) => (
+                  <SelectItem key={jf.id} value={jf.id}>{jf.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Quantidade */}
+          <div className="space-y-1.5 md:col-span-1">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Qtd</Label>
+            <Input
+              type="number"
+              min="1"
+              value={newQuantity}
+              onChange={(e) => setNewQuantity(Number(e.target.value))}
+              className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-center"
+            />
+          </div>
+
+          {/* Custo Base Hora */}
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Custo Base/h (€)</Label>
+            <div className="relative flex items-center">
+              <Input
+                type="number"
+                step="0.01"
+                value={newBaseCost || ''}
+                onChange={(e) => setNewBaseCost(Number(e.target.value))}
+                placeholder="0.00"
+                className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-right pr-6"
+              />
+              <span className="absolute right-2 text-xs text-slate-450 font-mono">€</span>
+            </div>
+          </div>
+
+          {/* Tarifa Venda */}
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Tarifa Venda/h (€)</Label>
+            <div className="relative flex items-center">
+              <Input
+                type="number"
+                step="0.01"
+                value={newSellRate || ''}
+                onChange={(e) => setNewSellRate(Number(e.target.value))}
+                placeholder="0.00"
+                className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-right pr-6"
+              />
+              <span className="absolute right-2 text-xs text-slate-450 font-mono">€</span>
+            </div>
+          </div>
+
+          {/* Seguridade Social */}
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Seg. Social (Regime)</Label>
+            <Select value={newSsRegime} onValueChange={(val: any) => setNewSsRegime(val)}>
+              <SelectTrigger className="h-9 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm">
+                <SelectValue placeholder="Selecione o Regime" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm">
+                <SelectItem value="none">Isento / N/A</SelectItem>
+                <SelectItem value="local">Local ({ssPercentageText})</SelectItem>
+                <SelectItem value="destacado">Destacado (€{ssDestacadoBase.toFixed(0)})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Botão Adicionar */}
+          <div className="md:col-span-2">
+            <Button
+              onClick={addItem}
+              disabled={!newJobFunctionId}
+              className="w-full h-9 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-md shadow-yellow-500/10 hover:shadow-yellow-500/20 transition-all duration-200 text-sm flex items-center justify-center gap-1.5"
+            >
+              <Plus className="h-4 w-4 stroke-[2.5]" /> Adicionar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela de Perfis */}
+      <div className="space-y-2">
+        <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Lista de Perfis Incluídos</Label>
+        {data.items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/20 shadow-inner">
+            <div className="h-10 w-10 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full flex items-center justify-center mb-3 text-slate-400">
+              <Plus className="h-5 w-5" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
+              Nenhum Perfil Adicionado
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+              Preencha o formulário acima e clique em "Adicionar" para listar os perfis profissionais contratados nesta cotação.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950/20 shadow-sm">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-850 bg-slate-50/80 dark:bg-slate-900/60">
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 w-[22%]">Função / Observação</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 text-center w-[6%]">Qtd</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 text-center w-[6%]">Horas</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 w-[16%]">Custo Base / Seg. Social</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 w-[12%]">Venda Base</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 text-center w-[10%]">Margem</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 w-[24%]">Custos Logísticos Individualizados</th>
+                  <th className="p-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-450 text-center w-[4%]"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {data.items.map((item: any, idx: number) => {
+                  const jf = jobFunctions.find((j: any) => j.id === item.job_function_id);
+                  const jfRates = rateRefs.filter((r: any) => r.job_function_id === item.job_function_id);
+                  const rateToUse = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId)
+                    || jfRates.find((r: any) => r.country_id === data.country_id)
+                    || jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId)
+                    || jfRates.find((r: any) => r.country_id === null || !r.country_id);
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors duration-150">
+                      {/* Função / Observação */}
+                      <td className="p-3 align-top">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                              {jf?.name || 'Perfil'}
+                            </span>
+                            {getRiskBadge(item.risk_level || 'medium')}
+                          </div>
+                          <Input
+                            value={item.notes || ''}
+                            onChange={(e) => updateItem(idx, { notes: e.target.value })}
+                            placeholder="Observação ou requisito específico..."
+                            className="h-7 text-[10.5px] px-2 py-0.5 bg-transparent border border-dashed border-slate-200 dark:border-slate-800 hover:border-slate-350 focus:border-slate-400 focus:bg-white dark:focus:bg-slate-950 rounded text-slate-600 dark:text-slate-300"
+                          />
+                        </div>
+                      </td>
+
+                      {/* Qtd */}
+                      <td className="p-3 text-center align-top">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
+                          className="h-8 w-14 font-mono text-center px-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs mx-auto"
+                        />
+                      </td>
+
+                      {/* Horas */}
+                      <td className="p-3 text-center align-top pt-5">
+                        <span className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          {item.total_hours}h
+                        </span>
+                      </td>
+
+                      {/* Custo Base / Seg. Social */}
+                      <td className="p-3 align-top space-y-1.5">
+                        <div className="relative flex items-center">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.base_cost_hour}
+                            onChange={(e) => updateItem(idx, { base_cost_hour: Number(e.target.value) })}
+                            className="h-8 w-24 font-mono text-xs text-right pr-6 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                          />
+                          <span className="absolute right-2 text-[10px] text-slate-450 font-mono">€</span>
+                        </div>
+                        <div className="space-y-1">
+                          <Select 
+                            value={item.ss_regime || 'local'} 
+                            onValueChange={(val) => updateItem(idx, { ss_regime: val })}
+                          >
+                            <SelectTrigger className="h-6 text-[10px] w-24 px-1 py-0.5 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
+                              <SelectValue placeholder="Regime" />
+                            </SelectTrigger>
+                            <SelectContent className="text-[10px]">
+                              <SelectItem value="none">Isento</SelectItem>
+                              <SelectItem value="local">Local ({ssPercentageText})</SelectItem>
+                              <SelectItem value="destacado">Destacado (€{ssDestacadoBase.toFixed(0)}/m)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {item.ss_cost_hour > 0 && (
+                            <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono block pl-0.5">
+                              + €{Number(item.ss_cost_hour).toFixed(2)}/h
+                            </span>
+                          )}
+                          <div className="text-[10px] text-slate-900 dark:text-slate-100 font-semibold pl-0.5 pt-0.5 border-t border-slate-100 dark:border-slate-850">
+                            Total: €{(Number(item.base_cost_hour) + (item.ss_cost_hour || 0)).toFixed(2)}/h
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Tarifa Venda */}
+                      <td className="p-3 align-top space-y-1.5">
+                        <div className="relative flex items-center">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.sell_rate_hour}
+                            onChange={(e) => updateItem(idx, { sell_rate_hour: Number(e.target.value) })}
+                            className="h-8 w-24 font-mono text-xs text-right pr-6 border-slate-200/80 dark:border-slate-750 bg-white dark:bg-slate-950 focus-visible:ring-blue-500"
+                          />
+                          <span className="absolute right-2 text-[10px] text-slate-450 font-mono">€</span>
+                        </div>
+                        {rateToUse && (
+                          <div className="text-[9px] text-slate-400 pl-0.5 leading-normal max-w-[110px]">
+                            {Number(item.base_cost_hour) === Number(rateToUse.base_cost_hour) && Number(item.sell_rate_hour) === Number(rateToUse.recommended_sell_rate_hour) ? (
+                              <span className="text-blue-500 font-medium">✓ Padrão</span>
+                            ) : (
+                              <span>Padrão Venda: €{Number(rateToUse.recommended_sell_rate_hour).toFixed(1)}/h</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Margem */}
+                      <td className="p-3 text-center align-top pt-4">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-semibold font-mono border ${
+                          item.margin_percent >= 25 ? 'text-emerald-700 bg-emerald-50 border-emerald-150 dark:text-emerald-400 dark:bg-emerald-950/20 dark:border-emerald-900/50' : 
+                          item.margin_percent >= 15 ? 'text-amber-700 bg-amber-50 border-amber-150 dark:text-amber-400 dark:bg-amber-950/20 dark:border-amber-900/50' : 
+                          'text-rose-700 bg-rose-50 border-rose-150 dark:text-rose-450 dark:bg-rose-950/20 dark:border-rose-900/50'
+                        }`}>
+                          {item.margin_percent}%
+                        </span>
+                      </td>
+
+                      {/* Custos Logísticos Individualizados */}
+                      <td className="p-3 align-top">
+                        <div className="flex flex-col gap-1.5 py-1 min-w-[210px]">
+                          {/* Alojamento */}
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-medium text-slate-600 dark:text-slate-350">
+                              <Checkbox
+                                checked={item.includes_accommodation}
+                                onCheckedChange={(c) => updateItem(idx, { 
+                                  includes_accommodation: !!c, 
+                                  custom_lodging_rate: c ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null 
+                                })}
+                                className="h-3.5 w-3.5 border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
+                              />
+                              <span>Alojamento:</span>
+                            </label>
+                            <div className="relative flex items-center">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                disabled={!item.includes_accommodation}
+                                value={item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? item.custom_lodging_rate : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? null : Number(e.target.value);
+                                  updateItem(idx, { custom_lodging_rate: val });
+                                }}
+                                placeholder={defaultLodgingRate ? `${defaultLodgingRate.toFixed(1)}` : '0'}
+                                className="h-7 w-20 text-xs font-mono text-right pr-6 pl-1 border-slate-200 dark:border-slate-800 disabled:bg-slate-50 dark:disabled:bg-slate-900 text-slate-900 dark:text-slate-100"
+                              />
+                              <span className="absolute right-2 text-[10px] text-slate-400 font-mono">€</span>
+                            </div>
+                          </div>
+
+                          {/* EPI */}
+                          <div className="space-y-1 py-0.5 border-y border-slate-100/50 dark:border-slate-850/30">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-medium text-slate-600 dark:text-slate-350">
+                                <Checkbox
+                                  checked={item.includes_ppe}
+                                  onCheckedChange={(c) => updateItem(idx, { 
+                                    includes_ppe: !!c, 
+                                    custom_epi_rate: c ? (item.custom_epi_rate ?? globalEpiRate ?? (province ? Number(province.coste_envio) : 10)) : null 
+                                  })}
+                                  className="h-3.5 w-3.5 border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
+                                />
+                                <span>EPI (Envio):</span>
+                              </label>
+                              <div className="relative flex items-center">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  disabled={!item.includes_ppe}
+                                  value={item.custom_epi_rate !== undefined && item.custom_epi_rate !== null ? item.custom_epi_rate : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? null : Number(e.target.value);
+                                    updateItem(idx, { custom_epi_rate: val });
+                                  }}
+                                  placeholder={province ? `${province.coste_envio}` : '10'}
+                                  className="h-7 w-20 text-xs font-mono text-right pr-6 pl-1 border-slate-200 dark:border-slate-800 disabled:bg-slate-50 dark:disabled:bg-slate-900 text-slate-900 dark:text-slate-100"
+                                />
+                                <span className="absolute right-2 text-[10px] text-slate-400 font-mono">€</span>
+                              </div>
+                            </div>
+
+                            {item.includes_ppe && (() => {
+                              const jfEpisForFunction = jobFunctionEpis.filter((jfe: any) => jfe.job_function_id === item.job_function_id);
+                              const materialsCost = jfEpisForFunction.reduce((sum: number, jfe: any) => {
+                                const defaultCost = jfe.epi?.default_cost !== null && jfe.epi?.default_cost !== undefined
+                                  ? Number(jfe.epi.default_cost)
+                                  : 0;
+                                return sum + (Number(jfe.quantity) * defaultCost);
+                              }, 0);
+
+                              return (
+                                <div className="space-y-0.5 pl-5">
+                                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-450">
+                                    <span>EPI (Material):</span>
+                                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                      €{materialsCost.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  {jfEpisForFunction.length > 0 && (
+                                    <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight">
+                                      ({jfEpisForFunction.map((jfe: any) => `${jfe.quantity}x ${jfe.epi?.name || 'EPI'} (€${(jfe.epi?.default_cost || 0).toFixed(0)})`).join(', ')})
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Transporte */}
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-medium text-slate-600 dark:text-slate-350">
+                              <Checkbox
+                                checked={item.includes_transport}
+                                onCheckedChange={(c) => updateItem(idx, { 
+                                  includes_transport: !!c, 
+                                  custom_transport_rate: c ? (item.custom_transport_rate ?? globalTransportRate ?? 0) : null 
+                                })}
+                                className="h-3.5 w-3.5 border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
+                              />
+                              <span>Transporte:</span>
+                            </label>
+                            <div className="relative flex items-center">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                disabled={!item.includes_transport}
+                                value={item.custom_transport_rate !== undefined && item.custom_transport_rate !== null ? item.custom_transport_rate : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? null : Number(e.target.value);
+                                  updateItem(idx, { custom_transport_rate: val });
+                                }}
+                                placeholder="0"
+                                className="h-7 w-20 text-xs font-mono text-right pr-6 pl-1 border-slate-200 dark:border-slate-800 disabled:bg-slate-50 dark:disabled:bg-slate-900 text-slate-900 dark:text-slate-100"
+                              />
+                              <span className="absolute right-2 text-[10px] text-slate-400 font-mono">€</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Ações */}
+                      <td className="p-3 text-center align-top pt-4">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-red-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          onClick={() => removeItem(idx)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

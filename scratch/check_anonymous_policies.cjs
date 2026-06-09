@@ -1,0 +1,24 @@
+const { Client } = require('pg');
+const devConnectionString = 'postgresql://postgres:Stkrt%40Dev2026@db.pyahcgorkvwfwmlzspnv.supabase.co:5432/postgres';
+
+async function run() {
+    const client = new Client({ connectionString: devConnectionString });
+    try {
+        await client.connect();
+        
+        console.log("=== RLS POLICIES FOR COMMERCIAL ESTIMATES, LEADS, CLIENTS AND PROPOSAL SIGNATURES ===");
+        const res = await client.query(`
+            SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check 
+            FROM pg_policies 
+            WHERE tablename IN ('proposal_signatures', 'estimaciones', 'leads', 'clients')
+            ORDER BY schemaname, tablename, policyname
+        `);
+        console.log(JSON.stringify(res.rows, null, 2));
+
+    } catch (e) {
+        console.error("ERROR:", e);
+    } finally {
+        await client.end();
+    }
+}
+run();

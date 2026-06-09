@@ -29,14 +29,15 @@ export function useMutateLead() {
   const { selectedEmpresaId } = useEmpresa();
 
   const createMutation = useMutation({
-    mutationFn: async (payload: Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'>) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+    mutationFn: async (payload: Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'> & { empresa_id?: string }) => {
+      const targetEmpresaId = payload.empresa_id || selectedEmpresaId;
+      if (!targetEmpresaId) throw new Error('Empresa não selecionada');
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('leads')
         .insert({
           ...payload,
-          empresa_id: selectedEmpresaId,
+          empresa_id: targetEmpresaId,
         })
         .select()
         .single();
@@ -50,7 +51,7 @@ export function useMutateLead() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'>> }) => {
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'>> & { empresa_id?: string } }) => {
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('leads')

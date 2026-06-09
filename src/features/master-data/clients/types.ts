@@ -21,6 +21,9 @@ export const clientSchema = z.object({
   address_line: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   status: clientStatusSchema.default('active'),
+  financial_status: z.enum(['active', 'debtor', 'blocked']).default('active'),
+  credit_limit: z.coerce.number().nullable().optional(),
+  current_debt: z.coerce.number().nullable().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

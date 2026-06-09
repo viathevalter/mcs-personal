@@ -1,0 +1,123 @@
+const { Client } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+const prodConnectionString = 'postgresql://postgres:Stkrt%402026%23%40%23@db.unbepkdzvsfvylnysrcq.supabase.co:5432/postgres';
+
+const migrationsToRun = [
+  '20260415000000_bloco3_registro_general.sql',
+  '20260515120000_bloco3_registro_general.sql',
+  '20260515120000_bloco3_registro_general_v2.sql',
+  '20260515120000_bloco3_registro_general_v21.sql',
+  '20260515120000_bloco3_registro_general_v22.sql',
+  '20260515120000_bloco3_registro_general_v23_fix_roles.sql',
+  '20260515120000_bloco3_registro_general_v24_data_migration.sql',
+  '20260516000000_bloco3_add_empresas_fields.sql',
+  '20260516160000_bloco4_mcs_comercial_v3.sql',
+  '20260516161500_add_code_to_playbook_steps.sql',
+  '20260516170000_create_rpc_iniciar_playbook.sql',
+  '20260516180000_create_rpc_iniciar_playbook_v2.sql',
+  '20260516190000_create_rpc_aprovar_estimacion.sql',
+  '20260516190000_create_rpc_aprovar_estimacion_v2.sql',
+  '20260516200000_create_rpcs_tarefas_operacionais.sql',
+  '20260516200000_create_rpcs_tarefas_operacionais_v2.sql',
+  '20260516210000_create_rpc_criar_estimacion_completa.sql',
+  '20260517000000_fix_rls_super_admin.sql',
+  '20260517000001_fix_global_super_admin.sql',
+  '20260517000002_global_epis_catalog.sql',
+  '20260517000003_global_job_functions_catalog.sql',
+  '20260518000000_fix_estimacion_versions_status.sql',
+  '20260518000000_global_clients_catalog.sql',
+  '20260518000001_operational_targets.sql',
+  '20260518000002_rpc_solicitud_targets.sql',
+  '20260519000000_rpc_alocar_trabalhador.sql',
+  '20260520000000_contracts_schema.sql',
+  '20260520000001_contracts_storage.sql',
+  '20260520000002_public_contracts_storage_policy.sql',
+  '20260520000003_document_capture_schema.sql',
+  '20260522100000_create_vw_worker_allocations.sql',
+  '20260522110000_comercial_leads_and_proposal_signing.sql',
+  '20260522120000_add_postal_code_to_estimaciones.sql',
+  '20260522130000_add_proposal_rls_anonymous.sql',
+  '20260522140000_fix_estimacion_versions_status_rpc.sql',
+  '20260523141000_create_safetyprev_schema.sql',
+  '20260525160000_add_country_id_to_estimaciones_and_pedidos.sql',
+  '20260525170000_comercial_lodging_and_taxes.sql',
+  '20260525171000_add_ss_regime_to_items.sql',
+  '20260525172000_fix_lodging_rls_policy.sql',
+  '20260525173000_seasonal_regional_lodging.sql',
+  '20260525180000_commercial_contracts.sql',
+  '20260527000000_compliance_cae_schema.sql',
+  '20260528120000_add_signed_to_estimacion_status.sql',
+  '20260606152000_add_rpc_atualizar_estimacion.sql',
+  '20260608090000_add_custom_epi_and_transport_rates.sql',
+  '20260608100000_add_manager_approval_to_estimaciones.sql',
+  '20260608110000_comercial_settings_and_client_finance.sql'
+];
+
+async function run() {
+    const client = new Client({ connectionString: prodConnectionString });
+    try {
+        await client.connect();
+        console.log("Connected to PROD database. Running pre-migration tasks...");
+        
+        // Manually record the first two which we know ran successfully
+        await client.query(`
+            INSERT INTO supabase_migrations.schema_migrations (version) 
+            VALUES ('20260415000000'), ('20260515120000')
+            ON CONFLICT (version) DO NOTHING;
+        `);
+        console.log("Recorded pre-executed migrations.");
+        
+        // Fetch all applied migrations
+        const appliedRes = await client.query("SELECT version FROM supabase_migrations.schema_migrations;");
+        const appliedVersions = new Set(appliedRes.rows.map(r => r.version));
+        
+        for (const file of migrationsToRun) {
+            const version = file.match(/^(\d+)_/)[1];
+            if (appliedVersions.has(version)) {
+                console.log(`Skipping already applied migration: ${file}`);
+                continue;
+            }
+            
+            console.log(`\n======================================================`);
+            console.log(`Running migration: ${file}`);
+            console.log(`======================================================`);
+            
+            const filePath = path.resolve(__dirname, 'supabase', 'migrations', file);
+            if (!fs.existsSync(filePath)) {
+                console.error(`Error: File not found: ${filePath}`);
+                process.exit(1);
+            }
+            
+            const sql = fs.readFileSync(filePath, 'utf8');
+            
+            // Execute the migration SQL
+            try {
+                await client.query(sql);
+                console.log(`Migration ${file} completed successfully.`);
+                
+                // Record the migration in supabase_migrations.schema_migrations
+                await client.query(`
+                    INSERT INTO supabase_migrations.schema_migrations (version) 
+                    VALUES ($1)
+                    ON CONFLICT (version) DO NOTHING;
+                `, [version]);
+                
+            } catch (err) {
+                console.error(`Migration ${file} FAILED with error:`, err.message);
+                console.error(`Stopping migration run.`);
+                process.exit(1);
+            }
+        }
+        
+        console.log("\nAll migrations deployed successfully to PROD database!");
+        
+    } catch (err) {
+        console.error("Connection/Query error:", err.message);
+    } finally {
+        await client.end();
+    }
+}
+
+run();

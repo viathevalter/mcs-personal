@@ -99,7 +99,16 @@ export async function generateContract(payload: GenerateContractPayload): Promis
     });
 
     if (error) {
-        throw new Error(error.message || 'Erro ao gerar o contrato.');
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao gerar o contrato.');
     }
 
     return data as GenerateContractResponse;
@@ -118,11 +127,21 @@ export async function signContract(payload: SignContractPayload): Promise<{ succ
     });
 
     if (error) {
-        throw new Error(error.message || 'Erro ao realizar a assinatura do contrato.');
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao realizar a assinatura do contrato.');
     }
 
     return data;
 }
+
 
 // Buscar o contrato e trabalhador associado usando o token de assinatura pública (sem auth necessária)
 export async function getContractByToken(token: string): Promise<Contract> {
@@ -239,7 +258,16 @@ export async function processDocumentOcr(payload: { file_path: string; mime_type
     });
 
     if (error) {
-        throw new Error(error.message || 'Erro ao realizar leitura inteligente (OCR).');
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao realizar leitura inteligente (OCR).');
     }
 
     return data;

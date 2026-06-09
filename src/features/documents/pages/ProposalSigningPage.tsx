@@ -5,11 +5,15 @@ import { supabase } from '@/shared/supabase/client';
 import { getProposalByToken, signProposal, type ProposalSignature } from '../api/proposalsApi';
 import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 export function ProposalSigningPage() {
     const { token } = useParams<{ token: string }>();
     const docContainerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const { t, i18n } = useTranslation();
+
     
     const [proposal, setProposal] = useState<ProposalSignature | null>(null);
     const [proposalBlob, setProposalBlob] = useState<Blob | null>(null);
@@ -18,6 +22,7 @@ export function ProposalSigningPage() {
     const [loading, setLoading] = useState(true);
     const [signing, setSigning] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [auditLog, setAuditLog] = useState<any | null>(null);
     
     // Canvas drawing states
     const [isDrawing, setIsDrawing] = useState(false);
@@ -49,6 +54,19 @@ export function ProposalSigningPage() {
 
                 if (data.status === 'signed') {
                     setSuccess(true);
+                    
+                    // Buscar logs de auditoria
+                    const { data: auditData } = await supabase
+                        .schema('core_comercial')
+                        .from('proposal_audit_logs')
+                        .select('*')
+                        .eq('proposal_signature_id', data.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (auditData) {
+                        setAuditLog(auditData);
+                    }
                 }
 
                 if (data.document_url) {
@@ -75,7 +93,7 @@ export function ProposalSigningPage() {
                 }
             } catch (err: any) {
                 console.error("Erro ao carregar proposta:", err);
-                toast.error("Proposta inválida, expirada ou não encontrada.");
+                toast.error(t('signing.errorDescProposal'));
             } finally {
                 setLoading(false);
             }
@@ -131,18 +149,26 @@ export function ProposalSigningPage() {
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
         
+        // Fatores de escala física vs layout CSS
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        let clientX = 0;
+        let clientY = 0;
+        
         if ('touches' in e) {
             if (e.touches.length === 0) return { x: 0, y: 0 };
-            return {
-                x: e.touches[0].clientX - rect.left,
-                y: e.touches[0].clientY - rect.top
-            };
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
         } else {
-            return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
+        
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
     };
 
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -215,7 +241,7 @@ export function ProposalSigningPage() {
         e.preventDefault();
         const text = e.clipboardData.getData('text').trim();
         if (!/^\d{6}$/.test(text)) {
-            toast.error("Por favor, cole um código válido com 6 números.");
+            toast.error(t('signing.toastOtpRequired'));
             return;
         }
         
@@ -227,7 +253,7 @@ export function ProposalSigningPage() {
     // 6. Enviar Assinatura
     const handleOpenSignatureConfirmation = () => {
         if (!hasSigned) {
-            toast.error("Por favor, desenhe sua assinatura no campo indicado.");
+            toast.error(t('signing.toastDrawFirst'));
             return;
         }
         setOtpModalOpen(true);
@@ -236,7 +262,7 @@ export function ProposalSigningPage() {
     const handleSignProposal = async () => {
         const otpCode = otpValues.join('');
         if (otpCode.length < 6) {
-            toast.error("Por favor, insira o código OTP de 6 dígitos.");
+            toast.error(t('signing.toastOtpRequired'));
             return;
         }
 
@@ -254,41 +280,186 @@ export function ProposalSigningPage() {
                 user_agent: ipInfo.ua
             });
 
-            toast.success("Proposta assinada eletronicamente com sucesso!");
+            toast.success(t('signing.toastSuccessProposal'));
             setSuccess(true);
             setOtpModalOpen(false);
-            if (proposal) {
-                setProposal({ ...proposal, status: 'signed', signed_at: new Date().toISOString() });
+            
+            // Recarregar os dados para ter o link do storage atualizado
+            const updatedProposal = await getProposalByToken(token!);
+            setProposal(updatedProposal);
+            
+            const { data: auditData } = await supabase
+                .schema('core_comercial')
+                .from('proposal_audit_logs')
+                .select('*')
+                .eq('proposal_signature_id', updatedProposal.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (auditData) {
+                setAuditLog(auditData);
             }
         } catch (err: any) {
             console.error("Erro na assinatura:", err);
-            toast.error(err.message || "Código incorreto ou expirado. Tente novamente.");
+            toast.error(err.message || t('signing.toastErrorFallback'));
         } finally {
             setSigning(false);
         }
     };
 
-    // 7. Baixar Cópias
-    const handleDownloadCopy = (type: 'proposal' | 'contract') => {
-        const blob = type === 'proposal' ? proposalBlob : contractBlob;
-        if (!blob) return;
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = type === 'proposal' 
-            ? `proposta_${proposal?.estimacion?.codigo || 'comercial'}.docx`
-            : `contrato_${proposal?.estimacion?.codigo || 'comercial'}.docx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+    // 7. Baixar PDF com Alta Fidelidade (via iframe print isolado)
+    const handlePrintPdf = (type: 'proposal' | 'contract') => {
+        const docElement = docContainerRef.current?.querySelector('.docx-document');
+        if (!docElement) {
+            toast.error(t('signing.errorNotRendered', { defaultValue: 'Documento não renderizado ainda.' }));
+            return;
+        }
+
+        // Criar iframe oculto para impressão
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (!iframeDoc) return;
+
+        // Clonar o elemento do documento
+        const cloned = docElement.cloneNode(true) as HTMLElement;
+
+        // Injetar estilos e conteúdo no iframe
+        iframeDoc.write('<html><head><title>' + (type === 'proposal' ? 'Proposta' : 'Contrato') + '</title>');
+        
+        // Copiar estilos da página principal
+        const styles = document.querySelectorAll('link[rel="stylesheet"], style');
+        styles.forEach(style => {
+            iframeDoc.write(style.outerHTML);
+        });
+
+        // Adicionar estilos específicos de impressão
+        iframeDoc.write(`
+            <style>
+                body {
+                    background: white !important;
+                    color: black !important;
+                    margin: 0 !important;
+                    padding: 20px !important;
+                    font-family: sans-serif;
+                }
+                .docx-wrapper {
+                    background: transparent !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                }
+                .docx-document {
+                    box-shadow: none !important;
+                    border: none !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .print-signature-block {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 2px solid #e2e8f0;
+                    page-break-inside: avoid;
+                }
+                @media print {
+                    body { padding: 0 !important; }
+                    @page {
+                        size: A4;
+                        margin: 15mm;
+                    }
+                }
+            </style>
+        `);
+
+        iframeDoc.write('</head><body>');
+        iframeDoc.write('<div class="docx-wrapper">');
+        iframeDoc.write(cloned.outerHTML);
+
+        // Se estiver assinado, adicionar o carimbo de auditoria
+        if (success && proposal) {
+            const auditIp = auditLog?.ip_address || ipInfo.ip;
+            const auditDate = proposal.signed_at 
+                ? new Date(proposal.signed_at).toLocaleString('pt-PT') 
+                : new Date().toLocaleString('pt-PT');
+            const signatureImg = auditLog?.signature_image;
+            
+            let sigSrc = "";
+            if (signatureImg) {
+                sigSrc = signatureImg.startsWith('data:') 
+                    ? signatureImg 
+                    : supabase.storage.from('proposal-signatures').getPublicUrl(signatureImg).data.publicUrl;
+            }
+
+            iframeDoc.write(`
+                <div class="print-signature-block">
+                    <h3 style="font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px;">
+                        Assinatura Eletrónica e Carimbo de Integridade (eIDAS)
+                    </h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #334155;">
+                        <tr>
+                            <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Assinante</strong>
+                                    <span style="font-weight: bold; font-size: 12px; color: #1e293b;">${clientOrLeadName}</span>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">E-mail</strong>
+                                    <span>${recipientEmail}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Metadados de Segurança</strong>
+                                    <span style="font-family: monospace; font-size: 10px;">IP: ${auditIp}</span><br/>
+                                    <span style="font-family: monospace; font-size: 10px;">Data: ${auditDate}</span>
+                                </div>
+                            </td>
+                            <td style="width: 50%; vertical-align: top;">
+                                <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 4px;">Assinatura Digitalizada</strong>
+                                ${sigSrc ? `
+                                    <div style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; display: inline-block;">
+                                        <img src="${sigSrc}" alt="Assinatura" style="height: 55px; object-fit: contain; display: block;" />
+                                    </div>
+                                ` : `
+                                    <div style="color: #94a3b8; font-style: italic; font-size: 11px; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; display: inline-block;">
+                                        Registado digitalmente via OTP
+                                    </div>
+                                `}
+                            </td>
+                        </tr>
+                    </table>
+                    <p style="font-size: 8.5px; color: #94a3b8; margin-top: 15px; line-height: 1.4;">
+                        Este documento foi assinado eletronicamente em conformidade com o Regulamento (UE) nº 910/2014 (eIDAS). A autenticidade e integridade desta cópia são garantidas pelo carimbo de verificação de integridade armazenado de forma permanente nos registos de auditoria do sistema.
+                    </p>
+                </div>
+            `);
+        }
+
+        iframeDoc.write('</div></body></html>');
+        iframeDoc.close();
+
+        // Aguardar o carregamento e chamar a tela de impressão
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+            iframe.contentWindow?.print();
+            // Limpar iframe do DOM
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        }, 500);
     };
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-6">
                 <Loader2 className="h-10 w-10 animate-spin text-indigo-500 mb-4" />
-                <p className="text-slate-400 font-medium">Carregando visualizador de propostas...</p>
+                <p className="text-slate-400 font-medium">{t('signing.loadingProposal')}</p>
             </div>
         );
     }
@@ -297,8 +468,8 @@ export function ProposalSigningPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-6 text-center">
                 <AlertTriangle className="h-16 w-16 text-amber-500 mb-4 animate-bounce" />
-                <h1 className="text-2xl font-bold mb-2">Proposta Inexistente ou Expirada</h1>
-                <p className="text-slate-400 max-w-md">O link de assinatura utilizado é inválido ou já expirou. Entre em contato com a equipe comercial para solicitar um novo link.</p>
+                <h1 className="text-2xl font-bold mb-2">{t('signing.errorTitleProposal')}</h1>
+                <p className="text-slate-400 max-w-md">{t('signing.errorDescProposal')}</p>
             </div>
         );
     }
@@ -308,26 +479,26 @@ export function ProposalSigningPage() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-            {/* Header com Glassmorphism */}
             <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-lg">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                         <FileText className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="font-bold text-base md:text-lg leading-tight">Assinatura Digital de Proposta</h1>
-                        <p className="text-xs text-slate-400 font-medium">Estudo Comercial • {proposal.estimacion?.codigo}</p>
+                        <h1 className="font-bold text-base md:text-lg leading-tight">{t('signing.headerProposal')}</h1>
+                        <p className="text-xs text-slate-400 font-medium">{t('signing.subtitleProposal', { code: proposal.estimacion?.codigo })}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <LanguageToggle />
                     {success ? (
                         <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-inner">
-                            <CheckCircle2 className="h-4 w-4" /> Assinado Digitalmente
+                            <CheckCircle2 className="h-4 w-4" /> {t('signing.statusSigned')}
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-inner">
-                            <Lock className="h-4 w-4" /> Aguardando Assinatura
+                            <Lock className="h-4 w-4" /> {t('signing.statusPending')}
                         </div>
                     )}
                 </div>
@@ -347,7 +518,7 @@ export function ProposalSigningPage() {
                                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                             }`}
                         >
-                            <FileText className="h-4 w-4" /> 1. Proposta Comercial
+                            <FileText className="h-4 w-4" /> {t('signing.tabProposal')}
                         </button>
                         {contractBlob && (
                             <button
@@ -358,13 +529,13 @@ export function ProposalSigningPage() {
                                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                                 }`}
                             >
-                                <PenTool className="h-4 w-4" /> 2. Contrato Comercial
+                                <PenTool className="h-4 w-4" /> {t('signing.tabContract')}
                             </button>
                         )}
                     </div>
                     {/* Container de Exibição */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center docx-preview-container-parent">
-                        <div className="w-full max-w-4xl bg-white text-slate-950 p-6 md:p-12 shadow-2xl rounded-2xl border border-slate-200 overflow-x-auto min-h-[842px] docx-preview-container">
+                        <div className="w-full max-w-4xl overflow-x-auto docx-preview-container">
                             <div ref={docContainerRef} className="docx-wrapper" />
                         </div>
                     </div>
@@ -375,20 +546,20 @@ export function ProposalSigningPage() {
                     <div className="space-y-6">
                         {/* Informações da Proposta */}
                         <div className="bg-slate-950/75 rounded-2xl p-5 border border-slate-800 shadow-inner space-y-4">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2">Detalhes do Destinatário</h3>
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2">{t('signing.recipientDetails')}</h3>
                             <div className="space-y-3.5 text-sm">
                                 <div>
-                                    <label className="text-slate-500 text-xs block font-medium">Organização / Empresa</label>
+                                    <label className="text-slate-500 text-xs block font-medium">{t('signing.labelCompany')}</label>
                                     <span className="font-semibold text-slate-200 block text-base mt-0.5">{clientOrLeadName}</span>
                                 </div>
                                 {proposal.estimacion?.contact_name && (
                                     <div>
-                                        <label className="text-slate-500 text-xs block font-medium">Pessoa de Contato</label>
+                                        <label className="text-slate-500 text-xs block font-medium">{t('signing.labelContact')}</label>
                                         <span className="font-semibold text-slate-200 block">{proposal.estimacion.contact_name}</span>
                                     </div>
                                 )}
                                 <div>
-                                    <label className="text-slate-500 text-xs block font-medium">E-mail de Destino</label>
+                                    <label className="text-slate-500 text-xs block font-medium">{t('signing.labelEmail')}</label>
                                     <span className="font-semibold text-indigo-400 block break-all">{recipientEmail}</span>
                                 </div>
                             </div>
@@ -397,13 +568,13 @@ export function ProposalSigningPage() {
                         {/* Informações Legais/eIDAS */}
                         <div className="bg-indigo-950/20 rounded-2xl p-5 border border-indigo-500/10 text-indigo-300 text-xs space-y-2.5 shadow-sm">
                             <p className="font-semibold flex items-center gap-1.5 text-indigo-200 text-sm">
-                                <Lock className="h-4 w-4" /> Termos de Assinatura
+                                <Lock className="h-4 w-4" /> {t('signing.termsTitle')}
                             </p>
                             <p className="leading-relaxed">
-                                Ao assinar eletronicamente estes documentos, você concorda com o escopo, termos e tarifas descritos na proposta comercial e no contrato de serviços, com plena validade jurídica.
+                                {t('signing.termsBody1')}
                             </p>
                             <p className="leading-relaxed">
-                                O sistema registrará sua assinatura digital desenhada, endereço IP, carimbo de tempo e a validação por código OTP enviado ao seu e-mail para validar ambos os documentos simultaneamente.
+                                {t('signing.termsBody2')}
                             </p>
                         </div>
 
@@ -412,14 +583,14 @@ export function ProposalSigningPage() {
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center px-1">
                                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                        <PenTool className="h-3.5 w-3.5 text-indigo-400" /> Desenhe sua Assinatura
+                                        <PenTool className="h-3.5 w-3.5 text-indigo-400" /> {t('signing.drawTitle')}
                                     </label>
                                     <button 
                                         onClick={clearCanvas}
                                         className="text-xs text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-rose-500/10"
                                         title="Limpar assinatura atual"
                                     >
-                                        <Trash2 className="h-3 w-3" /> Limpar
+                                        <Trash2 className="h-3 w-3" /> {t('signing.btnClear')}
                                     </button>
                                 </div>
                                 
@@ -437,7 +608,7 @@ export function ProposalSigningPage() {
                                     />
                                     {!hasSigned && (
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs">
-                                            Assine aqui com mouse ou tela touch
+                                            {t('signing.drawPlaceholder')}
                                         </div>
                                     )}
                                 </div>
@@ -449,23 +620,23 @@ export function ProposalSigningPage() {
                         {success ? (
                             <div className="space-y-3 animate-fade-in">
                                 <button
-                                    onClick={() => handleDownloadCopy('proposal')}
-                                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-800 transition duration-150 shadow-md text-xs"
+                                    onClick={() => handlePrintPdf('proposal')}
+                                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl border border-indigo-600 transition duration-150 shadow-md text-xs shadow-indigo-600/10"
                                 >
-                                    <Download className="h-4 w-4" /> Baixar Proposta Comercial
+                                    <Download className="h-4 w-4" /> {t('signing.btnDownloadProposalPdf', { defaultValue: 'Baixar Proposta (PDF)' })}
                                 </button>
                                 {contractBlob && (
                                     <button
-                                        onClick={() => handleDownloadCopy('contract')}
-                                        className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl border border-slate-800 transition duration-150 shadow-md text-xs"
+                                        onClick={() => handlePrintPdf('contract')}
+                                        className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl border border-indigo-600 transition duration-150 shadow-md text-xs shadow-indigo-600/10"
                                     >
-                                        <Download className="h-4 w-4" /> Baixar Contrato Comercial
+                                        <Download className="h-4 w-4" /> {t('signing.btnDownloadContractPdf', { defaultValue: 'Baixar Contrato (PDF)' })}
                                     </button>
                                 )}
                                 <div className="text-center text-[11px] text-slate-500 bg-slate-950/85 p-3 rounded-xl border border-slate-800">
-                                    <span className="block font-bold text-emerald-400 text-xs mb-1">✓ Documentos Assinados!</span>
-                                    IP de Assinatura: {ipInfo.ip} <br />
-                                    Data/Hora: {new Date(proposal.signed_at || '').toLocaleString('pt-PT')}
+                                    <span className="block font-bold text-emerald-400 text-xs mb-1">✓ {t('signing.documentSigned')}</span>
+                                    {t('signing.ipDevice', { ip: ipInfo.ip })} <br />
+                                    {new Date(proposal.signed_at || '').toLocaleString(i18n.resolvedLanguage || 'pt')}
                                 </div>
                             </div>
                         ) : (
@@ -473,10 +644,10 @@ export function ProposalSigningPage() {
                                 onClick={handleOpenSignatureConfirmation}
                                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/30 transform hover:-translate-y-0.5 transition duration-150 text-center text-sm tracking-wide"
                             >
-                                Assinar Proposta e Contrato
+                                {t('signing.btnSign')}
                             </button>
                         )}
-                        <p className="text-[10px] text-center text-slate-500">Conexão identificada pelo IP: {ipInfo.ip}</p>
+                        <p className="text-[10px] text-center text-slate-500">{t('signing.ipConnection', { ip: ipInfo.ip })}</p>
                     </div>
                 </aside>
             </div>
@@ -486,10 +657,10 @@ export function ProposalSigningPage() {
                 <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
                         <h2 className="text-lg md:text-xl font-bold text-slate-100 flex items-center gap-2 mb-2">
-                            <Smartphone className="h-5 w-5 text-indigo-400" /> Confirmar Código de Segurança
+                            <Smartphone className="h-5 w-5 text-indigo-400" /> {t('signing.modalTitle')}
                         </h2>
                         <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-                            Enviamos um código de segurança de 6 dígitos para o e-mail cadastrado <strong>{recipientEmail}</strong>. Digite-o abaixo para concluir o processo de assinatura.
+                            {t('signing.modalDesc', { email: recipientEmail })}
                         </p>
 
                         {/* Inputs do OTP */}
@@ -517,7 +688,7 @@ export function ProposalSigningPage() {
                                 onClick={() => setOtpModalOpen(false)}
                                 className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl border border-slate-800 transition text-sm"
                             >
-                                Cancelar
+                                {t('signing.btnCancel')}
                             </button>
                             <button
                                 onClick={handleSignProposal}
@@ -526,10 +697,10 @@ export function ProposalSigningPage() {
                             >
                                 {signing ? (
                                     <>
-                                        <Loader2 className="h-4.5 w-4.5 animate-spin" /> Processando...
+                                        <Loader2 className="h-4.5 w-4.5 animate-spin" /> {t('signing.processing')}
                                     </>
                                 ) : (
-                                    "Confirmar e Assinar"
+                                    t('signing.btnConfirmSign')
                                 )}
                             </button>
                         </div>

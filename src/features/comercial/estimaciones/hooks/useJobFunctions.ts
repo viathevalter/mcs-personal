@@ -36,7 +36,6 @@ export function useAllJobFunctionRates() {
         .schema('core_comercial')
         .from('job_function_rate_refs')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .neq('status', 'archived');
 
       if (error) throw error;
@@ -45,3 +44,25 @@ export function useAllJobFunctionRates() {
     enabled: !!selectedEmpresaId,
   });
 }
+
+export function useAllJobFunctionEpis() {
+  const { selectedEmpresaId } = useEmpresa();
+
+  return useQuery({
+    queryKey: ['all-job-function-epis', selectedEmpresaId],
+    queryFn: async () => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+
+      const { data, error } = await supabase
+        .schema('core_logistica')
+        .from('job_function_epis')
+        .select('*, epi:epis(*)')
+        .neq('status', 'archived');
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmpresaId,
+  });
+}
+

@@ -75,6 +75,7 @@ import { EstimacionDetailPage } from '../features/comercial/estimaciones/Estimac
 import { NewEstimacionPage } from '../features/comercial/estimaciones/NewEstimacionPage';
 import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
 import { LeadsPage } from '../features/comercial/leads/LeadsPage';
+import { ComercialSettingsPage } from '../features/comercial/settings/ComercialSettingsPage';
 
 import { FinanceiroLayout } from '../features/financeiro/layout/FinanceiroLayout';
 import { Dashboard as FinanceiroDashboard } from '../features/financeiro/pages/Dashboard';
@@ -152,7 +153,9 @@ export const router = createBrowserRouter([
                     { path: 'leads', element: <LeadsPage /> },
                     { path: 'estimaciones', element: <EstimacionesPage /> },
                     { path: 'estimaciones/nova', element: <NewEstimacionPage /> },
-                    { path: 'estimaciones/:id', element: <EstimacionDetailPage /> }
+                    { path: 'estimaciones/:id', element: <EstimacionDetailPage /> },
+                    { path: 'estimaciones/:id/editar', element: <NewEstimacionPage /> },
+                    { path: 'configuracion', element: <ComercialSettingsPage /> }
                 ]
             },
             {

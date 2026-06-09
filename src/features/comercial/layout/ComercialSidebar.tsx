@@ -5,12 +5,14 @@ import {
     ChevronLeft, 
     ChevronRight, 
     ArrowLeft,
-    Users
+    Users,
+    Sliders
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
 import type { AppRole } from '@/shared/rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
+import { useTranslation } from 'react-i18next';
 
 type SidebarLink = {
     to: string;
@@ -22,11 +24,13 @@ type SidebarLink = {
 export function ComercialSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const links: SidebarLink[] = [
-        { to: '/comercial/estimaciones', label: 'Estimaciones', icon: Briefcase, roles: ['admin', 'commercial'] },
-        { to: '/comercial/leads', label: 'Leads de Marketing', icon: Users, roles: ['admin', 'commercial'] },
-        { to: '/comercial/tarefas', label: 'Tarefas', icon: CheckSquare, roles: ['admin', 'commercial'] },
+        { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial'] },
+        { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial'] },
+        { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial'] },
+        { to: '/comercial/configuracion', label: t('comercial.sidebar.settings'), icon: Sliders, roles: ['admin'] },
     ];
 
     return (
@@ -39,7 +43,7 @@ export function ComercialSidebar() {
                     <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded bg-yellow-500 font-bold text-white text-lg leading-none">
                         CM
                     </div>
-                    {isExpanded && <span className="text-xl tracking-tight">Comercial</span>}
+                    {isExpanded && <span className="text-xl tracking-tight">{t('comercial.sidebar.title')}</span>}
                 </NavLink>
             </div>
             
@@ -50,10 +54,10 @@ export function ComercialSidebar() {
                         "flex items-center justify-center py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700",
                         isExpanded ? "w-full gap-2 px-4" : "w-12 mx-auto"
                     )}
-                    title={!isExpanded ? "Voltar para o Hub" : undefined}
+                    title={!isExpanded ? t('comercial.sidebar.backToHub') : undefined}
                 >
                     <ArrowLeft size={16} className="shrink-0" />
-                    {isExpanded && <span>Voltar para o Hub</span>}
+                    {isExpanded && <span>{t('comercial.sidebar.backToHub')}</span>}
                 </button>
             </div>
             
@@ -61,7 +65,7 @@ export function ComercialSidebar() {
                 <div>
                     {isExpanded && (
                         <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                            Gestão Comercial
+                            {t('comercial.sidebar.management')}
                         </div>
                     )}
                     <nav className="grid items-start px-2 text-sm font-medium gap-1">
@@ -95,7 +99,7 @@ export function ComercialSidebar() {
                             "flex items-center text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-slate-800",
                             isExpanded ? "justify-end w-full" : "justify-center w-full mx-auto"
                         )}
-                        title={isExpanded ? 'Recolher Menu' : 'Expandir Menu'}
+                        title={isExpanded ? t('comercial.sidebar.collapse') : t('comercial.sidebar.expand')}
                     >
                         {isExpanded ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                     </button>

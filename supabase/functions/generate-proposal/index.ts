@@ -251,55 +251,46 @@ serve(async (req) => {
       };
     });
 
-    // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
-    const templateFileName = `${empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default"}/proposta.docx`;
-    console.log(`Buscando template de proposta no storage: ${templateFileName}`);
+    const docLang = est.document_language || 'pt';
+    const folderName = empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default";
 
-    let templateBlob;
-    const { data: blob, error: downloadErr } = await supabase.storage
-      .from("proposal-templates")
-      .download(templateFileName);
+    // Helper to download templates with tiered fallbacks
+    async function loadTemplate(type: 'proposta' | 'contrato', lang: string) {
+      // Tier 1: Custom template for specific language: company/lang/type.docx
+      const pathTier1 = `${folderName}/${lang}/${type}.docx`;
+      console.log(`[Tier 1] Buscando template customizado no idioma (${lang}): ${pathTier1}`);
+      const { data: b1 } = await supabase.storage.from("proposal-templates").download(pathTier1);
+      if (b1) return b1;
 
-    if (downloadErr || !blob) {
-      console.warn(`Template customizado de proposta não encontrado (${templateFileName}), usando default.`);
-      const { data: defaultBlob, error: defaultErr } = await supabase.storage
-        .from("proposal-templates")
-        .download("default.docx");
+      // Tier 2: Custom template (no language fallback): company/type.docx
+      const pathTier2 = `${folderName}/${type}.docx`;
+      console.log(`[Tier 2] Buscando template customizado (sem idioma): ${pathTier2}`);
+      const { data: b2 } = await supabase.storage.from("proposal-templates").download(pathTier2);
+      if (b2) return b2;
 
-      if (defaultErr || !defaultBlob) {
-        throw new Error("Template de proposta default.docx não encontrado em proposal-templates. Por favor faça upload.");
-      }
-      templateBlob = defaultBlob;
-    } else {
-      templateBlob = blob;
+      // Tier 3: Global template for specific language: default_lang.docx
+      const defaultName = type === 'proposta' 
+        ? (lang === 'pt' ? 'default.docx' : `default_${lang}.docx`)
+        : (lang === 'pt' ? 'default_contrato.docx' : `default_contrato_${lang}.docx`);
+      console.log(`[Tier 3] Buscando template padrão global no idioma (${lang}): ${defaultName}`);
+      const { data: b3 } = await supabase.storage.from("proposal-templates").download(defaultName);
+      if (b3) return b3;
+
+      // Tier 4: Global fallback template: default.docx
+      const fallbackName = type === 'proposta' ? 'default.docx' : 'default_contrato.docx';
+      console.log(`[Tier 4] Buscando template padrão global base (pt): ${fallbackName}`);
+      const { data: b4 } = await supabase.storage.from("proposal-templates").download(fallbackName);
+      if (b4) return b4;
+
+      throw new Error(`Template padrão fallback ${fallbackName} não encontrado em proposal-templates. Por favor faça upload.`);
     }
 
+    // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
+    console.log(`Iniciando carregamento do template de proposta no idioma: ${docLang}`);
+    const templateBlob = await loadTemplate('proposta', docLang);
     const templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
 
-    // 5.5. Baixar o template DOCX do contrato do storage 'proposal-templates'
-    const contractTemplateFileName = `${empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default"}/contrato.docx`;
-    console.log(`Buscando template de contrato no storage: ${contractTemplateFileName}`);
 
-    let contractTemplateBlob;
-    const { data: contractBlob, error: contractDownloadErr } = await supabase.storage
-      .from("proposal-templates")
-      .download(contractTemplateFileName);
-
-    if (contractDownloadErr || !contractBlob) {
-      console.warn(`Template customizado de contrato não encontrado (${contractTemplateFileName}), usando default_contrato.docx.`);
-      const { data: defaultContractBlob, error: defaultContractErr } = await supabase.storage
-        .from("proposal-templates")
-        .download("default_contrato.docx");
-
-      if (defaultContractErr || !defaultContractBlob) {
-        throw new Error("Template de contrato default_contrato.docx não encontrado em proposal-templates. Por favor faça upload.");
-      }
-      contractTemplateBlob = defaultContractBlob;
-    } else {
-      contractTemplateBlob = contractBlob;
-    }
-
-    const contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
 
     // 6. Mesclar os dados usando docx-templates
     const mergeData = {
@@ -313,7 +304,7 @@ serve(async (req) => {
       proposta_data: new Date(est.created_at).toLocaleDateString("pt-PT"),
       proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString("pt-PT") : "",
       proposta_pagamento: est.payment_terms || "A combinar",
-      proposta_notas: est.general_notes || "",
+      proposta_notes: est.general_notes || "",
       
       cliente_nome: targetName,
       cliente_empresa: targetCompany,
@@ -333,6 +324,45 @@ serve(async (req) => {
       total_custo: (version.total_cost || 0).toFixed(2),
       total_receita: (version.total_revenue || 0).toFixed(2),
       margem_percentual: (version.margin_percent || 0).toFixed(2),
+
+      // ALIASES EM ESPANHOL (Suporte aos modelos de presupuesto customizados)
+      NUMERO_PRESUPUESTO: est.codigo || "",
+      PRESUPUESTO_NUMERO: est.codigo || "",
+      FECHA_EMISION: new Date(est.created_at).toLocaleDateString("es-ES"),
+      PAIS: "España",
+      CLIENTE_CONTRATANTE: targetCompany || targetName || "",
+      UBICACION: siteAddress || "Instalaciones del Cliente",
+      UBICACION_OBRA: siteAddress || "Instalaciones del Cliente",
+      TIPO_TRABAJO: "Suministro de Mano de Obra",
+      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("es-ES") : "",
+      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("es-ES") : "",
+      TARIFA_APLICABLE: "Completa",
+      CONDICIONES_PAGO: est.payment_terms || "A convenir",
+      PLAZO_PAGO: est.payment_terms || "A convenir",
+      VALIDEZ_PRESUPUESTO: est.validity_date ? Math.ceil((new Date(est.validity_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : "30",
+      OBSERVACIONES: est.general_notes || "",
+      CLIENTE_NIF: clientTaxId || "",
+      CLIENTE_MORADA: clientAddress || "",
+      PRESTADORA_NIF: empresa.tax_id || empresa.vat_id || "",
+      PRESTADORA_MORADA: empresa.address_line || "",
+      EPI_DESCRIPCION: "EPI básicos (calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco).",
+      NOTA_EPI: "Cualquier equipo especial o protección específica para a obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
+      EPI_NOTA: "Cualquier equipo especial o protección específica para la obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
+      
+      // Assinaturas e Representantes
+      NOMBRE_REPRESENTANTE_CLIENTE: targetName,
+      NOMBRE_FIRMANTE_CLIENTE: targetName,
+      CARGO_CLIENTE: "Representante Autorizado",
+      CARGO_FIRMANTE_CLIENTE: "Representante Autorizado",
+      EMPRESA_CLIENTE: targetCompany || "",
+      EMAIL_FIRMANTE_CLIENTE: targetEmail,
+      
+      NOMBRE_REPRESENTANTE_PRESTADORA: empresa.trade_name || "MCS",
+      NOMBRE_FIRMANTE_PRESTADORA: empresa.trade_name || "MCS",
+      CARGO_FIRMANTE_PRESTADORA: "Administrador",
+      EMPRESA_PRESTADORA: empresa.legal_name || empresa.trade_name || "",
+      EMAIL_PRESTADORA: senderEmail,
+      WEB_EMPRESA: "www.stoco.es",
     };
 
     console.log("Gerando proposta preenchida...");
@@ -347,17 +377,35 @@ serve(async (req) => {
       }
     });
 
-    console.log("Gerando contrato preenchido...");
-    const generatedContractDoc = await createReport({
-      template: contractTemplateBuffer,
-      data: mergeData,
-      cmdDelimiter: ["{{", "}}"],
-      noSandbox: true,
-      errorHandler: (err, command_code) => {
-        console.error(`Erro ao processar tag contrato "${command_code}":`, err);
-        return "";
+    let generatedContractDoc;
+    if (est.custom_contract_url) {
+      console.log(`Buscando contrato personalizado carregado em: ${est.custom_contract_url}`);
+      const { data: customBlob, error: customErr } = await supabase.storage
+        .from("proposal-templates")
+        .download(est.custom_contract_url);
+        
+      if (customErr || !customBlob) {
+        throw new Error(`Falha ao carregar o contrato personalizado do storage: ${customErr?.message || 'Arquivo não encontrado'}`);
       }
-    });
+      generatedContractDoc = new Uint8Array(await customBlob.arrayBuffer());
+    } else {
+      // Baixar o template DOCX do contrato do storage 'proposal-templates'
+      console.log(`Iniciando carregamento do template de contrato no idioma: ${docLang}`);
+      const contractTemplateBlob = await loadTemplate('contrato', docLang);
+      const contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
+
+      console.log("Gerando contrato preenchido...");
+      generatedContractDoc = await createReport({
+        template: contractTemplateBuffer,
+        data: mergeData,
+        cmdDelimiter: ["{{", "}}"],
+        noSandbox: true,
+        errorHandler: (err, command_code) => {
+          console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+          return "";
+        }
+      });
+    }
 
     // 7. Salvar ambos no bucket 'proposal-signatures'
     const docPath = `${est.id}/proposta_${Date.now()}.docx`;
