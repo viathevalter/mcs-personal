@@ -16,17 +16,41 @@ import { useNavigate } from 'react-router-dom';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useTranslation } from 'react-i18next';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 export function EstimacionesPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { selectedEmpresaId, empresas = [] } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas = [] } = useEmpresa();
   const [filters, setFilters] = useState({
     status: 'all',
     solicitud_type: 'all',
     search: '',
     empresa_id: selectedEmpresaId || 'all'
   });
+
+  const [isConfirmCompanyOpen, setIsConfirmCompanyOpen] = useState(false);
+  const [confirmEmpresaId, setConfirmEmpresaId] = useState('');
+
+  const handleNewEstimacionClick = () => {
+    console.log('handleNewEstimacionClick foi chamado. Empresas:', empresas);
+    if (empresas.length <= 1) {
+      console.log('Ignorando modal porque o número de empresas é:', empresas.length);
+      navigate('/comercial/estimaciones/nova');
+    } else {
+      console.log('Abrindo modal. Empresa selecionada padrão:', selectedEmpresaId || empresas[0].id);
+      setConfirmEmpresaId(selectedEmpresaId || empresas[0].id);
+      setIsConfirmCompanyOpen(true);
+    }
+  };
 
   // Keep local filter in sync if global company selector changes
   useEffect(() => {
@@ -64,7 +88,7 @@ export function EstimacionesPage() {
           </div>
           <div className="flex items-center gap-4">
             <EmpresaSelector />
-            <Button onClick={() => navigate('/comercial/estimaciones/nova')}>
+            <Button onClick={handleNewEstimacionClick}>
               <Plus className="mr-2 h-4 w-4" />
               {t('comercial.list.btnNew')}
             </Button>
@@ -157,6 +181,55 @@ export function EstimacionesPage() {
         </div>
 
         <EstimacionesTable estimaciones={filteredEstimaciones} isLoading={isLoading} />
+
+        <Dialog open={isConfirmCompanyOpen} onOpenChange={setIsConfirmCompanyOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{t('comercial.confirmCompany.title', 'Confirmar Empresa')}</DialogTitle>
+              <DialogDescription>
+                {t('comercial.confirmCompany.description', 'Selecione a empresa para a qual deseja criar esta nova estimativa comercial.')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="confirm-company-select">
+                  {t('comercial.confirmCompany.label', 'Empresa')}
+                </Label>
+                <Select
+                  value={confirmEmpresaId}
+                  onValueChange={setConfirmEmpresaId}
+                >
+                  <SelectTrigger id="confirm-company-select" className="w-full">
+                    <SelectValue placeholder={t('comercial.confirmCompany.placeholder', 'Selecione uma empresa')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {empresas.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.trade_name || emp.legal_name || emp.nome || 'Empresa S/N'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter className="flex space-x-2 justify-end">
+              <Button variant="outline" onClick={() => setIsConfirmCompanyOpen(false)}>
+                {t('comercial.confirmCompany.btnCancel', 'Cancelar')}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (confirmEmpresaId) {
+                    setSelectedEmpresaId(confirmEmpresaId);
+                  }
+                  setIsConfirmCompanyOpen(false);
+                  navigate('/comercial/estimaciones/nova');
+                }}
+              >
+                {t('comercial.confirmCompany.btnContinue', 'Começar')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
   );
 }

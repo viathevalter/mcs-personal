@@ -116,7 +116,7 @@ export function EstimacionDetailPage() {
     costs: estimacion.current_version?.costs || [],
   };
 
-  const viability = calculateViability(viabilityPayload, estimacion.client, comercialSettings);
+  const viability = calculateViability(viabilityPayload, estimacion.client, comercialSettings, t);
 
   return (
     <div className="flex flex-col space-y-6 p-4 max-w-7xl mx-auto">
@@ -138,7 +138,16 @@ export function EstimacionDetailPage() {
           </div>
           <div className="flex space-x-3">
             {estimacion.status === 'approved' && (
-              <Button variant="outline" onClick={() => navigate('/operacoes/solicitudes')}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  if (estimacion.pedido?.id) {
+                    navigate(`/operacoes/pedidos/${estimacion.pedido.id}`);
+                  } else {
+                    navigate('/operacoes/pedidos');
+                  }
+                }}
+              >
                 {t('comercial.detail.viewOrder')}
                 <ExternalLink className="ml-2 h-4 w-4" />
               </Button>

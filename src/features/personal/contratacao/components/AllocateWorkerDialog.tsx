@@ -1,20 +1,69 @@
-import React, { useState } from 'react';
-import { X, UserPlus, Search, Check, Briefcase, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, UserPlus, Search, Check, Briefcase, ChevronDown, HelpCircle, AlertTriangle } from 'lucide-react';
 import type { OpenPosition } from '../hooks/useOpenPositions';
 import { useAllocateWorker } from '../hooks/useAllocateWorker';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
-interface AllocateWorkerDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  position: OpenPosition | null;
-}
+const getDurationText = (start: string, end: string) => {
+  if (!start || !end) return '';
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return '';
+  if (endDate < startDate) return 'A data de fim deve ser posterior à data de início';
+
+  const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Cálculo de meses e dias mais preciso
+  let months = (endDate.getFullYear() - startDate.getFullYear()) * 12;
+  months -= startDate.getMonth();
+  months += endDate.getMonth();
+  
+  const startDay = startDate.getDate();
+  const endDay = endDate.getDate();
+  
+  let adjustedMonths = months;
+  if (endDay < startDay) {
+    adjustedMonths -= 1;
+  }
+  
+  let remainingDays = 0;
+  const tempDate = new Date(startDate);
+  tempDate.setMonth(tempDate.getMonth() + adjustedMonths);
+  const remainingTime = endDate.getTime() - tempDate.getTime();
+  if (remainingTime > 0) {
+    remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
+  }
+
+  if (adjustedMonths <= 0) {
+    return `Duração estimada: ${diffDays} dia(s)`;
+  }
+  
+  if (remainingDays === 0) {
+    return `Duração estimada: ${adjustedMonths} mês(es) (${diffDays} dias no total)`;
+  }
+
+  return `Duração estimada: ${adjustedMonths} mês(es) e ${remainingDays} dia(s) (${diffDays} dias no total)`;
+};
 
 export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOpen, onClose, position }) => {
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const { selectedEmpresaId } = useEmpresa();
+
+  const getProfileQuestions = (perguntaRespuesta: any, cargoName: string) => {
+    if (!perguntaRespuesta || typeof perguntaRespuesta !== 'object') return [];
+    return Object.values(perguntaRespuesta).filter((q: any) => 
+      q?.cargo?.toLowerCase() === cargoName?.toLowerCase()
+    );
+  };
   
   // Inactive worker selection
   const { data: workers = [], isLoading: isLoadingWorkers, error: workersError } = useQuery({
@@ -24,7 +73,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       let queryBuilder = supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, nif, dni, email, movil, funcion, cod_colab, status_trabajador');
+        .select('id, nome, nif, dni, email, movil, funcion, cod_colab, status_trabajador, camiseta, pantalones, licencia_conducir');
         
       if (selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
         queryBuilder = queryBuilder.eq('empresa_id', selectedEmpresaId);
@@ -36,12 +85,13 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
     },
     enabled: !!selectedEmpresaId && isOpen
   });
+  
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [searchWorker, setSearchWorker] = useState('');
   const [selectedFunctionFilter, setSelectedFunctionFilter] = useState('');
 
   // Extract all unique job functions among the loaded inactive workers
-  const uniqueFunctions = React.useMemo(() => {
+  const uniqueFunctions = useMemo(() => {
     const functions = workers
       .map((w: any) => w.funcion)
       .filter(Boolean);
@@ -49,10 +99,10 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
   }, [workers]);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
-  React.useEffect(() => {
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
@@ -62,35 +112,62 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // New worker form
+  const [workerName, setWorkerName] = useState('');
+  
+  // Common states (allocated rates, sizes, mobile, driver license)
+  const [camiseta, setCamiseta] = useState('');
+  const [pantalones, setPantalones] = useState('');
+  const [licenciaConducir, setLicenciaConducir] = useState<'Si' | 'No' | ''>('');
+  const [movil, setMovil] = useState('');
+  const [tarifaAcordada, setTarifaAcordada] = useState('');
+  const [plannedStartDate, setPlannedStartDate] = useState('');
+  const [plannedEndDate, setPlannedEndDate] = useState('');
+  const [notes, setNotes] = useState('');
+
   // Reset form when dialog opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setMode('existing');
       setSelectedWorkerId('');
       setSearchWorker('');
       setSelectedFunctionFilter('');
       setWorkerName('');
-      setWorkerDocument('');
+      setCamiseta('');
+      setPantalones('');
+      setLicenciaConducir('');
+      setMovil('');
+      setTarifaAcordada('');
       setNotes('');
       setIsDropdownOpen(false);
-    }
-  }, [isOpen]);
-  
-  // New worker form
-  const [workerName, setWorkerName] = useState('');
-  const [workerDocument, setWorkerDocument] = useState('');
-  
-  // Common
-  // Initialize with the position's expected_start_date if available, or today
-  const [plannedStartDate, setPlannedStartDate] = useState(position?.expected_start_date || new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
+      
+      if (position?.expected_start_date) {
+        setPlannedStartDate(position.expected_start_date);
+      } else {
+        setPlannedStartDate(new Date().toISOString().split('T')[0]);
+      }
 
-  // Update plannedStartDate when position changes
-  React.useEffect(() => {
-    if (position?.expected_start_date) {
-      setPlannedStartDate(position.expected_start_date);
+      if (position?.expected_end_date) {
+        setPlannedEndDate(position.expected_end_date);
+      } else {
+        setPlannedEndDate('');
+      }
     }
-  }, [position]);
+  }, [isOpen, position]);
+  
+  const selectedWorker = useMemo(() => {
+    return workers.find((w: any) => w.id === selectedWorkerId);
+  }, [workers, selectedWorkerId]);
+
+  // Pre-fill states from selected worker
+  useEffect(() => {
+    if (selectedWorker) {
+      setCamiseta(selectedWorker.camiseta || '');
+      setPantalones(selectedWorker.pantalones || '');
+      setLicenciaConducir(selectedWorker.licencia_conducir || '');
+      setMovil(selectedWorker.movil || '');
+    }
+  }, [selectedWorker]);
 
   const { mutate: allocate, isPending } = useAllocateWorker();
 
@@ -109,13 +186,11 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
            (w.funcion && w.funcion.toLowerCase().includes(search));
   });
 
-  const selectedWorker = workers.find((w: any) => w.id === selectedWorkerId);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (mode === 'new' && (!workerName || !workerDocument)) {
-      alert('Nome e documento são obrigatórios para novo trabalhador.');
+    if (mode === 'new' && !workerName) {
+      alert('O nome completo é obrigatório para novo trabalhador.');
       return;
     }
     
@@ -124,8 +199,33 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       return;
     }
 
+    if (!camiseta) {
+      alert('O tamanho de camisa (camiseta) é obrigatório.');
+      return;
+    }
+
+    if (!pantalones) {
+      alert('O tamanho de calça (pantalones) é obrigatório.');
+      return;
+    }
+
+    if (!licenciaConducir) {
+      alert('A informação de CNH (carta de condução) é obrigatória.');
+      return;
+    }
+
+    if (!movil) {
+      alert('O telefone móvel (móvel) é obrigatório.');
+      return;
+    }
+
     if (!plannedStartDate) {
       alert('Data de Início Prevista é obrigatória.');
+      return;
+    }
+
+    if (!tarifaAcordada) {
+      alert('A tarifa acordada é obrigatória.');
       return;
     }
 
@@ -134,19 +234,18 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         pedido_item_id: position.id,
         worker_id: mode === 'existing' ? selectedWorkerId : undefined,
         worker_name: mode === 'new' ? workerName : undefined,
-        worker_document: mode === 'new' ? workerDocument : undefined,
         planned_start_date: plannedStartDate,
-        notes: notes || undefined
+        planned_end_date: plannedEndDate || undefined,
+        notes: notes || undefined,
+        camiseta: camiseta || undefined,
+        pantalones: pantalones || undefined,
+        licencia_conducir: licenciaConducir,
+        movil: movil || undefined,
+        tarifa_acordada: parseFloat(tarifaAcordada)
       },
       {
         onSuccess: () => {
           onClose();
-          // Reset form
-          setMode('existing');
-          setSelectedWorkerId('');
-          setWorkerName('');
-          setWorkerDocument('');
-          setNotes('');
         }
       }
     );
@@ -154,7 +253,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-scale-in">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden animate-scale-in">
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Alocar Trabalhador</h2>
@@ -165,16 +264,44 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(100vh-200px)]">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(100vh-140px)]">
           {/* Summary Card */}
-          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-6 border border-slate-200 dark:border-slate-800 flex items-start gap-4">
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-4 border border-slate-200 dark:border-slate-800 flex items-start gap-4">
             <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center shrink-0">
               <Briefcase size={20} />
             </div>
             <div className="flex-1">
-              <div className="flex justify-between items-start">
-                <h3 className="font-semibold text-slate-900 dark:text-white">{position.job_function_name}</h3>
-                <div className="text-right">
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h3 className="font-semibold text-slate-900 dark:text-white truncate">{position.job_function_name}</h3>
+                  {(() => {
+                    const qas = getProfileQuestions(position.pergunta_respuesta, position.job_function_name);
+                    if (qas.length === 0) return null;
+                    return (
+                      <TooltipProvider>
+                        <Tooltip delayDuration={100}>
+                          <TooltipTrigger asChild>
+                            <button type="button" className="text-slate-400 hover:text-slate-655 p-0.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+                              <HelpCircle className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs bg-slate-900 border border-slate-800 text-white p-3 rounded-lg shadow-lg z-[60]">
+                            <div className="space-y-2 text-xs">
+                              <p className="font-bold border-b border-slate-800 pb-1 text-slate-350">Respostas da Viabilidade:</p>
+                              {qas.map((qa: any, idx: number) => (
+                                <div key={idx} className="space-y-0.5 text-left">
+                                  <span className="text-slate-400 font-medium block">{qa.pergunta}</span>
+                                  <span className="text-white font-semibold block">{qa.resposta}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()}
+                </div>
+                <div className="text-right shrink-0">
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Saldo de Vagas</div>
                   <div className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-amber-100 text-amber-700 font-bold">
                     {position.quantity_requested - position.quantity_fulfilled}
@@ -190,6 +317,24 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   <span className="font-medium text-slate-600 dark:text-slate-300">Data Prevista:</span> {position.expected_start_date ? new Date(position.expected_start_date).toLocaleDateString('pt-BR') : 'Não informada'}
                 </p>
               </div>
+
+              {(() => {
+                const qas = getProfileQuestions(position.pergunta_respuesta, position.job_function_name);
+                if (qas.length === 0) return null;
+                return (
+                  <div className="mt-3 p-3 bg-indigo-50/50 dark:bg-slate-900/50 rounded-lg border border-indigo-100 dark:border-slate-800/60">
+                    <span className="text-xs font-semibold text-indigo-650 dark:text-indigo-400 uppercase tracking-wider mb-2 block">Respostas da Viabilidade</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {qas.map((qa: any, idx: number) => (
+                        <div key={idx} className="text-xs">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium block">{qa.pergunta}</span>
+                          <span className="text-slate-800 dark:text-slate-200 font-semibold block mt-0.5">{qa.resposta}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {position.description_snapshot && (
                 <div className="mt-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -203,7 +348,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
           </div>
 
           {/* Mode Toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-6">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
             <button
               type="button"
               onClick={() => setMode('existing')}
@@ -341,38 +486,96 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Nome Completo <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={workerName}
-                    onChange={(e) => setWorkerName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Documento / NIF <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={workerDocument}
-                    onChange={(e) => setWorkerDocument(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div className="col-span-1 md:col-span-2 text-xs text-slate-500 mt-1">
-                  Nota: Você poderá completar o cadastro deste trabalhador (endereço, banco, benefícios) mais tarde no módulo de Trabalhadores.
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Nome Completo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={workerName}
+                  onChange={(e) => setWorkerName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+                <div className="text-xs text-slate-500 mt-1">
+                  Nota: Você poderá completar o cadastro deste trabalhador (documento, endereço, banco, benefícios) mais tarde no módulo de Trabalhadores.
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+            {/* New Allocation Fields Group */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+              
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Tamanho de Camisa (Camiseta) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={camiseta}
+                  onChange={e => setCamiseta(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="S (50/52)">S (50/52)</option>
+                  <option value="M(54/56)">M(54/56)</option>
+                  <option value="L(58)">L(58)</option>
+                  <option value="XL(60)">XL(60)</option>
+                  <option value="XXL(62)">XXL(62)</option>
+                  <option value="XXXL(64)">XXXL(64)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Tamanho de Calça (Pantalones) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={pantalones}
+                  onChange={e => setPantalones(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="S (38/40)">S (38/40)</option>
+                  <option value="M(42/44)">M(42/44)</option>
+                  <option value="L(46)">L(46)</option>
+                  <option value="XL(52)">XL(52)</option>
+                  <option value="XXL(54)">XXL(54)</option>
+                  <option value="XXXL(56)">XXXL(56)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Licença de Conducir (CNH) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={licenciaConducir}
+                  onChange={e => setLicenciaConducir(e.target.value as 'Si' | 'No' | '')}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Si">Si</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Telefone Móvel (Móvil) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="+351 900 000 000"
+                  value={movil}
+                  onChange={e => setMovil(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Data de Início Prevista <span className="text-red-500">*</span>
@@ -382,31 +585,104 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   required
                   value={plannedStartDate}
                   onChange={(e) => setPlannedStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Data de Fim Prevista
+                </label>
+                <input
+                  type="date"
+                  value={plannedEndDate}
+                  onChange={(e) => setPlannedEndDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              {/* Duração calculada exibida com legenda */}
+              {plannedStartDate && plannedEndDate && (
+                <div className="md:col-span-3 text-xs font-semibold text-blue-600 dark:text-blue-455 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-2 rounded-lg border border-blue-100 dark:border-blue-900/60 mt-1">
+                  {getDurationText(plannedStartDate, plannedEndDate)}
+                </div>
+              )}
+
+            </div>
+
+            {/* Tarifa acordada em linha exclusiva e layout flex */}
+            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                    Tarifa acordada com o Trabalhador <span className="text-red-500">*</span>
+                  </span>
+                  {position.base_cost_hour_snapshot !== undefined && position.base_cost_hour_snapshot !== null && (
+                    <span className="font-black text-xs text-rose-600 dark:text-rose-455 bg-rose-50 dark:bg-rose-950/45 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900 shadow-sm">
+                      Tarifa Orçada: {Number(position.base_cost_hour_snapshot).toFixed(2)} €/h
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Defina o valor pago por hora a este trabalhador de acordo com o acordado.
+                </p>
+                {tarifaAcordada && position.base_cost_hour_snapshot && Number(tarifaAcordada) > Number(position.base_cost_hour_snapshot) && (
+                  <p className="text-xs text-rose-600 dark:text-rose-450 font-semibold mt-1 flex items-center gap-1 animate-pulse">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    Atenção: A tarifa acordada ({Number(tarifaAcordada).toFixed(2)} €) é superior à tarifa orçada ({Number(position.base_cost_hour_snapshot).toFixed(2)} €).
+                  </p>
+                )}
+              </div>
+              <div className="w-full md:w-64 shrink-0">
+                <select
+                  required
+                  value={tarifaAcordada}
+                  onChange={e => setTarifaAcordada(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 outline-none text-sm transition-colors ${
+                    tarifaAcordada && position.base_cost_hour_snapshot && Number(tarifaAcordada) > Number(position.base_cost_hour_snapshot)
+                      ? 'border-rose-300 dark:border-rose-800 focus:ring-rose-500'
+                      : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500'
+                  }`}
+                >
+                  <option value="">Selecione a tarifa...</option>
+                  <option value="12">12,00 €</option>
+                  <option value="13">13,00 €</option>
+                  <option value="14">14,00 €</option>
+                  <option value="15">15,00 €</option>
+                  <option value="16">16,00 €</option>
+                  <option value="17">17,00 €</option>
+                  <option value="18">18,00 €</option>
+                  <option value="19">19,00 €</option>
+                  <option value="20">20,00 €</option>
+                  <option value="21">21,00 €</option>
+                  <option value="22">22,00 €</option>
+                  <option value="23">23,00 €</option>
+                  <option value="24">24,00 €</option>
+                  <option value="25">25,00 €</option>
+                </select>
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Observações
+                Observações de Alocação
               </label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
                 placeholder="Detalhes adicionais sobre esta alocação..."
               />
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-slate-755 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               Cancelar
             </button>

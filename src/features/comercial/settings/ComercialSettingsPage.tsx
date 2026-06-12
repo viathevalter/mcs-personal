@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Save, ShieldAlert, Sliders, FileText, Download, Upload, Trash2, Info, ChevronRight, FileCode } from 'lucide-react';
+import { Loader2, Save, ShieldAlert, Sliders, FileText, Download, Upload, Trash2, Info, ChevronRight, FileCode, Plus, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,13 +26,113 @@ export function ComercialSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  // Notification emails state
+  const [notificationEmails, setNotificationEmails] = useState<{ id: string; email: string; event_type: 'pedido' | 'reemplazo' | 'reubicacion' }[]>([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [selectedTypes, setSelectedTypes] = useState<('pedido' | 'reemplazo' | 'reubicacion')[]>(['pedido']);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+
+  const fetchNotificationEmails = async () => {
+    if (!selectedEmpresaId) return;
+    try {
+      setLoadingEmails(true);
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('notification_emails')
+        .select('*')
+        .eq('empresa_id', selectedEmpresaId);
+      if (error) throw error;
+      setNotificationEmails(data || []);
+    } catch (err: any) {
+      console.error('Error fetching notification emails:', err);
+    } finally {
+      setLoadingEmails(false);
+    }
+  };
+
+  const handleAddEmail = async () => {
+    if (!newEmail || !selectedEmpresaId) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      toast.error(t('comercial.settings.invalidEmail', { defaultValue: 'E-mail inválido' }));
+      return;
+    }
+
+    if (selectedTypes.length === 0) {
+      toast.error('Selecione pelo menos um tipo de evento para vincular o e-mail.');
+      return;
+    }
+
+    try {
+      const rows = selectedTypes.map(type => ({
+        empresa_id: selectedEmpresaId,
+        email: newEmail.trim().toLowerCase(),
+        event_type: type
+      }));
+
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('notification_emails')
+        .insert(rows)
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        setNotificationEmails(prev => [...prev, ...data]);
+      }
+      setNewEmail('');
+      toast.success(t('comercial.settings.emailAdded', { defaultValue: 'E-mail adicionado com sucesso!' }));
+    } catch (err: any) {
+      console.error('Error adding email:', err);
+      toast.error(t('comercial.settings.emailAddError', { defaultValue: 'Erro ao adicionar e-mail' }), { description: err.message });
+    }
+  };
+
+  const handleDeleteEmail = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .schema('core_comercial')
+        .from('notification_emails')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setNotificationEmails(prev => prev.filter(e => e.id !== id));
+      toast.success(t('comercial.settings.emailDeleted', { defaultValue: 'E-mail removido com sucesso!' }));
+    } catch (err: any) {
+      console.error('Error deleting email:', err);
+      toast.error(t('comercial.settings.emailDeleteError', { defaultValue: 'Erro ao remover e-mail' }), { description: err.message });
+    }
+  };
+
   // Settings state
   const [settings, setSettings] = useState({
     id: '',
     min_margin_percent: 15.00,
     block_debtor_estimations: true,
     ivp_min_threshold: 5.00,
+    default_hours_weekday: 8.0,
+    default_hours_lunes: 8.0,
+    default_hours_martes: 8.0,
+    default_hours_miercoles: 8.0,
+    default_hours_jueves: 8.0,
+    default_hours_viernes: 8.0,
+    default_hours_sabado: 0.0,
+    default_hours_domingo: 0.0,
+    default_work_lunes: true,
+    default_work_martes: true,
+    default_work_miercoles: true,
+    default_work_jueves: true,
+    default_work_viernes: true,
+    default_work_sabado: false,
+    default_work_domingo: false,
   });
+
+  const [customWeekdays, setCustomWeekdays] = useState(false);
 
   // Templates state
   const [activeLang, setActiveLang] = useState<string>('pt');
@@ -93,12 +193,35 @@ export function ComercialSettingsPage() {
         if (error) throw error;
 
         if (data) {
+          const wl = Number(data.default_hours_lunes ?? data.default_hours_weekday ?? 8.0);
+          const wt = Number(data.default_hours_martes ?? data.default_hours_weekday ?? 8.0);
+          const wq = Number(data.default_hours_miercoles ?? data.default_hours_weekday ?? 8.0);
+          const wqi = Number(data.default_hours_jueves ?? data.default_hours_weekday ?? 8.0);
+          const wv = Number(data.default_hours_viernes ?? data.default_hours_weekday ?? 8.0);
+          const dw = Number(data.default_hours_weekday ?? 8.0);
+
           setSettings({
             id: data.id,
             min_margin_percent: Number(data.min_margin_percent),
             block_debtor_estimations: !!data.block_debtor_estimations,
             ivp_min_threshold: Number(data.ivp_min_threshold),
+            default_hours_weekday: dw,
+            default_hours_lunes: wl,
+            default_hours_martes: wt,
+            default_hours_miercoles: wq,
+            default_hours_jueves: wqi,
+            default_hours_viernes: wv,
+            default_hours_sabado: Number(data.default_hours_sabado ?? 0.0),
+            default_hours_domingo: Number(data.default_hours_domingo ?? 0.0),
+            default_work_lunes: data.default_work_lunes !== false,
+            default_work_martes: data.default_work_martes !== false,
+            default_work_miercoles: data.default_work_miercoles !== false,
+            default_work_jueves: data.default_work_jueves !== false,
+            default_work_viernes: data.default_work_viernes !== false,
+            default_work_sabado: !!data.default_work_sabado,
+            default_work_domingo: !!data.default_work_domingo,
           });
+          setCustomWeekdays(wl !== dw || wt !== dw || wq !== dw || wqi !== dw || wv !== dw);
         } else {
           // If no row exists, create a default local state to insert later
           setSettings({
@@ -106,7 +229,23 @@ export function ComercialSettingsPage() {
             min_margin_percent: 15.00,
             block_debtor_estimations: true,
             ivp_min_threshold: 5.00,
+            default_hours_weekday: 8.0,
+            default_hours_lunes: 8.0,
+            default_hours_martes: 8.0,
+            default_hours_miercoles: 8.0,
+            default_hours_jueves: 8.0,
+            default_hours_viernes: 8.0,
+            default_hours_sabado: 0.0,
+            default_hours_domingo: 0.0,
+            default_work_lunes: true,
+            default_work_martes: true,
+            default_work_miercoles: true,
+            default_work_jueves: true,
+            default_work_viernes: true,
+            default_work_sabado: false,
+            default_work_domingo: false,
           });
+          setCustomWeekdays(false);
         }
       } catch (err: any) {
         console.error('Error loading settings:', err);
@@ -117,6 +256,7 @@ export function ComercialSettingsPage() {
     }
 
     loadSettings();
+    fetchNotificationEmails();
   }, [selectedEmpresaId]);
 
   useEffect(() => {
@@ -135,6 +275,21 @@ export function ComercialSettingsPage() {
         min_margin_percent: settings.min_margin_percent,
         block_debtor_estimations: settings.block_debtor_estimations,
         ivp_min_threshold: settings.ivp_min_threshold,
+        default_hours_weekday: settings.default_hours_weekday,
+        default_hours_lunes: customWeekdays ? settings.default_hours_lunes : settings.default_hours_weekday,
+        default_hours_martes: customWeekdays ? settings.default_hours_martes : settings.default_hours_weekday,
+        default_hours_miercoles: customWeekdays ? settings.default_hours_miercoles : settings.default_hours_weekday,
+        default_hours_jueves: customWeekdays ? settings.default_hours_jueves : settings.default_hours_weekday,
+        default_hours_viernes: customWeekdays ? settings.default_hours_viernes : settings.default_hours_weekday,
+        default_hours_sabado: settings.default_hours_sabado,
+        default_hours_domingo: settings.default_hours_domingo,
+        default_work_lunes: settings.default_work_lunes,
+        default_work_martes: settings.default_work_martes,
+        default_work_miercoles: settings.default_work_miercoles,
+        default_work_jueves: settings.default_work_jueves,
+        default_work_viernes: settings.default_work_viernes,
+        default_work_sabado: settings.default_work_sabado,
+        default_work_domingo: settings.default_work_domingo,
         updated_at: new Date().toISOString(),
       };
 
@@ -368,8 +523,288 @@ export function ComercialSettingsPage() {
                 {t('comercial.settings.ivpDesc')}
               </p>
             </div>
-          </div>
+                    <div className="border-t pt-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                {t('comercial.settings.defaultScheduleTitle')}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {t('comercial.settings.defaultScheduleSubtitle')}
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Mon-Fri Card */}
+              <div className="lg:col-span-6 border rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold uppercase text-muted-foreground">{t('comercial.stepGeneral.weekdaysLabel')}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCustomWeekdays(!customWeekdays)}
+                      className="text-[11px] text-left text-indigo-650 hover:text-indigo-700 dark:text-indigo-400 font-semibold mt-1"
+                    >
+                      {customWeekdays ? t('comercial.stepGeneral.unifiedWeekdays') : t('comercial.stepGeneral.customizeWeekdays')}
+                    </button>
+                  </div>             </div>
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      id="default_work_weekdays"
+                      checked={settings.default_work_lunes}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setSettings(prev => ({
+                          ...prev,
+                          default_work_lunes: val,
+                          default_work_martes: val,
+                          default_work_miercoles: val,
+                          default_work_jueves: val,
+                          default_work_viernes: val,
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <Label htmlFor="default_work_weekdays" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel')}</Label>
+                  </div>
+                </div>
 
+                {!customWeekdays ? (
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="default_hours_weekday" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel')}</Label>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={!settings.default_work_lunes}
+                        onClick={() => setSettings(prev => {
+                          const newHours = Math.max(1, prev.default_hours_weekday - 1);
+                          return {
+                            ...prev,
+                            default_hours_weekday: newHours,
+                            default_hours_lunes: newHours,
+                            default_hours_martes: newHours,
+                            default_hours_miercoles: newHours,
+                            default_hours_jueves: newHours,
+                            default_hours_viernes: newHours,
+                          };
+                        })}
+                      >
+                        -
+                      </Button>
+                      <Input
+                        id="default_hours_weekday"
+                        type="number"
+                        min="1"
+                        max="24"
+                        disabled={!settings.default_work_lunes}
+                        value={settings.default_hours_weekday}
+                        onChange={(e) => {
+                          const newHours = parseFloat(e.target.value) || 8;
+                          setSettings(prev => ({
+                            ...prev,
+                            default_hours_weekday: newHours,
+                            default_hours_lunes: newHours,
+                            default_hours_martes: newHours,
+                            default_hours_miercoles: newHours,
+                            default_hours_jueves: newHours,
+                            default_hours_viernes: newHours,
+                          }));
+                        }}
+                        className="h-8 text-center text-xs font-semibold w-16"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={!settings.default_work_lunes}
+                        onClick={() => setSettings(prev => {
+                          const newHours = Math.min(24, prev.default_hours_weekday + 1);
+                          return {
+                            ...prev,
+                            default_hours_weekday: newHours,
+                            default_hours_lunes: newHours,
+                            default_hours_martes: newHours,
+                            default_hours_miercoles: newHours,
+                            default_hours_jueves: newHours,
+                            default_hours_viernes: newHours,
+                          };
+                        })}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+                    {[
+                      { key: 'lunes', label: t('comercial.stepGeneral.monday'), activeKey: 'default_work_lunes', hoursKey: 'default_hours_lunes' },
+                      { key: 'martes', label: t('comercial.stepGeneral.tuesday'), activeKey: 'default_work_martes', hoursKey: 'default_hours_martes' },
+                      { key: 'miercoles', label: t('comercial.stepGeneral.wednesday'), activeKey: 'default_work_miercoles', hoursKey: 'default_hours_miercoles' },
+                      { key: 'jueves', label: t('comercial.stepGeneral.thursday'), activeKey: 'default_work_jueves', hoursKey: 'default_hours_jueves' },
+                      { key: 'viernes', label: t('comercial.stepGeneral.friday'), activeKey: 'default_work_viernes', hoursKey: 'default_hours_viernes' },
+                    ].map(day => {
+                      const isActive = (settings as any)[day.activeKey];
+                      const hours = (settings as any)[day.hoursKey] ?? 8;
+                      return (
+                        <div key={day.key} className="flex items-center justify-between text-xs py-0.5 border-b border-slate-100/30 dark:border-slate-800/30 last:border-0">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={`check_${day.key}`}
+                              checked={isActive}
+                              onChange={(e) => setSettings(prev => ({ ...prev, [day.activeKey]: e.target.checked }))}
+                              className="h-3.5 w-3.5 rounded border-gray-305 text-indigo-650 focus:ring-indigo-500"
+                            />
+                            <Label htmlFor={`check_${day.key}`} className="text-xs font-semibold">{day.label}</Label>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!isActive}
+                              onClick={() => setSettings(prev => ({ ...prev, [day.hoursKey]: Math.max(1, ((prev as any)[day.hoursKey] ?? 8) - 1) }))}
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="24"
+                              disabled={!isActive}
+                              value={hours}
+                              onChange={(e) => setSettings(prev => ({ ...prev, [day.hoursKey]: parseFloat(e.target.value) || 8 }))}
+                              className="h-7 text-center text-xs font-semibold w-12 p-0"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!isActive}
+                              onClick={() => setSettings(prev => ({ ...prev, [day.hoursKey]: Math.min(24, ((prev as any)[day.hoursKey] ?? 8) + 1) }))}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Saturday Card */}
+              <div className={`lg:col-span-3 border rounded-xl p-4 transition-colors space-y-3 ${settings.default_work_sabado ? 'bg-indigo-50/20 dark:bg-indigo-950/10 border-indigo-200' : 'bg-slate-50/50 dark:bg-slate-900/40'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-muted-foreground">{t('comercial.stepGeneral.saturdayLabel')}</span>
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      id="default_work_sabado"
+                      checked={settings.default_work_sabado}
+                      onChange={(e) => setSettings(prev => ({ ...prev, default_work_sabado: e.target.checked }))}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <Label htmlFor="default_work_sabado" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel')}</Label>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="default_hours_sabado" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel')}</Label>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!settings.default_work_sabado}
+                      onClick={() => setSettings(prev => ({ ...prev, default_hours_sabado: Math.max(0, prev.default_hours_sabado - 1) }))}
+                    >
+                      -
+                    </Button>
+                    <Input
+                      id="default_hours_sabado"
+                      type="number"
+                      min="0"
+                      max="24"
+                      disabled={!settings.default_work_sabado}
+                      value={settings.default_hours_sabado}
+                      onChange={(e) => setSettings(prev => ({ ...prev, default_hours_sabado: parseFloat(e.target.value) || 0 }))}
+                      className="h-8 text-center text-xs font-semibold w-16"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!settings.default_work_sabado}
+                      onClick={() => setSettings(prev => ({ ...prev, default_hours_sabado: Math.min(24, prev.default_hours_sabado + 1) }))}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sunday Card */}
+              <div className={`lg:col-span-3 border rounded-xl p-4 transition-colors space-y-3 ${settings.default_work_domingo ? 'bg-indigo-50/20 dark:bg-indigo-950/10 border-indigo-200' : 'bg-slate-50/50 dark:bg-slate-900/40'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-muted-foreground">{t('comercial.stepGeneral.sundayLabel')}</span>
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      id="default_work_domingo"
+                      checked={settings.default_work_domingo}
+                      onChange={(e) => setSettings(prev => ({ ...prev, default_work_domingo: e.target.checked }))}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <Label htmlFor="default_work_domingo" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel')}</Label>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="default_hours_domingo" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel')}</Label>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!settings.default_work_domingo}
+                      onClick={() => setSettings(prev => ({ ...prev, default_hours_domingo: Math.max(0, prev.default_hours_domingo - 1) }))}
+                    >
+                      -
+                    </Button>
+                    <Input
+                      id="default_hours_domingo"
+                      type="number"
+                      min="0"
+                      max="24"
+                      disabled={!settings.default_work_domingo}
+                      value={settings.default_hours_domingo}
+                      onChange={(e) => setSettings(prev => ({ ...prev, default_hours_domingo: parseFloat(e.target.value) || 0 }))}
+                      className="h-8 text-center text-xs font-semibold w-16"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!settings.default_work_domingo}
+                      onClick={() => setSettings(prev => ({ ...prev, default_hours_domingo: Math.min(24, prev.default_hours_domingo + 1) }))}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+ 
           <div className="border-t pt-6">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -417,6 +852,117 @@ export function ComercialSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Seção de Configuração de E-mails de Notificação */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center space-x-2">
+            <Mail className="h-5 w-5 text-indigo-500" />
+            <CardTitle>E-mails de Notificação</CardTitle>
+          </div>
+          <CardDescription>
+            Gerencie os grupos de e-mails que receberão as notificações para cada tipo de evento (pedido, reemplazo, reubicacion).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 space-y-1.5 animate-fadeIn">
+                <Label htmlFor="notification_email" className="text-xs font-semibold">Endereço de E-mail</Label>
+                <Input
+                  id="notification_email"
+                  type="email"
+                  placeholder="exemplo@empresa.com"
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+              <Button onClick={handleAddEmail} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold h-10 px-5 shadow-sm transition-all hover:translate-y-[-1px]">
+                <Plus className="mr-2 h-4 w-4" /> Adicionar
+              </Button>
+            </div>
+
+            <div className="space-y-1.5 border-t border-slate-200 dark:border-slate-800 pt-3">
+              <Label className="text-xs font-semibold text-slate-700 dark:text-slate-350">Vincular aos Eventos</Label>
+              <div className="flex flex-wrap gap-6 pt-1">
+                {[
+                  { key: 'pedido', label: 'Envio de Pedido' },
+                  { key: 'reemplazo', label: 'Reemplazo' },
+                  { key: 'reubicacion', label: 'Reubicación' },
+                ].map(item => {
+                  const isChecked = selectedTypes.includes(item.key as any);
+                  return (
+                    <label key={item.key} className="flex items-center space-x-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedTypes(prev => [...prev, item.key as any]);
+                          } else {
+                            setSelectedTypes(prev => prev.filter(t => t !== item.key));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span>{item.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 pt-2">
+            {(['pedido', 'reemplazo', 'reubicacion'] as const).map(type => {
+              const emailsOfType = notificationEmails.filter(e => e.event_type === type);
+              const label = type === 'pedido' ? 'Envio de Pedido' : type === 'reemplazo' ? 'Reemplazo' : 'Reubicación';
+              const badgeColor = type === 'pedido' 
+                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900' 
+                : type === 'reemplazo' 
+                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900' 
+                  : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900';
+              
+              return (
+                <div key={type} className="border border-slate-100 dark:border-slate-800 rounded-xl p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/10 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="font-bold text-sm text-slate-850 dark:text-slate-200">{label}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badgeColor}`}>
+                      {emailsOfType.length}
+                    </span>
+                  </div>
+                  {loadingEmails ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    </div>
+                  ) : emailsOfType.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4 font-medium">Nenhum e-mail cadastrado.</p>
+                  ) : (
+                    <ul className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                      {emailsOfType.map(email => (
+                        <li key={email.id} className="flex justify-between items-center text-xs bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg p-2 hover:shadow-sm transition-all">
+                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate mr-2" title={email.email}>
+                            {email.email}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEmail(email.id)}
+                            className="text-rose-500 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/20 flex-shrink-0 transition-colors"
+                            title="Remover e-mail"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Seção de Modelos de Documentos (Templates) */}
       <Card>
         <CardHeader>
@@ -435,10 +981,10 @@ export function ComercialSettingsPage() {
             <Info className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
             <div>
               <span className="font-semibold block text-slate-800 dark:text-slate-200">
-                Empresa Ativa: <strong className="text-indigo-600 dark:text-indigo-400">{selectedEmpresa?.trade_name || 'Nenhuma'}</strong>
+                {t('comercial.settings.activeCompanyLabel')} <strong className="text-indigo-600 dark:text-indigo-400">{selectedEmpresa?.trade_name || 'Nenhuma'}</strong>
               </span>
               <p className="text-slate-600 dark:text-slate-400 mt-1 text-xs">
-                Selecione o idioma desejado nas abas abaixo para carregar, enviar ou restaurar o modelo Word daquele respectivo idioma.
+                {t('comercial.settings.selectLanguageHelp')}
               </p>
             </div>
           </div>
@@ -453,7 +999,7 @@ export function ComercialSettingsPage() {
                     value={lang.code} 
                     className="rounded-lg py-2 text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 transition-all"
                   >
-                    {lang.label}
+                    {t('comercial.stepGeneral.languages.' + lang.code, { defaultValue: lang.label })}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -465,18 +1011,18 @@ export function ComercialSettingsPage() {
             <div className="border rounded-xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <span className="font-bold text-sm block">Proposta Comercial ({activeLang.toUpperCase()})</span>
+                  <span className="font-bold text-sm block">{t('comercial.settings.proposalTemplateTitle')} ({activeLang.toUpperCase()})</span>
                   <p className="text-xs text-muted-foreground font-mono">{folderName}/{activeLang}/proposta.docx</p>
                 </div>
                 {loadingTemplates ? (
                   <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                 ) : proposalStatus === 'custom' ? (
                   <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 px-2 py-0.5 rounded-full text-xs font-semibold">
-                    Personalizado
+                    {t('comercial.settings.customBadge')}
                   </span>
                 ) : (
                   <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                    Padrão Global
+                    {t('comercial.settings.globalDefaultBadge')}
                   </span>
                 )}
               </div>
@@ -595,21 +1141,21 @@ export function ComercialSettingsPage() {
           </div>
 
           {/* Documentação de Variáveis e Loops */}
-          <div className="border rounded-xl overflow-hidden mt-4 bg-white dark:bg-slate-900">
+          <div className="border rounded-xl overflow-hidden mt-4 bg-white dark:bg-slate-900 font-sans">
             <details className="group">
               <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition duration-150 select-none">
                 <div className="flex items-center space-x-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <FileCode className="h-4.5 w-4.5 text-indigo-500" />
-                  <span>Guia de Tags e Variáveis dos Templates Word</span>
+                  <span>{t('comercial.settings.guideTitle')}</span>
                 </div>
                 <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200 group-open:rotate-90" />
               </summary>
               <div className="p-5 border-t dark:border-slate-800 text-xs space-y-4 text-slate-700 dark:text-slate-300 max-h-[350px] overflow-y-auto">
-                <p>Use chaves duplas <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[11px] text-indigo-600 font-bold">{"{{"}variavel{"}}"}</code> nos seus arquivos do Word para que o sistema as preencha automaticamente. Veja as tags disponíveis:</p>
+                <p>{t('comercial.settings.guideDesc')}</p>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1">Orçamento / Proposta</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1">{t('comercial.settings.guideProposalHeader')}</h4>
                     <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
                       <li><strong>{"{{"}proposta_codigo{"}}"}</strong>: ex: PROP-2026-004</li>
                       <li><strong>{"{{"}proposta_data{"}}"}</strong>: Data de emissão (pt-PT)</li>
@@ -618,7 +1164,7 @@ export function ComercialSettingsPage() {
                       <li><strong>{"{{"}proposta_notas{"}}"}</strong>: Notas gerais</li>
                     </ul>
 
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1 pt-2">Empresa (Emitente)</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1 pt-2">{t('comercial.settings.guideCompanyHeader')}</h4>
                     <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
                       <li><strong>{"{{"}empresa_nome{"}}"}</strong>: Nome da Empresa</li>
                       <li><strong>{"{{"}empresa_nif{"}}"}</strong>: NIF / CNPJ</li>
@@ -629,7 +1175,7 @@ export function ComercialSettingsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1">Cliente / Destinatário</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1">{t('comercial.settings.guideClientHeader')}</h4>
                     <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
                       <li><strong>{"{{"}cliente_nome{"}}"}</strong>: Nome do responsável</li>
                       <li><strong>{"{{"}cliente_empresa{"}}"}</strong>: Nome corporativo</li>
@@ -639,7 +1185,7 @@ export function ComercialSettingsPage() {
                       <li><strong>{"{{"}cliente_nif{"}}"}</strong>: NIF / CIF</li>
                     </ul>
 
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1 pt-2">Serviço e Financeiro</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1 pt-2">{t('comercial.settings.guideServiceHeader')}</h4>
                     <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
                       <li><strong>{"{{"}obra_morada{"}}"}</strong>: Local da Obra/Serviço</li>
                       <li><strong>{"{{"}data_inicio{"}}"}</strong>: Data prevista de início</li>
@@ -651,8 +1197,8 @@ export function ComercialSettingsPage() {
                 </div>
 
                 <div className="pt-2 border-t">
-                  <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-1.5">Como Criar Tabela de Itens (Perfis/Trabalhadores)</h4>
-                  <p className="mb-2">Desenhe uma tabela no Word com um cabeçalho e uma linha de dados. Na primeira célula da linha de dados, inicie o loop e na última termine-o:</p>
+                  <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-1.5">{t('comercial.settings.guideTableTitle')}</h4>
+                  <p className="mb-2">{t('comercial.settings.guideTableDesc')}</p>
                   <div className="bg-slate-950 text-slate-100 p-3 rounded-lg font-mono text-[10.5px] leading-relaxed">
                     Linha de Dados da Tabela:<br />
                     Col 1: <span className="text-emerald-400">{"{#itens}"}</span>{"{{"}funcao{"}}"}<br />

@@ -53,6 +53,7 @@ export const jobFunctionQuestionSchema = z.object({
   is_required: z.boolean().default(true),
   sort_order: z.number().int().default(0),
   status: jobFunctionStatusSchema.default('active'),
+  options: z.array(z.string()).nullable().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

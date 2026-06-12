@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, HelpCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   data: any;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function EstimacionCostsStep({ data, onChange }: Props) {
+  const { t } = useTranslation();
   
   const addCost = () => {
     const newCost = {
@@ -90,18 +92,18 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold mb-1">Custos Adicionais e Reembolsos</h2>
-          <p className="text-sm text-muted-foreground">Registre custos logísticos, administrativos ou materiais adicionais.</p>
+          <h2 className="text-xl font-semibold mb-1">{t('comercial.stepCosts.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('comercial.stepCosts.subtitle')}</p>
         </div>
         <Button onClick={addCost} size="sm" variant="outline">
           <Plus className="mr-2 h-4 w-4" />
-          Adicionar Custo
+          {t('comercial.stepCosts.btnAdd')}
         </Button>
       </div>
 
       {data.costs.length === 0 ? (
         <div className="text-center py-12 border border-dashed rounded-lg border-slate-200 dark:border-slate-800 text-slate-500 bg-white dark:bg-slate-950/20">
-          Nenhum custo adicional previsto (Opcional).
+          {t('comercial.stepCosts.noCosts')}
         </div>
       ) : (
         <div className="space-y-4">
@@ -117,10 +119,10 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
               
               <div className="space-y-2 flex-1">
                 <div className="flex items-center justify-between">
-                  <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>Categoria</Label>
+                  <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>{t('comercial.stepCosts.categoryLabel')}</Label>
                   {cost.is_auto && (
                     <span className="text-[10px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-900/50 font-mono">
-                      Automático
+                      {t('comercial.stepCosts.automaticLabel')}
                     </span>
                   )}
                 </div>
@@ -133,20 +135,20 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                    <SelectItem value="housing">Alojamento</SelectItem>
-                    <SelectItem value="transport">Transporte / Voos</SelectItem>
-                    <SelectItem value="epi">EPIs</SelectItem>
-                    <SelectItem value="social_security">Segurança Social</SelectItem>
-                    <SelectItem value="documentation">Documentação</SelectItem>
-                    <SelectItem value="other">Outros</SelectItem>
+                    <SelectItem value="housing">{t('comercial.costCategories.housing')}</SelectItem>
+                    <SelectItem value="transport">{t('comercial.costCategories.transport')}</SelectItem>
+                    <SelectItem value="epi">{t('comercial.costCategories.epi')}</SelectItem>
+                    <SelectItem value="social_security">{t('comercial.costCategories.social_security')}</SelectItem>
+                    <SelectItem value="documentation">{t('comercial.costCategories.documentation')}</SelectItem>
+                    <SelectItem value="other">{t('comercial.costCategories.other')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2 flex-[2]">
-                <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>Descrição</Label>
+                <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>{t('comercial.stepCosts.descriptionLabel')}</Label>
                 <Input 
-                  placeholder="Ex: Voo Lisboa - Madrid"
+                  placeholder={t('comercial.stepCosts.descPlaceholder')}
                   value={cost.description}
                   onChange={(e) => updateCost(idx, 'description', e.target.value)}
                   disabled={cost.is_auto}
@@ -155,7 +157,7 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
               </div>
 
               <div className="space-y-2 w-32">
-                <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>Valor Total (€)</Label>
+                <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>{t('comercial.stepCosts.amountLabel')}</Label>
                 <Input 
                   type="number" 
                   step="0.01"
@@ -180,14 +182,14 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
                   <label htmlFor={`rech-${idx}`} className={`text-xs font-semibold cursor-pointer ${
                     cost.is_auto ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'
                   }`}>
-                    Repassar ao Cliente
+                    {t('comercial.stepCosts.rechargeLabel')}
                   </label>
                 </div>
               </div>
 
               {cost.is_rechargeable && (
                 <div className="space-y-2 w-24">
-                  <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>Markup (%)</Label>
+                  <Label className={cost.is_auto ? "text-slate-500 dark:text-slate-400 text-xs" : "text-xs text-slate-750 dark:text-slate-300"}>{t('comercial.stepCosts.markupLabel')}</Label>
                   <Input 
                     type="number" 
                     value={cost.markup_percent}
@@ -208,7 +210,7 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               ) : (
-                <div className="w-10 h-10 flex items-center justify-center text-slate-500 dark:text-slate-600 mb-0.5" title="Custos automáticos não podem ser removidos nesta etapa. Para alterar, ajuste as opções e perfis no passo anterior.">
+                <div className="w-10 h-10 flex items-center justify-center text-slate-500 dark:text-slate-600 mb-0.5" title={t('comercial.stepCosts.autoCostHelp')}>
                   <HelpCircle className="h-4 w-4" />
                 </div>
               )}

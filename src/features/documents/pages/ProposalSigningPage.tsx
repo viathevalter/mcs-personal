@@ -10,7 +10,8 @@ import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 export function ProposalSigningPage() {
     const { token } = useParams<{ token: string }>();
-    const docContainerRef = useRef<HTMLDivElement>(null);
+    const proposalContainerRef = useRef<HTMLDivElement>(null);
+    const contractContainerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { t, i18n } = useTranslation();
 
@@ -23,6 +24,7 @@ export function ProposalSigningPage() {
     const [signing, setSigning] = useState(false);
     const [success, setSuccess] = useState(false);
     const [auditLog, setAuditLog] = useState<any | null>(null);
+    const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
     
     // Canvas drawing states
     const [isDrawing, setIsDrawing] = useState(false);
@@ -66,6 +68,24 @@ export function ProposalSigningPage() {
                         .maybeSingle();
                     if (auditData) {
                         setAuditLog(auditData);
+                        if (auditData.signature_image && !auditData.signature_image.startsWith('data:')) {
+                            try {
+                                const { data: imgBlob, error: imgErr } = await supabase.storage
+                                    .from('proposal-signatures')
+                                    .download(auditData.signature_image);
+                                if (!imgErr && imgBlob) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                        setSignatureBase64(reader.result as string);
+                                    };
+                                    reader.readAsDataURL(imgBlob);
+                                }
+                            } catch (err) {
+                                console.error("Error downloading signature image:", err);
+                            }
+                        } else if (auditData.signature_image) {
+                            setSignatureBase64(auditData.signature_image);
+                        }
                     }
                 }
 
@@ -102,23 +122,39 @@ export function ProposalSigningPage() {
         loadProposalData();
     }, [token]);
 
-    // 2. Renderizar o arquivo .docx ativo usando docx-preview
-    const activeBlob = activeTab === 'proposal' ? proposalBlob : contractBlob;
+    // 2. Renderizar o arquivo .docx da proposta usando docx-preview
     useEffect(() => {
-        if (activeBlob && docContainerRef.current) {
-            console.log(`Renderizando docx da ${activeTab === 'proposal' ? 'proposta' : 'contrato'}...`);
-            docContainerRef.current.innerHTML = "";
-            renderAsync(activeBlob, docContainerRef.current, undefined, {
+        if (proposalBlob && proposalContainerRef.current) {
+            console.log("Renderizando docx da proposta...");
+            proposalContainerRef.current.innerHTML = "";
+            renderAsync(proposalBlob, proposalContainerRef.current, undefined, {
                 className: "docx-document",
                 inWrapper: false,
                 ignoreWidth: true,
                 ignoreHeight: true,
             })
             .catch(err => {
-                console.error("Falha ao renderizar visualização do docx:", err);
+                console.error("Falha ao renderizar visualização do docx da proposta:", err);
             });
         }
-    }, [activeBlob, activeTab, loading]);
+    }, [proposalBlob]);
+
+    // Renderizar o arquivo .docx do contrato usando docx-preview
+    useEffect(() => {
+        if (contractBlob && contractContainerRef.current) {
+            console.log("Renderizando docx do contrato...");
+            contractContainerRef.current.innerHTML = "";
+            renderAsync(contractBlob, contractContainerRef.current, undefined, {
+                className: "docx-document",
+                inWrapper: false,
+                ignoreWidth: true,
+                ignoreHeight: true,
+            })
+            .catch(err => {
+                console.error("Falha ao renderizar visualização do docx do contrato:", err);
+            });
+        }
+    }, [contractBlob]);
 
     // 3. Inicializar e redimensionar o canvas
     useEffect(() => {
@@ -283,6 +319,7 @@ export function ProposalSigningPage() {
             toast.success(t('signing.toastSuccessProposal'));
             setSuccess(true);
             setOtpModalOpen(false);
+            setSignatureBase64(signatureImageBase64);
             
             // Recarregar os dados para ter o link do storage atualizado
             const updatedProposal = await getProposalByToken(token!);
@@ -309,7 +346,8 @@ export function ProposalSigningPage() {
 
     // 7. Baixar PDF com Alta Fidelidade (via iframe print isolado)
     const handlePrintPdf = (type: 'proposal' | 'contract') => {
-        const docElement = docContainerRef.current?.querySelector('.docx-document');
+        const container = type === 'proposal' ? proposalContainerRef.current : contractContainerRef.current;
+        const docElement = container?.querySelector('.docx-document');
         if (!docElement) {
             toast.error(t('signing.errorNotRendered', { defaultValue: 'Documento não renderizado ainda.' }));
             return;
@@ -389,10 +427,11 @@ export function ProposalSigningPage() {
             const auditDate = proposal.signed_at 
                 ? new Date(proposal.signed_at).toLocaleString('pt-PT') 
                 : new Date().toLocaleString('pt-PT');
-            const signatureImg = auditLog?.signature_image;
-            
             let sigSrc = "";
-            if (signatureImg) {
+            if (signatureBase64) {
+                sigSrc = signatureBase64;
+            } else if (auditLog?.signature_image) {
+                const signatureImg = auditLog.signature_image;
                 sigSrc = signatureImg.startsWith('data:') 
                     ? signatureImg 
                     : supabase.storage.from('proposal-signatures').getPublicUrl(signatureImg).data.publicUrl;
@@ -478,7 +517,7 @@ export function ProposalSigningPage() {
     const recipientEmail = proposal.estimacion?.contact_email || proposal.estimacion?.lead?.email || proposal.estimacion?.client?.email || '';
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <div className="h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
             <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-lg">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -536,7 +575,18 @@ export function ProposalSigningPage() {
                     {/* Container de Exibição */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center docx-preview-container-parent">
                         <div className="w-full max-w-4xl overflow-x-auto docx-preview-container">
-                            <div ref={docContainerRef} className="docx-wrapper" />
+                            <div style={{ display: activeTab === 'proposal' ? 'block' : 'none' }}>
+                                <div 
+                                    ref={proposalContainerRef} 
+                                    className="docx-wrapper" 
+                                />
+                            </div>
+                            <div style={{ display: activeTab === 'contract' ? 'block' : 'none' }}>
+                                <div 
+                                    ref={contractContainerRef} 
+                                    className="docx-wrapper" 
+                                />
+                            </div>
                         </div>
                     </div>
                 </main>

@@ -40,7 +40,8 @@ export function useEstimacionDetail(id: string | undefined) {
         { data: lead },
         { data: client_site },
         { data: country },
-        { data: proposal_signature }
+        { data: proposal_signature },
+        { data: pedido }
       ] = await Promise.all([
         estimacion.client_id
           ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, email, phone').eq('id', estimacion.client_id).maybeSingle()
@@ -60,8 +61,25 @@ export function useEstimacionDetail(id: string | undefined) {
           .eq('estimacion_id', id)
           .order('created_at', { ascending: false })
           .limit(1)
+          .maybeSingle(),
+        supabase.schema('core_comercial')
+          .from('pedidos')
+          .select('id, codigo, commercial_status, operational_status')
+          .eq('source_estimacion_id', id)
+          .eq('empresa_id', selectedEmpresaId)
           .maybeSingle()
       ]);
+
+      let solicitud = null;
+      if (pedido) {
+        const { data: solData } = await supabase.schema('core_operacoes')
+          .from('solicitudes_operativas')
+          .select('id, codigo, status')
+          .eq('pedido_id', pedido.id)
+          .eq('empresa_id', selectedEmpresaId)
+          .maybeSingle();
+        solicitud = solData;
+      }
 
       // Find the current version and map it to current_version
       const currentVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id);
@@ -73,8 +91,10 @@ export function useEstimacionDetail(id: string | undefined) {
         client_site,
         country,
         current_version: currentVersion,
-        proposal_signature
-      } as Estimacion & { versions: any[]; proposal_signature: any };
+        proposal_signature,
+        pedido,
+        solicitud
+      } as Estimacion & { versions: any[]; proposal_signature: any; pedido: any; solicitud: any };
     },
     enabled: !!selectedEmpresaId && !!id,
   });

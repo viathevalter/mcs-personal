@@ -15,9 +15,12 @@ export interface OpenPosition {
   description_snapshot?: string;
   risk_level_snapshot?: string;
   expected_start_date?: string;
+  expected_end_date?: string;
   quantity_requested: number;
   quantity_fulfilled: number;
   status: string;
+  pergunta_respuesta?: any;
+  base_cost_hour_snapshot?: number | string;
 }
 
 export const useOpenPositions = () => {
@@ -46,7 +49,8 @@ export const useOpenPositions = () => {
             codigo,
             client_id,
             client_site_id,
-            expected_start_date
+            expected_start_date,
+            expected_end_date
           )
         `);
 
@@ -97,6 +101,7 @@ export const useOpenPositions = () => {
         description_snapshot: item.description_snapshot || '',
         risk_level_snapshot: item.risk_level_snapshot || '',
         expected_start_date: item.pedidos?.expected_start_date || '',
+        expected_end_date: item.pedidos?.expected_end_date || '',
         quantity_requested: item.quantity_requested,
         quantity_fulfilled: item.quantity_fulfilled,
         status: item.status

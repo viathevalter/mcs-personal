@@ -8,8 +8,9 @@ import { useClients } from '@/features/master-data/clients/hooks/useClients';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { useLeads } from '@/features/comercial/leads/hooks/useLeads';
 import { CountrySelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Calendar } from 'lucide-react';
+import { Calendar, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
 
 // Utility functions for date calculations
 function countWeekdays(startDateStr: string, endDateStr: string): number {
@@ -43,6 +44,37 @@ function countTotalDays(startDateStr: string, endDateStr: string): number {
   return diffDays;
 }
 
+function getWeekdayCountBreakdown(startDateStr: string, endDateStr: string) {
+  const breakdown = {
+    lunes: 0,
+    martes: 0,
+    miercoles: 0,
+    jueves: 0,
+    viernes: 0,
+    sabado: 0,
+    domingo: 0,
+  };
+  if (!startDateStr || !endDateStr) return breakdown;
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return breakdown;
+  if (start > end) return breakdown;
+
+  let cur = new Date(start);
+  while (cur <= end) {
+    const day = cur.getDay();
+    if (day === 1) breakdown.lunes++;
+    else if (day === 2) breakdown.martes++;
+    else if (day === 3) breakdown.miercoles++;
+    else if (day === 4) breakdown.jueves++;
+    else if (day === 5) breakdown.viernes++;
+    else if (day === 6) breakdown.sabado++;
+    else if (day === 0) breakdown.domingo++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return breakdown;
+}
+
 interface Props {
   data: any;
   onChange: (data: Partial<any>) => void;
@@ -51,6 +83,15 @@ interface Props {
 export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { t } = useTranslation();
   const [targetType, setTargetType] = useState<'client' | 'lead'>(data.lead_id ? 'lead' : 'client');
+  const [isCustomWeekdays, setIsCustomWeekdays] = useState(() => {
+    const wl = data.hours_lunes ?? data.hours_weekday ?? 8.0;
+    const wt = data.hours_martes ?? data.hours_weekday ?? 8.0;
+    const wq = data.hours_miercoles ?? data.hours_weekday ?? 8.0;
+    const wqi = data.hours_jueves ?? data.hours_weekday ?? 8.0;
+    const wv = data.hours_viernes ?? data.hours_weekday ?? 8.0;
+    const dw = data.hours_weekday ?? 8.0;
+    return wl !== dw || wt !== dw || wq !== dw || wqi !== dw || wv !== dw;
+  });
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads();
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
@@ -184,7 +225,7 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="country_id">{t('comercial.proposalCard.country')} <span className="text-red-500">*</span></Label>
+          <Label htmlFor="country_id">{t('comercial.detail.proposalCard.country')} <span className="text-red-500">*</span></Label>
           <CountrySelector
             value={data.country_id || null}
             onChange={(val) => onChange({ country_id: val })}
@@ -291,14 +332,14 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
             onValueChange={(val) => onChange({ document_language: val })}
           >
             <SelectTrigger id="document_language" className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-              <SelectValue placeholder="Selecione o idioma" />
+              <SelectValue placeholder={t('comercial.stepGeneral.selectLanguage', { defaultValue: 'Selecione o idioma' })} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="pt">Português (PT)</SelectItem>
-              <SelectItem value="es">Espanhol (ES)</SelectItem>
-              <SelectItem value="en">Inglês (EN)</SelectItem>
-              <SelectItem value="it">Italiano (IT)</SelectItem>
-              <SelectItem value="fr">Francês (FR)</SelectItem>
+              <SelectItem value="pt">{t('comercial.stepGeneral.languages.pt', { defaultValue: 'Português (PT)' })}</SelectItem>
+              <SelectItem value="es">{t('comercial.stepGeneral.languages.es', { defaultValue: 'Espanhol (ES)' })}</SelectItem>
+              <SelectItem value="en">{t('comercial.stepGeneral.languages.en', { defaultValue: 'Inglês (EN)' })}</SelectItem>
+              <SelectItem value="it">{t('comercial.stepGeneral.languages.it', { defaultValue: 'Italiano (IT)' })}</SelectItem>
+              <SelectItem value="fr">{t('comercial.stepGeneral.languages.fr', { defaultValue: 'Francês (FR)' })}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -347,6 +388,459 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
             </div>
           )}
         </div>
+      </div>
+ 
+      {/* 1. Working Schedule Configurator */}
+      <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+            {t('comercial.stepGeneral.scheduleTitle', { defaultValue: 'Jornada de Trabalho Personalizada' })}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {t('comercial.stepGeneral.scheduleSubtitle', { defaultValue: 'Configure os dias de trabalho e as horas diárias para esta proposta/estimativa.' })}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Weekdays (Mon-Fri) Card */}
+          <div className="lg:col-span-6 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold uppercase text-slate-500">{t('comercial.stepGeneral.weekdaysLabel', { defaultValue: 'Segunda a Sexta' })}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !isCustomWeekdays;
+                    setIsCustomWeekdays(nextVal);
+                    if (!nextVal) {
+                      // reset individual weekday hours to the unified hours_weekday
+                      const hw = data.hours_weekday ?? 8;
+                      onChange({
+                        hours_lunes: hw,
+                        hours_martes: hw,
+                        hours_miercoles: hw,
+                        hours_jueves: hw,
+                        hours_viernes: hw,
+                      });
+                    }
+                  }}
+                  className="text-[11px] text-left text-indigo-605 hover:text-indigo-700 dark:text-indigo-400 font-semibold mt-1"
+                >
+                  {isCustomWeekdays 
+                    ? t('comercial.stepGeneral.unifiedWeekdays', { defaultValue: '← Usar jornada unificada' }) 
+                    : t('comercial.stepGeneral.customizeWeekdays', { defaultValue: '⚙ Customizar dias individuais' })}
+                </button>
+              </div>
+              <div className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  id="work_weekdays"
+                  checked={data.work_lunes !== false}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    onChange({
+                      work_lunes: val,
+                      work_martes: val,
+                      work_miercoles: val,
+                      work_jueves: val,
+                      work_viernes: val,
+                    });
+                  }}
+                  className="h-4 w-4 rounded border-gray-350 text-indigo-605 focus:ring-indigo-500"
+                />
+                <Label htmlFor="work_weekdays" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel', { defaultValue: 'Ativo' })}</Label>
+              </div>
+            </div>
+
+            {!isCustomWeekdays ? (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="hours_weekday" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel', { defaultValue: 'Horas Diárias' })}</Label>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={data.work_lunes === false}
+                    onClick={() => {
+                      const val = Math.max(1, (data.hours_weekday ?? 8) - 1);
+                      onChange({
+                        hours_weekday: val,
+                        hours_lunes: val,
+                        hours_martes: val,
+                        hours_miercoles: val,
+                        hours_jueves: val,
+                        hours_viernes: val,
+                      });
+                    }}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    id="hours_weekday"
+                    type="number"
+                    min="1"
+                    max="24"
+                    disabled={data.work_lunes === false}
+                    value={data.hours_weekday ?? 8}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 8;
+                      onChange({
+                        hours_weekday: val,
+                        hours_lunes: val,
+                        hours_martes: val,
+                        hours_miercoles: val,
+                        hours_jueves: val,
+                        hours_viernes: val,
+                      });
+                    }}
+                    className="h-8 text-center text-xs font-semibold w-16"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={data.work_lunes === false}
+                    onClick={() => {
+                      const val = Math.min(24, (data.hours_weekday ?? 8) + 1);
+                      onChange({
+                        hours_weekday: val,
+                        hours_lunes: val,
+                        hours_martes: val,
+                        hours_miercoles: val,
+                        hours_jueves: val,
+                        hours_viernes: val,
+                      });
+                    }}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2.5 border-t border-slate-100 dark:border-slate-800/60 pt-2.5">
+                {[
+                  { key: 'lunes', label: t('comercial.stepGeneral.monday', { defaultValue: 'Segunda-feira' }), activeKey: 'work_lunes', hoursKey: 'hours_lunes' },
+                  { key: 'martes', label: t('comercial.stepGeneral.tuesday', { defaultValue: 'Terça-feira' }), activeKey: 'work_martes', hoursKey: 'hours_martes' },
+                  { key: 'miercoles', label: t('comercial.stepGeneral.wednesday', { defaultValue: 'Quarta-feira' }), activeKey: 'work_miercoles', hoursKey: 'hours_miercoles' },
+                  { key: 'jueves', label: t('comercial.stepGeneral.thursday', { defaultValue: 'Quinta-feira' }), activeKey: 'work_jueves', hoursKey: 'hours_jueves' },
+                  { key: 'viernes', label: t('comercial.stepGeneral.friday', { defaultValue: 'Sexta-feira' }), activeKey: 'work_viernes', hoursKey: 'hours_viernes' },
+                ].map(day => {
+                  const isActive = data[day.activeKey] !== false;
+                  const hours = data[day.hoursKey] ?? data.hours_weekday ?? 8;
+                  return (
+                    <div key={day.key} className="flex items-center justify-between text-xs py-0.5 border-b border-slate-100/30 dark:border-slate-800/30 last:border-0">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`check_${day.key}`}
+                          checked={isActive}
+                          onChange={(e) => onChange({ [day.activeKey]: e.target.checked })}
+                          className="h-3.5 w-3.5 rounded border-gray-305 text-indigo-605 focus:ring-indigo-500"
+                        />
+                        <Label htmlFor={`check_${day.key}`} className="text-xs font-semibold">{day.label}</Label>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={!isActive}
+                          onClick={() => onChange({ [day.hoursKey]: Math.max(1, hours - 1) })}
+                        >
+                          -
+                        </Button>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="24"
+                          disabled={!isActive}
+                          value={hours}
+                          onChange={(e) => onChange({ [day.hoursKey]: parseFloat(e.target.value) || 8 })}
+                          className="h-7 text-center text-xs font-semibold w-12 p-0"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={!isActive}
+                          onClick={() => onChange({ [day.hoursKey]: Math.min(24, hours + 1) })}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Saturday Card */}
+          <div className={`lg:col-span-3 border rounded-xl p-4 transition-colors space-y-3 ${data.work_sabado ? 'bg-indigo-50/20 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-900/60' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">{t('comercial.stepGeneral.saturdayLabel', { defaultValue: 'Sábado' })}</span>
+              <div className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  id="work_sabado"
+                  checked={!!data.work_sabado}
+                  onChange={(e) => onChange({ work_sabado: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-350 text-indigo-605 focus:ring-indigo-500"
+                />
+                <Label htmlFor="work_sabado" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel', { defaultValue: 'Ativo' })}</Label>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="hours_sabado" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel', { defaultValue: 'Horas Diárias' })}</Label>
+              <div className="flex items-center space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!data.work_sabado}
+                  onClick={() => onChange({ hours_sabado: Math.max(0, (data.hours_sabado ?? 0) - 1) })}
+                >
+                  -
+                </Button>
+                <Input
+                  id="hours_sabado"
+                  type="number"
+                  min="0"
+                  max="24"
+                  disabled={!data.work_sabado}
+                  value={data.hours_sabado ?? 0}
+                  onChange={(e) => onChange({ hours_sabado: parseFloat(e.target.value) || 0 })}
+                  className="h-8 text-center text-xs font-semibold w-16"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!data.work_sabado}
+                  onClick={() => onChange({ hours_sabado: Math.min(24, (data.hours_sabado ?? 0) + 1) })}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sunday Card */}
+          <div className={`lg:col-span-3 border rounded-xl p-4 transition-colors space-y-3 ${data.work_domingo ? 'bg-indigo-50/20 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-900/60' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">{t('comercial.stepGeneral.sundayLabel', { defaultValue: 'Domingo' })}</span>
+              <div className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  id="work_domingo"
+                  checked={!!data.work_domingo}
+                  onChange={(e) => onChange({ work_domingo: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-350 text-indigo-605 focus:ring-indigo-500"
+                />
+                <Label htmlFor="work_domingo" className="text-xs font-medium cursor-pointer">{t('comercial.stepGeneral.activeLabel', { defaultValue: 'Ativo' })}</Label>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="hours_domingo" className="text-xs font-semibold">{t('comercial.stepGeneral.hoursLabel', { defaultValue: 'Horas Diárias' })}</Label>
+              <div className="flex items-center space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!data.work_domingo}
+                  onClick={() => onChange({ hours_domingo: Math.max(0, (data.hours_domingo ?? 0) - 1) })}
+                >
+                  -
+                </Button>
+                <Input
+                  id="hours_domingo"
+                  type="number"
+                  min="0"
+                  max="24"
+                  disabled={!data.work_domingo}
+                  value={data.hours_domingo ?? 0}
+                  onChange={(e) => onChange({ hours_domingo: parseFloat(e.target.value) || 0 })}
+                  className="h-8 text-center text-xs font-semibold w-16"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!data.work_domingo}
+                  onClick={() => onChange({ hours_domingo: Math.min(24, (data.hours_domingo ?? 0) + 1) })}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Weekly sum summary indicator */}
+        <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 px-3 py-2 rounded-lg">
+          <span dangerouslySetInnerHTML={{
+            __html: t('comercial.stepGeneral.weeklySummary', {
+              hours: ((data.work_lunes !== false ? (data.hours_lunes ?? data.hours_weekday ?? 8) : 0) +
+                      (data.work_martes !== false ? (data.hours_martes ?? data.hours_weekday ?? 8) : 0) +
+                      (data.work_miercoles !== false ? (data.hours_miercoles ?? data.hours_weekday ?? 8) : 0) +
+                      (data.work_jueves !== false ? (data.hours_jueves ?? data.hours_weekday ?? 8) : 0) +
+                      (data.work_viernes !== false ? (data.hours_viernes ?? data.hours_weekday ?? 8) : 0) +
+                      (data.work_sabado ? (data.hours_sabado ?? 0) : 0) +
+                      (data.work_domingo ? (data.hours_domingo ?? 0) : 0)),
+              defaultValue: 'Jornada horária semanal por trabalhador: <span class="font-extrabold">{{hours}} horas semanais</span>'
+            })
+          }} />
+        </div>
+      </div>
+
+      {/* 2. Calendar Breakdown (Visual Panel) */}
+      {data.expected_start_date && data.expected_end_date && (
+        <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/30 dark:bg-slate-900/20 space-y-3">
+          <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+            <Calendar className="h-4 w-4 text-primary" />
+            <span>{t('comercial.stepGeneral.breakdownTitle', { defaultValue: 'Demonstração de Horas Individuais no Período' })}</span>
+          </div>
+          
+          {(() => {
+            const breakdown = getWeekdayCountBreakdown(data.expected_start_date, data.expected_end_date);
+            const hl = data.work_lunes !== false ? (data.hours_lunes ?? data.hours_weekday ?? 8) : 0;
+            const ht = data.work_martes !== false ? (data.hours_martes ?? data.hours_weekday ?? 8) : 0;
+            const hq = data.work_miercoles !== false ? (data.hours_miercoles ?? data.hours_weekday ?? 8) : 0;
+            const hqi = data.work_jueves !== false ? (data.hours_jueves ?? data.hours_weekday ?? 8) : 0;
+            const hv = data.work_viernes !== false ? (data.hours_viernes ?? data.hours_weekday ?? 8) : 0;
+            const satHours = (data.work_sabado ? (data.hours_sabado ?? 0) : 0);
+            const sunHours = (data.work_domingo ? (data.hours_domingo ?? 0) : 0);
+
+            const monFriDaysCount = breakdown.lunes + breakdown.martes + breakdown.miercoles + breakdown.jueves + breakdown.viernes;
+            const monFriTotalHours = (breakdown.lunes * hl) + (breakdown.martes * ht) + (breakdown.miercoles * hq) + (breakdown.jueves * hqi) + (breakdown.viernes * hv);
+            const satTotalHours = breakdown.sabado * satHours;
+            const sunTotalHours = breakdown.domingo * sunHours;
+            const periodGrandTotalHours = monFriTotalHours + satTotalHours + sunTotalHours;
+
+            return (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  {/* weekdays count */}
+                  <div className="flex justify-between items-center border-b pb-1.5 dark:border-slate-800">
+                    <span className="text-muted-foreground">{t('comercial.stepGeneral.breakdownWeekdays', { defaultValue: 'Dias de Semana (Seg-Sex):' })}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {monFriDaysCount} {t('comercial.stepGeneral.dias', { defaultValue: 'dias' })} = <strong className="text-primary">{monFriTotalHours}h</strong>
+                    </span>
+                  </div>
+                  {/* Saturday count */}
+                  <div className="flex justify-between items-center border-b pb-1.5 dark:border-slate-800">
+                    <span className="text-muted-foreground">{t('comercial.stepGeneral.breakdownSaturdays', { defaultValue: 'Sábados:' })}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {breakdown.sabado} {t('comercial.stepGeneral.sab', { defaultValue: 'sáb' })} × {satHours}h = <strong className="text-primary">{satTotalHours}h</strong>
+                    </span>
+                  </div>
+                  {/* Sunday count */}
+                  <div className="flex justify-between items-center border-b pb-1.5 dark:border-slate-800">
+                    <span className="text-muted-foreground">{t('comercial.stepGeneral.breakdownSundays', { defaultValue: 'Domingos:' })}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {breakdown.domingo} {t('comercial.stepGeneral.dom', { defaultValue: 'dom' })} × {sunHours}h = <strong className="text-primary">{sunTotalHours}h</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right text-xs font-bold text-slate-800 dark:text-slate-200 pt-1">
+                  <span dangerouslySetInnerHTML={{
+                    __html: t('comercial.stepGeneral.breakdownTotal', {
+                      hours: periodGrandTotalHours,
+                      defaultValue: 'Total Individual Estimado no Período: <span class="text-sm text-indigo-600 dark:text-indigo-400 font-extrabold">{{hours}} horas</span>'
+                    })
+                  }} />
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* 3. Additional Revenues List */}
+      <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+              {t('comercial.stepGeneral.revenuesTitle', { defaultValue: 'Outras Receitas e Serviços (Ingresos Varios)' })}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t('comercial.stepGeneral.revenuesSubtitle', { defaultValue: 'Adicione receitas extras globais ao orçamento (Ex: taxas de mobilização, cursos, etc.).' })}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const currentRevenues = data.additional_revenues || [];
+              onChange({
+                additional_revenues: [...currentRevenues, { id: crypto.randomUUID(), description: '', amount: 0 }]
+              });
+            }}
+            className="text-xs border-dashed border-indigo-400 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50/50"
+          >
+            {t('comercial.stepGeneral.btnAddRevenue', { defaultValue: '+ Adicionar Receita' })}
+          </Button>
+        </div>
+
+        {data.additional_revenues && data.additional_revenues.length > 0 ? (
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            {data.additional_revenues.map((item: any, idx: number) => (
+              <div key={item.id || idx} className="flex items-center space-x-3 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div className="flex-1">
+                  <Input
+                    placeholder={t('comercial.stepGeneral.revenueDescPlaceholder', { defaultValue: 'Descrição da Receita (Ex: Mobilização de Equipamento)' })}
+                    value={item.description || ''}
+                    onChange={(e) => {
+                      const updated = data.additional_revenues.map((r: any, i: number) => i === idx ? { ...r, description: e.target.value } : r);
+                      onChange({ additional_revenues: updated });
+                    }}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="w-32 flex items-center space-x-1.5">
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder={t('comercial.stepGeneral.amountLabel', { defaultValue: 'Valor' })}
+                    value={item.amount || ''}
+                    onChange={(e) => {
+                      const updated = data.additional_revenues.map((r: any, i: number) => i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r);
+                      onChange({ additional_revenues: updated });
+                    }}
+                    className="h-9 text-xs font-semibold text-right"
+                  />
+                  <span className="text-xs text-muted-foreground font-bold">€</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const updated = data.additional_revenues.filter((_: any, i: number) => i !== idx);
+                    onChange({ additional_revenues: updated });
+                  }}
+                  className="h-9 w-9 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 border border-dashed rounded-xl text-xs text-muted-foreground bg-slate-50/20 dark:bg-slate-950/10">
+            {t('comercial.stepGeneral.noRevenues', { defaultValue: 'Nenhuma receita adicional adicionada.' })}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2 pt-2">

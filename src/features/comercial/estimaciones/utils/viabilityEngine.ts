@@ -55,7 +55,8 @@ const PORTUGAL_COASTAL_POSTAL_PREFIXES = new Set([
 export function calculateViability(
   payload: any,
   client?: any,
-  settings?: any
+  settings?: any,
+  t?: any
 ): ViabilityResult {
   const reasons: string[] = [];
   
@@ -144,7 +145,9 @@ export function calculateViability(
         if (isSpainCoast || isPortugalCoast) {
           coastalSummerRisk = true;
           reasons.push(
-            'Alerta de Logística: Obra em região litorânea durante o verão europeu (alto risco de escassez e volatilidade nos preços de alojamento).'
+            t
+              ? t('comercial.stepReview.reasons.summerRisk')
+              : 'Alerta de Logística: Obra em região litorânea durante o verão europeu (alto risco de escassez e volatilidade nos preços de alojamento).'
           );
         }
       }
@@ -157,12 +160,16 @@ export function calculateViability(
     if (client.financial_status === 'blocked') {
       creditRisk = 'blocked';
       reasons.push(
-        `Cliente Bloqueado: O cliente ${client.legal_name} possui restrição total de faturamento por inadimplência.`
+        t
+          ? t('comercial.stepReview.reasons.clientBlocked', { name: client.legal_name })
+          : `Cliente Bloqueado: O cliente ${client.legal_name} possui restrição total de faturamento por inadimplência.`
       );
     } else if (client.financial_status === 'debtor') {
       creditRisk = 'warning';
       reasons.push(
-        `Cliente Inadimplente: O cliente ${client.legal_name} possui faturas em atraso.`
+        t
+          ? t('comercial.stepReview.reasons.clientDebtor', { name: client.legal_name })
+          : `Cliente Inadimplente: O cliente ${client.legal_name} possui faturas em atraso.`
       );
     }
   }
@@ -175,7 +182,9 @@ export function calculateViability(
   
   if (marginRisk) {
     reasons.push(
-      `Margem Baixa: A margem global (${actualMargin.toFixed(2)}%) está abaixo da margem mínima permitida (${minMargin}%).`
+      t
+        ? t('comercial.stepReview.reasons.lowMargin', { actual: actualMargin.toFixed(2), min: minMargin })
+        : `Margem Baixa: A margem global (${actualMargin.toFixed(2)}%) está abaixo da margem mínima permitida (${minMargin}%).`
     );
   }
 
@@ -183,7 +192,9 @@ export function calculateViability(
   const minIvp = settings?.ivp_min_threshold !== undefined ? Number(settings.ivp_min_threshold) : 5.0;
   if (ivp < minIvp && paxTotal > 0) {
     reasons.push(
-      `Índice de Viabilidade Baixo: O IVP do projeto (${ivp.toFixed(2)}) está abaixo do limiar de risco aceitável (${minIvp}).`
+      t
+        ? t('comercial.stepReview.reasons.lowIvp', { ivp: ivp.toFixed(2), min: minIvp })
+        : `Índice de Viabilidade Baixo: O IVP do projeto (${ivp.toFixed(2)}) está abaixo do limiar de risco aceitável (${minIvp}).`
     );
   }
 

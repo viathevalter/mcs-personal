@@ -9,8 +9,14 @@ interface AllocateWorkerPayload {
   worker_name?: string;
   worker_document?: string;
   planned_start_date: string;
+  planned_end_date?: string;
   solicitud_id?: string;
   notes?: string;
+  camiseta?: string;
+  pantalones?: string;
+  licencia_conducir?: string;
+  movil?: string;
+  tarifa_acordada?: number;
 }
 
 export const useAllocateWorker = () => {
@@ -42,6 +48,8 @@ export const useAllocateWorker = () => {
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['pedido_items'] });
       queryClient.invalidateQueries({ queryKey: ['inactive_workers'] });
+      queryClient.invalidateQueries({ queryKey: ['active_pedidos'] });
+      queryClient.invalidateQueries({ queryKey: ['pedido_allocations'] });
     },
     onError: (error: any) => {
       toast.error(`Erro ao alocar: ${error.message || 'Erro desconhecido'}`);

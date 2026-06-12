@@ -52,7 +52,19 @@ const migrationsToRun = [
   '20260606152000_add_rpc_atualizar_estimacion.sql',
   '20260608090000_add_custom_epi_and_transport_rates.sql',
   '20260608100000_add_manager_approval_to_estimaciones.sql',
-  '20260608110000_comercial_settings_and_client_finance.sql'
+  '20260608110000_comercial_settings_and_client_finance.sql',
+  '20260608170000_add_document_language_to_estimaciones.sql',
+  '20260608180000_update_rpcs_for_document_language.sql',
+  '20260609080000_create_rpc_criar_nova_versao_estimacion.sql',
+  '20260609090000_add_custom_contract_fields_to_estimaciones.sql',
+  '20260609130000_add_working_schedule_and_additional_revenues.sql',
+  '20260610100000_add_individual_weekday_hours.sql',
+  '20260610102000_fix_aprovar_estimacion_solicitudes.sql',
+  '20260610161000_add_worker_sizes_and_rate_to_assignments.sql',
+  '20260610170000_add_options_to_job_function_questions.sql',
+  '20260612080000_fill_contratante_during_allocation.sql',
+  '20260612081000_fix_workers_functions_overload.sql',
+  '20260612140000_add_planned_end_date_to_allocation.sql'
 ];
 
 async function run() {

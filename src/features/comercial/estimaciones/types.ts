@@ -46,6 +46,32 @@ export interface Estimacion {
   client_site?: ClientSite;
   country?: { id: string; name: string };
   current_version?: EstimacionVersion;
+  pedido?: { id: string; codigo: string; commercial_status: string; operational_status: string } | null;
+  solicitud?: { id: string; codigo: string; status: string } | null;
+
+  // Working schedule and additional revenues properties
+  work_lunes?: boolean;
+  work_martes?: boolean;
+  work_miercoles?: boolean;
+  work_jueves?: boolean;
+  work_viernes?: boolean;
+  work_sabado?: boolean;
+  work_domingo?: boolean;
+  hours_weekday?: number;
+  hours_lunes?: number;
+  hours_martes?: number;
+  hours_miercoles?: number;
+  hours_jueves?: number;
+  hours_viernes?: number;
+  hours_sabado?: number;
+  hours_domingo?: number;
+  additional_revenues?: AdditionalRevenueItem[];
+}
+
+export interface AdditionalRevenueItem {
+  id: string;
+  description: string;
+  amount: number;
 }
 
 export interface EstimacionVersion {

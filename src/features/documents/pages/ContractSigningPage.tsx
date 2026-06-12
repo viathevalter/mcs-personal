@@ -315,7 +315,7 @@ export function ContractSigningPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        <div className="h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
             {/* Header Superior */}
             <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
