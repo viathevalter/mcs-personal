@@ -133,6 +133,11 @@ serve(async (req) => {
       template: templateBuffer,
       data: mergeData,
       cmdDelimiter: ["{{", "}}"],
+      noSandbox: true,
+      errorHandler: (err, command_code) => {
+        console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+        return "";
+      }
     });
 
     // 6. Fazer upload do arquivo Word preenchido para o bucket 'worker-contracts'
