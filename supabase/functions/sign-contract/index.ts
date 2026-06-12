@@ -30,10 +30,10 @@ serve(async (req) => {
 
     // 1. Buscar o contrato pelo token de assinatura
     const { data: contract, error: contractErr } = await supabase
+      .schema("core_personal")
       .from("contracts")
       .select("*")
       .eq("signature_token", token)
-      .schema("core_personal")
       .single();
 
     if (contractErr || !contract) {
@@ -68,10 +68,10 @@ serve(async (req) => {
 
     // 3. Buscar e-mail do trabalhador
     const { data: worker, error: workerErr } = await supabase
+      .schema("core_personal")
       .from("workers")
       .select("email, name")
       .eq("id", contract.worker_id)
-      .schema("core_personal")
       .single();
 
     if (workerErr || !worker) {
@@ -88,9 +88,9 @@ serve(async (req) => {
     };
 
     const { error: auditErr } = await supabase
+      .schema("core_personal")
       .from("contract_audit_logs")
-      .insert(auditPayload)
-      .schema("core_personal");
+      .insert(auditPayload);
 
     if (auditErr) {
       throw new Error(`Falha ao registrar log de auditoria: ${auditErr.message}`);
@@ -98,6 +98,7 @@ serve(async (req) => {
 
     // 5. Atualizar o status do contrato para 'signed'
     const { error: updateErr } = await supabase
+      .schema("core_personal")
       .from("contracts")
       .update({
         status: "signed",
@@ -105,8 +106,7 @@ serve(async (req) => {
         otp_code: null, // Limpa o OTP usado
         otp_expires_at: null,
       })
-      .eq("id", contract.id)
-      .schema("core_personal");
+      .eq("id", contract.id);
 
     if (updateErr) {
       throw new Error(`Falha ao atualizar status do contrato: ${updateErr.message}`);
@@ -116,10 +116,10 @@ serve(async (req) => {
     // Por exemplo, marcar a alocação relacionada como confirmada ou ativa.
     if (contract.assignment_id) {
       await supabase
+        .schema("core_personal")
         .from("worker_assignments")
         .update({ status: "active", start_date: new Date().toISOString().split("T")[0] })
-        .eq("id", contract.assignment_id)
-        .schema("core_personal");
+        .eq("id", contract.assignment_id);
     }
 
     return new Response(

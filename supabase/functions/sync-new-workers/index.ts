@@ -101,7 +101,7 @@ serve(async (req) => {
       };
 
       // Injeta no core_personal.workers de forma UPSERT
-      const { error: errWorker } = await prodClient.from('workers').upsert(workerPayload, { onConflict: 'empresa_id,cod_colab' }).schema('core_personal');
+      const { error: errWorker } = await prodClient.schema('core_personal').from('workers').upsert(workerPayload, { onConflict: 'empresa_id,cod_colab' });
       
       if (errWorker) {
         console.error(`Erro inserindo worker ${d.cod_colab}:`, errWorker);

@@ -32,10 +32,10 @@ serve(async (req) => {
 
     // 1. Buscar informações do trabalhador
     const { data: worker, error: workerErr } = await supabase
+      .schema("core_personal")
       .from("workers")
       .select("*")
       .eq("id", worker_id)
-      .schema("core_personal")
       .single();
 
     if (workerErr || !worker) {
@@ -46,10 +46,10 @@ serve(async (req) => {
     let assignment = null;
     if (assignment_id) {
       const { data: assoc, error: assocErr } = await supabase
+        .schema("core_personal")
         .from("vw_worker_allocations")
         .select("*")
         .eq("assignment_id", assignment_id)
-        .schema("core_personal")
         .single();
       
       if (!assocErr && assoc) {
@@ -57,10 +57,10 @@ serve(async (req) => {
       }
     } else {
       const { data: assoc, error: assocErr } = await supabase
+        .schema("core_personal")
         .from("vw_worker_allocations")
         .select("*")
         .eq("cod_colab", worker.cod_colab)
-        .schema("core_personal")
         .order("fechainiciopedido", { ascending: false })
         .limit(1);
       
@@ -175,9 +175,9 @@ serve(async (req) => {
     };
 
     const { data: contract, error: contractInsertErr } = await supabase
+      .schema("core_personal")
       .from("contracts")
       .insert(contractPayload)
-      .schema("core_personal")
       .select()
       .single();
 
