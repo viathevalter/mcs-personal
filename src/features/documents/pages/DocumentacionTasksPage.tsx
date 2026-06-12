@@ -954,7 +954,7 @@ Equipo de Contratación`;
 
             {/* Modal Lado a Lado de Verificação (Revisão OCR) */}
             <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
-                <DialogContent className="max-w-5xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
+                <DialogContent className="max-w-7xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
