@@ -316,6 +316,8 @@ serve(async (req) => {
 
     // Enviar email de confirmação com anexos
     if (empresa) {
+      const origin = req.headers.get("origin") || "https://mcs-personal.vercel.app";
+      const publicLink = `${origin}/assinar-proposta/${token}`;
       const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
       const senderName = empresa.trade_name || "Comercial";
       const lang = est.document_language || "pt";
