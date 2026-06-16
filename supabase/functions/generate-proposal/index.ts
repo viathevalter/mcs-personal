@@ -373,10 +373,17 @@ serve(async (req) => {
       noSandbox: true,
       errorHandler: (err, command_code) => {
         console.error(`Erro ao processar tag proposta "${command_code}":`, err);
-        if (!command_code) return "";
-        const codeUpper = command_code.toUpperCase();
+        let code = command_code;
+        if ((!code || code === "undefined") && err && err.message) {
+          const match = err.message.match(/Invalid command syntax: (.*)/);
+          if (match) {
+            code = match[1];
+          }
+        }
+        if (!code) return "";
+        const codeUpper = code.toUpperCase();
         if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
-          return `{{${command_code}}}`;
+          return `{{${code}}}`;
         }
         return "";
       }
@@ -407,10 +414,17 @@ serve(async (req) => {
         noSandbox: true,
         errorHandler: (err, command_code) => {
           console.error(`Erro ao processar tag contrato "${command_code}":`, err);
-          if (!command_code) return "";
-          const codeUpper = command_code.toUpperCase();
+          let code = command_code;
+          if ((!code || code === "undefined") && err && err.message) {
+            const match = err.message.match(/Invalid command syntax: (.*)/);
+            if (match) {
+              code = match[1];
+            }
+          }
+          if (!code) return "";
+          const codeUpper = code.toUpperCase();
           if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
-            return `{{${command_code}}}`;
+            return `{{${code}}}`;
           }
           return "";
         }
