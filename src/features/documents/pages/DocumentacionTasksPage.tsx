@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { renderAsync } from 'docx-preview';
 import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -49,7 +50,11 @@ export function DocumentacionTasksPage() {
         otpCode: string;
         emailSent: boolean;
         contractType?: string;
+        documentUrl?: string;
     } | null>(null);
+    const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
+    const previewContainerRef = useRef<HTMLDivElement>(null);
 
     // Dialog & Form states - Nova Solicitação de Docs
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
@@ -81,6 +86,101 @@ export function DocumentacionTasksPage() {
     const [taskWorkers, setTaskWorkers] = useState<any[]>([]);
     const [loadingTaskWorkers, setLoadingTaskWorkers] = useState(false);
     const [taskMetadata, setTaskMetadata] = useState<{ clientName: string; siteName: string; pedidoCode: string } | null>(null);
+
+    // States for Configuração de Modelos
+    const [selectedConfigContratante, setSelectedConfigContratante] = useState<string>('STOCCO');
+    const [downloadingTemplate, setDownloadingTemplate] = useState<string | null>(null);
+    const [uploadingTemplate, setUploadingTemplate] = useState<string | null>(null);
+    const [activeUploadDocType, setActiveUploadDocType] = useState<string | null>(null);
+    const configFileInputRef = useRef<HTMLInputElement>(null);
+
+    const getTemplatePath = (contratante: string, docType: string) => {
+        const upper = contratante.toUpperCase();
+        if (docType === 'contrato_nis') {
+            return `${contratante}/CONTRATO NIS - ${upper}.docx`;
+        } else if (docType === 'contrato_termo_incerto') {
+            return `${contratante}/CONTRATO TERMO INCERTO - ${upper}.docx`;
+        } else if (docType === 'contrato_alta') {
+            return `${contratante}/CONTRATO DE ALTA - ${upper}.docx`;
+        } else if (docType === 'rescisao') {
+            return `${contratante}/COMUNICADO RESCISAO ${upper}.docx`;
+        }
+        return '';
+    };
+
+    const handleDownloadConfigTemplate = async (docType: string) => {
+        try {
+            setDownloadingTemplate(docType);
+            const filePath = getTemplatePath(selectedConfigContratante, docType);
+            if (!filePath) throw new Error("Caminho inválido");
+
+            const { data, error } = await supabase.storage
+                .from('contract-templates')
+                .download(filePath);
+
+            if (error) throw error;
+            if (!data) throw new Error("Arquivo vazio retornado");
+
+            // Baixar no navegador
+            const url = window.URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filePath.split('/').pop() || 'template.docx';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            toast.success("Download do modelo concluído com sucesso!");
+        } catch (err: any) {
+            console.error("Erro ao baixar modelo:", err);
+            toast.error(`Erro ao baixar modelo: ${err.message || err}`);
+        } finally {
+            setDownloadingTemplate(null);
+        }
+    };
+
+    const triggerUpload = (docType: string) => {
+        setActiveUploadDocType(docType);
+        if (configFileInputRef.current) {
+            configFileInputRef.current.value = '';
+            configFileInputRef.current.click();
+        }
+    };
+
+    const handleUploadConfigTemplate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !activeUploadDocType) return;
+
+        // Validar extensão
+        if (!file.name.toLowerCase().endsWith('.docx')) {
+            toast.error("Por favor, envie um arquivo no formato Word (.docx)");
+            return;
+        }
+
+        try {
+            setUploadingTemplate(activeUploadDocType);
+            const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
+            if (!filePath) throw new Error("Caminho inválido");
+
+            const { error } = await supabase.storage
+                .from('contract-templates')
+                .upload(filePath, file, {
+                    upsert: true,
+                    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                });
+
+            if (error) throw error;
+
+            toast.success(`Modelo "${file.name}" atualizado com sucesso!`);
+        } catch (err: any) {
+            console.error("Erro ao enviar modelo:", err);
+            toast.error(`Erro ao enviar modelo: ${err.message || err}`);
+        } finally {
+            setUploadingTemplate(null);
+            setActiveUploadDocType(null);
+        }
+    };
 
     const loadTaskWorkers = async (task: any) => {
         if (!task || !selectedEmpresaId) return;
@@ -338,6 +438,10 @@ Equipo de Contratación`;
     }, [selectedEmpresaId]);
 
     useEffect(() => {
+        if ((generateDialogOpen || requestDialogOpen) && selectedEmpresaId) {
+            loadWorkers();
+        }
+
         if (generateDialogOpen && selectedEmpresaId) {
             if (selectedEmpresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
                 setSelectedContratante('STOCCO');
@@ -345,11 +449,30 @@ Equipo de Contratación`;
                 setSelectedContratante('WISEOWE UNIPESSOAL LDA');
             } else if (selectedEmpresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
                 setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
+            } else if (selectedEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+                setSelectedContratante('TRIANGULO');
             } else {
                 setSelectedContratante('');
             }
         }
-    }, [generateDialogOpen, selectedEmpresaId]);
+    }, [generateDialogOpen, requestDialogOpen, selectedEmpresaId]);
+
+    useEffect(() => {
+        if (previewBlob && previewContainerRef.current) {
+            console.log("Renderizando visualização prévia do contrato gerado...");
+            previewContainerRef.current.innerHTML = "";
+            renderAsync(previewBlob, previewContainerRef.current, undefined, {
+                className: "docx-document",
+                inWrapper: true,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                useBase64URL: true,
+            })
+            .catch(err => {
+                console.error("Erro ao renderizar visualização do contrato gerado:", err);
+            });
+        }
+    }, [previewBlob]);
 
     // 4. Submeter geração de contrato
     const handleGenerate = async (e: React.FormEvent) => {
@@ -361,6 +484,7 @@ Equipo de Contratación`;
 
         try {
             setGenerating(true);
+            setPreviewBlob(null);
             const res = await generateContract({
                 worker_id: selectedWorkerId,
                 contratante: selectedContratante,
@@ -371,11 +495,47 @@ Equipo de Contratación`;
                 signingLink: res.signing_link,
                 otpCode: res.otp_code,
                 emailSent: res.email_sent,
-                contractType: selectedContractType
+                contractType: selectedContractType,
+                documentUrl: res.document_url
             });
             
             toast.success(selectedContractType === 'contrato_alta' ? "Contrato de alta emitido!" : "Contrato emitido e pronto para assinatura!");
             loadContracts();
+
+            // Baixar o arquivo para visualização prévia
+            if (res.document_url) {
+                setLoadingPreview(true);
+                try {
+                    console.log("Obtendo link assinado para preview:", res.document_url);
+                    const { data: signedData, error: signedErr } = await supabase.storage
+                        .from('worker-contracts')
+                        .createSignedUrl(res.document_url, 300);
+                    
+                    if (signedErr) throw signedErr;
+                    if (!signedData?.signedUrl) throw new Error("Link assinado não retornado.");
+
+                    console.log("Baixando blob do link assinado...");
+                    const fileRes = await fetch(signedData.signedUrl);
+                    if (!fileRes.ok) throw new Error(`Falha no download HTTP: ${fileRes.status}`);
+                    
+                    const fileData = await fileRes.blob();
+                    setPreviewBlob(fileData);
+                } catch (previewErr: any) {
+                    console.error("Erro ao obter documento via link assinado, tentando download direto:", previewErr);
+                    // Fallback para download direto
+                    try {
+                        const { data: fileData, error: fileErr } = await supabase.storage
+                            .from('worker-contracts')
+                            .download(res.document_url);
+                        if (fileErr) throw fileErr;
+                        setPreviewBlob(fileData);
+                    } catch (directErr) {
+                        console.error("Erro no download direto de preview:", directErr);
+                    }
+                } finally {
+                    setLoadingPreview(false);
+                }
+            }
         } catch (err: any) {
             console.error("Erro ao gerar contrato:", err);
             toast.error(err.message || "Erro interno ao tentar emitir o contrato.");
@@ -600,6 +760,7 @@ Equipo de Contratación`;
                                 setSelectedContratante('');
                                 setSelectedContractType('');
                                 setGenerationSuccess(null);
+                                setPreviewBlob(null);
                             }
                         }}>
                             <DialogTrigger asChild>
@@ -608,7 +769,7 @@ Equipo de Contratación`;
                                     Gerar Contrato
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                            <DialogContent className={`${generationSuccess ? 'max-w-7xl h-[85vh]' : 'max-w-md'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
                                     <DialogTitle>Gerar Novo Contrato</DialogTitle>
                                     <DialogDescription>
@@ -666,54 +827,76 @@ Equipo de Contratación`;
                                         </div>
                                     </form>
                                 ) : (
-                                    <div className="space-y-4 pt-2">
-                                        <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
-                                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
-                                                <CheckCircle className="h-5 w-5" />
-                                                <span>Contrato Gerado com Sucesso!</span>
-                                            </div>
-                                            {generationSuccess.contractType === 'contrato_alta' ? (
-                                                <p className="text-xs text-slate-500">
-                                                    Este contrato foi classificado como <strong>Alta (Contabilidade)</strong>. Não requer assinatura eletrônica ou código OTP. O arquivo foi enviado diretamente para o histórico de contratos.
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <p className="text-xs text-slate-500">
-                                                        Código OTP temporário (Desenvolvimento): <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
-                                                    </p>
-                                                    <div>
-                                                        <Label className="text-xs text-muted-foreground">Link de Assinatura Pública</Label>
-                                                        <div className="flex gap-2 mt-1">
-                                                            <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
-                                                            <Button size="icon" variant="outline" onClick={() => handleCopyLink(generationSuccess.signingLink)}>
-                                                                <Copy className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </>
+                                    <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden min-h-0 pt-2">
+                                        {/* Painel Esquerdo: Pré-visualização do Contrato */}
+                                        <div className="flex-1 border border-slate-200 dark:border-slate-800 rounded-lg overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 relative min-h-0 flex flex-col docx-preview-container-parent">
+                                            {loadingPreview && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 z-10 gap-2">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600 dark:text-indigo-400" />
+                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Carregando visualização prévia...</span>
+                                                </div>
                                             )}
-
-                                            <div className="text-xs flex items-center gap-2 text-slate-500 pt-1.5 border-t border-slate-200">
-                                                {generationSuccess.contractType === 'contrato_alta' ? (
-                                                    <span>Pronto para envio à contabilidade.</span>
-                                                ) : generationSuccess.emailSent ? (
-                                                    <>
-                                                        <Mail className="h-4 w-4 text-emerald-500" />
-                                                        <span>E-mail enviado com sucesso ao trabalhador.</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <AlertCircle className="h-4 w-4 text-amber-500" />
-                                                        <span>Sem envio automático de e-mail (Resend não configurado ou trabalhador sem e-mail). Copie o link acima.</span>
-                                                    </>
-                                                )}
-                                            </div>
+                                            {!loadingPreview && !previewBlob && (
+                                                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+                                                    <AlertCircle className="h-10 w-10 text-slate-400 mb-2" />
+                                                    <span className="text-sm text-center font-medium text-slate-500">Pré-visualização indisponível.</span>
+                                                </div>
+                                            )}
+                                            <div ref={previewContainerRef} className="docx-wrapper" />
                                         </div>
 
-                                        <div className="flex justify-center gap-3 pt-2">
-                                            <Button onClick={() => setGenerateDialogOpen(false)} className="bg-indigo-600 hover:bg-indigo-500">
-                                                Fechar Painel
-                                            </Button>
+                                        {/* Painel Direito: Ações e Status */}
+                                        <div className="w-full md:w-[380px] shrink-0 flex flex-col justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 overflow-y-auto">
+                                            <div className="space-y-4">
+                                                <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
+                                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
+                                                        <CheckCircle className="h-5 w-5" />
+                                                        <span>Contrato Gerado com Sucesso!</span>
+                                                    </div>
+                                                    {generationSuccess.contractType === 'contrato_alta' ? (
+                                                        <p className="text-xs text-slate-500 leading-relaxed">
+                                                            Este contrato foi classificado como <strong>Alta (Contabilidade)</strong>. Não requer assinatura eletrônica ou código OTP. O arquivo foi enviado diretamente para o histórico de contratos.
+                                                        </p>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-xs text-slate-500">
+                                                                Código OTP temporário (Desenvolvimento): <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
+                                                            </p>
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs text-muted-foreground">Link de Assinatura Pública</Label>
+                                                                <div className="flex gap-2">
+                                                                    <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
+                                                                    <Button size="icon" variant="outline" onClick={() => handleCopyLink(generationSuccess.signingLink)}>
+                                                                        <Copy className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    <div className="text-xs flex items-center gap-2 text-slate-500 pt-2 border-t border-slate-200 dark:border-slate-800 leading-normal">
+                                                        {generationSuccess.contractType === 'contrato_alta' ? (
+                                                            <span>Pronto para envio à contabilidade.</span>
+                                                        ) : generationSuccess.emailSent ? (
+                                                            <>
+                                                                <Mail className="h-4 w-4 text-emerald-500 shrink-0" />
+                                                                <span>E-mail enviado com sucesso ao trabalhador.</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                                                                <span>Sem envio automático de e-mail (Resend não configurado ou trabalhador sem e-mail). Copie o link acima.</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+                                                <Button onClick={() => setGenerateDialogOpen(false)} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+                                                    Fechar Painel
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -732,10 +915,11 @@ Equipo de Contratación`;
                         loadTaskWorkers(selectedTaskForWorkers);
                     }
                 }}>
-                    <TabsList className="grid w-full md:w-[600px] grid-cols-3">
+                    <TabsList className="grid w-full md:w-[800px] grid-cols-4">
                         <TabsTrigger value="tasks">Tarefas Operacionais</TabsTrigger>
                         <TabsTrigger value="requests">Solicitações de Documentos</TabsTrigger>
                         <TabsTrigger value="contracts">Contratos & Assinaturas</TabsTrigger>
+                        <TabsTrigger value="templates">Configuração de Modelos</TabsTrigger>
                     </TabsList>
                     
                     {/* Conteúdo 1: Tarefas do Kanban */}
@@ -948,6 +1132,134 @@ Equipo de Contratación`;
                                 </Table>
                             )}
                         </div>
+                    </TabsContent>
+
+                    {/* Conteúdo 4: Configuração de Modelos */}
+                    <TabsContent value="templates" className="pt-4">
+                        <div className="rounded-md border bg-card p-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-indigo-500" />
+                                        Modelos de Contratos e Documentos
+                                    </h3>
+                                    <p className="text-sm text-slate-500 mt-1">
+                                        Selecione a empresa contratante para gerenciar e customizar os modelos de arquivo .docx
+                                    </p>
+                                </div>
+                                <div className="w-full md:w-[320px]">
+                                    <Label className="text-xs text-slate-500 font-semibold mb-1 block">Empresa Contratante</Label>
+                                    <Select value={selectedConfigContratante} onValueChange={setSelectedConfigContratante}>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Selecione a empresa contratante..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="STOCCO">Stocco</SelectItem>
+                                            <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                            <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
+                                            <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                            <SelectItem value="TRIANGULO">Triangulo</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                                {[
+                                    {
+                                        type: 'contrato_termo_incerto',
+                                        name: 'Contrato a Termo Incerto (Passaporte)',
+                                        desc: 'Modelo padrão para admissão de trabalhadores temporários identificados por número de Passaporte.',
+                                        fileName: `CONTRATO TERMO INCERTO - ${selectedConfigContratante.toUpperCase()}.docx`
+                                    },
+                                    {
+                                        type: 'contrato_nis',
+                                        name: 'Contrato NIS (NIF)',
+                                        desc: 'Modelo padrão para admissão de trabalhadores com identificação NISS/NIF registrada.',
+                                        fileName: `CONTRATO NIS - ${selectedConfigContratante.toUpperCase()}.docx`
+                                    },
+                                    {
+                                        type: 'contrato_alta',
+                                        name: 'Contrato de Alta (Sem Assinatura)',
+                                        desc: 'Modelo enviado diretamente à contabilidade/administrativo. Não exige assinatura eletrônica do trabalhador.',
+                                        fileName: `CONTRATO DE ALTA - ${selectedConfigContratante.toUpperCase()}.docx`
+                                    },
+                                    {
+                                        type: 'rescisao',
+                                        name: 'Comunicado de Rescisão',
+                                        desc: 'Modelo oficial de comunicação e notificação de fim de contrato / encerramento de vínculo.',
+                                        fileName: `COMUNICADO RESCISAO ${selectedConfigContratante.toUpperCase()}.docx`
+                                    }
+                                ].map((doc) => (
+                                    <div key={doc.type} className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 rounded-lg p-5 bg-slate-50/50 dark:bg-slate-900/20 hover:shadow-sm transition-all">
+                                        <div className="space-y-2">
+                                            <div className="flex items-start justify-between">
+                                                <h4 className="font-semibold text-slate-800 dark:text-slate-200">{doc.name}</h4>
+                                                <Badge variant="outline" className="text-[10px] font-mono border-indigo-100 bg-indigo-50/30 text-indigo-600 dark:border-slate-800 dark:text-indigo-400">
+                                                    .docx
+                                                </Badge>
+                                            </div>
+                                            <p className="text-xs text-slate-500 leading-relaxed">{doc.desc}</p>
+                                            <div className="pt-2 text-[11px] font-mono text-slate-400 leading-normal border-t border-slate-100 dark:border-slate-800 mt-2">
+                                                <div><span className="text-slate-500">Pasta:</span> {selectedConfigContratante}/</div>
+                                                <div className="truncate"><span className="text-slate-500">Arquivo:</span> {doc.fileName}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex gap-2 pt-5 border-t border-slate-200 dark:border-slate-800/80 mt-4">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                onClick={() => handleDownloadConfigTemplate(doc.type)}
+                                                disabled={downloadingTemplate === doc.type}
+                                            >
+                                                {downloadingTemplate === doc.type ? (
+                                                    <>
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                                        Baixando...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <FileText className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                                                        Baixar Modelo
+                                                    </>
+                                                )}
+                                            </Button>
+                                            
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                onClick={() => triggerUpload(doc.type)}
+                                                disabled={uploadingTemplate === doc.type}
+                                            >
+                                                {uploadingTemplate === doc.type ? (
+                                                    <>
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                                        Enviando...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
+                                                        Subir Novo
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Input de Arquivo oculto para upload de templates */}
+                        <input
+                            type="file"
+                            ref={configFileInputRef}
+                            onChange={handleUploadConfigTemplate}
+                            accept=".docx"
+                            className="hidden"
+                        />
                     </TabsContent>
                 </Tabs>
             </div>

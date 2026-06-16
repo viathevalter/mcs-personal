@@ -87,6 +87,7 @@ export interface GenerateContractPayload {
 export interface GenerateContractResponse {
     success: boolean;
     contract_id: string;
+    document_url?: string;
     signature_token: string;
     otp_code: string;
     signing_link: string;
@@ -151,7 +152,7 @@ export async function getContractByToken(token: string): Promise<Contract> {
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, nif, niss, dni, nie, pasaporte, morada, nacionalidade, fecha_nacimiento
+                id, nome, email, movil, nif, niss, dni, nie, pasaporte, nacionalidade, fecha_nacimiento
             )
         `)
         .eq('signature_token', token)

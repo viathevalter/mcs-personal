@@ -318,29 +318,112 @@ serve(async (req) => {
     if (empresa) {
       const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
       const senderName = empresa.trade_name || "Comercial";
-      const subject = `[ASSINADO] Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
-      
-      const origin = req.headers.get("origin") || "http://localhost:5173";
-      const publicLink = `${origin}/assinar-proposta/${token}`;
-      
-      const htmlContent = `
-        <h2>Processo de Assinatura Concluído!</h2>
-        <p>Olá,</p>
-        <p>Temos o prazer de informar que o processo de assinatura eletrónica da proposta comercial <strong>${est.codigo}</strong> e do respetivo contrato foi concluído com sucesso.</p>
-        <p><strong>Detalhes do processo:</strong></p>
-        <ul>
-          <li><strong>Cliente/Empresa:</strong> ${clientOrLeadName}</li>
-          <li><strong>Assinante:</strong> ${emailUsed}</li>
-          <li><strong>IP de Assinatura:</strong> ${ip_address || "0.0.0.0"}</li>
-          <li><strong>Data/Hora:</strong> ${new Date().toLocaleString("pt-PT")}</li>
-        </ul>
-        <p>Os documentos originais assinados estão anexados a este e-mail em formato Microsoft Word (.docx).</p>
-        <p>Se preferir visualizar e descarregar as versões em formato PDF (com carimbo e certificado digital eIDAS), aceda ao seguinte link público:</p>
-        <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Baixar PDF</a></p>
-        <br/>
-        <p>Atenciosamente,</p>
-        <p><strong>Equipa ${empresa.trade_name}</strong></p>
-      `;
+      const lang = est.document_language || "pt";
+      let subject = "";
+      let htmlContent = "";
+
+      if (lang === "es") {
+        subject = `[FIRMADO] Propuesta y Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>¡Proceso de Firma Completado!</h2>
+          <p>Hola,</p>
+          <p>Nos complace informarle que el proceso de firma electrónica de la propuesta comercial <strong>${est.codigo}</strong> y del contrato correspondiente se ha completado con éxito.</p>
+          <p><strong>Detalles del proceso:</strong></p>
+          <ul>
+            <li><strong>Cliente/Empresa:</strong> ${clientOrLeadName}</li>
+            <li><strong>Firmante:</strong> ${emailUsed}</li>
+            <li><strong>IP de Firma:</strong> ${ip_address || "0.0.0.0"}</li>
+            <li><strong>Fecha/Hora:</strong> ${new Date().toLocaleString("es-ES")}</li>
+          </ul>
+          <p>Los documentos originales firmados se adjuntan a este correo electrónico en formato Microsoft Word (.docx).</p>
+          <p>Si prefiere ver y descargar las versiones en formato PDF (con sello y certificado digital eIDAS), acceda al siguiente enlace público:</p>
+          <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar y Descargar PDF</a></p>
+          <br/>
+          <p>Atentamente,</p>
+          <p><strong>Equipo ${empresa.trade_name}</strong></p>
+        `;
+      } else if (lang === "en") {
+        subject = `[SIGNED] Commercial Proposal and Contract ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Signature Process Completed!</h2>
+          <p>Hello,</p>
+          <p>We are pleased to inform you that the electronic signature process for commercial proposal <strong>${est.codigo}</strong> and the respective contract has been successfully completed.</p>
+          <p><strong>Process details:</strong></p>
+          <ul>
+            <li><strong>Client/Company:</strong> ${clientOrLeadName}</li>
+            <li><strong>Signer:</strong> ${emailUsed}</li>
+            <li><strong>Signature IP:</strong> ${ip_address || "0.0.0.0"}</li>
+            <li><strong>Date/Time:</strong> ${new Date().toLocaleString("en-US")}</li>
+          </ul>
+          <p>The original signed documents are attached to this email in Microsoft Word (.docx) format.</p>
+          <p>If you prefer to view and download the PDF versions (with digital stamp and eIDAS digital certificate), please access the following public link:</p>
+          <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">View and Download PDF</a></p>
+          <br/>
+          <p>Sincerely,</p>
+          <p><strong>${empresa.trade_name} Team</strong></p>
+        `;
+      } else if (lang === "it") {
+        subject = `[FIRMATO] Proposta Commerciale e Contratto ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Processo di Firma Completato!</h2>
+          <p>Ciao,</p>
+          <p>Siamo lieti di informarti che il processo di firma elettronica della proposta commerciale <strong>${est.codigo}</strong> e del relativo contratto è stato completato con successo.</p>
+          <p><strong>Dettagli del processo:</strong></p>
+          <ul>
+            <li><strong>Cliente/Società:</strong> ${clientOrLeadName}</li>
+            <li><strong>Firmatario:</strong> ${emailUsed}</li>
+            <li><strong>IP di Firma:</strong> ${ip_address || "0.0.0.0"}</li>
+            <li><strong>Data/Ora:</strong> ${new Date().toLocaleString("it-IT")}</li>
+          </ul>
+          <p>I documenti originali firmati sono allegati a questa email in formato Microsoft Word (.docx).</p>
+          <p>Se preferisci visualizzare e scaricare le versioni in formato PDF (con timbro e certificato digitale eIDAS), accedi al seguente link pubblico:</p>
+          <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizza e Scarica PDF</a></p>
+          <br/>
+          <p>Cordiali saluti,</p>
+          <p><strong>Team ${empresa.trade_name}</strong></p>
+        `;
+      } else if (lang === "fr") {
+        subject = `[SIGNÉ] Proposition Commerciale et Contrat ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Processus de Signature Terminé !</h2>
+          <p>Bonjour,</p>
+          <p>Nous avons le plaisir de vous informer que le processus de signature électronique de la proposition commerciale <strong>${est.codigo}</strong> et du contrat respectif a été complété avec succès.</p>
+          <p><strong>Détails du processus :</strong></p>
+          <ul>
+            <li><strong>Client/Entreprise :</strong> ${clientOrLeadName}</li>
+            <li><strong>Signataire :</strong> ${emailUsed}</li>
+            <li><strong>IP de Signature :</strong> ${ip_address || "0.0.0.0"}</li>
+            <li><strong>Date/Heure :</strong> ${new Date().toLocaleString("fr-FR")}</li>
+          </ul>
+          <p>Les documents originaux signés sont joints à cet e-mail au format Microsoft Word (.docx).</p>
+          <p>Si vous préférez visualiser et télécharger les versions au format PDF (avec cachet et certificat numérique eIDAS), veuillez accéder au lien public suivant :</p>
+          <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualiser et Télécharger le PDF</a></p>
+          <br/>
+          <p>Cordialement,</p>
+          <p><strong>L'équipe ${empresa.trade_name}</strong></p>
+        `;
+      } else {
+        // Default: pt
+        subject = `[ASSINADO] Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Processo de Assinatura Concluído!</h2>
+          <p>Olá,</p>
+          <p>Temos o prazer de informar que o processo de assinatura eletrónica da proposta comercial <strong>${est.codigo}</strong> e do respetivo contrato foi concluído com sucesso.</p>
+          <p><strong>Detalhes do processo:</strong></p>
+          <ul>
+            <li><strong>Cliente/Empresa:</strong> ${clientOrLeadName}</li>
+            <li><strong>Assinante:</strong> ${emailUsed}</li>
+            <li><strong>IP de Assinatura:</strong> ${ip_address || "0.0.0.0"}</li>
+            <li><strong>Data/Hora:</strong> ${new Date().toLocaleString("pt-PT")}</li>
+          </ul>
+          <p>Os documentos originais assinados estão anexados a este e-mail em formato Microsoft Word (.docx).</p>
+          <p>Se preferir visualizar e descarregar as versões em formato PDF (com carimbo e certificado digital eIDAS), aceda ao seguinte link público:</p>
+          <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Baixar PDF</a></p>
+          <br/>
+          <p>Atenciosamente,</p>
+          <p><strong>Equipa ${empresa.trade_name}</strong></p>
+        `;
+      }
 
       const attachments: EmailAttachment[] = [];
       if (proposalBase64) {

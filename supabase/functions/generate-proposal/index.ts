@@ -435,7 +435,19 @@ serve(async (req) => {
     // 8. Gerar OTP e signature token
     const signatureToken = crypto.randomUUID();
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // OTP 6 dígitos
-    const otpExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 horas de validade
+    // OTP/Link validity: if the estimation has a validity_date, keep the link active until that date.
+    // Otherwise, fallback to a longer period (e.g., 30 days) to avoid deactivating the link too soon.
+    let otpExpiresAt = new Date();
+    if (est.validity_date) {
+      const parsedValDate = new Date(`${est.validity_date}T23:59:59`);
+      if (!isNaN(parsedValDate.getTime())) {
+        otpExpiresAt = parsedValDate;
+      } else {
+        otpExpiresAt.setDate(otpExpiresAt.getDate() + 30);
+      }
+    } else {
+      otpExpiresAt.setDate(otpExpiresAt.getDate() + 30); // 30 days fallback
+    }
 
     // Inserir registro em core_comercial.proposal_signatures
     const sigPayload = {
@@ -475,17 +487,72 @@ serve(async (req) => {
     let emailError: string | undefined = undefined;
 
     if (targetEmail) {
-      const subject = `Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
-      const htmlContent = `
-        <h2>Olá, ${targetName}!</h2>
-        <p>A empresa <strong>${empresa.trade_name}</strong> enviou a proposta comercial e o respectivo contrato para sua análise.</p>
-        <p>Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica de ambos os documentos de forma unificada:</p>
-        <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Documentos</a></p>
-        <br/>
-        <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
-        <p>Este link e o código expiram em 48 horas.</p>
-        <p>Se tiver alguma dúvida, responda diretamente a este e-mail.</p>
-      `;
+      const lang = est.document_language || "pt";
+      let subject = "";
+      let htmlContent = "";
+
+      if (lang === "es") {
+        subject = `Propuesta y Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>¡Hola, ${targetName}!</h2>
+          <p>La empresa <strong>${empresa.trade_name}</strong> ha enviado la propuesta comercial y el contrato correspondiente para su revisión.</p>
+          <p>Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica de ambos documentos de forma unificada:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar y Firmar Documentos</a></p>
+          <br/>
+          <p>Su código de validación OTP es: <strong>${otpCode}</strong></p>
+          <p>Este enlace y el código expiran en 48 horas.</p>
+          <p>Si tiene alguna duda, responda directamente a este correo electrónico.</p>
+        `;
+      } else if (lang === "en") {
+        subject = `Commercial Proposal and Contract ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Hello, ${targetName}!</h2>
+          <p>The company <strong>${empresa.trade_name}</strong> has sent the commercial proposal and the respective contract for your review.</p>
+          <p>Please click on the link below to read the terms and complete the electronic signature of both documents in a unified way:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">View and Sign Documents</a></p>
+          <br/>
+          <p>Your OTP validation code is: <strong>${otpCode}</strong></p>
+          <p>This link and code expire in 48 hours.</p>
+          <p>If you have any questions, please reply directly to this email.</p>
+        `;
+      } else if (lang === "it") {
+        subject = `Proposta Commerciale e Contratto ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Ciao, ${targetName}!</h2>
+          <p>La società <strong>${empresa.trade_name}</strong> ha inviato la proposta commerciale e il relativo contratto per la tua revisione.</p>
+          <p>Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica di entrambi i documenti in modo unificato:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizza e Firma Documenti</a></p>
+          <br/>
+          <p>Il tuo codice di validazione OTP è: <strong>${otpCode}</strong></p>
+          <p>Questo link e il codice scadono tra 48 ore.</p>
+          <p>Se hai domande, rispondi direttamente a questa email.</p>
+        `;
+      } else if (lang === "fr") {
+        subject = `Proposition Commerciale et Contrat ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Bonjour, ${targetName}!</h2>
+          <p>L'entreprise <strong>${empresa.trade_name}</strong> a envoyé la proposition commerciale et le contrat respectif pour votre examen.</p>
+          <p>Veuillez cliquer sur le lien ci-dessous pour lire les termes et procéder à la signature électronique des deux documents de manière unifiée :</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualiser et Signer les Documents</a></p>
+          <br/>
+          <p>Votre code de validation OTP est : <strong>${otpCode}</strong></p>
+          <p>Ce lien et le code expirent dans 48 heures.</p>
+          <p>Si vous avez des questions, veuillez répondre directement à cet e-mail.</p>
+        `;
+      } else {
+        // Default: pt
+        subject = `Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+        htmlContent = `
+          <h2>Olá, ${targetName}!</h2>
+          <p>A empresa <strong>${empresa.trade_name}</strong> enviou a proposta comercial e o respectivo contrato para sua análise.</p>
+          <p>Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica de ambos os documentos de forma unificada:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Documentos</a></p>
+          <br/>
+          <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
+          <p>Este link e o código expiram em 48 horas.</p>
+          <p>Se tiver alguma dúvida, responda diretamente a este e-mail.</p>
+        `;
+      }
 
       const mailResult = await sendMailViaGraph(senderEmail, senderName, targetEmail, subject, htmlContent);
       emailSent = mailResult.success;

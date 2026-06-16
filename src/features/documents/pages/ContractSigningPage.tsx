@@ -87,9 +87,10 @@ export function ContractSigningPage() {
             docContainerRef.current.innerHTML = "";
             renderAsync(fileBlob, docContainerRef.current, undefined, {
                 className: "docx-document",
-                inWrapper: false,
-                ignoreWidth: true,
-                ignoreHeight: true,
+                inWrapper: true,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                useBase64URL: true,
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx:", err);

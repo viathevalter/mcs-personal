@@ -23,7 +23,10 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
 
   const sig = estimacion.proposal_signature;
-  const status = sig?.status || 'draft';
+  let status = sig?.status || 'draft';
+  if (status === 'expired' || status === 'cancelled' || status === 'rejected' || estimacion.status === 'draft') {
+    status = 'draft';
+  }
 
   // Gerar o link de assinatura
   const origin = window.location.origin;
