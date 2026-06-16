@@ -14,6 +14,92 @@ interface EmailAttachment {
   contentBytes: string;
 }
 
+async function convertDocxToPdfViaGraph(
+  accessToken: string,
+  driveId: string,
+  docxBase64: string,
+  fileName: string
+): Promise<{ name: string; contentType: string; contentBytes: string }> {
+  try {
+    // Decode base64 to binary
+    const binaryString = atob(docxBase64);
+    const docxBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      docxBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const tempPath = `/temp_conversions/temp_${Date.now()}_${fileName}`;
+    const encodedPath = tempPath.split('/').map(c => encodeURIComponent(c)).join('/');
+    const uploadUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encodedPath}:/content`;
+
+    console.log(`[PDF Convert] Sending temp DOCX for conversion: ${tempPath}`);
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+      body: docxBytes,
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      console.error(`[PDF Convert] Upload temp docx failed: ${errText}`);
+      throw new Error(`Upload temp docx failed: ${errText}`);
+    }
+
+    const item = await uploadRes.json();
+    const itemId = item.id;
+
+    let pdfBytes: Uint8Array;
+    try {
+      const convertUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content?format=pdf`;
+      console.log(`[PDF Convert] Downloading PDF from Graph: ${convertUrl}`);
+      const convertRes = await fetch(convertUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!convertRes.ok) {
+        const errText = await convertRes.text();
+        console.error(`[PDF Convert] Conversion endpoint failed: ${errText}`);
+        throw new Error(`Conversion endpoint failed: ${errText}`);
+      }
+
+      pdfBytes = new Uint8Array(await convertRes.arrayBuffer());
+    } finally {
+      // Async delete in background
+      fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }).catch(err => console.error("[PDF Convert] Failed to delete temp DOCX:", err));
+    }
+
+    // Convert pdfBytes back to base64
+    const pdfBase64 = encode(pdfBytes);
+    const pdfName = fileName.replace(/\.docx$/i, '.pdf');
+
+    console.log(`[PDF Convert] Successfully converted ${fileName} to ${pdfName}`);
+    return {
+      name: pdfName,
+      contentType: "application/pdf",
+      contentBytes: pdfBase64,
+    };
+  } catch (err: any) {
+    console.error(`[PDF Convert] Error during conversion of ${fileName}:`, err);
+    // Return original as fallback
+    return {
+      name: fileName,
+      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentBytes: docxBase64,
+    };
+  }
+}
+
 async function sendMailViaGraph(
   senderEmail: string,
   senderName: string,
@@ -55,6 +141,20 @@ async function sendMailViaGraph(
 
     const { access_token } = await tokenRes.json();
 
+    // Convert docx attachments to pdf using Graph conversion
+    const driveId = Deno.env.get('SHAREPOINT_DRIVE_ID');
+    const processedAttachments: EmailAttachment[] = [];
+
+    for (const att of attachments) {
+      if (driveId && att.name.endsWith('.docx')) {
+        console.log(`[sendMailViaGraph] Requesting conversion to PDF: ${att.name}`);
+        const pdfAtt = await convertDocxToPdfViaGraph(access_token, driveId, att.contentBytes, att.name);
+        processedAttachments.push(pdfAtt);
+      } else {
+        processedAttachments.push(att);
+      }
+    }
+
     // 2. Disparar email via Microsoft Graph API
     const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
     const mailPayload = {
@@ -76,7 +176,7 @@ async function sendMailViaGraph(
             address: email,
           },
         })),
-        attachments: attachments.map(att => ({
+        attachments: processedAttachments.map(att => ({
           "@odata.type": "#microsoft.graph.fileAttachment",
           name: att.name,
           contentType: att.contentType,
@@ -337,7 +437,7 @@ serve(async (req) => {
             <li><strong>IP de Firma:</strong> ${ip_address || "0.0.0.0"}</li>
             <li><strong>Fecha/Hora:</strong> ${new Date().toLocaleString("es-ES")}</li>
           </ul>
-          <p>Los documentos originales firmados se adjuntan a este correo electrónico en formato Microsoft Word (.docx).</p>
+          <p>Los documentos originales firmados se adjuntan a este correo electrónico en formato PDF.</p>
           <p>Si prefiere ver y descargar las versiones en formato PDF (con sello y certificado digital eIDAS), acceda al siguiente enlace público:</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar y Descargar PDF</a></p>
           <br/>
@@ -357,7 +457,7 @@ serve(async (req) => {
             <li><strong>Signature IP:</strong> ${ip_address || "0.0.0.0"}</li>
             <li><strong>Date/Time:</strong> ${new Date().toLocaleString("en-US")}</li>
           </ul>
-          <p>The original signed documents are attached to this email in Microsoft Word (.docx) format.</p>
+          <p>The original signed documents are attached to this email in PDF format.</p>
           <p>If you prefer to view and download the PDF versions (with digital stamp and eIDAS digital certificate), please access the following public link:</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">View and Download PDF</a></p>
           <br/>
@@ -377,7 +477,7 @@ serve(async (req) => {
             <li><strong>IP di Firma:</strong> ${ip_address || "0.0.0.0"}</li>
             <li><strong>Data/Ora:</strong> ${new Date().toLocaleString("it-IT")}</li>
           </ul>
-          <p>I documenti originali firmati sono allegati a questa email in formato Microsoft Word (.docx).</p>
+          <p>I documenti originali firmati sono allegati a questa email in formato PDF.</p>
           <p>Se preferisci visualizzare e scaricare le versioni in formato PDF (con timbro e certificato digitale eIDAS), accedi al seguente link pubblico:</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizza e Scarica PDF</a></p>
           <br/>
@@ -397,7 +497,7 @@ serve(async (req) => {
             <li><strong>IP de Signature :</strong> ${ip_address || "0.0.0.0"}</li>
             <li><strong>Date/Heure :</strong> ${new Date().toLocaleString("fr-FR")}</li>
           </ul>
-          <p>Les documents originaux signés sont joints à cet e-mail au format Microsoft Word (.docx).</p>
+          <p>Les documents originaux signés sont joints à cet e-mail au format PDF.</p>
           <p>Si vous préférez visualiser et télécharger les versions au format PDF (avec cachet et certificat numérique eIDAS), veuillez accéder au lien public suivant :</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualiser et Télécharger le PDF</a></p>
           <br/>
@@ -418,7 +518,7 @@ serve(async (req) => {
             <li><strong>IP de Assinatura:</strong> ${ip_address || "0.0.0.0"}</li>
             <li><strong>Data/Hora:</strong> ${new Date().toLocaleString("pt-PT")}</li>
           </ul>
-          <p>Os documentos originais assinados estão anexados a este e-mail em formato Microsoft Word (.docx).</p>
+          <p>Os documentos originais assinados estão anexados a este e-mail em formato PDF.</p>
           <p>Se preferir visualizar e descarregar as versões em formato PDF (com carimbo e certificado digital eIDAS), aceda ao seguinte link público:</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Baixar PDF</a></p>
           <br/>
