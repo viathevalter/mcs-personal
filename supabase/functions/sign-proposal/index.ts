@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
+import { createReport } from "npm:docx-templates@4.13.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,6 +211,67 @@ async function sendMailViaGraph(
   }
 }
 
+async function embedSignatureInDocx(
+  supabase: any,
+  documentUrl: string,
+  signatureBytes: Uint8Array
+): Promise<void> {
+  try {
+    console.log(`[embedSignature] Downloading docx to insert signature: ${documentUrl}`);
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from("proposal-signatures")
+      .download(documentUrl);
+
+    if (dlErr || !blob) {
+      console.warn(`[embedSignature] Failed to download file from storage: ${dlErr?.message}`);
+      return;
+    }
+
+    const templateBuffer = new Uint8Array(await blob.arrayBuffer());
+
+    console.log(`[embedSignature] Processing docx with docx-templates...`);
+    const finalDoc = await createReport({
+      template: templateBuffer,
+      data: {
+        FIRMA_CLIENTE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        firma_cliente: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        Firma_Cliente: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        FIRMA_CONTRATANTE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        firma_contratante: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        Firma_Contratante: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        FIRMA: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        firma: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        Firma: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        SIGNATURE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        signature: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        Signature: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+      },
+      cmdDelimiter: ["{{", "}}"],
+      noSandbox: true,
+      errorHandler: (err, command_code) => {
+        console.warn(`[embedSignature] Error on tag ${command_code}:`, err);
+        return "";
+      }
+    });
+
+    console.log(`[embedSignature] Uploading signed docx back to storage: ${documentUrl}`);
+    const { error: uploadErr } = await supabase.storage
+      .from("proposal-signatures")
+      .upload(documentUrl, finalDoc, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        upsert: true,
+      });
+
+    if (uploadErr) {
+      console.error(`[embedSignature] Failed to upload signed docx: ${uploadErr.message}`);
+    } else {
+      console.log(`[embedSignature] Signed docx successfully uploaded.`);
+    }
+  } catch (err: any) {
+    console.error(`[embedSignature] Error embedding signature in docx:`, err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -328,6 +390,16 @@ serve(async (req) => {
         } else {
           console.error("Erro ao fazer upload da imagem de assinatura:", uploadImgErr);
           signatureImageUrl = signature_image; // Fallback para base64 direto
+        }
+
+        // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
+        if (ps.document_url) {
+          console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
+          await embedSignatureInDocx(supabase, ps.document_url, binaryData);
+        }
+        if (ps.contract_document_url) {
+          console.log(`[sign-proposal] Embedding signature in contract docx: ${ps.contract_document_url}`);
+          await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData);
         }
       } catch (errSig) {
         console.error("Erro ao decodificar a assinatura base64:", errSig);

@@ -373,6 +373,10 @@ serve(async (req) => {
       noSandbox: true,
       errorHandler: (err, command_code) => {
         console.error(`Erro ao processar tag proposta "${command_code}":`, err);
+        const codeUpper = command_code.toUpperCase();
+        if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
+          return `{{${command_code}}}`;
+        }
         return "";
       }
     });
@@ -402,6 +406,10 @@ serve(async (req) => {
         noSandbox: true,
         errorHandler: (err, command_code) => {
           console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+          const codeUpper = command_code.toUpperCase();
+          if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
+            return `{{${command_code}}}`;
+          }
           return "";
         }
       });
