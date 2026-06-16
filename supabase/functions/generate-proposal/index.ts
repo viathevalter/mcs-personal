@@ -1,6 +1,34 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { createReport } from "npm:docx-templates@4.13.0";
+import JSZip from "https://esm.sh/jszip@3.10.1";
+
+async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8Array> {
+  try {
+    const zip = new JSZip();
+    await zip.loadAsync(templateBuffer);
+    let modified = false;
+    for (const [path, file] of Object.entries(zip.files)) {
+      if (path.endsWith('.xml')) {
+        let content = await file.async('string');
+        if (/\{\{\s*IMAGE\s*:\s*[a-zA-Z0-9_]+\s*\}\}/i.test(content) || content.includes('IMAGE:')) {
+          console.log(`[normalizeDocx] Normalizing IMAGE: tags in ${path}`);
+          content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
+          zip.file(path, content);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      return await zip.generateAsync({ type: 'uint8array' });
+    }
+    return templateBuffer;
+  } catch (err) {
+    console.error("[normalizeDocx] Error normalising docx template:", err);
+    return templateBuffer;
+  }
+}
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -288,7 +316,8 @@ serve(async (req) => {
     // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
     console.log(`Iniciando carregamento do template de proposta no idioma: ${docLang}`);
     const templateBlob = await loadTemplate('proposta', docLang);
-    const templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
+    let templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
+    templateBuffer = await normalizeDocxTemplates(templateBuffer);
 
 
 
@@ -375,15 +404,28 @@ serve(async (req) => {
         console.error(`Erro ao processar tag proposta "${command_code}":`, err);
         let code = command_code;
         if ((!code || code === "undefined") && err && err.message) {
-          const match = err.message.match(/Invalid command syntax: (.*)/);
-          if (match) {
-            code = match[1];
+          const matchSpace = err.message.match(/Error executing command '(IMAGE\s+([^']+))'/i) || 
+                             err.message.match(/Invalid command syntax: (IMAGE\s+([^']+))/i);
+          if (matchSpace) {
+            code = matchSpace[1];
+          } else {
+            const matchColon = err.message.match(/Error executing command '(IMAGE:([^']+))'/i) || 
+                               err.message.match(/Invalid command syntax: (IMAGE:([^']+))/i);
+            if (matchColon) {
+              code = `IMAGE ${matchColon[2]}`;
+            } else {
+              const matchGeneral = err.message.match(/Invalid command syntax: (.*)/);
+              if (matchGeneral) {
+                code = matchGeneral[1];
+              }
+            }
           }
         }
         if (!code) return "";
         const codeUpper = code.toUpperCase();
         if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
-          return `{{${code}}}`;
+          const cleanCode = code.replace("IMAGE:", "IMAGE ");
+          return `{{${cleanCode}}}`;
         }
         return "";
       }
@@ -404,7 +446,8 @@ serve(async (req) => {
       // Baixar o template DOCX do contrato do storage 'proposal-templates'
       console.log(`Iniciando carregamento do template de contrato no idioma: ${docLang}`);
       const contractTemplateBlob = await loadTemplate('contrato', docLang);
-      const contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
+      let contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
+      contractTemplateBuffer = await normalizeDocxTemplates(contractTemplateBuffer);
 
       console.log("Gerando contrato preenchido...");
       generatedContractDoc = await createReport({
@@ -416,15 +459,28 @@ serve(async (req) => {
           console.error(`Erro ao processar tag contrato "${command_code}":`, err);
           let code = command_code;
           if ((!code || code === "undefined") && err && err.message) {
-            const match = err.message.match(/Invalid command syntax: (.*)/);
-            if (match) {
-              code = match[1];
+            const matchSpace = err.message.match(/Error executing command '(IMAGE\s+([^']+))'/i) || 
+                               err.message.match(/Invalid command syntax: (IMAGE\s+([^']+))/i);
+            if (matchSpace) {
+              code = matchSpace[1];
+            } else {
+              const matchColon = err.message.match(/Error executing command '(IMAGE:([^']+))'/i) || 
+                                 err.message.match(/Invalid command syntax: (IMAGE:([^']+))/i);
+              if (matchColon) {
+                code = `IMAGE ${matchColon[2]}`;
+              } else {
+                const matchGeneral = err.message.match(/Invalid command syntax: (.*)/);
+                if (matchGeneral) {
+                  code = matchGeneral[1];
+                }
+              }
             }
           }
           if (!code) return "";
           const codeUpper = code.toUpperCase();
           if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
-            return `{{${code}}}`;
+            const cleanCode = code.replace("IMAGE:", "IMAGE ");
+            return `{{${cleanCode}}}`;
           }
           return "";
         }

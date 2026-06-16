@@ -2,6 +2,34 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 import { createReport } from "npm:docx-templates@4.13.0";
+import JSZip from "https://esm.sh/jszip@3.10.1";
+
+async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8Array> {
+  try {
+    const zip = new JSZip();
+    await zip.loadAsync(templateBuffer);
+    let modified = false;
+    for (const [path, file] of Object.entries(zip.files)) {
+      if (path.endsWith('.xml')) {
+        let content = await file.async('string');
+        if (/\{\{\s*IMAGE\s*:\s*[a-zA-Z0-9_]+\s*\}\}/i.test(content) || content.includes('IMAGE:')) {
+          console.log(`[normalizeDocx] Normalizing IMAGE: tags in ${path}`);
+          content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
+          zip.file(path, content);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      return await zip.generateAsync({ type: 'uint8array' });
+    }
+    return templateBuffer;
+  } catch (err) {
+    console.error("[normalizeDocx] Error normalising docx template:", err);
+    return templateBuffer;
+  }
+}
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,24 +255,25 @@ async function embedSignatureInDocx(
       return;
     }
 
-    const templateBuffer = new Uint8Array(await blob.arrayBuffer());
+    let templateBuffer = new Uint8Array(await blob.arrayBuffer());
+    templateBuffer = await normalizeDocxTemplates(templateBuffer);
 
     console.log(`[embedSignature] Processing docx with docx-templates...`);
     const finalDoc = await createReport({
       template: templateBuffer,
       data: {
-        FIRMA_CLIENTE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        firma_cliente: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        Firma_Cliente: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        FIRMA_CONTRATANTE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        firma_contratante: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        Firma_Contratante: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        FIRMA: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        firma: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        Firma: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        SIGNATURE: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        signature: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
-        Signature: () => ({ width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' }),
+        FIRMA_CLIENTE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        firma_cliente: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Firma_Cliente: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        FIRMA_CONTRATANTE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        firma_contratante: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Firma_Contratante: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        FIRMA: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        SIGNATURE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
       },
       cmdDelimiter: ["{{", "}}"],
       noSandbox: true,
@@ -486,6 +515,92 @@ serve(async (req) => {
       }
     }
 
+    // Conversão de PDF e salvamento no bucket proposal-signatures
+    let proposalPdfBase64 = "";
+    let contractPdfBase64 = "";
+
+    try {
+      const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
+      const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
+      const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+      const driveId = Deno.env.get('SHAREPOINT_DRIVE_ID');
+
+      if (tenantId && clientId && clientSecret && driveId) {
+        const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+        const formData = new URLSearchParams();
+        formData.append('client_id', clientId);
+        formData.append('client_secret', clientSecret);
+        formData.append('scope', 'https://graph.microsoft.com/.default');
+        formData.append('grant_type', 'client_credentials');
+
+        const tokenRes = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData,
+        });
+
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          const access_token = tokenData.access_token;
+          console.log("[sign-proposal] Token do Microsoft Graph obtido com sucesso para conversão");
+
+          // Proposta
+          if (proposalBase64 && ps.document_url) {
+            console.log(`[sign-proposal] Convertendo proposta DOCX para PDF...`);
+            const pdfAtt = await convertDocxToPdfViaGraph(access_token, driveId, proposalBase64, `proposta_${est.codigo}.docx`);
+            if (pdfAtt && pdfAtt.contentType === "application/pdf") {
+              proposalPdfBase64 = pdfAtt.contentBytes;
+              
+              // Upload PDF para o Storage
+              const binaryString = atob(pdfAtt.contentBytes);
+              const pdfBytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                pdfBytes[i] = binaryString.charCodeAt(i);
+              }
+              const pdfPath = ps.document_url.replace(/\.docx$/i, '.pdf');
+              console.log(`[sign-proposal] Salvando proposta PDF no bucket: ${pdfPath}`);
+              await supabase.storage
+                .from("proposal-signatures")
+                .upload(pdfPath, pdfBytes, {
+                  contentType: "application/pdf",
+                  upsert: true,
+                });
+            }
+          }
+
+          // Contrato
+          if (contractBase64 && ps.contract_document_url) {
+            console.log(`[sign-proposal] Convertendo contrato DOCX para PDF...`);
+            const pdfAtt = await convertDocxToPdfViaGraph(access_token, driveId, contractBase64, `contrato_${est.codigo}.docx`);
+            if (pdfAtt && pdfAtt.contentType === "application/pdf") {
+              contractPdfBase64 = pdfAtt.contentBytes;
+              
+              // Upload PDF para o Storage
+              const binaryString = atob(pdfAtt.contentBytes);
+              const pdfBytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                pdfBytes[i] = binaryString.charCodeAt(i);
+              }
+              const pdfPath = ps.contract_document_url.replace(/\.docx$/i, '.pdf');
+              console.log(`[sign-proposal] Salvando contrato PDF no bucket: ${pdfPath}`);
+              await supabase.storage
+                .from("proposal-signatures")
+                .upload(pdfPath, pdfBytes, {
+                  contentType: "application/pdf",
+                  upsert: true,
+                });
+            }
+          }
+        } else {
+          console.error("[sign-proposal] Falha ao obter token do Graph para conversão:", await tokenRes.text());
+        }
+      } else {
+        console.warn("[sign-proposal] Configurações do SharePoint ausentes, ignorando conversão no backend");
+      }
+    } catch (errPdf) {
+      console.error("[sign-proposal] Erro durante conversão e salvamento de PDF:", errPdf);
+    }
+
     // Enviar email de confirmação com anexos
     if (empresa) {
       const origin = req.headers.get("origin") || "https://mcs-personal.vercel.app";
@@ -600,14 +715,26 @@ serve(async (req) => {
       }
 
       const attachments: EmailAttachment[] = [];
-      if (proposalBase64) {
+      if (proposalPdfBase64) {
+        attachments.push({
+          name: `proposta_${est.codigo}.pdf`,
+          contentType: "application/pdf",
+          contentBytes: proposalPdfBase64,
+        });
+      } else if (proposalBase64) {
         attachments.push({
           name: `proposta_${est.codigo}.docx`,
           contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           contentBytes: proposalBase64,
         });
       }
-      if (contractBase64) {
+      if (contractPdfBase64) {
+        attachments.push({
+          name: `contrato_${est.codigo}.pdf`,
+          contentType: "application/pdf",
+          contentBytes: contractPdfBase64,
+        });
+      } else if (contractBase64) {
         attachments.push({
           name: `contrato_${est.codigo}.docx`,
           contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

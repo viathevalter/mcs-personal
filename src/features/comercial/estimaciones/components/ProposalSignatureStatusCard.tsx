@@ -48,21 +48,39 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     if (!sig?.document_url) return;
     try {
       setDownloading(true);
-      const { data, error } = await supabase.storage
-        .from('proposal-signatures')
-        .download(sig.document_url);
+      const pdfPath = sig.document_url.replace(/\.docx$/i, '.pdf');
+      let data;
+      let isPdf = true;
 
-      if (error) throw error;
+      // Tenta baixar o PDF primeiro
+      const pdfRes = await supabase.storage
+        .from('proposal-signatures')
+        .download(pdfPath);
+
+      if (pdfRes.error) {
+        console.warn("[PDF Download] Proposal PDF not found, falling back to DOCX:", pdfRes.error.message);
+        const docxRes = await supabase.storage
+          .from('proposal-signatures')
+          .download(sig.document_url);
+
+        if (docxRes.error) throw docxRes.error;
+        data = docxRes.data;
+        isPdf = false;
+      } else {
+        data = pdfRes.data;
+      }
 
       const url = window.URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `proposta_${estimacion.codigo || 'comercial'}.docx`;
+      a.download = isPdf 
+        ? `proposta_${estimacion.codigo || 'comercial'}.pdf`
+        : `proposta_${estimacion.codigo || 'comercial'}.docx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Documento baixado com sucesso!');
+      toast.success(isPdf ? 'Proposta em PDF baixada com sucesso!' : 'Documento baixado com sucesso!');
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao baixar documento', { description: err.message });
@@ -75,21 +93,39 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     if (!sig?.contract_document_url) return;
     try {
       setDownloadingContract(true);
-      const { data, error } = await supabase.storage
-        .from('proposal-signatures')
-        .download(sig.contract_document_url);
+      const pdfPath = sig.contract_document_url.replace(/\.docx$/i, '.pdf');
+      let data;
+      let isPdf = true;
 
-      if (error) throw error;
+      // Tenta baixar o PDF primeiro
+      const pdfRes = await supabase.storage
+        .from('proposal-signatures')
+        .download(pdfPath);
+
+      if (pdfRes.error) {
+        console.warn("[PDF Download] Contract PDF not found, falling back to DOCX:", pdfRes.error.message);
+        const docxRes = await supabase.storage
+          .from('proposal-signatures')
+          .download(sig.contract_document_url);
+
+        if (docxRes.error) throw docxRes.error;
+        data = docxRes.data;
+        isPdf = false;
+      } else {
+        data = pdfRes.data;
+      }
 
       const url = window.URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `contrato_${estimacion.codigo || 'comercial'}.docx`;
+      a.download = isPdf
+        ? `contrato_${estimacion.codigo || 'comercial'}.pdf`
+        : `contrato_${estimacion.codigo || 'comercial'}.docx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Contrato baixado com sucesso!');
+      toast.success(isPdf ? 'Contrato em PDF baixado com sucesso!' : 'Contrato baixado com sucesso!');
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao baixar contrato', { description: err.message });
@@ -99,24 +135,43 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleDownloadSignedContract = async () => {
-    if (!sig?.contract_signed_document_url) return;
+    const docUrl = sig?.contract_document_url || sig?.contract_signed_document_url;
+    if (!docUrl) return;
     try {
       setDownloadingSignedContract(true);
-      const { data, error } = await supabase.storage
-        .from('proposal-signatures')
-        .download(sig.contract_signed_document_url);
+      const pdfPath = docUrl.replace(/\.docx$/i, '.pdf');
+      let data;
+      let isPdf = true;
 
-      if (error) throw error;
+      // Tenta baixar o PDF primeiro
+      const pdfRes = await supabase.storage
+        .from('proposal-signatures')
+        .download(pdfPath);
+
+      if (pdfRes.error) {
+        console.warn("[PDF Download] Signed Contract PDF not found, falling back to DOCX:", pdfRes.error.message);
+        const docxRes = await supabase.storage
+          .from('proposal-signatures')
+          .download(docUrl);
+
+        if (docxRes.error) throw docxRes.error;
+        data = docxRes.data;
+        isPdf = false;
+      } else {
+        data = pdfRes.data;
+      }
 
       const url = window.URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `contrato_assinado_${estimacion.codigo || 'comercial'}.docx`;
+      a.download = isPdf
+        ? `contrato_assinado_${estimacion.codigo || 'comercial'}.pdf`
+        : `contrato_assinado_${estimacion.codigo || 'comercial'}.docx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Contrato assinado baixado com sucesso!');
+      toast.success(isPdf ? 'Contrato assinado em PDF baixado com sucesso!' : 'Contrato assinado baixado com sucesso!');
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao baixar contrato assinado', { description: err.message });
@@ -370,9 +425,9 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               disabled={downloading}
             >
               {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Baixar Cópia da Proposta Assinada (.docx)
+              Baixar Cópia da Proposta Assinada (PDF)
             </Button>
-            {sig?.contract_signed_document_url && (
+            {(sig?.contract_document_url || sig?.contract_signed_document_url) && (
               <Button 
                 variant="outline"
                 className="w-full"
@@ -380,7 +435,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 disabled={downloadingSignedContract}
               >
                 {downloadingSignedContract ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="mr-2 h-4 w-4" />}
-                Baixar Cópia do Contrato Assinado (.docx)
+                Baixar Cópia do Contrato Assinado (PDF)
               </Button>
             )}
           </div>
