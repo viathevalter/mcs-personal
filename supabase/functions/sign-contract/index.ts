@@ -1,11 +1,199 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
+import { createReport } from "npm:docx-templates@4.13.0";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8Array> {
+  try {
+    const zip = new JSZip();
+    await zip.loadAsync(templateBuffer);
+    let modified = false;
+    for (const [path, file] of Object.entries(zip.files)) {
+      if (path.endsWith('.xml')) {
+        let content = await file.async('string');
+        const originalContent = content;
+
+        // 1. Clean split XML tags inside {{...}}
+        if (content.includes('{{')) {
+          content = content.replace(/\{\{([\s\S]*?)\}\}/g, (match, p1) => {
+            const cleaned = p1.replace(/<[^>]+>/g, '');
+            return `{{${cleaned}}}`;
+          });
+        }
+
+        // 2. Normalize IMAGE: tags (compatibility)
+        if (/\{\{\s*IMAGE\s*:\s*[a-zA-Z0-9_]+\s*\}\}/i.test(content) || content.includes('IMAGE:')) {
+          console.log(`[normalizeDocx] Normalizing IMAGE: tags in ${path}`);
+          content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
+        }
+
+        if (content !== originalContent) {
+          console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
+          zip.file(path, content);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      return await zip.generateAsync({ type: "uint8array" });
+    }
+  } catch (err: any) {
+    console.error("[normalizeDocx] Error:", err.message);
+  }
+  return templateBuffer;
+}
+
+async function embedSignatureInDocx(
+  supabase: any,
+  documentUrl: string,
+  signatureBytes: Uint8Array
+): Promise<void> {
+  try {
+    console.log(`[embedSignature] Downloading docx to insert signature: ${documentUrl}`);
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from("worker-contracts")
+      .download(documentUrl);
+
+    if (dlErr || !blob) {
+      console.warn(`[embedSignature] Failed to download file from storage: ${dlErr?.message}`);
+      return;
+    }
+
+    let templateBuffer = new Uint8Array(await blob.arrayBuffer());
+    templateBuffer = await normalizeDocxTemplates(templateBuffer);
+
+    console.log(`[embedSignature] Processing docx with docx-templates...`);
+    const finalDoc = await createReport({
+      template: templateBuffer,
+      data: {
+        FIRMA_TRABALHADOR: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        firma_trabalhador: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Firma_Trabalhador: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        FIRMA: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        SIGNATURE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+        Signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
+      },
+      cmdDelimiter: ["{{", "}}"],
+      noSandbox: true,
+      errorHandler: (err, command_code) => {
+        console.warn(`[embedSignature] Error on tag ${command_code}:`, err);
+        return "";
+      }
+    });
+
+    console.log(`[embedSignature] Overwriting signed docx in storage: ${documentUrl}`);
+    const { error: uploadErr } = await supabase.storage
+      .from("worker-contracts")
+      .upload(documentUrl, finalDoc, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        upsert: true
+      });
+
+    if (uploadErr) {
+      console.error("[embedSignature] Upload error:", uploadErr.message);
+    } else {
+      console.log("[embedSignature] Document successfully updated in storage!");
+    }
+  } catch (err: any) {
+    console.error("[embedSignature] Error:", err.message);
+  }
+}
+
+async function convertDocxToPdfViaGraph(
+  accessToken: string,
+  driveId: string,
+  docxBase64: string,
+  fileName: string
+): Promise<{ name: string; contentType: string; contentBytes: string }> {
+  try {
+    // Decode base64 to binary
+    const binaryString = atob(docxBase64);
+    const docxBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      docxBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const tempPath = `/temp_conversions/temp_${Date.now()}_${fileName}`;
+    const encodedPath = tempPath.split('/').map(c => encodeURIComponent(c)).join('/');
+    const uploadUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encodedPath}:/content`;
+
+    console.log(`[PDF Convert] Sending temp DOCX for conversion: ${tempPath}`);
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+      body: docxBytes,
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      console.error(`[PDF Convert] Upload temp docx failed: ${errText}`);
+      throw new Error(`Upload temp docx failed: ${errText}`);
+    }
+
+    const item = await uploadRes.json();
+    const itemId = item.id;
+
+    let pdfBytes: Uint8Array;
+    try {
+      const convertUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content?format=pdf`;
+      console.log(`[PDF Convert] Downloading PDF from Graph: ${convertUrl}`);
+      const convertRes = await fetch(convertUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!convertRes.ok) {
+        const errText = await convertRes.text();
+        console.error(`[PDF Convert] Conversion endpoint failed: ${errText}`);
+        throw new Error(`Conversion endpoint failed: ${errText}`);
+      }
+
+      pdfBytes = new Uint8Array(await convertRes.arrayBuffer());
+    } finally {
+      // Async delete in background
+      fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }).catch(err => console.error("[PDF Convert] Failed to delete temp DOCX:", err));
+    }
+
+    // Convert pdfBytes back to base64
+    const pdfBase64 = encode(pdfBytes);
+    const pdfName = fileName.replace(/\.docx$/i, '.pdf');
+
+    console.log(`[PDF Convert] Successfully converted ${fileName} to ${pdfName}`);
+    return {
+      name: pdfName,
+      contentType: "application/pdf",
+      contentBytes: pdfBase64,
+    };
+  } catch (err: any) {
+    console.error(`[PDF Convert] Error during conversion of ${fileName}:`, err);
+    // Return original as fallback
+    return {
+      name: fileName,
+      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentBytes: docxBase64,
+    };
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,7 +207,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { token, otp_code, ip_address, user_agent } = await req.json();
+    const { token, otp_code, signature_image, ip_address, user_agent } = await req.json();
 
     if (!token || !otp_code) {
       return new Response(
@@ -66,16 +254,103 @@ serve(async (req) => {
       );
     }
 
-    // 3. Buscar e-mail do trabalhador
+    // 3. Buscar e-mail do trabalhador (corrigido: nome ao invés de name)
     const { data: worker, error: workerErr } = await supabase
       .schema("core_personal")
       .from("workers")
-      .select("email, name")
+      .select("email, nome")
       .eq("id", contract.worker_id)
       .single();
 
     if (workerErr || !worker) {
       throw new Error(`Erro ao obter dados do trabalhador: ${workerErr?.message}`);
+    }
+
+    // 3.5. Se houver imagem de assinatura base64, processar e embutir no docx
+    if (signature_image && contract.document_url) {
+      console.log("[sign-contract] Imagem de assinatura recebida, iniciando embutimento...");
+      const cleanBase64 = signature_image.replace(/^data:image\/[a-z]+;base64,/, "");
+      const binaryString = atob(cleanBase64);
+      const binaryData = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        binaryData[i] = binaryString.charCodeAt(i);
+      }
+
+      // 1. Embutir no DOCX no Storage
+      await embedSignatureInDocx(supabase, contract.document_url, binaryData);
+
+      // 2. Tentar converter para PDF via Graph
+      try {
+        const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
+        const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
+        const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+        const driveId = Deno.env.get('SHAREPOINT_DRIVE_ID');
+
+        if (tenantId && clientId && clientSecret && driveId) {
+          // Baixar o DOCX com assinatura embutida para enviar à conversão
+          const { data: updatedDocxBlob, error: dlUpdatedErr } = await supabase.storage
+            .from("worker-contracts")
+            .download(contract.document_url);
+
+          if (!dlUpdatedErr && updatedDocxBlob) {
+            const updatedDocxBase64 = encode(new Uint8Array(await updatedDocxBlob.arrayBuffer()));
+            
+            // Obter token do Graph
+            const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+            const formData = new URLSearchParams();
+            formData.append('client_id', clientId);
+            formData.append('client_secret', clientSecret);
+            formData.append('scope', 'https://graph.microsoft.com/.default');
+            formData.append('grant_type', 'client_credentials');
+
+            const tokenRes = await fetch(tokenUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: formData,
+            });
+
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              const access_token = tokenData.access_token;
+              
+              console.log("[sign-contract] Convertendo contrato DOCX assinado para PDF...");
+              const pdfAtt = await convertDocxToPdfViaGraph(access_token, driveId, updatedDocxBase64, `contrato_${contract.id}.docx`);
+              
+              if (pdfAtt && pdfAtt.contentType === "application/pdf") {
+                const pdfBinaryString = atob(pdfAtt.contentBytes);
+                const pdfBytes = new Uint8Array(pdfBinaryString.length);
+                for (let i = 0; i < pdfBinaryString.length; i++) {
+                  pdfBytes[i] = pdfBinaryString.charCodeAt(i);
+                }
+
+                const pdfPath = contract.document_url.replace(/\.docx$/i, '.pdf');
+                console.log(`[sign-contract] Salvando PDF no bucket: ${pdfPath}`);
+                const { error: uploadPdfErr } = await supabase.storage
+                  .from("worker-contracts")
+                  .upload(pdfPath, pdfBytes, {
+                    contentType: "application/pdf",
+                    upsert: true,
+                  });
+
+                if (uploadPdfErr) {
+                  console.error("[sign-contract] Erro ao salvar PDF no Storage:", uploadPdfErr.message);
+                } else {
+                  console.log("[sign-contract] PDF salvo com sucesso. Atualizando signed_document_url...");
+                  await supabase
+                    .schema("core_personal")
+                    .from("contracts")
+                    .update({ signed_document_url: pdfPath })
+                    .eq("id", contract.id);
+                }
+              }
+            } else {
+              console.error("[sign-contract] Falha ao obter token para conversão de PDF:", await tokenRes.text());
+            }
+          }
+        }
+      } catch (errPdf) {
+        console.error("[sign-contract] Erro na conversão para PDF:", errPdf);
+      }
     }
 
     // 4. Inserir log de auditoria
@@ -113,7 +388,6 @@ serve(async (req) => {
     }
 
     // 6. Atualizar status do trabalhador e da alocação se necessário
-    // Por exemplo, marcar a alocação relacionada como confirmada ou ativa.
     if (contract.assignment_id) {
       await supabase
         .schema("core_personal")

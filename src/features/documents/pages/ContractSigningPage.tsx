@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { renderAsync } from 'docx-preview';
 import { supabase } from '@/shared/supabase/client';
 import { getContractByToken, signContract, type Contract } from '../api/contractsApi';
-import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
@@ -35,12 +35,37 @@ export function ContractSigningPage() {
     const { token } = useParams<{ token: string }>();
     const { t, i18n } = useTranslation();
     const docContainerRef = useRef<HTMLDivElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [contract, setContract] = useState<Contract | null>(null);
     const [fileBlob, setFileBlob] = useState<Blob | null>(null);
     const [loading, setLoading] = useState(true);
     const [signing, setSigning] = useState(false);
     const [success, setSuccess] = useState(false);
     const [auditLog, setAuditLog] = useState<any | null>(null);
+    const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
+    
+    // Canvas drawing states
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [hasSigned, setHasSigned] = useState(false);
+
+    // New signature methods states
+    const [sigMethod, setSigMethod] = useState<'draw' | 'upload' | 'type'>('draw');
+    const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+    const [typedName, setTypedName] = useState('');
+    const [selectedFont, setSelectedFont] = useState('Caveat');
+    const [dragActive, setDragActive] = useState(false);
+
+    // Carregar fontes do Google Fonts para assinatura digitada
+    useEffect(() => {
+        const linkId = 'google-fonts-signature';
+        if (!document.getElementById(linkId)) {
+            const link = document.createElement('link');
+            link.id = linkId;
+            link.rel = 'stylesheet';
+            link.href = 'https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@400;700&family=Great+Vibes&display=swap';
+            document.head.appendChild(link);
+        }
+    }, []);
     
     // OTP Modal states
     const [otpModalOpen, setOtpModalOpen] = useState(false);
@@ -124,6 +149,232 @@ export function ContractSigningPage() {
         }
     }, [fileBlob]);
 
+
+    // 2.5. Inicializar e redimensionar o canvas
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width || 400;
+        canvas.height = rect.height || 180;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+    }, [contract, success, sigMethod]);
+
+    const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        let clientX = 0;
+        let clientY = 0;
+        
+        if ('touches' in e) {
+            if (e.touches.length === 0) return { x: 0, y: 0 };
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    };
+
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if ('touches' in e) {
+            if (e.cancelable) e.preventDefault();
+        }
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const { x, y } = getCoordinates(e);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setIsDrawing(true);
+    };
+
+    const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
+        if ('touches' in e) {
+            if (e.cancelable) e.preventDefault();
+        }
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const { x, y } = getCoordinates(e);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        setHasSigned(true);
+    };
+
+    const stopDrawing = () => {
+        setIsDrawing(false);
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        setHasSigned(false);
+    };
+
+    const processUploadedImage = (base64Str: string): Promise<string> => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 180;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(base64Str);
+                    return;
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const maxWidth = 360;
+                const maxHeight = 140;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = height * (maxWidth / width);
+                    width = maxWidth;
+                }
+                if (height > maxHeight) {
+                    width = width * (maxHeight / height);
+                    height = maxHeight;
+                }
+
+                const x = (canvas.width - width) / 2;
+                const y = (canvas.height - height) / 2;
+
+                ctx.drawImage(img, x, y, width, height);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = () => {
+                resolve(base64Str);
+            };
+            img.src = base64Str;
+        });
+    };
+
+    const generateTypedSignature = (text: string, fontName: string): string => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 180;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return '';
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#0f172a';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        let fontSize = 48;
+        ctx.font = `${fontSize}px "${fontName}", cursive`;
+        
+        while (ctx.measureText(text).width > canvas.width - 40 && fontSize > 20) {
+            fontSize -= 2;
+            ctx.font = `${fontSize}px "${fontName}", cursive`;
+        }
+
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        return canvas.toDataURL('image/png');
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error(t('signing.toastInvalidImage', { defaultValue: 'Por favor, selecione um arquivo de imagem válido.' }));
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const processed = await processUploadedImage(reader.result as string);
+            setUploadedImage(processed);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleDrag = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0];
+            if (!file.type.startsWith('image/')) {
+                toast.error(t('signing.toastInvalidImage', { defaultValue: 'Por favor, selecione um arquivo de imagem válido.' }));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const processed = await processUploadedImage(reader.result as string);
+                setUploadedImage(processed);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleOpenSignatureConfirmation = () => {
+        if (sigMethod === 'draw' && !hasSigned) {
+            toast.error(t('signing.toastDrawFirst', { defaultValue: 'Por favor, desenhe sua assinatura primeiro.' }));
+            return;
+        }
+        if (sigMethod === 'upload' && !uploadedImage) {
+            toast.error(t('signing.toastUploadFirst', { defaultValue: 'Por favor, faça upload de uma imagem da sua assinatura.' }));
+            return;
+        }
+        if (sigMethod === 'type' && !typedName.trim()) {
+            toast.error(t('signing.toastTypeFirst', { defaultValue: 'Por favor, digite seu nome para gerar a assinatura.' }));
+            return;
+        }
+        setOtpModalOpen(true);
+    };
+
     // 3. Gerenciar mudança no campo OTP
     const handleOtpChange = (index: number, val: string) => {
         if (!/^\d*$/.test(val)) return; // Apenas números
@@ -144,12 +395,23 @@ export function ContractSigningPage() {
         }
     };
 
-    // 4. Executar a assinatura com OTP
+    // 4. Executar a assinatura com OTP e imagem
     const handleSignContract = async () => {
         const otpCode = otpValues.join('');
         if (otpCode.length < 6) {
             toast.error(t('signing.toastOtpRequired'));
             return;
+        }
+
+        let signatureImageBase64 = "";
+        if (sigMethod === 'draw') {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            signatureImageBase64 = canvas.toDataURL('image/png');
+        } else if (sigMethod === 'upload') {
+            signatureImageBase64 = uploadedImage!;
+        } else if (sigMethod === 'type') {
+            signatureImageBase64 = generateTypedSignature(typedName, selectedFont);
         }
 
         try {
@@ -158,12 +420,14 @@ export function ContractSigningPage() {
                 token: token!,
                 otp_code: otpCode,
                 ip_address: ipInfo.ip,
-                user_agent: ipInfo.ua
+                user_agent: ipInfo.ua,
+                signature_image: signatureImageBase64
             });
 
             toast.success(t('signing.toastSuccessContract'));
             setSuccess(true);
             setOtpModalOpen(false);
+            setSignatureBase64(signatureImageBase64);
             
             // Recarregar os dados do contrato
             const updatedContract = await getContractByToken(token!);
@@ -283,6 +547,12 @@ export function ContractSigningPage() {
                                     <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Assinante</strong>
                                     <span style="font-weight: bold; font-size: 12px; color: #1e293b;">${contract.worker?.nome}</span>
                                 </div>
+                                ${signatureBase64 ? `
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Assinatura Digital</strong>
+                                    <img src="${signatureBase64}" style="max-height: 50px; display: block; margin-top: 4px;" />
+                                </div>
+                                ` : ''}
                                 <div style="margin-bottom: 8px;">
                                     <strong style="color: #64748b; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 2px;">Documento de Identificação</strong>
                                     <span>${contract.worker?.nif || contract.worker?.dni || contract.worker?.nie || contract.worker?.pasaporte || '-'}</span>
@@ -423,6 +693,210 @@ export function ContractSigningPage() {
                             <p>{t('signing.termsBodyContract1')}</p>
                             <p>{t('signing.termsBodyContract2')}</p>
                         </div>
+
+                        {/* Campo de Assinatura Manual (Somente se não assinado) */}
+                        {!success && (
+                            <div className="space-y-4">
+                                {/* Seletor de Método de Assinatura */}
+                                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSigMethod('draw')}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                                            sigMethod === 'draw'
+                                                ? 'bg-indigo-600 text-white shadow-lg'
+                                                : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {t('signing.tabDraw', { defaultValue: 'Desenhar' })}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSigMethod('upload')}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                                            sigMethod === 'upload'
+                                                ? 'bg-indigo-600 text-white shadow-lg'
+                                                : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {t('signing.tabUpload', { defaultValue: 'Subir Imagem' })}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSigMethod('type')}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                                            sigMethod === 'type'
+                                                ? 'bg-indigo-600 text-white shadow-lg'
+                                                : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {t('signing.tabType', { defaultValue: 'Digitar Nome' })}
+                                    </button>
+                                </div>
+
+                                {/* Conteúdo de Desenhar */}
+                                {sigMethod === 'draw' && (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center px-1">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                <PenTool className="h-3.5 w-3.5 text-indigo-400" /> {t('signing.drawTitle', { defaultValue: 'Desenhe sua assinatura' })}
+                                            </label>
+                                            <button 
+                                                type="button"
+                                                onClick={clearCanvas}
+                                                className="text-xs text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-rose-500/10"
+                                                title="Limpar assinatura atual"
+                                            >
+                                                <Trash2 className="h-3 w-3" /> {t('signing.btnClear', { defaultValue: 'Limpar' })}
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-white shadow-inner">
+                                            <canvas
+                                                ref={canvasRef}
+                                                onMouseDown={startDrawing}
+                                                onMouseMove={draw}
+                                                onMouseUp={stopDrawing}
+                                                onMouseLeave={stopDrawing}
+                                                onTouchStart={startDrawing}
+                                                onTouchMove={draw}
+                                                onTouchEnd={stopDrawing}
+                                                className="w-full h-44 cursor-crosshair touch-none bg-white block"
+                                            />
+                                            {!hasSigned && (
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs">
+                                                    {t('signing.drawPlaceholder', { defaultValue: 'Assine aqui' })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Conteúdo de Upload */}
+                                {sigMethod === 'upload' && (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center px-1">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                                {t('signing.tabUpload', { defaultValue: 'Subir Imagem da Assinatura' })}
+                                            </label>
+                                            {uploadedImage && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setUploadedImage(null)}
+                                                    className="text-xs text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-rose-500/10"
+                                                >
+                                                    <Trash2 className="h-3 w-3" /> {t('signing.btnClear', { defaultValue: 'Limpar' })}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            id="sig-image-upload" 
+                                            onChange={handleImageUpload} 
+                                        />
+
+                                        {uploadedImage ? (
+                                            <div className="w-full h-44 rounded-xl border border-slate-700 bg-white shadow-inner flex items-center justify-center overflow-hidden p-4">
+                                                <img 
+                                                    src={uploadedImage} 
+                                                    alt="Signature Preview" 
+                                                    className="max-w-full max-h-full object-contain"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <label 
+                                                htmlFor="sig-image-upload"
+                                                onDragEnter={handleDrag}
+                                                onDragLeave={handleDrag}
+                                                onDragOver={handleDrag}
+                                                onDrop={handleDrop}
+                                                className={`w-full h-44 rounded-xl border border-dashed flex flex-col items-center justify-center p-4 text-center cursor-pointer transition ${
+                                                    dragActive 
+                                                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' 
+                                                        : 'border-slate-700 bg-slate-950/45 hover:bg-slate-900/60 text-slate-400 hover:text-slate-300'
+                                                }`}
+                                            >
+                                                <Download className="h-8 w-8 mb-2 text-indigo-400 animate-pulse" />
+                                                <span className="text-xs font-semibold block mb-1">
+                                                    {t('signing.uploadLabel', { defaultValue: 'Clique ou arraste sua assinatura aqui' })}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500 leading-normal">
+                                                    {t('signing.uploadHelper', { defaultValue: 'Formatos PNG ou JPG, fundo transparente recomendado' })}
+                                                </span>
+                                            </label>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Conteúdo de Digitar Nome */}
+                                {sigMethod === 'type' && (
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block px-1">
+                                                {t('signing.typeLabel', { defaultValue: 'Digite seu nome completo' })}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                value={typedName} 
+                                                onChange={(e) => setTypedName(e.target.value)} 
+                                                placeholder={t('signing.typePlaceholder', { defaultValue: 'Ex: João Silva' })} 
+                                                className="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-inner"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block px-1">
+                                                {t('signing.selectFont', { defaultValue: 'Estilo de Caligrafia' })}
+                                            </label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { name: 'Estilo 1', font: 'Caveat' },
+                                                    { name: 'Estilo 2', font: 'Alex Brush' },
+                                                    { name: 'Estilo 3', font: 'Great Vibes' }
+                                                ].map((fontItem) => (
+                                                    <button
+                                                        key={fontItem.font}
+                                                        type="button"
+                                                        onClick={() => setSelectedFont(fontItem.font)}
+                                                        style={{ fontFamily: `"${fontItem.font}", cursive` }}
+                                                        className={`py-2 px-1 text-base rounded-lg border text-center transition ${
+                                                            selectedFont === fontItem.font
+                                                                ? 'border-indigo-500 bg-indigo-500/10 text-slate-100 shadow'
+                                                                : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        {fontItem.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block px-1">
+                                                {t('signing.typePreviewLabel', { defaultValue: 'Visualização da Assinatura' })}
+                                            </label>
+                                            <div className="w-full h-44 rounded-xl border border-slate-700 bg-white shadow-inner flex items-center justify-center overflow-hidden p-4">
+                                                {typedName.trim() ? (
+                                                    <span 
+                                                        style={{ fontFamily: `"${selectedFont}", cursive` }}
+                                                        className="text-4xl text-slate-900 select-none px-4 text-center break-all"
+                                                    >
+                                                        {typedName}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 font-medium italic">
+                                                        {t('signing.typePreviewPlaceholder', { defaultValue: 'Nome da assinatura' })}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-6 space-y-3">
@@ -442,7 +916,7 @@ export function ContractSigningPage() {
                             </div>
                         ) : (
                             <button
-                                onClick={() => setOtpModalOpen(true)}
+                                onClick={handleOpenSignatureConfirmation}
                                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4.5 px-4 rounded-xl shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/40 transform hover:-translate-y-0.5 transition duration-150 text-center"
                             >
                                 {t('signing.btnSignContract')}

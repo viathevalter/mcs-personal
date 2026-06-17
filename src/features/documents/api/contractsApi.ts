@@ -120,6 +120,7 @@ export interface SignContractPayload {
     otp_code: string;
     ip_address: string;
     user_agent: string;
+    signature_image?: string;
 }
 
 export async function signContract(payload: SignContractPayload): Promise<{ success: boolean; message: string; signed_at: string }> {
