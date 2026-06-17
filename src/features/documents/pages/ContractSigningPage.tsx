@@ -8,6 +8,29 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
+function adjustDocxPreviewSpacing(container: HTMLElement | null) {
+    if (!container) return;
+    const elements = container.querySelectorAll('*');
+    elements.forEach((el: any) => {
+        const text = (el.innerText || el.textContent || "").trim();
+        if (text.length < 150 && (
+            text.startsWith("Empresa:") || 
+            text.startsWith("Nombre:") || 
+            text.startsWith("Email:") ||
+            text.startsWith("Cargo:") ||
+            text.startsWith("NIF:") ||
+            text.startsWith("Rua S. Tomé")
+        )) {
+            el.style.setProperty('margin-top', '0px', 'important');
+            el.style.setProperty('margin-bottom', '0px', 'important');
+            el.style.setProperty('padding-top', '0px', 'important');
+            el.style.setProperty('padding-bottom', '0px', 'important');
+            el.style.setProperty('line-height', '1.0', 'important');
+        }
+    });
+}
+
+
 export function ContractSigningPage() {
     const { token } = useParams<{ token: string }>();
     const { t, i18n } = useTranslation();
@@ -91,6 +114,9 @@ export function ContractSigningPage() {
                 ignoreWidth: false,
                 ignoreHeight: false,
                 useBase64URL: true,
+            })
+            .then(() => {
+                adjustDocxPreviewSpacing(docContainerRef.current);
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx:", err);
@@ -317,6 +343,17 @@ export function ContractSigningPage() {
 
     return (
         <div className="h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+            <style>{`
+                .docx-wrapper table p,
+                .docx-wrapper table div,
+                .docx-wrapper table td > * {
+                    margin-top: 0px !important;
+                    margin-bottom: 0px !important;
+                    padding-top: 0px !important;
+                    padding-bottom: 0px !important;
+                    line-height: 1.0 !important;
+                }
+            `}</style>
             {/* Header Superior */}
             <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
