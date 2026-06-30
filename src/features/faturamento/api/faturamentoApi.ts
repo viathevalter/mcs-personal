@@ -70,6 +70,13 @@ export interface ClientBillingSummary {
   paymentTermDays?: number | null;
   billingEmail?: string | null;
   clientEmail?: string | null;
+  obras: Array<{
+    id: string | null;
+    name: string;
+    totalHoras: number;
+    totalValor: number;
+    horasIds: string[];
+  }>;
   workers: Array<{
     workerId: string;
     workerName: string;
@@ -89,6 +96,8 @@ export interface ClientBillingSummary {
       tarifa_faturada: number;
       data_trabalho: string;
       funcao_id?: string;
+      obra?: string | null;
+      fatura_id?: string | null;
     }>;
   }>;
 }
@@ -176,6 +185,18 @@ export async function getHorasPendentesFaturamento(
 
     if (clientsList.length === 0) return [];
     const clientIds = clientsList.map(c => c.id);
+
+    // Fetch all client sites for mapping names
+    let clientSites: any[] = [];
+    if (clientIds.length > 0) {
+      const { data: csData } = await supabase
+        .schema('core_common')
+        .from('client_sites')
+        .select('id, name')
+        .in('client_id', clientIds);
+      clientSites = csData || [];
+    }
+    const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
 
     // 4. Fetch validation status of sheet records (worker_hours)
     const workerIds = Array.from(new Set(activeWorkers.map(w => w.id).filter(Boolean)));
@@ -274,6 +295,35 @@ export async function getHorasPendentesFaturamento(
       // If the client has no workers and no hours registered, skip it
       const clientHours = hoursList.filter(h => h.client_id === client.id);
       if (clientWorkers.length === 0 && clientHours.length === 0) continue;
+
+      // Calculate Obras totals for the client
+      const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
+      
+      clientHours.forEach(h => {
+        const oId = h.obra || null;
+        if (!obrasMap.has(oId)) {
+          const siteName = oId ? (clientSitesMap.get(oId) || 'Obra Desconhecida') : 'Sem Obra';
+          obrasMap.set(oId, {
+            id: oId,
+            name: siteName,
+            totalHoras: 0,
+            totalValor: 0,
+            horasIds: []
+          });
+        }
+        const entry = obrasMap.get(oId)!;
+        entry.totalHoras += Number(h.horas_totais || 0);
+        entry.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+        if (h.id) {
+          entry.horasIds.push(h.id);
+        }
+      });
+
+      const obrasSummary = Array.from(obrasMap.values()).sort((a, b) => {
+        if (a.id === null) return 1; // "Sem Obra" goes last
+        if (b.id === null) return -1;
+        return a.name.localeCompare(b.name);
+      });
 
       let totalHoras = 0;
       let totalValor = 0;
@@ -439,6 +489,7 @@ export async function getHorasPendentesFaturamento(
         paymentTermDays: termDays,
         billingEmail: client.billing_email || null,
         clientEmail: client.email || null,
+        obras: obrasSummary,
         workers: workersSummary
       });
     }

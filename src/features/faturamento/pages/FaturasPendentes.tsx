@@ -45,6 +45,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export function FaturasPendentes() {
   const [faturamentos, setFaturamentos] = useState<ClientBillingSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedObraByClient, setSelectedObraByClient] = useState<Record<string, string | null>>({});
   const [processingClient, setProcessingClient] = useState<string | null>(null);
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
   const [expandedWorkers, setExpandedWorkers] = useState<Record<string, boolean>>({});
@@ -220,6 +221,14 @@ export function FaturasPendentes() {
   }, [selectedEmpresaId, selectedYear, selectedMonth]);
 
   const handleSolicitarAprovacao = (clientId: string, workers: any[]) => {
+    const selectedObraId = selectedObraByClient[clientId];
+    const faturamento = faturamentos.find(f => f.clientId === clientId);
+    if (!faturamento) return;
+
+    const selectedObra = selectedObraId !== undefined
+      ? faturamento.obras.find(o => o.id === selectedObraId)
+      : null;
+
     const horasIds: string[] = [];
     workers.forEach(w => {
       Object.values(w.horasDiarias).forEach((h: any) => {
@@ -233,26 +242,24 @@ export function FaturasPendentes() {
       toast.error('Nenhuma hora pendente para faturamento neste cliente.');
       return;
     }
-    
-    const faturamento = faturamentos.find(f => f.clientId === clientId);
-    if (!faturamento) return;
 
     const adj = clientAdjustments[clientId] || initAdjustments(faturamento);
-    const totalBase = faturamento.totalValor;
+    const totalBase = selectedObra ? selectedObra.totalValor : faturamento.totalValor;
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
     const periodStr = `${getMonthName(faturamento.month)} de ${faturamento.year}`;
-    const subject = `MCS - Solicitação de Aprovação de Horas - ${faturamento.clientName} - ${periodStr}`;
+    const obraSuffix = selectedObra ? ` - Obra: ${selectedObra.name}` : '';
+    const subject = `MCS - Solicitação de Aprovação de Horas - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
     
     const previewToken = crypto.randomUUID(); 
     const link = `${window.location.origin}/aprovacao-cliente/${previewToken}`;
     
     const body = `Olá,
 
-Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}.
+Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
 
 Em anexo, você encontrará os seguintes documentos para a sua análise:
-1. Informe de Facturación (IF-${faturamento.year}/0760)
+1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
 2. Folha de ponto detalhada com as datas trabalhadas
 3. Fatura Pró-forma correspondente no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -317,6 +324,11 @@ MCS - Gestão Comercial`;
 
       const adj = clientAdjustments[emailData.clientId] || initAdjustments(faturamento);
 
+      const selectedObraId = selectedObraByClient[emailData.clientId];
+      const selectedObra = selectedObraId !== undefined
+        ? faturamento.obras.find(o => o.id === selectedObraId)
+        : null;
+
       // Save adjustments to the DB by calling solicitarAprovacaoCliente
       await solicitarAprovacaoCliente(
         emailData.clientId,
@@ -331,7 +343,8 @@ MCS - Gestão Comercial`;
           data_emissao: adj.dataEmissao,
           data_vencimento: adj.dataVencimento,
           condicoes_pagamento: adj.condicoesPagamento,
-          descricao_servico: adj.descricaoServico
+          descricao_servico: adj.descricaoServico,
+          obra: selectedObra ? selectedObra.name : null
         },
         emailData.token
       );
@@ -779,6 +792,41 @@ MCS - Gestão Comercial`;
             const isBlocked = f.statusBilling === 'waiting_validation';
             const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
 
+            const selectedObraId = selectedObraByClient[f.clientId];
+            const hasObraFilter = selectedObraId !== undefined;
+
+            // Filter workers and their hours based on the selected Obra
+            const filteredWorkers = f.workers.map(w => {
+              const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+                if (!hasObraFilter || h.obra === selectedObraId) {
+                  acc[date] = h;
+                }
+                return acc;
+              }, {} as Record<string, any>);
+
+              const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+              const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+              return {
+                ...w,
+                horasDiarias: filteredHorasDiarias,
+                totalHoras: wTotalHoras,
+                totalValor: wTotalValor
+              };
+            }).filter(w => w.totalHoras > 0);
+
+            const displayTotalHoras = hasObraFilter
+              ? (f.obras.find(o => o.id === selectedObraId)?.totalHoras || 0)
+              : f.totalHoras;
+
+            const displayTotalValor = hasObraFilter
+              ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
+              : f.totalValor;
+
+            const selectedObra = hasObraFilter 
+              ? f.obras.find(o => o.id === selectedObraId)
+              : null;
+
             return (
               <Card 
                 key={f.clientId} 
@@ -877,7 +925,7 @@ MCS - Gestão Comercial`;
                       <Button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSolicitarAprovacao(f.clientId, f.workers);
+                          handleSolicitarAprovacao(f.clientId, filteredWorkers);
                         }}
                         disabled={isProcessing}
                         variant="default"
@@ -923,6 +971,62 @@ MCS - Gestão Comercial`;
                 {/* Área Expandida (Trabalhadores e Horas Diárias com Abas) */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 text-left">
+                    {/* Obras Filter Cards */}
+                    {f.obras && f.obras.length > 1 && (
+                      <div className="p-5 bg-slate-50/50 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Filtrar e Faturar por Obra / Centro de Custo</span>
+                        <div className="flex flex-wrap gap-3">
+                          {/* Card "Todas as Obras" */}
+                          <div 
+                            onClick={() => setSelectedObraByClient(prev => {
+                              const next = { ...prev };
+                              delete next[f.clientId];
+                              return next;
+                            })}
+                            className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${
+                              selectedObraByClient[f.clientId] === undefined
+                                ? 'bg-white border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/30 shadow-xs'
+                                : 'bg-slate-50/50 border-slate-200 hover:bg-white dark:border-slate-800'
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Todas as Obras</span>
+                              <span className="text-xs text-slate-400 mt-0.5">{f.totalHoras.toFixed(2)} hrs</span>
+                            </div>
+                            <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                              € {f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* Cards for each Obra */}
+                          {f.obras.map((obra) => {
+                            const isSelected = selectedObraByClient[f.clientId] === obra.id;
+                            return (
+                              <div 
+                                key={obra.id || 'sem_obra'}
+                                onClick={() => setSelectedObraByClient(prev => ({ ...prev, [f.clientId]: obra.id }))}
+                                className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${
+                                  isSelected
+                                    ? 'bg-white border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/30 shadow-xs'
+                                    : 'bg-slate-50/50 border-slate-200 hover:bg-white dark:border-slate-800'
+                                }`}
+                              >
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate" title={obra.name}>
+                                    {obra.name}
+                                  </span>
+                                  <span className="text-xs text-slate-400 mt-0.5">{obra.totalHoras.toFixed(2)} hrs</span>
+                                </div>
+                                <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100 shrink-0">
+                                  € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Tab Navigation */}
                     <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-2 gap-2 text-xs font-semibold">
                       <button 
@@ -973,7 +1077,7 @@ MCS - Gestão Comercial`;
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {f.workers.map(worker => {
+                          {filteredWorkers.map(worker => {
                             const workerKey = `${f.clientId}-${worker.workerId}`;
                             const isWorkerExpanded = expandedWorkers[workerKey];
 
@@ -1151,13 +1255,13 @@ MCS - Gestão Comercial`;
                             <p className="text-xs text-muted-foreground mt-0.5">Cliente: <span className="font-semibold">{f.clientName}</span> | Período: <span className="font-semibold">{getMonthName(f.month)} / {f.year}</span></p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-muted-foreground font-semibold">Total de Horas: <span className="text-slate-900 dark:text-slate-100 font-bold">{f.totalHoras.toFixed(2)}h</span></p>
-                            <p className="text-xs text-muted-foreground font-semibold">Faturamento Base: <span className="text-slate-900 dark:text-slate-100 font-bold">€ {f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span></p>
+                            <p className="text-xs text-muted-foreground font-semibold">Total de Horas: <span className="text-slate-900 dark:text-slate-100 font-bold">{displayTotalHoras.toFixed(2)}h</span></p>
+                            <p className="text-xs text-muted-foreground font-semibold">Faturamento Base: <span className="text-slate-900 dark:text-slate-100 font-bold">€ {displayTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span></p>
                           </div>
                         </div>
 
                         <div className="text-center font-bold text-sm tracking-wider bg-slate-100 dark:bg-slate-900 py-1.5 text-slate-700 dark:text-slate-300 rounded mb-4">
-                          OBRA: SIN OBRA
+                          OBRA: {selectedObra ? selectedObra.name.toUpperCase() : 'TODAS AS OBRAS'}
                         </div>
 
                         <Table className="border border-slate-200 dark:border-slate-800 rounded-lg">
@@ -1173,7 +1277,7 @@ MCS - Gestão Comercial`;
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {f.workers.map(worker => {
+                            {filteredWorkers.map(worker => {
                               const workerTotal = Object.values(worker.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
                               return (
                                 <TableRow key={worker.workerId} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -1218,7 +1322,7 @@ MCS - Gestão Comercial`;
                         });
                       };
 
-                      const totalBase = f.totalValor;
+                      const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
                       return (
@@ -1357,7 +1461,7 @@ MCS - Gestão Comercial`;
                     {/* Aba 4: Informe */}
                     {getActiveTab(f.clientId) === 'informe' && (() => {
                       const adj = clientAdjustments[f.clientId] || initAdjustments(f);
-                      const totalBase = f.totalValor;
+                      const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
 
@@ -1443,8 +1547,11 @@ MCS - Gestão Comercial`;
                               </TableBody>
                             </Table>
 
+                            {/* Resumo de Horas por Obra */}
+                            <h5 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-2">Resumo de Horas por Obra</h5>
+
                             <div className="text-center font-bold text-xs bg-slate-100 dark:bg-slate-950 py-1 rounded text-slate-700 dark:text-slate-400 mb-6">
-                              OBRA: SIN OBRA
+                              OBRA: {selectedObra ? selectedObra.name.toUpperCase() : 'TODAS AS OBRAS'}
                             </div>
 
                             {/* Relação de Trabalhadores */}
@@ -1459,7 +1566,7 @@ MCS - Gestão Comercial`;
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {f.workers.map(w => (
+                                {filteredWorkers.map(w => (
                                   <TableRow key={w.workerId}>
                                     <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">{w.workerName}</TableCell>
                                     <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
@@ -1469,7 +1576,7 @@ MCS - Gestão Comercial`;
                                 ))}
                                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                                   <TableCell className="font-bold pl-4">Totales</TableCell>
-                                  <TableCell className="text-right font-bold">{f.totalHoras.toFixed(2)}h</TableCell>
+                                  <TableCell className="text-right font-bold">{displayTotalHoras.toFixed(2)}h</TableCell>
                                   <TableCell className="text-right">-</TableCell>
                                   <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 </TableRow>
@@ -1489,7 +1596,7 @@ MCS - Gestão Comercial`;
                     {/* Aba 5: Factura Única */}
                     {getActiveTab(f.clientId) === 'factura' && (() => {
                       const adj = clientAdjustments[f.clientId] || initAdjustments(f);
-                      const totalBase = f.totalValor;
+                      const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
 
@@ -1498,6 +1605,12 @@ MCS - Gestão Comercial`;
                           {/* Folha A4 da Fatura */}
                           <div className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left relative">
                             
+                            {selectedObra && (
+                              <div className="text-center font-bold text-xs bg-slate-100 dark:bg-slate-950 py-1 rounded text-slate-700 dark:text-slate-400 mb-6">
+                                OBRA: {selectedObra.name.toUpperCase()}
+                              </div>
+                            )}
+
                             {/* Top row */}
                             <div className="flex justify-between items-start mb-8">
                               <div>
@@ -1562,9 +1675,9 @@ MCS - Gestão Comercial`;
                                 <TableRow>
                                   <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
                                   <TableCell className="text-muted-foreground">{adj.descricaoServico}</TableCell>
-                                  <TableCell className="text-right">{f.totalHoras.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">{displayTotalHoras.toFixed(2)}</TableCell>
                                   <TableCell>UN</TableCell>
-                                  <TableCell className="text-right">€ {(totalBase / (f.totalHoras || 1)).toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">€ {(totalBase / (displayTotalHoras || 1)).toFixed(2)}</TableCell>
                                   <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 </TableRow>
                                 {Number(adj.incrementos) > 0 && (
