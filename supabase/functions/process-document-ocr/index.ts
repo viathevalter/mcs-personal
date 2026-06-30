@@ -591,6 +591,31 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
 
   } catch (error) {
     console.error("Erro no processamento OCR:", error);
+    
+    if (worker_id && year && month) {
+      try {
+        console.log(`[DB Sync] Reseting status to 'pendente' for worker ${worker_id} due to OCR failure...`);
+        const { error: resetErr } = await supabase
+          .schema('core_personal')
+          .from('worker_hours')
+          .update({ 
+            status: 'pendente', 
+            observacoes: `Falha na leitura automática por IA: ${error.message || error}`,
+            updated_at: new Date().toISOString() 
+          })
+          .eq('worker_id', worker_id)
+          .eq('period_year', year)
+          .eq('period_month', month)
+          .eq('status', 'enviado');
+          
+        if (resetErr) {
+          console.error("[DB Sync] Erro ao resetar status para 'pendente':", resetErr);
+        }
+      } catch (dbResetErr) {
+        console.error("[DB Sync] Falha geral ao resetar status:", dbResetErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
