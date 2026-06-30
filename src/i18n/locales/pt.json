@@ -273,6 +273,10 @@
       "validate": "Validar Arquivo",
       "reject": "Excluir Arquivo / Rejeitar"
     },
+    "buttons": {
+      "validate": "Validar",
+      "validated": "Validado"
+    },
     "messages": {
       "loadError": "Erro ao carregar os dados dos trabalhadores.",
       "generatingLink": "Gerando link seguro...",
@@ -404,7 +408,7 @@
     "daily_mgmt": "Gestão Diária",
     "version": "v2.5.0 (Operações)",
     "app_name": "MCS Operações",
-    "app_subtitle": "Mastercorp Suite"
+    "app_subtitle": "MCS Suite"
   },
   "dashboard": {
     "title": "Dashboard Diretoria",
@@ -771,7 +775,7 @@
     "headerProposal": "Assinatura Digital de Proposta",
     "headerContract": "Assinatura Digital de Contrato",
     "subtitleProposal": "Estudo Comercial • {{code}}",
-    "subtitleContract": "Mastercorp Ecosystem",
+    "subtitleContract": "MCS Ecosystem",
     "statusSigned": "Assinado Digitalmente",
     "statusPending": "Aguardando Assinatura",
     "tabProposal": "1. Proposta Comercial",
@@ -871,6 +875,7 @@
     },
     "table": {
       "code": "Código",
+      "createdAt": "Data de Criação",
       "clientSite": "Cliente / Obra",
       "type": "Tipo",
       "status": "Status",
@@ -1175,6 +1180,14 @@
       "weeks": "semanas",
       "generalNotes": "Observações Gerais",
       "generalNotesPlaceholder": "Condições especiais, restrições ou contexto da proposta...",
+      "validation": {
+        "selectCountry": "Por favor, selecione o País.",
+        "fillPostalCode": "Por favor, insira o Código Postal.",
+        "selectSiteMultiple": "Este cliente possui múltiplas obras cadastradas. Por favor, selecione uma obra para prosseguir.",
+        "selectTarget": "Por favor, selecione um Cliente ou Lead.",
+        "fillStartDate": "Por favor, insira a Data Prevista de Início.",
+        "fillEndDate": "Por favor, insira a Data Prevista de Fim."
+      },
       "scheduleTitle": "Jornada de Trabalho Personalizada",
       "scheduleSubtitle": "Configure os dias de trabalho e as horas diárias para esta proposta/estimativa.",
       "weekdaysLabel": "Segunda a Sexta",

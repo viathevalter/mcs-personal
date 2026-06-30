@@ -2,12 +2,16 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Building2, MapPin, Users, Wallet, History } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Users, Wallet, History, ShieldCheck } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Placeholders for the tabs content
 import { ClientGeneralTab } from '../components/tabs/ClientGeneralTab';
 import { ClientSitesTab } from '../components/tabs/ClientSitesTab';
+import { ClientFinanceTab } from '../components/tabs/ClientFinanceTab';
+import { ClientContactsTab } from '../components/tabs/ClientContactsTab';
+import { ClientHistoryTab } from '../components/tabs/ClientHistoryTab';
+import { ClientViesTab } from '../components/tabs/ClientViesTab';
 
 export function ClientDetailPage() {
   const { id } = useParams();
@@ -32,7 +36,7 @@ export function ClientDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-6">
+    <div className="space-y-6 w-full px-8 py-6">
       <div className="flex items-center gap-4">
         <Button 
           variant="ghost" 
@@ -63,6 +67,10 @@ export function ClientDetailPage() {
             <Users className="h-4 w-4" />
             Contatos
           </TabsTrigger>
+          <TabsTrigger value="vies" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Fiscal / VIES
+          </TabsTrigger>
           <TabsTrigger value="finance" className="gap-2">
             <Wallet className="h-4 w-4" />
             Financeiro / Faturamento
@@ -82,27 +90,19 @@ export function ClientDetailPage() {
         </TabsContent>
 
         <TabsContent value="contacts" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
-          <div className="text-center py-10 text-muted-foreground">
-            <Users className="mx-auto h-12 w-12 opacity-20 mb-4" />
-            <h3 className="text-lg font-medium">Contatos do Cliente</h3>
-            <p>Este módulo será implementado na próxima fase.</p>
-          </div>
+          <ClientContactsTab clientId={client.id!} />
+        </TabsContent>
+
+        <TabsContent value="vies" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
+          <ClientViesTab client={client} />
         </TabsContent>
 
         <TabsContent value="finance" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
-          <div className="text-center py-10 text-muted-foreground">
-            <Wallet className="mx-auto h-12 w-12 opacity-20 mb-4" />
-            <h3 className="text-lg font-medium">Dados Financeiros</h3>
-            <p>Configurações de faturamento e limites de crédito serão implementados no Bloco 4 (Comercial/Faturamento).</p>
-          </div>
+          <ClientFinanceTab client={client} />
         </TabsContent>
 
         <TabsContent value="history" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
-          <div className="text-center py-10 text-muted-foreground">
-            <History className="mx-auto h-12 w-12 opacity-20 mb-4" />
-            <h3 className="text-lg font-medium">Histórico de Alterações</h3>
-            <p>Log de auditoria em desenvolvimento.</p>
-          </div>
+          <ClientHistoryTab client={client} />
         </TabsContent>
       </Tabs>
     </div>

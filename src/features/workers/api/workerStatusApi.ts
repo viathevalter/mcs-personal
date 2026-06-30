@@ -96,6 +96,11 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
             updateData.data_baixa_seguridad = effectiveDate;
         } else if (newValue.toUpperCase().includes('ALTA')) {
             updateData.data_alta_seguridad = effectiveDate;
+            if (worker.status_trabajador?.toUpperCase() === 'PENDENTE INGRESSO') {
+                updateData.status_trabajador = 'Ativo';
+                updateData.data_ingresso = effectiveDate;
+                updateData.data_baixa = null;
+            }
         }
     }
 
@@ -157,6 +162,20 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
             .is('fechasalidatrabajador', null);
 
         if (allocError) console.error('Erro ao atualizar Alocações:', allocError);
+
+        // Sincronizar com a tabela nova core_personal.worker_assignments
+        const { error: newAllocError } = await supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .update({ 
+                status: 'completed', 
+                end_date: effectiveDate 
+            })
+            .eq('worker_id', workerId)
+            .in('status', ['planned', 'active', 'paused'])
+            .is('end_date', null);
+
+        if (newAllocError) console.error('Erro ao atualizar novos worker_assignments:', newAllocError);
 
         // Regra 3: Observações no Controle de Horas
         const d = new Date(effectiveDate);

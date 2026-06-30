@@ -9,6 +9,17 @@ export interface Lead {
   phone?: string;
   company_name?: string;
   notes?: string;
+  tax_id?: string;
+  legal_name?: string;
+  country_id?: string;
+  region_id?: string;
+  province?: string;
+  city?: string;
+  postal_code?: string;
+  address_line?: string;
+  billing_email?: string;
+  payment_term_id?: string;
+  client_id?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;

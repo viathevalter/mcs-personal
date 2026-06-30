@@ -73,12 +73,26 @@ export interface ColaboradorAlocado {
 }
 
 export interface Estimacion {
-  id: number;
+  id: number | string;
   Titulo: string;
   Cliente: string;
   Etapa: "Enviado" | "Negociación" | "Firmado" | "Convertido" | "Perdido";
   Valor?: number;
   DataCriacao: string;
+  
+  // Detalhes extras para as novas colunas, tooltips e modal
+  codigo?: string;
+  versionNumber?: number;
+  empresa?: string;
+  vendedor?: string;
+  tipo?: string;
+  pais?: string;
+  status?: string;
+  validityDate?: string;
+  startDate?: string;
+  endDate?: string;
+  margin?: number;
+  items?: { name: string; quantity: number }[];
 }
 
 export interface EventoOperacional {
@@ -110,6 +124,8 @@ export interface Filters {
   empresa: string | null;
   comercial: string | null;
   cliente: string | null;
+  status: string | null;
+  pais: string | null;
 }
 
 // --- INCIDENCIAS TYPES ---

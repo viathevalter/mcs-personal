@@ -25,6 +25,7 @@ interface AdminUploadDialogProps {
     contratante: string; // The employer specifically for folder structure
     hourRecordId?: string; // If it doesn't exist, we might need to create it, but in our flow it should exist as 'pendente'
     empresaId?: string; // We need this to create the record if it doesn't exist
+    workerFunction?: string;
     onSuccess: () => void;
 }
 
@@ -39,6 +40,7 @@ export function AdminUploadDialog({
     contratante,
     hourRecordId,
     empresaId,
+    workerFunction,
     onSuccess
 }: AdminUploadDialogProps) {
     const [file, setFile] = useState<File | null>(null);
@@ -66,18 +68,14 @@ export function AdminUploadDialog({
 
             // Structure: Nome do trabalhador.ext
             const extension = file.name.split('.').pop() || 'pdf';
-            const safeCliente = clientXName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-            const safeNome = workerName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
 
-            const fileName = `${safeNome}.${extension}`;
-
-            // Path Structure in Bucket: /ANO/MES/CLIENTE/ARQUIVO
             const monthStr = periodMonth.toString().padStart(2, '0');
-            const filePath = `${periodYear}/${monthStr}/${safeCliente}/${fileName}`;
+            const fileName = `${workerId}_${monthStr}_${periodYear}.${extension}`;
+            const filePath = fileName;
 
             // Upload to Supabase Storage
             const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('horas_trabalhadores')
+                .from('extracao-horas')
                 .upload(filePath, file, {
                     upsert: true,
                     cacheControl: '3600'
@@ -131,6 +129,53 @@ export function AdminUploadDialog({
                     throw new Error('Falha ao criar e registrar arquivo no banco de dados');
                 }
             }
+
+            // Disparar OCR em segundo plano
+            const resolveAndTriggerOcr = async () => {
+                if (!empresaId) return;
+                try {
+                    const { data: allClients } = await supabase
+                        .schema('core_common')
+                        .from('clients')
+                        .select('id, legal_name, trade_name');
+
+                    const matched = allClients?.find(c => 
+                        c.legal_name?.toLowerCase().includes(clientXName.toLowerCase()) || 
+                        c.trade_name?.toLowerCase().includes(clientXName.toLowerCase()) ||
+                        clientXName.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
+                        clientXName.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
+                    );
+
+                    if (matched) {
+                        const extension = file.name.split('.').pop() || 'pdf';
+                        const mimeType = file.type || (extension === 'pdf' ? 'application/pdf' : 'image/jpeg');
+
+                        supabase.functions.invoke('process-document-ocr', {
+                            body: {
+                                file_path: fileUrl,
+                                document_type: "timesheet",
+                                bucket_id: "extracao-horas",
+                                mime_type: mimeType,
+                                worker_id: workerId,
+                                client_id: matched.id,
+                                worker_function: workerFunction || null,
+                                year: periodYear,
+                                month: periodMonth
+                            }
+                        }).then(res => {
+                            console.log("Background OCR triggered successfully:", res);
+                        }).catch(err => {
+                            console.error("Background OCR invoke error:", err);
+                        });
+                    } else {
+                        console.warn(`[OCR Trigger] Cliente não encontrado com nome "${clientXName}" para disparo de OCR.`);
+                    }
+                } catch (e) {
+                    console.error("[OCR Trigger] Erro ao disparar OCR em segundo plano:", e);
+                }
+            };
+
+            resolveAndTriggerOcr();
 
             toast.success('Folha enviada com sucesso em nome do trabalhador!');
             onSuccess();

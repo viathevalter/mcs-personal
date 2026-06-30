@@ -3,12 +3,15 @@ import { PedidoStatusBadge } from '../PedidoStatusBadge';
 import { formatCurrency } from '@/shared/utils/currency';
 import { format } from 'date-fns';
 import type { Pedido } from '../../types';
+import { usePedidoFinanceAccess } from '../../hooks/usePedidoFinanceAccess';
 
 interface Props {
   pedido: Pedido;
 }
 
 export function PedidoOverviewTab({ pedido }: Props) {
+  const { hasFinanceAccess } = usePedidoFinanceAccess();
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
       <Card>
@@ -79,27 +82,29 @@ export function PedidoOverviewTab({ pedido }: Props) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Snapshot Financeiro</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Receita Total:</span>
-              <span className="font-bold text-emerald-600">{formatCurrency(pedido.total_revenue_snapshot || 0)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Custo Base:</span>
-              <span className="font-bold text-red-600">{formatCurrency(pedido.total_cost_snapshot || 0)}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-sm font-medium">Margem (%):</span>
-              <span className={`font-bold ${pedido.margin_percent_snapshot && pedido.margin_percent_snapshot >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {pedido.margin_percent_snapshot || 0}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        {hasFinanceAccess && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Snapshot Financeiro</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Receita Total:</span>
+                <span className="font-bold text-emerald-600">{formatCurrency(pedido.total_revenue_snapshot || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Custo Base:</span>
+                <span className="font-bold text-red-600">{formatCurrency(pedido.total_cost_snapshot || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-sm font-medium">Margem (%):</span>
+                <span className={`font-bold ${pedido.margin_percent_snapshot && pedido.margin_percent_snapshot >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {pedido.margin_percent_snapshot || 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
       
       {pedido.general_notes && (

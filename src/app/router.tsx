@@ -30,6 +30,8 @@ import { SuppliersPage } from '../features/master-data/suppliers/pages/Suppliers
 import { CountriesPage } from '../features/master-data/locations/pages/CountriesPage';
 import { RegionsPage } from '../features/master-data/locations/pages/RegionsPage';
 import { EpisPage } from '../features/master-data/epis/pages/EpisPage';
+import { PaymentTermsPage } from '../features/master-data/payment-terms/pages/PaymentTermsPage';
+import { ColetaDadosPublicaPage } from '../features/comercial/leads/ColetaDadosPublicaPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
@@ -77,10 +79,30 @@ import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
 import { LeadsPage } from '../features/comercial/leads/LeadsPage';
 import { ComercialSettingsPage } from '../features/comercial/settings/ComercialSettingsPage';
 
+import { LogisticaLayout } from '../features/logistica/layout/LogisticaLayout';
+import { LogisticaDashboard } from '../features/logistica/pages/LogisticaDashboard';
+import { AlojamentosList } from '../features/logistica/pages/Registros/AlojamentosList';
+import { AlojamentoForm } from '../features/logistica/pages/Registros/AlojamentoForm';
+import { ProvedorForm } from '../features/logistica/pages/Registros/ProvedorForm';
+
+import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
+import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
+import { FaturasPendentes } from '../features/faturamento/pages/FaturasPendentes';
+import { FaturasTracking } from '../features/faturamento/pages/FaturasTracking';
+import { FaturasHistorico } from '../features/faturamento/pages/FaturasHistorico';
+import { PortalCliente } from '../features/faturamento/pages/PortalCliente';
+
+import { CierreHorasLayout } from '../features/cierre-horas/layout/CierreHorasLayout';
+import { UploadHorasPage } from '../features/cierre-horas/pages/UploadHorasPage';
+import { LogExtracaoPage } from '../features/cierre-horas/pages/LogExtracaoPage';
+
 import { FinanceiroLayout } from '../features/financeiro/layout/FinanceiroLayout';
 import { Dashboard as FinanceiroDashboard } from '../features/financeiro/pages/Dashboard';
 import { Analises as FinanceiroAnalises } from '../features/financeiro/pages/Analises';
 import { Titulos as FinanceiroTitulos } from '../features/financeiro/pages/Titulos';
+import { Pagos as FinanceiroPagos } from '../features/financeiro/pages/Pagos';
+import { Cobros as FinanceiroCobros } from '../features/financeiro/pages/Cobros';
+import { Cobranca as FinanceiroCobranca } from '../features/financeiro/pages/Cobranca';
 import { TitleDetail as FinanceiroTitleDetail } from '../features/financeiro/pages/TitleDetail';
 import { Settings as FinanceiroSettings } from '../features/financeiro/pages/Settings';
 
@@ -111,6 +133,21 @@ export const router = createBrowserRouter([
     {
         path: '/enviar-documentos/:token',
         element: <WorkerDocCapturePage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/aprovacao-cliente/:token',
+        element: <PortalCliente />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/coleta-dados/:id',
+        element: <ColetaDadosPublicaPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/novo-lead',
+        element: <ColetaDadosPublicaPage />,
         errorElement: <RootErrorBoundary />,
     },
     {
@@ -160,7 +197,29 @@ export const router = createBrowserRouter([
             },
             {
                 path: '/faturamento',
-                element: <ComingSoonPage moduleName="MCS Facturacion" />,
+                element: <FaturamentoLayout />,
+                children: [
+                    {
+                        index: true,
+                        element: <Navigate to="/faturamento/dashboard" replace />
+                    },
+                    {
+                        path: 'dashboard',
+                        element: <FaturamentoDashboard />
+                    },
+                    {
+                        path: 'pendentes',
+                        element: <FaturasPendentes />
+                    },
+                    {
+                        path: 'tracking',
+                        element: <FaturasTracking />
+                    },
+                    {
+                        path: 'historico',
+                        element: <FaturasHistorico />
+                    }
+                ]
             },
             {
                 path: '/financeiro',
@@ -168,7 +227,7 @@ export const router = createBrowserRouter([
                 children: [
                     {
                         index: true,
-                        element: <Navigate to="/financeiro/dashboard" replace />
+                        element: <Navigate to="/financeiro/titulos" replace />
                     },
                     {
                         path: 'dashboard',
@@ -181,6 +240,18 @@ export const router = createBrowserRouter([
                     {
                         path: 'titulos',
                         element: <FinanceiroTitulos />
+                    },
+                    {
+                        path: 'pagos',
+                        element: <FinanceiroPagos />
+                    },
+                    {
+                        path: 'cobros',
+                        element: <FinanceiroCobros />
+                    },
+                    {
+                        path: 'cobranca',
+                        element: <FinanceiroCobranca />
                     },
                     {
                         path: 'titulos/:id',
@@ -202,9 +273,36 @@ export const router = createBrowserRouter([
             },
             {
                 path: '/logistica',
+                element: <LogisticaLayout />,
                 children: [
-                    { index: true, element: <ComingSoonPage moduleName="MCS Logistica" /> },
-                    { path: 'tarefas', element: <LogisticaTasksPage /> }
+                    {
+                        index: true,
+                        element: <Navigate to="/logistica/dashboard" replace />
+                    },
+                    {
+                        path: 'dashboard',
+                        element: <LogisticaDashboard />
+                    },
+                    {
+                        path: 'registros/alojamentos',
+                        element: <AlojamentosList />
+                    },
+                    {
+                        path: 'registros/alojamentos/novo',
+                        element: <AlojamentoForm />
+                    },
+                    {
+                        path: 'registros/provedores',
+                        element: <AlojamentosList />
+                    },
+                    {
+                        path: 'registros/provedores/novo',
+                        element: <ProvedorForm />
+                    },
+                    {
+                        path: 'tarefas',
+                        element: <LogisticaTasksPage />
+                    }
                 ]
             },
             {
@@ -213,7 +311,21 @@ export const router = createBrowserRouter([
             },
             {
                 path: '/cierre-horas',
-                element: <ComingSoonPage moduleName="MCS Cierre de Horas" />,
+                element: <CierreHorasLayout />,
+                children: [
+                    {
+                        index: true,
+                        element: <Navigate to="/cierre-horas/upload" replace />
+                    },
+                    {
+                        path: 'upload',
+                        element: <UploadHorasPage />
+                    },
+                    {
+                        path: 'logs',
+                        element: <LogExtracaoPage />
+                    }
+                ]
             },
             {
                 path: '/operacoes',
@@ -344,6 +456,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'clients/:id',
                         element: <ClientDetailPage />,
+                    },
+                    {
+                        path: 'payment-terms',
+                        element: <PaymentTermsPage />,
                     },
                     {
                         path: 'client-sites',

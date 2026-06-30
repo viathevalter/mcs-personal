@@ -41,24 +41,34 @@ export function useSolicitudDetail(solicitudId: string | undefined) {
           .single();
 
         pedido = pedidoData;
+      }
 
-        if (pedido) {
-          const [{ data: clientData }, { data: siteData }] = await Promise.all([
-            pedido.client_id ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', pedido.client_id).maybeSingle() : Promise.resolve({ data: null }),
-            pedido.client_site_id ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', pedido.client_site_id).maybeSingle() : Promise.resolve({ data: null })
-          ]);
+      // Resolve client and site (fall back to pedido if null)
+      const targetClientId = solicitud.client_id || pedido?.client_id;
+      const targetSiteId = solicitud.client_site_id || pedido?.client_site_id;
 
-          client = clientData;
-          client_site = siteData;
-        }
+      if (targetClientId || targetSiteId) {
+        const [{ data: clientData }, { data: siteData }] = await Promise.all([
+          targetClientId 
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', targetClientId).maybeSingle() 
+            : Promise.resolve({ data: null }),
+          targetSiteId 
+            ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', targetSiteId).maybeSingle() 
+            : Promise.resolve({ data: null })
+        ]);
+
+        client = clientData;
+        client_site = siteData;
       }
 
       return {
         ...solicitud,
+        client: client || undefined,
+        client_site: client_site || undefined,
         pedido: pedido ? {
           ...pedido,
-          client: client || undefined,
-          client_site: client_site || undefined
+          client: (pedido.client_id === targetClientId ? client : null) || undefined,
+          client_site: (pedido.client_site_id === targetSiteId ? client_site : null) || undefined
         } : undefined
       } as SolicitudDetail;
     },

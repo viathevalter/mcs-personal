@@ -36,7 +36,9 @@ export function useDepartmentTasks(departmentCodes: string[]) {
         .select(`
           *,
           department:departments!inner(id, name, code),
-          solicitud:solicitudes_operativas!inner(id, codigo, title, status, priority, due_date, pedido_id, tipo),
+          solicitud:solicitudes_operativas!inner(
+            id, codigo, title, status, priority, due_date, pedido_id, tipo, empresa_id, client_id
+          ),
           assigned_user:mcs_users!assigned_to(id, email),
           blocked_by_task:solicitud_tareas!blocked_by_task_id(id, title)
         `);
@@ -50,7 +52,45 @@ export function useDepartmentTasks(departmentCodes: string[]) {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as unknown as SolicitudTareaDetail[]; 
+
+      const tasks = (data || []) as any[];
+      const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id).filter(Boolean))];
+      const clientIds = [...new Set(tasks.map(t => t.solicitud?.client_id).filter(Boolean))];
+
+      const [empresasRes, clientsRes] = await Promise.all([
+        empresaIds.length > 0
+          ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
+          : Promise.resolve({ data: [] }),
+        clientIds.length > 0
+          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
+      const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
+
+      const mappedTasks = tasks.map(t => {
+        if (!t.solicitud) return t;
+        const emp = empresasMap.get(t.solicitud.empresa_id);
+        const cli = clientsMap.get(t.solicitud.client_id);
+        return {
+          ...t,
+          solicitud: {
+            ...t.solicitud,
+            empresa: emp ? { id: emp.id, name: emp.nome } : null,
+            pedido: cli ? {
+              id: t.solicitud.pedido_id || '',
+              client: {
+                id: cli.id,
+                legal_name: cli.legal_name,
+                trade_name: cli.trade_name
+              }
+            } : null
+          }
+        };
+      });
+
+      return mappedTasks as unknown as SolicitudTareaDetail[]; 
     },
     enabled: !!selectedEmpresaId && departmentCodes.length > 0,
   });

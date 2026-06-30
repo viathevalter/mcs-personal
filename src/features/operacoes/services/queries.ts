@@ -61,23 +61,281 @@ export const fetchDashboardData = async (_filters: Filters) => {
   };
 };
 
-export const fetchEstimaciones = async (_filters: Filters): Promise<Estimacion[]> => {
+export const fetchEstimaciones = async (filters: Filters): Promise<Estimacion[]> => {
   if (!isConnected) return [];
 
-  const { data, error } = await supabase!
+  console.log('[DEBUG fetchEstimaciones] Filtros recebidos:', filters);
+
+  // Mapear a empresa selecionada nos filtros (nome de fantasia/social) para obter o ID correspondente
+  let companyId: string | null = null;
+  if (filters.empresa) {
+    const { data: companies, error: empError } = await supabase!
+      .schema('core_common')
+      .from('empresas')
+      .select('id, trade_name, legal_name');
+
+    if (empError) {
+      console.error('[DEBUG fetchEstimaciones] Erro ao buscar empresas:', empError);
+    }
+
+    if (companies) {
+      const matched = companies.find(
+        (c: any) =>
+          c.trade_name?.toLowerCase() === filters.empresa?.toLowerCase() ||
+          c.legal_name?.toLowerCase() === filters.empresa?.toLowerCase()
+      );
+      if (matched) {
+        companyId = matched.id;
+        console.log('[DEBUG fetchEstimaciones] Empresa encontrada:', matched.trade_name, 'ID:', companyId);
+      } else {
+        console.log('[DEBUG fetchEstimaciones] Nenhuma empresa corresponde ao nome:', filters.empresa);
+      }
+    }
+  }
+
+  // Mapear o vendedor (Comercial Responsável) selecionado nos filtros para obter o ID do usuário correspondente
+  let sellerUserId: string | null = null;
+  if (filters.comercial) {
+    const { data: users, error: userError } = await supabase!
+      .schema('core_operacoes')
+      .from('mcs_users')
+      .select('id, email, display_name');
+
+    if (userError) {
+      console.error('[DEBUG fetchEstimaciones] Erro ao buscar mcs_users:', userError);
+    }
+
+    if (users) {
+      const matched = users.find(
+        (u: any) =>
+          u.display_name?.toLowerCase() === filters.comercial?.toLowerCase() ||
+          u.email?.toLowerCase() === filters.comercial?.toLowerCase()
+      );
+      if (matched) {
+        sellerUserId = matched.id;
+        console.log('[DEBUG fetchEstimaciones] Vendedor encontrado:', matched.display_name, 'ID:', sellerUserId);
+      }
+    }
+  }
+
+  // Mapear o cliente/lead selecionado nos filtros para obter o ID correspondente
+  let clientId: string | null = null;
+  let leadId: string | null = null;
+  if (filters.cliente) {
+    const [clientsRes, leadsRes] = await Promise.all([
+      supabase!.schema('core_common').from('clients').select('id, legal_name, trade_name'),
+      supabase!.schema('core_comercial').from('leads').select('id, name, company_name')
+    ]);
+
+    if (clientsRes.data) {
+      const matchedC = clientsRes.data.find(
+        (c: any) =>
+          c.trade_name?.toLowerCase() === filters.cliente?.toLowerCase() ||
+          c.legal_name?.toLowerCase() === filters.cliente?.toLowerCase()
+      );
+      if (matchedC) clientId = matchedC.id;
+    }
+    if (leadsRes.data) {
+      const matchedL = leadsRes.data.find(
+        (l: any) =>
+          l.company_name?.toLowerCase() === filters.cliente?.toLowerCase() ||
+          l.name?.toLowerCase() === filters.cliente?.toLowerCase()
+      );
+      if (matchedL) leadId = matchedL.id;
+    }
+    console.log('[DEBUG fetchEstimaciones] Filtro Cliente resolvido:', { clientId, leadId });
+  }
+
+  let query = supabase!
+    .schema('core_comercial')
     .from('estimaciones')
-    .select('*')
-    .limit(50);
+    .select(`
+      id, codigo, status, client_id, lead_id, empresa_id, created_at, validity_date, expected_start_date, expected_end_date, created_by, country_id, estimation_type,
+      current_version:estimacion_versions!fk_estimacion_current_version(
+        id, version_number, total_revenue, margin_percent,
+        items:estimacion_items(
+          quantity,
+          job_function:job_functions(id, name)
+        )
+      )
+    `)
+    .order('created_at', { ascending: false });
 
-  if (error || !data) return [];
+  if (companyId) {
+    query = query.eq('empresa_id', companyId);
+  }
 
-  return data.map((row: any) => ({
-    id: row.id,
-    Titulo: `Presupuesto #${row.id}`, // or row.titulo not in schema?
-    Cliente: 'Unknown', // Need join
-    Etapa: 'Enviado', // Map status
-    DataCriacao: row.created_at || new Date().toISOString().split('T')[0]
-  }));
+  if (sellerUserId) {
+    query = query.eq('created_by', sellerUserId);
+  }
+
+  if (clientId || leadId) {
+    const conditions = [];
+    if (clientId) conditions.push(`client_id.eq.${clientId}`);
+    if (leadId) conditions.push(`lead_id.eq.${leadId}`);
+    query = query.or(conditions.join(','));
+  }
+
+  // Filtrar por País (pais) se selecionado
+  let countryId: string | null = null;
+  if (filters.pais) {
+    const { data: countries } = await supabase!
+      .schema('core_common')
+      .from('countries')
+      .select('id, name');
+
+    if (countries) {
+      const matched = countries.find(
+        (c: any) => c.name?.toLowerCase() === filters.pais?.toLowerCase()
+      );
+      if (matched) {
+        countryId = matched.id;
+        console.log('[DEBUG fetchEstimaciones] País encontrado:', matched.name, 'ID:', countryId);
+      }
+    }
+  }
+
+  if (countryId) {
+    query = query.eq('country_id', countryId);
+  }
+
+  // Filtrar por status se selecionado
+  if (filters.status) {
+    query = query.eq('status', filters.status);
+  }
+
+  if (filters.monthRange && filters.monthRange[0]) {
+    const [y, m] = filters.monthRange[0].split('-');
+    const lastDay = new Date(Number(y), Number(m), 0).getDate();
+    const start = `${filters.monthRange[0]}-01T00:00:00.000Z`;
+    let end = `${filters.monthRange[0]}-${lastDay}T23:59:59.999Z`;
+
+    if (filters.monthRange[1]) {
+      const [y2, m2] = filters.monthRange[1].split('-');
+      const lastDay2 = new Date(Number(y2), Number(m2), 0).getDate();
+      end = `${filters.monthRange[1]}-${lastDay2}T23:59:59.999Z`;
+    }
+
+    query = query.gte('created_at', start).lte('created_at', end);
+    console.log(`[DEBUG fetchEstimaciones] Filtrando criados entre: ${start} e ${end}`);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[DEBUG fetchEstimaciones] Erro na busca de estimativas:', error);
+    return [];
+  }
+  
+  if (!data || data.length === 0) {
+    console.log('[DEBUG fetchEstimaciones] Nenhuma estimativa encontrada para os filtros aplicados.');
+    return [];
+  }
+
+  console.log(`[DEBUG fetchEstimaciones] Encontradas ${data.length} estimativas. Carregando detalhes...`);
+
+  const clientIds = [...new Set(data.map((d: any) => d.client_id).filter(Boolean))];
+  const leadIds = [...new Set(data.map((d: any) => d.lead_id).filter(Boolean))];
+  const countryIds = [...new Set(data.map((d: any) => d.country_id).filter(Boolean))];
+
+  const [clientsRes, leadsRes, usersRes, companiesRes, countriesRes] = await Promise.all([
+    clientIds.length > 0
+      ? supabase!.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
+      : Promise.resolve({ data: [] }),
+    leadIds.length > 0
+      ? supabase!.schema('core_comercial').from('leads').select('id, name, company_name').in('id', leadIds)
+      : Promise.resolve({ data: [] }),
+    supabase!.schema('core_operacoes').from('mcs_users').select('id, email, display_name'),
+    supabase!.schema('core_common').from('empresas').select('id, legal_name, trade_name'),
+    countryIds.length > 0
+      ? supabase!.schema('core_common').from('countries').select('id, name').in('id', countryIds)
+      : Promise.resolve({ data: [] })
+  ]);
+
+  if (clientsRes.error) {
+    console.error('[DEBUG fetchEstimaciones] Erro ao buscar clientes:', clientsRes.error);
+  }
+  if (leadsRes.error) {
+    console.error('[DEBUG fetchEstimaciones] Erro ao buscar leads:', leadsRes.error);
+  }
+
+  const clients = clientsRes.data || [];
+  const leads = leadsRes.data || [];
+  const users = usersRes.data || [];
+  const companies = companiesRes.data || [];
+  const countries = countriesRes.data || [];
+
+  return data.map((row: any) => {
+    // Resolver o nome do cliente/oportunidade
+    let clientName = 'N/A';
+    if (row.client_id) {
+      const client = clients.find((c: any) => c.id === row.client_id);
+      if (client) {
+        clientName = client.trade_name || client.legal_name;
+      }
+    } else if (row.lead_id) {
+      const lead = leads.find((l: any) => l.id === row.lead_id);
+      if (lead) {
+        clientName = lead.company_name || lead.name;
+      }
+    }
+
+    // Resolver a etapa correspondente
+    // 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'cancelled' | 'superseded'
+    // 'Enviado' | 'Negociación' | 'Firmado' | 'Convertido' | 'Perdido'
+    let etapa: "Enviado" | "Negociación" | "Firmado" | "Convertido" | "Perdido" = 'Negociación';
+    if (row.status === 'sent') etapa = 'Enviado';
+    else if (row.status === 'draft' || row.status === 'review') etapa = 'Negociación';
+    else if (row.status === 'signed') etapa = 'Firmado';
+    else if (row.status === 'approved') etapa = 'Convertido';
+    else if (['rejected', 'expired', 'cancelled', 'superseded'].includes(row.status)) etapa = 'Perdido';
+
+    const valor = row.current_version?.total_revenue || 0;
+    const margin = row.current_version?.margin_percent || 0;
+    const versionNumber = row.current_version?.version_number || 1;
+
+    // Resolver empresa
+    const emp = companies.find((c: any) => c.id === row.empresa_id);
+    const empresaName = emp ? (emp.trade_name || emp.legal_name) : 'N/A';
+
+    // Resolver vendedor (mcs_user)
+    const seller = users.find((u: any) => u.id === row.created_by);
+    const sellerName = seller ? (seller.display_name || seller.email) : 'N/A';
+
+    // Resolver pais
+    const country = countries.find((c: any) => c.id === row.country_id);
+    const countryName = country ? country.name : 'N/A';
+
+    // Resolver tipo
+    let tipoText = 'Outro';
+    if (row.estimation_type === 'new_allocation') tipoText = 'Nova Alocação';
+    else if (row.estimation_type === 'expansion') tipoText = 'Expansão';
+
+    return {
+      id: row.id,
+      Titulo: row.codigo || `Orçamento #${row.id}`,
+      Cliente: clientName,
+      Etapa: etapa,
+      Valor: Number(valor),
+      DataCriacao: row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+      
+      // Detalhes estendidos
+      codigo: row.codigo,
+      versionNumber,
+      empresa: empresaName,
+      vendedor: sellerName,
+      tipo: tipoText,
+      pais: countryName,
+      status: row.status || 'draft',
+      validityDate: row.validity_date,
+      startDate: row.expected_start_date,
+      endDate: row.expected_end_date,
+      margin: Number(margin),
+      items: row.current_version?.items?.map((it: any) => ({
+        name: it.job_function?.name || 'Item',
+        quantity: it.quantity || 0
+      })) || []
+    };
+  });
 };
 
 export const fetchPedidos = async (filters: Filters): Promise<Pedido[]> => {
@@ -566,4 +824,81 @@ export const fetchClientes = async (): Promise<any[]> => {
     status: 'Ativo',
     projetos: 0
   }));
+}
+
+export const fetchContratadosPorEstimacion = async (estimacionIds: string[]): Promise<any[]> => {
+  if (!isConnected || estimacionIds.length === 0) return [];
+
+  try {
+    console.log('[DEBUG fetchContratadosPorEstimacion] Buscando contratados para estimativas:', estimacionIds.length);
+
+    // 1. Buscar os pedidos associados a essas estimativas
+    const { data: pedidos, error: pedidosErr } = await supabase!
+      .schema('core_comercial')
+      .from('pedidos')
+      .select('id, codigo, source_estimacion_id')
+      .in('source_estimacion_id', estimacionIds);
+
+    if (pedidosErr) {
+      console.error('[DEBUG fetchContratadosPorEstimacion] Erro ao buscar pedidos:', pedidosErr);
+      return [];
+    }
+
+    if (!pedidos || pedidos.length === 0) {
+      console.log('[DEBUG fetchContratadosPorEstimacion] Nenhum pedido associado a estas estimativas.');
+      return [];
+    }
+
+    const orderCodes = pedidos.map((p: any) => p.codigo).filter(Boolean);
+    if (orderCodes.length === 0) return [];
+
+    console.log('[DEBUG fetchContratadosPorEstimacion] Códigos de pedido encontrados:', orderCodes);
+
+    // 2. Buscar os contratados reais vinculados a esses códigos de pedido
+    const { data: contratados, error: contratadosErr } = await supabase!
+      .from('contratados')
+      .select('id_funcion, cod_servico')
+      .in('cod_servico', orderCodes);
+
+    if (contratadosErr) {
+      console.error('[DEBUG fetchContratadosPorEstimacion] Erro ao buscar contratados:', contratadosErr);
+      return [];
+    }
+
+    if (!contratados || contratados.length === 0) {
+      console.log('[DEBUG fetchContratadosPorEstimacion] Nenhum contratado encontrado para estes pedidos.');
+      return [];
+    }
+
+    console.log('[DEBUG fetchContratadosPorEstimacion] Total de contratados brutos encontrados:', contratados.length);
+
+    // 3. Buscar os nomes das funções correspondentes do SharePoint (legado)
+    const { data: funcoes, error: funcoesErr } = await supabase!
+      .from('funcion')
+      .select('sp_id, nombre');
+
+    const funcoesMap: Record<string, string> = {};
+    if (!funcoesErr && funcoes) {
+      funcoes.forEach((f: any) => {
+        if (f.sp_id) funcoesMap[String(f.sp_id)] = f.nombre;
+      });
+    }
+
+    // 4. Mapear cada contratado de volta para sua função (nome) e estimativa de origem
+    const mapped = contratados.map((c: any) => {
+      const matchedPedido = pedidos.find((p: any) => p.codigo === c.cod_servico);
+      const functionName = c.id_funcion ? funcoesMap[String(c.id_funcion)] : null;
+      return {
+        estimacionId: matchedPedido?.source_estimacion_id,
+        functionName: functionName || 'Outro',
+        codServico: c.cod_servico
+      };
+    });
+
+    console.log('[DEBUG fetchContratadosPorEstimacion] Mapeados com sucesso:', mapped.length);
+    return mapped;
+  } catch (err) {
+    console.error('Erro em fetchContratadosPorEstimacion:', err);
+    return [];
+  }
 }

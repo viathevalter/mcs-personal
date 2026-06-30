@@ -11,9 +11,24 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
     for (const [path, file] of Object.entries(zip.files)) {
       if (path.endsWith('.xml')) {
         let content = await file.async('string');
+        const originalContent = content;
+
+        // 1. Clean split XML tags inside {{...}}
+        if (content.includes('{{')) {
+          content = content.replace(/\{\{([\s\S]*?)\}\}/g, (match, p1) => {
+            const cleaned = p1.replace(/<[^>]+>/g, '');
+            return `{{${cleaned}}}`;
+          });
+        }
+
+        // 2. Normalize IMAGE: tags (compatibility)
         if (/\{\{\s*IMAGE\s*:\s*[a-zA-Z0-9_]+\s*\}\}/i.test(content) || content.includes('IMAGE:')) {
           console.log(`[normalizeDocx] Normalizing IMAGE: tags in ${path}`);
           content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
+        }
+
+        if (content !== originalContent) {
+          console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);
           modified = true;
         }

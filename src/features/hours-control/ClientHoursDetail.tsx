@@ -12,21 +12,22 @@ import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Co
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
+import { ValidationScreen } from './ValidationScreen';
+import { Dialog, DialogContent } from '../../components/ui/dialog';
 import { useRole } from '../../app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 
 interface WorkerDetail {
     worker_id: string;
     worker_name: string;
+    cod_colab?: string;
+    funcion?: string;
     pasaporte: string | null;
     movil: string | null;
-    status: 'pendente' | 'enviado' | 'validado';
+    status: 'pendente' | 'enviado' | 'processado' | 'validado';
     file_url?: string;
     file_name?: string;
     hour_record_id?: string;
-    sharepoint_sync_status?: 'pending' | 'syncing' | 'success' | 'failed';
-    sharepoint_sync_date?: string;
-    sharepoint_error?: string;
     observacoes?: string | null;
     contratante: string;
     worker_status?: string | null;
@@ -56,6 +57,7 @@ export function ClientHoursDetail() {
         workerName: string;
         contratante: string;
         hourRecordId?: string;
+        workerFunction?: string;
     }>({ open: false, workerId: '', workerName: '', contratante: '' });
     const [notesDialogState, setNotesDialogState] = useState<{
         open: boolean;
@@ -64,6 +66,18 @@ export function ClientHoursDetail() {
         hourRecordId: string | null;
         existingNote: string | null;
     }>({ open: false, workerId: '', workerName: '', hourRecordId: null, existingNote: null });
+    const [validationDialogState, setValidationDialogState] = useState<{
+        open: boolean;
+        workerId: string;
+        workerName: string;
+        workerCode?: string;
+        workerFunction?: string;
+        fileUrl?: string;
+        fileName?: string;
+        filePath?: string;
+        recordId: string;
+        contratante: string;
+    }>({ open: false, workerId: '', workerName: '', recordId: '', contratante: '' });
 
     useEffect(() => {
         setPortalNode(document.getElementById('topbar-title-portal'));
@@ -75,8 +89,20 @@ export function ClientHoursDetail() {
         }
     }, [selectedEmpresaId, clientName, year, month, contratante, searchQuery]);
 
-    const fetchClientWorkers = async () => {
-        setLoading(true);
+    // Polling effect when there are processing files
+    useEffect(() => {
+        const hasProcessing = workers.some(w => w.status === 'enviado');
+        if (!hasProcessing) return;
+
+        const timer = setInterval(() => {
+            fetchClientWorkers(true);
+        }, 4000); // Poll every 4 seconds without global spinner
+
+        return () => clearInterval(timer);
+    }, [workers]);
+
+    const fetchClientWorkers = async (isPolling = false) => {
+        if (!isPolling) setLoading(true);
         try {
             // Fetch workers for this client
             let workersData = await getHoursControlWorkers({
@@ -123,15 +149,14 @@ export function ClientHoursDetail() {
                 return {
                     worker_id: w.id,
                     worker_name: w.nome,
+                    cod_colab: w.cod_colab,
+                    funcion: w.funcion,
                     pasaporte: w.pasaporte,
                     movil: w.movil,
                     status: hr?.status || 'pendente',
                     file_url: hr?.file_url,
                     file_name: hr?.file_name,
                     hour_record_id: hr?.id,
-                    sharepoint_sync_status: hr?.sharepoint_sync_status,
-                    sharepoint_sync_date: hr?.sharepoint_sync_date,
-                    sharepoint_error: hr?.sharepoint_error,
                     observacoes: hr?.observacoes,
                     contratante: w.contratante || '',
                     worker_status: w.status_trabajador,
@@ -153,7 +178,7 @@ export function ClientHoursDetail() {
         try {
             toast.loading(t('clientHoursDetail.messages.generatingLink'), { id: 'view_file' });
             const { data, error } = await supabase.storage
-                .from('horas_trabalhadores')
+                .from('extracao-horas')
                 .createSignedUrl(filePath, 60); // 60 seconds validity
 
             if (error) throw error;
@@ -176,7 +201,7 @@ export function ClientHoursDetail() {
             setActionLoading(recordId + '-dl');
             toast.loading(t('clientHoursDetail.messages.generatingDl'), { id: 'download_file' });
             const { data, error } = await supabase.storage
-                .from('horas_trabalhadores')
+                .from('extracao-horas')
                 .createSignedUrl(filePath, 60); // 60 seconds validity
 
             if (error) throw error;
@@ -197,21 +222,35 @@ export function ClientHoursDetail() {
         }
     };
 
-    const handleValidateFile = async (recordId: string) => {
+    const handleOpenValidation = async (worker: WorkerDetail) => {
+        if (!worker.hour_record_id) return;
         try {
-            setActionLoading(recordId + '-ap');
-            const { error } = await supabase
-                .schema('core_personal')
-                .from('worker_hours')
-                .update({ status: 'validado' })
-                .eq('id', recordId);
+            setActionLoading(worker.hour_record_id + '-ap');
+            let signedUrl = undefined;
+            if (worker.file_url) {
+                const { data, error } = await supabase.storage
+                    .from('extracao-horas')
+                    .createSignedUrl(worker.file_url, 3600); // 1 hour validity
 
-            if (error) throw error;
-            toast.success(t('clientHoursDetail.messages.validated'));
-            fetchClientWorkers(); // Refresh
+                if (error) throw error;
+                signedUrl = data?.signedUrl;
+            }
+            
+            setValidationDialogState({
+                open: true,
+                workerId: worker.worker_id,
+                workerName: worker.worker_name,
+                workerCode: worker.cod_colab,
+                workerFunction: worker.funcion,
+                fileUrl: signedUrl,
+                fileName: worker.file_name,
+                filePath: worker.file_url || undefined,
+                recordId: worker.hour_record_id,
+                contratante: worker.contratante
+            });
         } catch (error) {
-            console.error('Error validating:', error);
-            toast.error(t('clientHoursDetail.messages.validateError'));
+            console.error('Error opening validation:', error);
+            toast.error('Erro ao preparar validação');
         } finally {
             setActionLoading(null);
         }
@@ -227,7 +266,7 @@ export function ClientHoursDetail() {
 
             // Delete file from storage first
             const { error: storageError } = await supabase.storage
-                .from('horas_trabalhadores')
+                .from('extracao-horas')
                 .remove([filePath]);
 
             if (storageError) {
@@ -239,7 +278,7 @@ export function ClientHoursDetail() {
             const { error } = await supabase
                 .schema('core_personal')
                 .from('worker_hours')
-                .update({ status: 'pendente', file_url: null, file_name: null, sharepoint_sync_status: null, sharepoint_sync_date: null, sharepoint_error: null })
+                .update({ status: 'pendente', file_url: null, file_name: null })
                 .eq('id', recordId);
 
             if (error) throw error;
@@ -253,31 +292,7 @@ export function ClientHoursDetail() {
         }
     };
 
-    const handleSyncSharePoint = async (recordId: string) => {
-        try {
-            setActionLoading(recordId + '-sp');
-            toast.loading(t('clientHoursDetail.messages.syncStarted'), { id: 'sharepoint_sync' });
 
-            const { data, error } = await supabase.functions.invoke('sync-to-sharepoint', {
-                body: { hour_id: recordId },
-            });
-
-            if (error) throw error;
-
-            if (data?.success) {
-                toast.success(t('clientHoursDetail.messages.syncSuccess'), { id: 'sharepoint_sync' });
-            } else {
-                throw new Error(data?.error || t('clientHoursDetail.messages.syncUnknownError'));
-            }
-            fetchClientWorkers(); // Refresh status
-        } catch (error: any) {
-            console.error('Error syncing to SharePoint:', error);
-            toast.error(t('clientHoursDetail.messages.syncError', { error: error.message || error.toString() }), { id: 'sharepoint_sync' });
-            fetchClientWorkers(); // Refresh status to show error
-        } finally {
-            setActionLoading(null);
-        }
-    };
 
     const getMonthName = (m: number) => {
         const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
@@ -306,12 +321,6 @@ export function ClientHoursDetail() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    {(role === 'super_admin' || role === 'admin_rh') && (
-                        <Button variant="outline" className="gap-2" onClick={() => toast.info(t('clientHoursDetail.messages.massSyncNotImpl'))}>
-                            <DownloadCloud className="h-4 w-4" />
-                            {t('clientHoursDetail.btnSyncSharePoint')}
-                        </Button>
-                    )}
                 </div>
             </div>
 
@@ -441,7 +450,17 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-center align-top pt-4">
                                         {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
-                                        {worker.status === 'enviado' && <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100">{t('clientHoursDetail.badges.submitted')}</Badge>}
+                                        {worker.status === 'enviado' && (
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 animate-pulse flex items-center justify-center gap-1">
+                                                <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                                                <span>{t('clientHoursDetail.badges.processing', 'Processando IA')}</span>
+                                            </Badge>
+                                        )}
+                                        {worker.status === 'processado' && (
+                                            <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-xs font-semibold">
+                                                {t('clientHoursDetail.badges.processed', 'Lido pela IA')}
+                                            </Badge>
+                                        )}
                                         {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
                                     </TableCell>
                                     <TableCell className="align-top pt-4">
@@ -506,7 +525,8 @@ export function ClientHoursDetail() {
                                                         workerId: worker.worker_id,
                                                         workerName: worker.worker_name,
                                                         contratante: worker.contratante,
-                                                        hourRecordId: worker.hour_record_id
+                                                        hourRecordId: worker.hour_record_id,
+                                                        workerFunction: worker.funcion
                                                     })}
                                                     title={t('clientHoursDetail.tooltips.sendSheet')}
                                                 >
@@ -523,39 +543,41 @@ export function ClientHoursDetail() {
                                                     >
                                                         {actionLoading === worker.hour_record_id + '-dl' ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
                                                     </Button>
-
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        title={
-                                                            worker.sharepoint_sync_status === 'success' ? 'Já Sincronizado com SharePoint' :
-                                                                worker.sharepoint_sync_status === 'syncing' ? 'Sincronizando...' :
-                                                                    worker.sharepoint_sync_status === 'failed' ? `Erro na sincronização: ${worker.sharepoint_error}` :
-                                                                        'Sincronizar com SharePoint'
-                                                        }
-                                                        disabled={actionLoading === worker.hour_record_id + '-sp' || worker.sharepoint_sync_status === 'syncing'}
-                                                        onClick={() => handleSyncSharePoint(worker.hour_record_id!)}
-                                                        className={worker.sharepoint_sync_status === 'success' ? 'text-green-600 border-green-200 bg-green-50' : worker.sharepoint_sync_status === 'failed' ? 'text-red-500 border-red-200 bg-red-50' : 'text-blue-500 hover:text-blue-700'}
-                                                    >
-                                                        {actionLoading === worker.hour_record_id + '-sp' || worker.sharepoint_sync_status === 'syncing' ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                        ) : worker.sharepoint_sync_status === 'success' ? (
-                                                            <Check className="h-4 w-4" />
-                                                        ) : (
-                                                            <Upload className="h-4 w-4" />
-                                                        )}
-                                                    </Button>
-
                                                     {worker.status === 'enviado' && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
                                                             variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-muted-foreground hover:text-green-600"
-                                                            onClick={() => handleValidateFile(worker.hour_record_id!)}
-                                                            disabled={actionLoading === worker.hour_record_id + '-ap'}
-                                                            title={t('clientHoursDetail.tooltips.validate')}
+                                                            size="sm"
+                                                            disabled
+                                                            className="h-8 text-slate-500 bg-slate-50 border border-slate-100 flex items-center gap-1.5 cursor-not-allowed"
+                                                            title={t('clientHoursDetail.tooltips.processingIA', 'Extraindo dados com IA em segundo plano...')}
                                                         >
-                                                            {actionLoading === worker.hour_record_id + '-ap' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                                                            <span>{t('clientHoursDetail.buttons.processing', 'Lendo folha...')}</span>
+                                                        </Button>
+                                                    )}
+                                                    {(worker.status === 'processado' || worker.status === 'validado') && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
+                                                        <Button
+                                                            variant="default"
+                                                            size="sm"
+                                                            className={`h-8 text-white font-semibold px-3 flex items-center gap-1.5 shadow-sm transition-colors ${
+                                                                worker.status === 'validado'
+                                                                    ? 'bg-green-600 hover:bg-green-700'
+                                                                    : 'bg-slate-500 hover:bg-slate-600'
+                                                            }`}
+                                                            onClick={() => handleOpenValidation(worker)}
+                                                            disabled={actionLoading === worker.hour_record_id + '-ap'}
+                                                            title={worker.status === 'validado' ? t('clientHoursDetail.tooltips.revalidate', 'Revalidar Lançamentos') : t('clientHoursDetail.tooltips.validate')}
+                                                        >
+                                                            {actionLoading === worker.hour_record_id + '-ap' ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <Check className="h-4 w-4 shrink-0" />
+                                                            )}
+                                                            <span>
+                                                                {worker.status === 'validado'
+                                                                    ? t('clientHoursDetail.buttons.validated', 'Validado')
+                                                                    : t('clientHoursDetail.buttons.validate', 'Validar')}
+                                                            </span>
                                                         </Button>
                                                     )}
                                                     {(role === 'super_admin' || role === 'admin_rh') && (
@@ -593,6 +615,7 @@ export function ClientHoursDetail() {
                 contratante={uploadDialogState.contratante}
                 hourRecordId={uploadDialogState.hourRecordId}
                 empresaId={selectedEmpresaId as string}
+                workerFunction={uploadDialogState.workerFunction}
                 onSuccess={() => {
                     setUploadDialogState(prev => ({ ...prev, open: false }));
                     fetchClientWorkers();
@@ -610,6 +633,36 @@ export function ClientHoursDetail() {
                 hourRecordId={notesDialogState.hourRecordId}
                 onSuccess={fetchClientWorkers}
             />
+
+            <Dialog 
+                open={validationDialogState.open} 
+                onOpenChange={(open) => setValidationDialogState(prev => ({ ...prev, open }))}
+            >
+                <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+                    {validationDialogState.open && (
+                        <ValidationScreen
+                            workerId={validationDialogState.workerId}
+                            workerName={validationDialogState.workerName}
+                            workerCode={validationDialogState.workerCode}
+                            workerFunction={validationDialogState.workerFunction}
+                            recordId={validationDialogState.recordId}
+                            fileUrl={validationDialogState.fileUrl}
+                            fileName={validationDialogState.fileName}
+                            filePath={validationDialogState.filePath}
+                            contratante={validationDialogState.contratante}
+                            clienteNome={clientName || ''}
+                            empresaId={selectedEmpresaId as string}
+                            year={year}
+                            month={month}
+                            onClose={() => setValidationDialogState(prev => ({ ...prev, open: false }))}
+                            onSuccess={() => {
+                                setValidationDialogState(prev => ({ ...prev, open: false }));
+                                fetchClientWorkers();
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

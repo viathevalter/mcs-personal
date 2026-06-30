@@ -75,7 +75,7 @@ export function WorkerDetailsPage() {
 
     if (isError || !worker) {
         return (
-            <div className="mx-auto max-w-5xl px-4 py-8">
+            <div className="mx-auto max-w-7xl px-4 py-8">
                 <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
                     <ArrowLeft className="mr-2 h-4 w-4" /> {t('workerDetails.back')}
                 </Button>

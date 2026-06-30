@@ -21,7 +21,8 @@ import {
   TrendingUp,
   CheckCircle2,
   Loader2,
-  HelpCircle
+  HelpCircle,
+  AlertTriangle
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
 import {
@@ -36,6 +37,12 @@ export const HiringDashboardPage: React.FC = () => {
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Advanced Filter States
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'completed' | 'all'>('pending');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [profileFilter, setProfileFilter] = useState<string>('all');
+  const [workerSearch, setWorkerSearch] = useState<string>('');
+
   // Dialog state
   const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -116,23 +123,46 @@ export const HiringDashboardPage: React.FC = () => {
     enabled: !!selectedEmpresaId
   });
 
-  // Automatically select the first Pedido if none is selected
-  React.useEffect(() => {
-    if (activePedidos.length > 0 && !selectedPedidoId) {
-      setSelectedPedidoId(activePedidos[0].id);
-    }
-  }, [activePedidos, selectedPedidoId]);
-
-  // Selected Pedido helper
-  const selectedPedido = useMemo(() => {
-    return activePedidos.find(p => p.id === selectedPedidoId) || null;
-  }, [activePedidos, selectedPedidoId]);
-
-  // 2. Query all allocations for the selected Pedido
-  const { data: allocations = [], isLoading: isLoadingAllocations, refetch: refetchAllocations } = useQuery({
-    queryKey: ['pedido_allocations', selectedPedidoId],
+  // 2. Query active replacement and offboard-with-replacement targets for this empresa
+  const { data: replacementTargets = [], refetch: refetchReplacementTargets } = useQuery({
+    queryKey: ['active_replacement_targets', selectedEmpresaId],
     queryFn: async () => {
-      if (!selectedPedidoId) return [];
+      if (!selectedEmpresaId) return [];
+      const { data, error } = await supabase
+        .schema('core_operacoes')
+        .from('solicitud_targets')
+        .select('id, source_assignment_id, source_pedido_item_id, status, action_type, requires_replacement, solicitud_id, solicitud:solicitudes_operativas(due_date)')
+        .eq('empresa_id', selectedEmpresaId)
+        .in('action_type', ['replace', 'offboard'])
+        .in('status', ['pending', 'in_progress']);
+      if (error) {
+        console.error("Error fetching replacement targets:", error);
+        return [];
+      }
+      // Filter client-side to include replace actions OR offboards requesting replacement
+      return (data || []).filter((t: any) => 
+        t.action_type === 'replace' || 
+        (t.action_type === 'offboard' && t.requires_replacement === true)
+      );
+    },
+    enabled: !!selectedEmpresaId
+  });
+
+  const replacementMap = useMemo(() => {
+    const map = new Map<string, any>();
+    replacementTargets.forEach(t => {
+      if (t.source_assignment_id) {
+        map.set(t.source_assignment_id, t);
+      }
+    });
+    return map;
+  }, [replacementTargets]);
+
+  // 3. Query all allocations for active Pedidos in this Empresa
+  const { data: allAllocations = [], isLoading: isLoadingAllocations, refetch: refetchAllocations } = useQuery({
+    queryKey: ['all_allocations', selectedEmpresaId],
+    queryFn: async () => {
+      if (!selectedEmpresaId) return [];
       
       const { data, error } = await supabase
         .schema('core_personal')
@@ -143,6 +173,8 @@ export const HiringDashboardPage: React.FC = () => {
           planned_start_date,
           start_date,
           tarifa_acordada,
+          pedido_id,
+          pedido_item_id,
           job_function_name_snapshot,
           worker:workers(
             id,
@@ -155,48 +187,197 @@ export const HiringDashboardPage: React.FC = () => {
             cod_colab
           )
         `)
-        .eq('pedido_id', selectedPedidoId)
-        .in('status', ['planned', 'active', 'paused']);
+        .eq('empresa_id', selectedEmpresaId)
+        .in('status', ['planned', 'active', 'paused', 'replaced', 'relocated', 'terminated']);
         
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedPedidoId
+    enabled: !!selectedEmpresaId
   });
+
+  // Selected Pedido helper
+  const selectedPedido = useMemo(() => {
+    return activePedidos.find(p => p.id === selectedPedidoId) || null;
+  }, [activePedidos, selectedPedidoId]);
+
+  // Allocations for the selected Pedido
+  const allocations = useMemo(() => {
+    return allAllocations.filter(a => a.pedido_id === selectedPedidoId);
+  }, [allAllocations, selectedPedidoId]);
+
+  // Helper to calculate a Pedido's hiring progress (subtracting active replacements)
+  const getPedidoHiringStatus = (pedido: any, replacementTargetsList: any[]) => {
+    let reqQty = 0;
+    let fulQty = 0;
+    let hasReplacement = false;
+    
+    pedido.pedido_items?.forEach((item: any) => {
+      reqQty += item.quantity_requested || 0;
+      
+      // count active replacement targets for this item
+      const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id).length;
+      if (repCount > 0) hasReplacement = true;
+      
+      fulQty += Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+    });
+    
+    const isCompleted = reqQty > 0 && fulQty >= reqQty;
+    return {
+      reqQty,
+      fulQty,
+      isCompleted,
+      hasReplacement
+    };
+  };
+
+  // Helper to check if a Pedido is urgent (expected start date <= 5 days and pending/has replacements)
+  const isPedidoUrgent = (pedido: any) => {
+    const { isCompleted, hasReplacement } = getPedidoHiringStatus(pedido, replacementTargets);
+    const isPending = !isCompleted || hasReplacement;
+    if (!isPending || !pedido.expected_start_date) return false;
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const startDate = new Date(pedido.expected_start_date);
+    startDate.setHours(0,0,0,0);
+    
+    const diffTime = startDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 5;
+  };
+
+  // Unique clients present in active pedidos for filter dropdown
+  const clientsList = useMemo(() => {
+    const map = new Map<string, string>();
+    activePedidos.forEach(p => {
+      if (p.client) {
+        map.set(p.client.id, p.client.trade_name || p.client.legal_name || 'Cliente');
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [activePedidos]);
+
+  // Unique profiles present in active pedidos for filter dropdown
+  const profilesList = useMemo(() => {
+    const set = new Set<string>();
+    activePedidos.forEach(p => {
+      p.pedido_items?.forEach((item: any) => {
+        const name = item.job_function_name_snapshot || item.job_function?.name;
+        if (name) set.add(name);
+      });
+    });
+    return Array.from(set).sort();
+  }, [activePedidos]);
 
   // Calculate totals across all active orders
   const totals = useMemo(() => {
-    let requested = 0;
-    let fulfilled = 0;
+    let openVacancies = 0;
+    let activeOrders = 0;
+    let urgentCount = 0;
     
     activePedidos.forEach(p => {
-      p.pedido_items?.forEach((item: any) => {
-        requested += item.quantity_requested || 0;
-        fulfilled += item.quantity_fulfilled || 0;
-      });
+      const { reqQty, fulQty, isCompleted, hasReplacement } = getPedidoHiringStatus(p, replacementTargets);
+      
+      const isPending = !isCompleted || hasReplacement;
+      if (isPending) {
+        activeOrders++;
+        openVacancies += Math.max(0, reqQty - fulQty);
+        
+        if (p.expected_start_date) {
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          const startDate = new Date(p.expected_start_date);
+          startDate.setHours(0,0,0,0);
+          
+          const diffTime = startDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays <= 5) {
+            urgentCount++;
+          }
+        }
+      }
     });
 
     return {
-      openVacancies: requested - fulfilled,
-      totalRequested: requested,
-      totalFulfilled: fulfilled,
-      activeOrders: activePedidos.length
+      openVacancies,
+      activeOrders,
+      urgentCount
     };
-  }, [activePedidos]);
+  }, [activePedidos, replacementTargets]);
 
-  // Filtered pedidos for sidebar search
+  // Filtered pedidos for sidebar list
   const filteredPedidos = useMemo(() => {
-    if (!searchQuery) return activePedidos;
-    const query = searchQuery.toLowerCase();
     return activePedidos.filter(p => {
-      const clientName = (p.client?.trade_name || p.client?.legal_name || '').toLowerCase();
-      const code = (p.codigo || '').toLowerCase();
-      return clientName.includes(query) || code.includes(query);
+      const { isCompleted, hasReplacement } = getPedidoHiringStatus(p, replacementTargets);
+
+      // 1. Status Filter
+      if (statusFilter === 'pending') {
+        if (isCompleted && !hasReplacement) return false;
+      } else if (statusFilter === 'completed') {
+        if (!isCompleted || hasReplacement) return false;
+      }
+
+      // 2. Client Filter
+      if (clientFilter !== 'all' && p.client_id !== clientFilter) {
+        return false;
+      }
+
+      // 3. Profile Filter
+      if (profileFilter !== 'all') {
+        const hasProfile = p.pedido_items?.some((item: any) => {
+          const name = item.job_function_name_snapshot || item.job_function?.name;
+          return name === profileFilter;
+        });
+        if (!hasProfile) return false;
+      }
+
+      // 4. General Search (Client trade name, legal name, code, site name)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const clientTradeName = (p.client?.trade_name || '').toLowerCase();
+        const clientLegalName = (p.client?.legal_name || '').toLowerCase();
+        const code = (p.codigo || '').toLowerCase();
+        const siteName = (p.client_site?.name || '').toLowerCase();
+        
+        const matchesBasic = clientTradeName.includes(query) || 
+                             clientLegalName.includes(query) || 
+                             code.includes(query) || 
+                             siteName.includes(query);
+        if (!matchesBasic) return false;
+      }
+
+      // 5. Worker Search
+      if (workerSearch) {
+        const query = workerSearch.toLowerCase();
+        const hasHiredWorker = allAllocations.some(a => 
+          a.pedido_id === p.id && 
+          a.worker?.nome?.toLowerCase().includes(query)
+        );
+        if (!hasHiredWorker) return false;
+      }
+
+      return true;
     });
-  }, [activePedidos, searchQuery]);
+  }, [activePedidos, replacementTargets, statusFilter, clientFilter, profileFilter, searchQuery, workerSearch, allAllocations]);
+
+  // Automatically select the first Pedido if none is selected, or if the selected one is filtered out
+  React.useEffect(() => {
+    if (filteredPedidos.length > 0) {
+      const isStillVisible = filteredPedidos.some(p => p.id === selectedPedidoId);
+      if (!isStillVisible) {
+        setSelectedPedidoId(filteredPedidos[0].id);
+      }
+    } else {
+      setSelectedPedidoId(null);
+    }
+  }, [filteredPedidos, selectedPedidoId]);
 
   const handleOpenAllocateDialog = (item: any) => {
     if (!selectedPedido) return;
+
+    // Find if there is a pending replacement target for this item
+    const repTarget = replacementTargets.find(t => t.source_pedido_item_id === item.id);
 
     setSelectedPosition({
       id: item.id,
@@ -213,7 +394,9 @@ export const HiringDashboardPage: React.FC = () => {
       quantity_fulfilled: item.quantity_fulfilled,
       status: item.status,
       pergunta_respuesta: selectedPedido.pergunta_respuesta,
-      base_cost_hour_snapshot: item.base_cost_hour_snapshot
+      base_cost_hour_snapshot: item.base_cost_hour_snapshot,
+      solicitud_id: repTarget?.solicitud_id || undefined,
+      replacement_due_date: repTarget?.solicitud?.due_date || undefined
     });
     
     setIsDialogOpen(true);
@@ -234,7 +417,7 @@ export const HiringDashboardPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Small Stat Badges */}
+        {/* Stat Badges */}
         <div className="flex space-x-3 text-xs">
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl px-4 py-2 flex items-center space-x-2">
             <Users className="h-4 w-4 text-amber-600" />
@@ -251,6 +434,20 @@ export const HiringDashboardPage: React.FC = () => {
               <p className="font-bold text-slate-800 dark:text-white text-sm">{isLoadingPedidos ? '-' : totals.activeOrders}</p>
             </div>
           </div>
+
+          <div className={`border rounded-xl px-4 py-2 flex items-center space-x-2 transition-all ${
+            totals.urgentCount > 0 
+              ? 'bg-rose-550/10 dark:bg-rose-955/20 border-rose-300 dark:border-rose-900 animate-pulse'
+              : 'bg-slate-50 dark:bg-slate-950/20 border-slate-200 dark:border-slate-900'
+          }`}>
+            <Clock className={`h-4 w-4 ${totals.urgentCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            <div>
+              <p className="text-[10px] uppercase font-bold text-slate-400">Pedidos Urgentes</p>
+              <p className={`font-bold text-sm ${totals.urgentCount > 0 ? 'text-rose-650 dark:text-rose-455' : 'text-slate-700'}`}>
+                {isLoadingPedidos ? '-' : totals.urgentCount}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -260,72 +457,176 @@ export const HiringDashboardPage: React.FC = () => {
         {/* Left Sidebar: Pedidos List */}
         <div className="w-80 md:w-96 flex flex-col border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shrink-0 overflow-hidden shadow-sm">
           
-          {/* Search Box */}
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60">
+          {/* Advanced Filters Area */}
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 space-y-3 shrink-0">
+            
+            {/* Status tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('pending')}
+                className={`flex-1 py-1 text-center font-semibold rounded-md transition-all ${statusFilter === 'pending' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Pendentes
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('completed')}
+                className={`flex-1 py-1 text-center font-semibold rounded-md transition-all ${statusFilter === 'completed' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Concluídos
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`flex-1 py-1 text-center font-semibold rounded-md transition-all ${statusFilter === 'all' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Todos
+              </button>
+            </div>
+
+            {/* General Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Pesquisar cliente ou pedido..."
+                placeholder="Pesquisar cliente ou código..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-lg text-xs placeholder:text-slate-450 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
+
+            {/* Worker Search */}
+            <div className="relative">
+              <Users className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar trabalhador alocado..."
+                value={workerSearch}
+                onChange={e => setWorkerSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Dropdown Filters */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Cliente</label>
+                <select
+                  value={clientFilter}
+                  onChange={e => setClientFilter(e.target.value)}
+                  className="w-full px-2 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  {clientsList.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Perfil</label>
+                <select
+                  value={profileFilter}
+                  onChange={e => setProfileFilter(e.target.value)}
+                  className="w-full px-2 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  {profilesList.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
           </div>
 
           {/* Pedidos List Scroll Area */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/40">
             {isLoadingPedidos ? (
               <div className="flex flex-col items-center justify-center py-20 space-y-2 text-slate-400">
-                <Clock className="animate-spin h-6 w-6 text-indigo-500" />
+                <Loader2 className="animate-spin h-6 w-6 text-indigo-500" />
                 <span className="text-xs">Carregando pedidos...</span>
               </div>
             ) : filteredPedidos.length === 0 ? (
               <p className="text-center text-xs text-slate-500 py-10">Nenhum pedido ativo encontrado.</p>
             ) : (
               filteredPedidos.map(pedido => {
+                const urgent = isPedidoUrgent(pedido);
                 const isSelected = pedido.id === selectedPedidoId;
                 const clientName = pedido.client?.trade_name || pedido.client?.legal_name || 'Cliente';
                 const dateStr = pedido.expected_start_date 
                   ? new Date(pedido.expected_start_date).toLocaleDateString('pt-PT') 
                   : 'N/A';
                 
-                // Calculate progress
-                let reqQty = 0;
-                let fulQty = 0;
-                pedido.pedido_items?.forEach((item: any) => {
-                  reqQty += item.quantity_requested || 0;
-                  fulQty += item.quantity_fulfilled || 0;
-                });
+                // Calculate progress with replacements
+                const { reqQty, fulQty, isCompleted, hasReplacement } = getPedidoHiringStatus(pedido, replacementTargets);
                 
-                const isFulfilled = reqQty > 0 && fulQty >= reqQty;
-                const progressBadge = isFulfilled 
+                const progressBadge = isCompleted && !hasReplacement
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900' 
-                  : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-350 dark:border-slate-700';
+                  : hasReplacement
+                    ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900'
+                    : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900';
+
+                let itemBgClass = '';
+                let borderLeftClass = '';
+                
+                if (isSelected) {
+                  itemBgClass = 'bg-indigo-50/10 dark:bg-indigo-950/10';
+                  borderLeftClass = 'border-indigo-650';
+                } else if (urgent) {
+                  itemBgClass = 'bg-rose-50/30 dark:bg-rose-950/5 hover:bg-rose-50/50 dark:hover:bg-rose-950/10';
+                  borderLeftClass = 'border-rose-500';
+                } else {
+                  itemBgClass = 'hover:bg-slate-50 dark:hover:bg-slate-800/40';
+                  borderLeftClass = 'border-transparent';
+                }
 
                 return (
                   <button
                     key={pedido.id}
                     onClick={() => setSelectedPedidoId(pedido.id)}
-                    className={`w-full text-left p-4 flex items-center justify-between transition-all hover:bg-slate-50 dark:hover:bg-slate-800/40 border-l-4 ${
-                      isSelected 
-                        ? 'border-indigo-650 bg-indigo-50/10 dark:bg-indigo-950/10' 
-                        : 'border-transparent'
-                    }`}
+                    className={`w-full text-left p-4 flex items-center justify-between transition-all border-l-4 ${itemBgClass} ${borderLeftClass}`}
                   >
                     <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[10px] font-bold text-indigo-650 dark:text-indigo-400">{pedido.codigo}</span>
-                        <span className="text-[10px] font-semibold text-slate-400 flex items-center">
-                          <Calendar className="mr-1 h-3 w-3" />
-                          {dateStr}
-                        </span>
+                        <div className="flex items-center">
+                          {urgent && (
+                            <span className="text-[9px] text-rose-600 dark:text-rose-455 font-bold flex items-center bg-rose-50 dark:bg-rose-950/30 px-1.5 py-0.2 rounded mr-1.5 border border-rose-200 dark:border-rose-900/40">
+                              <Clock className="mr-0.5 h-2.5 w-2.5 animate-pulse" />
+                              Urgente
+                            </span>
+                          )}
+                          <span className="text-[10px] font-semibold text-slate-400 flex items-center">
+                            <Calendar className="mr-1 h-3 w-3" />
+                            {dateStr}
+                          </span>
+                        </div>
                       </div>
-                      <p className="font-bold text-sm text-slate-800 dark:text-white truncate mt-1">{clientName}</p>
+                      <p className="font-bold text-sm text-slate-850 dark:text-white truncate mt-1">{clientName}</p>
                       <p className="text-[11px] text-slate-500 truncate mt-0.5">
                         {pedido.client_site?.name || 'Local não definido'}
                       </p>
+                      {hasReplacement && (() => {
+                        const pedidoReplacements = replacementTargets.filter(t => 
+                          pedido.pedido_items?.some((item: any) => item.id === t.source_pedido_item_id)
+                        );
+                        const replacementDates = pedidoReplacements
+                          .map(t => t.solicitud?.due_date)
+                          .filter(Boolean)
+                          .map(d => new Date(d));
+                        const replacementDateStr = replacementDates.length > 0
+                          ? new Date(Math.min(...replacementDates.map(d => d.getTime()))).toLocaleDateString('pt-PT')
+                          : '';
+                        return (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold border bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/40 mt-1">
+                            <AlertTriangle className="h-2.5 w-2.5 text-purple-650" />
+                            Reemplazo Pendente{replacementDateStr ? ` (Início: ${replacementDateStr})` : ''}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex flex-col items-end shrink-0">
@@ -418,9 +719,13 @@ export const HiringDashboardPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedPedido.pedido_items?.map((item: any) => {
-                    const isItemFulfilled = (item.quantity_fulfilled || 0) >= (item.quantity_requested || 0);
+                    const itemReplacements = replacementTargets.filter(t => t.source_pedido_item_id === item.id);
+                    const repCount = itemReplacements.length;
+                    const firstRep = itemReplacements[0];
+                    const effectiveFulfilled = Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+                    const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
-                      ? Math.min(100, Math.round((item.quantity_fulfilled / item.quantity_requested) * 100))
+                      ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
                       : 0;
 
                     return (
@@ -429,7 +734,9 @@ export const HiringDashboardPage: React.FC = () => {
                         className={`border rounded-xl p-4 flex flex-col justify-between space-y-4 hover:shadow-md transition-all ${
                           isItemFulfilled 
                             ? 'bg-emerald-50/10 border-emerald-150 dark:bg-emerald-950/5 dark:border-emerald-950' 
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                            : repCount > 0
+                              ? 'bg-purple-50/10 border-purple-200 dark:bg-purple-950/5 dark:border-purple-900/50'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                         }`}
                       >
                         <div>
@@ -467,20 +774,37 @@ export const HiringDashboardPage: React.FC = () => {
                             </div>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                               isItemFulfilled 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                                : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/40 dark:text-amber-400'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                : repCount > 0
+                                  ? 'bg-purple-50 text-purple-755 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400'
+                                  : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/40 dark:text-amber-400'
                             }`}>
-                              {item.quantity_fulfilled} de {item.quantity_requested} Contratados
+                              {effectiveFulfilled} de {item.quantity_requested} Contratados {repCount > 0 && `(${repCount} p. reimplacar)`}
                             </span>
                           </div>
 
                           {/* Progress bar */}
                           <div className="mt-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                             <div 
-                              className={`h-full transition-all duration-300 ${isItemFulfilled ? 'bg-emerald-550' : 'bg-amber-500'}`}
+                              className={`h-full transition-all duration-300 ${isItemFulfilled ? 'bg-emerald-550' : repCount > 0 ? 'bg-purple-500' : 'bg-amber-500'}`}
                               style={{ width: `${progress}%` }}
                             ></div>
                           </div>
+
+                          {repCount > 0 && (() => {
+                            const repDate = firstRep?.solicitud?.due_date 
+                              ? new Date(firstRep.solicitud.due_date).toLocaleDateString('pt-PT')
+                              : '';
+                            return (
+                              <div className="mt-3 flex items-start gap-1.5 text-[10px] text-purple-700 dark:text-purple-400 bg-purple-50/40 dark:bg-purple-950/15 p-2 rounded-lg border border-purple-200/40">
+                                <AlertTriangle className="h-3.5 w-3.5 text-purple-650 shrink-0 mt-0.5" />
+                                <span>
+                                  Há uma solicitação de substituição (reemplazo) ativa para este cargo. A vaga foi reaberta.
+                                  {repDate && <strong> Novo trabalhador deve iniciar em: {repDate}.</strong>}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         <div className="flex justify-between items-center text-xs pt-1">
@@ -504,11 +828,13 @@ export const HiringDashboardPage: React.FC = () => {
                             className={`h-8 text-xs font-semibold ${
                               isItemFulfilled 
                                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
-                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                : repCount > 0
+                                  ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                             }`}
                           >
                             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                            + Contratar
+                            {repCount > 0 ? '+ Substituir' : '+ Contratar'}
                           </Button>
                         </div>
                       </div>
@@ -524,7 +850,10 @@ export const HiringDashboardPage: React.FC = () => {
                     <CheckCircle2 className="mr-1.5 h-4.5 w-4.5 text-emerald-600" />
                     Pessoas Contratadas
                   </h3>
-                  <span className="text-[11px] font-semibold text-slate-400">Total: {allocations.length} alocados</span>
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    Total: {allocations.filter(a => a.status !== 'replaced' && a.status !== 'relocated' && a.status !== 'terminated').length} ativo(s)
+                    {allocations.some(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated') && ` (${allocations.filter(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated').length} histórico)`}
+                  </span>
                 </div>
 
                 {isLoadingAllocations ? (
@@ -539,9 +868,20 @@ export const HiringDashboardPage: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {allocations.map((alloc: any) => {
                       const worker = alloc.worker || {};
-                      
+                      const isTerminated = alloc.status === 'replaced' || alloc.status === 'relocated' || alloc.status === 'terminated';
+                      const needsReplacement = replacementMap.has(alloc.id);
+
+                      let cardClass = 'border rounded-xl p-4 space-y-3 hover:shadow-sm transition-all ';
+                      if (isTerminated) {
+                        cardClass += 'border-slate-200 dark:border-slate-800 bg-slate-100/35 dark:bg-slate-900/20 opacity-65 grayscale';
+                      } else if (needsReplacement) {
+                        cardClass += 'border-purple-200 dark:border-purple-900/50 bg-purple-50/25 dark:bg-purple-950/5 hover:bg-purple-50/40 dark:hover:bg-purple-950/10';
+                      } else {
+                        cardClass += 'border-slate-100 dark:border-slate-800 bg-slate-50/25 dark:bg-slate-950/10 hover:bg-slate-50 dark:hover:bg-slate-950/20';
+                      }
+
                       return (
-                        <div key={alloc.id} className="border border-slate-100 dark:border-slate-800 bg-slate-50/25 dark:bg-slate-950/10 hover:bg-slate-50 dark:hover:bg-slate-950/20 rounded-xl p-4 space-y-3 hover:shadow-sm transition-all">
+                        <div key={alloc.id} className={cardClass}>
                           <div className="flex justify-between items-start">
                             <div>
                               <p className="font-bold text-sm text-slate-850 dark:text-white">{worker.nome || 'Desconhecido'}</p>
@@ -549,9 +889,25 @@ export const HiringDashboardPage: React.FC = () => {
                                 Cód: {worker.cod_colab || 'N/A'} • NIF: {worker.nif || 'Não informado'}
                               </p>
                             </div>
-                            <span className="bg-indigo-50 text-indigo-755 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900">
-                              {alloc.job_function_name_snapshot || 'Perfil'}
-                            </span>
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className={isTerminated 
+                                ? "bg-slate-150 text-slate-650 border border-slate-250 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                                : "bg-indigo-50 text-indigo-755 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900"
+                              }>
+                                {alloc.job_function_name_snapshot || 'Perfil'}
+                              </span>
+                              {isTerminated && (
+                                <span className="bg-slate-200 text-slate-700 border border-slate-350 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 flex items-center gap-1 shrink-0">
+                                  Histórico / Substituído
+                                </span>
+                              )}
+                              {needsReplacement && !isTerminated && (
+                                <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/40 flex items-center gap-1 shrink-0">
+                                  <AlertTriangle className="h-2.5 w-2.5 text-purple-650 shrink-0" />
+                                  Reemplazo Solicitado
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Specific hiring fields: sizes, driving license, rate */}
@@ -625,6 +981,7 @@ export const HiringDashboardPage: React.FC = () => {
           setIsDialogOpen(false);
           refetchPedidos();
           refetchAllocations();
+          refetchReplacementTargets();
         }} 
         position={selectedPosition} 
       />

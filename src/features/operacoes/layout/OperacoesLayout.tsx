@@ -8,11 +8,14 @@ import { AuthProvider } from '../contexts/AuthContext';
 
 const OperacoesContent: React.FC = () => {
   const { isSidebarOpen } = useSidebar();
+  const currentMonth = new Date().toISOString().substring(0, 7);
   const [filters, setFilters] = useState<Filters>({
-    monthRange: ['2023-10', '2023-10'],
+    monthRange: [currentMonth, currentMonth],
     empresa: null,
     comercial: null,
-    cliente: null
+    cliente: null,
+    status: null,
+    pais: null
   });
 
   return (

@@ -31,9 +31,9 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
   }
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className="rounded-md border bg-card overflow-y-auto h-full max-h-full">
       <Table>
-        <TableHeader>
+        <TableHeader className="sticky top-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
           <TableRow>
             <TableHead>Código</TableHead>
             <TableHead>Tipo</TableHead>
@@ -61,12 +61,26 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
               </TableCell>
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium truncate max-w-[200px]" title={solicitud.pedido?.client?.legal_name}>
-                    {solicitud.pedido?.client?.trade_name || solicitud.pedido?.client?.legal_name || 'N/A'}
-                  </span>
-                  <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.pedido?.client_site?.name}>
-                    {solicitud.pedido?.client_site?.name || 'Local não definido'}
-                  </span>
+                  {solicitud.tipo === 'relocation' ? (
+                    <>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Destino:</span>
+                      <span className="text-sm font-medium truncate max-w-[200px]" title={solicitud.client?.legal_name}>
+                        {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
+                        {solicitud.client_site?.name || 'Local não definido'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium truncate max-w-[200px]" title={solicitud.client?.legal_name}>
+                        {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
+                        {solicitud.client_site?.name || 'Local não definido'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </TableCell>
               <TableCell>

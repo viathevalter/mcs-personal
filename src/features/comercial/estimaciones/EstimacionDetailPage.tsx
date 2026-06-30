@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Briefcase
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
@@ -117,6 +117,29 @@ export function EstimacionDetailPage() {
   };
 
   const viability = calculateViability(viabilityPayload, estimacion.client, comercialSettings, t);
+
+  const currentVersion = estimacion?.current_version;
+  const items = currentVersion?.items || [];
+  const costs = currentVersion?.costs || [];
+  const additionalRevenues = estimacion?.additional_revenues || [];
+
+  const totalBaseRevenue = items.reduce((sum: number, item: any) => sum + (Number(item.sell_rate_hour || 0) * Number(item.planned_total_hours ?? item.total_hours ?? 0)), 0);
+  
+  const totalRechargeableRevenue = costs.reduce((sum: number, c: any) => { 
+    if (c.is_rechargeable) { 
+      return sum + (Number(c.amount || 0) * (1 + (Number(c.markup_percent || 0) / 100))); 
+    } 
+    return sum; 
+  }, 0);
+
+  const additionalRevenuesSum = additionalRevenues.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+
+  const totalSalaries = items.reduce((sum: number, item: any) => sum + (Number(item.base_cost_hour || 0) * Number(item.planned_total_hours ?? item.total_hours ?? 0)), 0);
+  const totalSocialSecurity = costs.filter((c: any) => c.cost_category === 'social_security').reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+  const totalHousing = costs.filter((c: any) => c.cost_category === 'housing').reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+  const totalEpi = costs.filter((c: any) => c.cost_category === 'epi').reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+  const totalTransport = costs.filter((c: any) => c.cost_category === 'transport').reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+  const totalOthers = costs.filter((c: any) => c.cost_category !== 'social_security' && c.cost_category !== 'housing' && c.cost_category !== 'epi' && c.cost_category !== 'transport').reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
 
   return (
     <div className="flex flex-col space-y-6 p-4 max-w-7xl mx-auto">
@@ -445,44 +468,365 @@ export function EstimacionDetailPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="financial" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('comercial.detail.financialCard.title')}</CardTitle>
-                <CardDescription>{t('comercial.detail.financialCard.desc')}</CardDescription>
+          <TabsContent value="financial" className="mt-6 space-y-6">
+            <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <CardHeader className="pb-4 bg-slate-50/40 dark:bg-slate-950/20 border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="text-lg font-bold flex items-center text-slate-800 dark:text-white">
+                  <Coins className="h-5 w-5 mr-2.5 text-blue-600 dark:text-blue-400" />
+                  {t('comercial.detail.financialCard.title')}
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">{t('comercial.detail.financialCard.desc')}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="grid md:grid-cols-3 gap-6">
-                  <div className="bg-white dark:bg-slate-900 rounded-lg p-6 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{t('comercial.detail.financialCard.cost')}</p>
-                    <p className="text-3xl font-bold text-slate-900 dark:text-white">
-                      {formatCurrency(estimacion.current_version?.total_cost || 0)}
-                    </p>
+                  {/* Cost Card */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-400 dark:bg-slate-650" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                          {t('comercial.detail.financialCard.cost')}
+                        </p>
+                        <p className="text-3xl font-black text-slate-900 dark:text-white">
+                          {formatCurrency(currentVersion?.total_cost || 0)}
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-650 dark:text-slate-400 group-hover:scale-110 transition-transform">
+                        <TrendingDown className="h-5 w-5" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-slate-900 rounded-lg p-6 border border-blue-100 dark:border-blue-950/40 text-blue-900 dark:text-blue-100">
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">{t('comercial.detail.financialCard.revenue')}</p>
-                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-400">
-                      {formatCurrency(estimacion.current_version?.total_revenue || 0)}
-                    </p>
+
+                  {/* Revenue Card */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-blue-100 dark:border-blue-950/40 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
+                          {t('comercial.detail.financialCard.revenue')}
+                        </p>
+                        <p className="text-3xl font-black text-blue-900 dark:text-blue-400">
+                          {formatCurrency(currentVersion?.total_revenue || 0)}
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-450 group-hover:scale-110 transition-transform">
+                        <TrendingUp className="h-5 w-5" />
+                      </div>
+                    </div>
                   </div>
-                  <div className={`rounded-lg p-6 border ${
-                    (estimacion.current_version?.margin_percent || 0) >= 20 ? 'bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-950/40 text-emerald-700 dark:text-emerald-400' :
-                    (estimacion.current_version?.margin_percent || 0) >= 10 ? 'bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-950/40 text-amber-700 dark:text-amber-400' :
-                    'bg-white dark:bg-slate-900 border-red-100 dark:border-red-950/40 text-red-700 dark:text-red-400'
-                  }`}>
-                    <p className="text-sm font-medium mb-2 opacity-80 text-slate-600 dark:text-slate-400">{t('comercial.detail.financialCard.margin')}</p>
-                    <div className="flex items-baseline space-x-2">
-                      <p className="text-3xl font-bold">
-                        {estimacion.current_version?.margin_percent || 0}%
-                      </p>
-                      <p className="text-sm font-medium opacity-80">
-                        ({formatCurrency((estimacion.current_version?.total_revenue || 0) - (estimacion.current_version?.total_cost || 0))})
-                      </p>
+
+                  {/* Margin Card */}
+                  {(() => {
+                    const marginPercent = currentVersion?.margin_percent || 0;
+                    const marginAmount = (currentVersion?.total_revenue || 0) - (currentVersion?.total_cost || 0);
+                    const isGood = marginPercent >= 20;
+                    const isAvg = marginPercent >= 10;
+                    const colorClass = isGood 
+                      ? 'border-emerald-100 dark:border-emerald-950/40' 
+                      : isAvg 
+                        ? 'border-amber-100 dark:border-amber-950/40' 
+                        : 'border-red-100 dark:border-red-950/40';
+                    const stripeClass = isGood 
+                      ? 'bg-emerald-500' 
+                      : isAvg 
+                        ? 'bg-amber-500' 
+                        : 'bg-red-500';
+                    const badgeBg = isGood 
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' 
+                      : isAvg 
+                        ? 'bg-amber-55 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' 
+                        : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400';
+                    
+                    return (
+                      <div className={`bg-white dark:bg-slate-900 rounded-xl p-6 border ${colorClass} shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group`}>
+                        <div className={`absolute top-0 left-0 w-1.5 h-full ${stripeClass}`} />
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                              {t('comercial.detail.financialCard.margin')}
+                            </p>
+                            <div className="flex items-baseline space-x-2">
+                              <p className={`text-3xl font-black ${isGood ? 'text-emerald-600 dark:text-emerald-400' : isAvg ? 'text-amber-600 dark:text-amber-500' : 'text-red-650 dark:text-red-500'}`}>
+                                {marginPercent}%
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                              ({formatCurrency(marginAmount)})
+                            </p>
+                          </div>
+                          <div className={`p-2.5 ${badgeBg} rounded-lg group-hover:scale-110 transition-transform`}>
+                            <Coins className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Detailed Grid comparison */}
+                <div className="grid md:grid-cols-2 gap-6 mt-8">
+                  {/* Columns for Revenues */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center space-x-3">
+                      <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
+                        <TrendingUp className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-850 dark:text-slate-200">
+                          {t('comercial.stepReview.financialBreakdown')} - {t('comercial.stepReview.revenueLabel')}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {t('comercial.detail.financialCard.desc')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 space-y-4 flex-1">
+                      {/* Base Profile Revenue */}
+                      <div className="flex justify-between items-start pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                        <div>
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.baseProfileRevenue')}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {t('comercial.stepReview.totalHoursLabel', 'Volume de horas')}: {items.reduce((acc: number, item: any) => acc + Number(item.planned_total_hours ?? item.total_hours ?? 0), 0)}h
+                          </p>
+                        </div>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalBaseRevenue)}</span>
+                      </div>
+
+                      {/* Rechargeable Cost Revenue */}
+                      {totalRechargeableRevenue > 0 && (
+                        <div className="flex justify-between items-start pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <div>
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.rechargeableCostsRevenue')}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              {t('comercial.detail.costsCard.yes', 'Reembolsável com markup')}
+                            </p>
+                          </div>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalRechargeableRevenue)}</span>
+                        </div>
+                      )}
+
+                      {/* Additional Revenues */}
+                      {additionalRevenuesSum > 0 && (
+                        <div className="flex flex-col pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <div className="flex justify-between items-start">
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.additionalRevenuesGroup')}</p>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(additionalRevenuesSum)}</span>
+                          </div>
+                          <div className="mt-2 pl-3 border-l-2 border-blue-200 dark:border-blue-800 space-y-1.5">
+                            {additionalRevenues.map((rev: any) => (
+                              <div key={rev.id} className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                                <span>• {rev.description || t('comercial.stepReview.revenueLabel')}</span>
+                                <span className="font-mono">{formatCurrency(rev.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-blue-50/20 dark:bg-blue-950/10 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm font-black">
+                      <span className="text-slate-800 dark:text-slate-200">{t('comercial.stepReview.totalRevenuesSummary')}</span>
+                      <span className="font-mono text-blue-700 dark:text-blue-450 text-base">{formatCurrency(currentVersion?.total_revenue || 0)}</span>
+                    </div>
+                  </div>
+
+                  {/* Columns for Costs */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center space-x-3">
+                      <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-650 dark:text-slate-400">
+                        <TrendingDown className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-850 dark:text-slate-200">
+                          {t('comercial.stepReview.financialBreakdown')} - {t('comercial.stepReview.costLabel')}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {t('comercial.stepReview.financialBreakdownDesc')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 space-y-4 flex-1">
+                      {/* Salaries */}
+                      <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.baseSalariesCost')}</p>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalSalaries)}</span>
+                      </div>
+
+                      {/* Social Security */}
+                      {totalSocialSecurity > 0 && (
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.socialSecurityCost')}</p>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalSocialSecurity)}</span>
+                        </div>
+                      )}
+
+                      {/* Lodging / Alojamento */}
+                      {totalHousing > 0 && (
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.housingCost')}</p>
+                          </div>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalHousing)}</span>
+                        </div>
+                      )}
+
+                      {/* EPIs */}
+                      {totalEpi > 0 && (
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.epiCost')}</p>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalEpi)}</span>
+                        </div>
+                      )}
+
+                      {/* Transport */}
+                      {totalTransport > 0 && (
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.transportCost')}</p>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalTransport)}</span>
+                        </div>
+                      )}
+
+                      {/* Others */}
+                      {totalOthers > 0 && (
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 text-sm">
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">{t('comercial.stepReview.brokerOtherCosts')}</p>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(totalOthers)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm font-black">
+                      <span className="text-slate-800 dark:text-slate-200">{t('comercial.stepReview.totalCostsSummary')}</span>
+                      <span className="font-mono text-slate-950 dark:text-white text-base">{formatCurrency(currentVersion?.total_cost || 0)}</span>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Logistics & Accommodation Section */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-50 dark:bg-amber-950/50 rounded-lg text-amber-600 dark:text-amber-400">
+                    <Home className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-850 dark:text-slate-200">
+                      {t('comercial.detail.logisticsCard.title', i18n.resolvedLanguage === 'es' ? 'Logística y Alojamiento' : i18n.resolvedLanguage === 'en' ? 'Logistics & Accommodation' : 'Logística e Alojamento')}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {t('comercial.detail.logisticsCard.desc', i18n.resolvedLanguage === 'es' ? 'Resumen detallado de alojamiento, transporte y EPIs configurados para los trabajadores.' : i18n.resolvedLanguage === 'en' ? 'Detailed summary of accommodation, transport, and PPEs configured for workers.' : 'Resumo detalhado de alojamento, transporte e EPIs configurados para os trabalhadores.')}
+                    </p>
+                  </div>
+                </div>
+                
+                {totalHousing > 0 && (
+                  <div className="flex items-center space-x-2 text-xs font-semibold px-2.5 py-1 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 rounded-full">
+                    <span>{t('comercial.stepReview.housingCost')}: {formatCurrency(totalHousing)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Accommodation Details */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 flex items-center">
+                      <Home className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                      {t('comercial.costCategories.housing', i18n.resolvedLanguage === 'es' ? 'Alojamiento / Vivienda' : i18n.resolvedLanguage === 'en' ? 'Housing / Lodging' : 'Alojamento / Moradia')}
+                    </h4>
+
+                    {items.some((item: any) => !!item.includes_accommodation) ? (
+                      <div className="space-y-3">
+                        {items.filter((item: any) => !!item.includes_accommodation).map((item: any) => (
+                          <div key={item.id} className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-lg flex justify-between items-center text-sm">
+                            <div>
+                              <p className="font-semibold text-slate-850 dark:text-slate-200">{item.job_function?.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {item.quantity} {item.quantity === 1 
+                                  ? t('comercial.detail.logisticsCard.worker', i18n.resolvedLanguage === 'es' ? 'trabajador' : i18n.resolvedLanguage === 'en' ? 'worker' : 'trabalhador') 
+                                  : t('comercial.detail.logisticsCard.workers', i18n.resolvedLanguage === 'es' ? 'trabajadores' : i18n.resolvedLanguage === 'en' ? 'workers' : 'trabalhadores')}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-100 dark:border-amber-900/30 font-medium">
+                                {item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null 
+                                  ? `€${Number(item.custom_lodging_rate).toFixed(2)}/dia` 
+                                  : t('comercial.detail.logisticsCard.standardLodging', i18n.resolvedLanguage === 'es' ? 'Tarifa Estándar' : i18n.resolvedLanguage === 'en' ? 'Standard Rate' : 'Tarifa Padrão')}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-slate-50/30 dark:bg-slate-950/10 border border-slate-100 dark:border-slate-850 rounded-lg text-xs italic text-slate-500 text-center">
+                        {t('comercial.detail.logisticsCard.noAccommodation', i18n.resolvedLanguage === 'es' ? 'No se prevé alojamiento para los perfiles de esta estimación.' : i18n.resolvedLanguage === 'en' ? 'No accommodation planned for the profiles in this estimate.' : 'Não há previsão de alojamento para os perfis desta estimativa.')}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Logistics and other benefits details */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 flex items-center">
+                      <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                      {t('comercial.detail.logisticsCard.otherBenefits', i18n.resolvedLanguage === 'es' ? 'Transporte, EPIs y Seguridad Social' : i18n.resolvedLanguage === 'en' ? 'Transport, PPEs & Social Security' : 'Transporte, EPIs e Segurança Social')}
+                    </h4>
+
+                    <div className="space-y-3">
+                      {/* Transport summary */}
+                      <div className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-lg flex justify-between items-center text-sm">
+                        <div>
+                          <p className="font-semibold text-slate-850 dark:text-slate-200">
+                            {t('comercial.costCategories.transport', 'Transporte')}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {items.filter((i: any) => i.includes_transport).length} {t('comercial.detail.logisticsCard.profileWithBenefits', i18n.resolvedLanguage === 'es' ? 'perfiles con transporte incluido' : i18n.resolvedLanguage === 'en' ? 'profiles with transport included' : 'perfis com transporte incluso')}
+                          </p>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-350">
+                          {totalTransport > 0 ? formatCurrency(totalTransport) : t('comercial.detail.logisticsCard.noTransport', i18n.resolvedLanguage === 'es' ? 'No se prevé transporte' : i18n.resolvedLanguage === 'en' ? 'No transport planned' : 'Sem previsão de transporte')}
+                        </span>
+                      </div>
+
+                      {/* PPE summary */}
+                      <div className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-lg flex justify-between items-center text-sm">
+                        <div>
+                          <p className="font-semibold text-slate-850 dark:text-slate-200">
+                            {t('comercial.costCategories.epi', 'EPIs')}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {items.filter((i: any) => i.includes_ppe).length} {t('comercial.detail.logisticsCard.profileWithBenefitsPPE', i18n.resolvedLanguage === 'es' ? 'perfiles con EPIs incluidos' : i18n.resolvedLanguage === 'en' ? 'profiles with PPEs included' : 'perfis com EPIs inclusos')}
+                          </p>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-350">
+                          {totalEpi > 0 ? formatCurrency(totalEpi) : t('comercial.detail.logisticsCard.noPPE', i18n.resolvedLanguage === 'es' ? 'No se prevén EPIs' : i18n.resolvedLanguage === 'en' ? 'No PPE planned' : 'Sem previsão de EPIs')}
+                        </span>
+                      </div>
+
+                      {/* Social Security regime summary */}
+                      {items.some((i: any) => i.ss_regime && i.ss_regime !== 'none') && (
+                        <div className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-lg text-sm">
+                          <p className="font-semibold text-slate-850 dark:text-slate-200 mb-2">
+                            {t('comercial.detail.itemsCard.socialSecurity', 'Segurança Social')}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {items.filter((i: any) => i.ss_regime && i.ss_regime !== 'none').map((item: any) => (
+                              <span key={item.id} className="text-[11px] font-medium bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/35">
+                                {item.job_function?.name}: {item.ss_regime === 'destacado' ? t('comercial.detail.itemsCard.destacado', 'Destacado') : t('comercial.detail.itemsCard.local', 'Local')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="versions" className="mt-6">

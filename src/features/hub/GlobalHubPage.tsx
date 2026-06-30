@@ -187,16 +187,15 @@ export function GlobalHubPage() {
             <div className="relative z-10 w-full max-w-6xl px-6 py-12 flex flex-col items-center">
                 
                 {/* Logo Central */}
-                <div className="mb-12 flex flex-col items-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-emerald-500 text-white font-bold text-4xl mb-4 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
-                        M
-                    </div>
-                    <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-2">
-                        MASTERCORP<span className="text-emerald-500">.</span>
-                    </h1>
-                    <p className="text-slate-400 font-medium tracking-wider text-sm uppercase">
-                        Gestão Integrada de Processos
-                    </p>
+                <div className="relative mb-16 flex flex-col items-center select-none">
+                    {/* Efeito de brilho/luz atrás da logo */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[160px] bg-[radial-gradient(circle,_var(--tw-gradient-stops))] from-emerald-500/25 via-blue-500/15 to-transparent blur-3xl rounded-full pointer-events-none z-0" />
+                    
+                    <img 
+                        src="/logo_mcs_transparent.png" 
+                        alt="MCS Logo" 
+                        className="relative z-10 h-32 md:h-36 w-auto object-contain" 
+                    />
                 </div>
 
                 {/* Grid de Aplicativos */}

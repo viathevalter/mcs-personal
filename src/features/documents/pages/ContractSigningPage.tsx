@@ -134,11 +134,13 @@ export function ContractSigningPage() {
             console.log("Renders docx preview...");
             docContainerRef.current.innerHTML = "";
             renderAsync(fileBlob, docContainerRef.current, undefined, {
-                className: "docx-document",
+                className: "docx",
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
-                useBase64URL: true,
+                useBase64URL: false,
+                renderHeaders: true,
+                renderFooters: true,
             })
             .then(() => {
                 adjustDocxPreviewSpacing(docContainerRef.current);

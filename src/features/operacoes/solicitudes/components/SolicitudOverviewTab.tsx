@@ -43,16 +43,26 @@ export function SolicitudOverviewTab({ solicitud }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Cliente e Obra</CardTitle>
+          <CardTitle>
+            {solicitud.tipo === 'relocation' ? 'Destino da Realocação' : 'Cliente e Obra'}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Cliente</p>
-            <p className="text-base">{solicitud.pedido?.client?.trade_name || solicitud.pedido?.client?.legal_name || 'N/A'}</p>
+            <p className="text-sm font-medium text-muted-foreground">
+              {solicitud.tipo === 'relocation' ? 'Cliente de Destino' : 'Cliente'}
+            </p>
+            <p className="text-base">
+              {solicitud.client?.trade_name || solicitud.client?.legal_name || solicitud.pedido?.client?.trade_name || solicitud.pedido?.client?.legal_name || 'N/A'}
+            </p>
           </div>
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Local / Obra</p>
-            <p className="text-base">{solicitud.pedido?.client_site?.name || 'Local não definido'}</p>
+            <p className="text-sm font-medium text-muted-foreground">
+              {solicitud.tipo === 'relocation' ? 'Obra de Destino' : 'Local / Obra'}
+            </p>
+            <p className="text-base">
+              {solicitud.client_site?.name || solicitud.pedido?.client_site?.name || 'Local não definido'}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">Pedido Vinculado</p>

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { Building, Wallet, MapPin, Phone, Info } from 'lucide-react';
 
 import {
   Sheet,
@@ -155,9 +156,14 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Identificação Geral</h3>
-              <div className="grid grid-cols-3 gap-4">
+            {/* Bloco 1: Identificação Geral */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <Building className="h-5 w-5 text-orange-500" />
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Identificação Geral</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="codigo"
@@ -165,62 +171,49 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                     <FormItem>
                       <FormLabel>Código Interno</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: EMP-01" {...field} />
+                        <Input placeholder="Ex: EMP-01" className="bg-white dark:bg-slate-950" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="nome"
                   render={({ field }) => (
-                    <FormItem className="col-span-2">
+                    <FormItem className="md:col-span-2">
                       <FormLabel>Nome de Exibição (Sistema)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Mastercorp Portugal" {...field} />
+                        <Input placeholder="Ex: Mastercorp Portugal" className="bg-white dark:bg-slate-950" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="legal_name"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Razon Social</FormLabel>
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Razão Social</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Mastercorp S.A." {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: Mastercorp S.A." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="trade_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre Comercial</FormLabel>
+                      <FormLabel>Nome Comercial</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Mastercorp" {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tax_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cif DNI</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: 515660710" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: Mastercorp" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -229,39 +222,58 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Endereço (Domicilio)</h3>
-              
-              <div className="grid grid-cols-3 gap-4">
+            {/* Bloco 2: Endereço e Registros Fiscais */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <MapPin className="h-5 w-5 text-orange-500" />
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Endereço e Registros Fiscais</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="tax_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CIF / NIF</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 515660710" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="vat_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cif Europeo (VAT)</FormLabel>
+                      <FormLabel>CIF Europeu (VAT)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: PT515660710" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: PT515660710" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <div className="hidden md:block"></div>
+
                 <FormField
                   control={form.control}
                   name="address_line"
                   render={({ field }) => (
-                    <FormItem className="col-span-2">
-                      <FormLabel>Domicilio</FormLabel>
+                    <FormItem className="md:col-span-3">
+                      <FormLabel>Domicílio / Logradouro</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: R. São Tomé e Príncipe, 267" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: R. São Tomé e Príncipe, 267" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="country_id"
@@ -284,7 +296,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                   name="region_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Região</FormLabel>
+                      <FormLabel>Região / Distrito</FormLabel>
                       <FormControl>
                         <RegionSelector 
                           countryId={selectedCountry}
@@ -296,43 +308,43 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="postal_code"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Codigo Postal</FormLabel>
+                      <FormLabel>Código Postal</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: 4430-228" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: 4430-228" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="city"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Municipio / Cidade</FormLabel>
+                      <FormLabel>Município / Cidade</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Vila Nova de Gaia" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: Vila Nova de Gaia" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="province"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Provincia / Estado</FormLabel>
+                      <FormLabel>Província / Estado</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Porto" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: Porto" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -341,72 +353,78 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Contato e Faturamento</h3>
-              
-              <div className="grid grid-cols-3 gap-4">
+            {/* Bloco 3: Contato e Faturamento */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <Phone className="h-5 w-5 text-orange-500" />
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Contato e Faturamento</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Telefono</FormLabel>
+                      <FormLabel>Telefone</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: +351 210 000 000" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: +351 210 000 000" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="Ex: geral@empresa.com" {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="billing_email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email Envio Factura</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="Ex: faturas@empresa.com" {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
+
                 <FormField
                   control={form.control}
                   name="mobile"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Movil</FormLabel>
+                      <FormLabel>Telemóvel / Celular</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: +351 910 000 000" {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: +351 910 000 000" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-mail Geral</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: geral@empresa.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billing_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-mail para Envio de Faturas</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: faturas@empresa.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="proposal_sender_email"
                   render={({ field }) => (
-                    <FormItem className="col-span-2">
+                    <FormItem className="md:col-span-2">
                       <FormLabel>E-mail Remetente de Propostas (Outlook)</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Ex: vendas@stoco.es" {...field} value={field.value || ''} />
+                        <Input type="email" placeholder="Ex: vendas@stoco.es" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -415,105 +433,113 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Dados Operacionais e Bancários</h3>
+            {/* Bloco 4: Dados Financeiros e Operacionais */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <Wallet className="h-5 w-5 text-orange-500" />
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Dados Financeiros e Operacionais</h3>
+              </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="iban"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Iban</FormLabel>
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>IBAN Principal</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: PT50..." {...field} value={field.value || ''} />
+                        <Input placeholder="Ex: PT50..." className="bg-white dark:bg-slate-950 font-mono" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <div className="grid grid-cols-2 gap-2 md:col-span-1">
+                  <FormField
+                    control={form.control}
+                    name="latitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="any" placeholder="Ex: 41.1579" className="bg-white dark:bg-slate-950 text-xs font-mono" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="longitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="any" placeholder="Ex: -8.6291" className="bg-white dark:bg-slate-950 text-xs font-mono" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <FormField
                   control={form.control}
-                  name="latitude"
+                  name="bank_details"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Latitude</FormLabel>
+                    <FormItem className="md:col-span-3">
+                      <FormLabel>Dados de Transferência Faturação (Layout Fatura)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Ex: 41.1579" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                        <Textarea 
+                          placeholder="Ex: REVOLUT BUSINESS&#10;IBAN: LT44...&#10;SWIFT/BIC: REVOLT21" 
+                          className="resize-none h-24 font-mono text-sm bg-white dark:bg-slate-950" 
+                          {...field} 
+                          value={field.value || ''} 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
-                  name="longitude"
+                  name="is_active"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Longitude</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="any" placeholder="Ex: -8.6291" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
-                      </FormControl>
-                      <FormMessage />
+                    <FormItem className="flex flex-col rounded-lg border p-4 bg-white dark:bg-slate-900 md:col-span-3 space-y-4">
+                      <div className="flex flex-row items-center justify-between">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base font-semibold">Empresa Ativa no Sistema</FormLabel>
+                          <div className="text-xs text-slate-500">
+                            Define se esta empresa está visível no selecionador global e permite novas operações.
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={true} // TODO: apenas super_admin pode alterar no futuro
+                          />
+                        </FormControl>
+                      </div>
+                      
+                      <div className="bg-amber-50 text-amber-800 p-3 rounded-md text-xs flex gap-2 items-start border border-amber-200">
+                        <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                        <p>O arquivamento/desativação de empresas base requer validação de segurança e permissão de super administrador.</p>
+                      </div>
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="bank_details"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Conta Transferencia Faturacion</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Ex: REVOLUT BUSINESS&#10;IBAN: LT44...&#10;SWIFT/BIC: REVOLT21" 
-                        className="resize-none h-24 font-mono text-sm" 
-                        {...field} 
-                        value={field.value || ''} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="is_active"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col rounded-lg border p-4 bg-white dark:bg-slate-900 mt-4 space-y-4">
-                    <div className="flex flex-row items-center justify-between">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base font-semibold">Empresa Ativa no Sistema</FormLabel>
-                        <div className="text-sm text-slate-500">
-                          Define se esta empresa está visível no selecionador global e permite novas operações.
-                        </div>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled={true} // TODO: apenas super_admin pode alterar no futuro
-                        />
-                      </FormControl>
-                    </div>
-                    
-                    <div className="bg-amber-50 text-amber-800 p-3 rounded-md text-sm flex gap-2 items-start border border-amber-200">
-                      <span className="font-semibold shrink-0">Atenção:</span>
-                      <p>O arquivamento/desativação de empresas base requer validação de segurança e permissão de super administrador.</p>
-                    </div>
-                  </FormItem>
-                )}
-              />
             </div>
 
-            <div className="pt-6 flex gap-3 justify-end sticky bottom-0 bg-white dark:bg-slate-950 pb-4 border-t mt-8">
+            <div className="pt-6 flex gap-3 justify-end sticky bottom-0 bg-white dark:bg-slate-950 pb-4 border-t mt-8 z-20">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={isSaving} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold">
                 {isSaving ? 'Salvando...' : 'Salvar Empresa'}
               </Button>
             </div>

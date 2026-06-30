@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -7,10 +7,18 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { useLeads } from '@/features/comercial/leads/hooks/useLeads';
+import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
 import { CountrySelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { Calendar, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+
+const countryLanguageMap: Record<string, string> = {
+  '8caaddaf-88cd-4a50-aff6-127b8979b1c3': 'es', // Espanha
+  'd918a3b2-292e-474e-96ce-147f4ba756db': 'pt', // Portugal
+  '86a91f2d-6e94-4085-8cce-4e17197979e2': 'it', // Itália
+  '690649b9-6bab-4605-8b3e-cbe4c4af73a3': 'fr', // França
+};
 
 // Utility functions for date calculations
 function countWeekdays(startDateStr: string, endDateStr: string): number {
@@ -95,6 +103,16 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads();
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
+  const { data: paymentTerms = [] } = usePaymentTerms();
+
+  // Auto-select site if client has exactly one site
+  useEffect(() => {
+    if (targetType === 'client' && data.client_id && !isLoadingSites && sites.length === 1) {
+      if (data.client_site_id !== sites[0].id) {
+        onChange({ client_site_id: sites[0].id });
+      }
+    }
+  }, [sites, isLoadingSites, data.client_id, targetType, data.client_site_id, onChange]);
 
   const totalDays = countTotalDays(data.expected_start_date, data.expected_end_date);
   const weekdays = countWeekdays(data.expected_start_date, data.expected_end_date);
@@ -150,12 +168,16 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
               value={data.client_id || ''} 
               onValueChange={(val) => {
                 const selectedClient = clients.find(c => c.id === val);
+                const defaultTerm = selectedClient?.payment_term || paymentTerms.find(pt => pt.id === selectedClient?.payment_term_id);
+                const mappedLanguage = selectedClient?.country_id ? countryLanguageMap[selectedClient.country_id] : undefined;
                 onChange({ 
                   client_id: val, 
                   client_site_id: '',
                   contact_name: selectedClient?.trade_name || selectedClient?.legal_name || '',
                   contact_email: selectedClient?.email || '',
-                  ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {})
+                  ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {}),
+                  ...(mappedLanguage ? { document_language: mappedLanguage } : {}),
+                  ...(defaultTerm ? { payment_terms: defaultTerm.name } : {})
                 });
               }}
             >
@@ -183,10 +205,12 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
               value={data.lead_id || ''} 
               onValueChange={(val) => {
                 const selectedLead = leads.find(l => l.id === val);
+                const defaultTerm = paymentTerms.find(pt => pt.id === selectedLead?.payment_term_id);
                 onChange({ 
                   lead_id: val, 
                   contact_name: selectedLead?.name || '',
-                  contact_email: selectedLead?.email || ''
+                  contact_email: selectedLead?.email || '',
+                  ...(defaultTerm ? { payment_terms: defaultTerm.name } : {})
                 });
               }}
             >
@@ -228,7 +252,13 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
           <Label htmlFor="country_id">{t('comercial.detail.proposalCard.country')} <span className="text-red-500">*</span></Label>
           <CountrySelector
             value={data.country_id || null}
-            onChange={(val) => onChange({ country_id: val })}
+            onChange={(val) => {
+              const mappedLanguage = val ? countryLanguageMap[val] : undefined;
+              onChange({ 
+                country_id: val,
+                ...(mappedLanguage ? { document_language: mappedLanguage } : {})
+              });
+            }}
           />
         </div>
 
@@ -283,11 +313,20 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
               <SelectValue placeholder={t('comercial.stepGeneral.select')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="15 dias">15 Dias</SelectItem>
-              <SelectItem value="30 dias">30 Dias</SelectItem>
-              <SelectItem value="45 dias">45 Dias</SelectItem>
-              <SelectItem value="60 dias">60 Dias</SelectItem>
-              <SelectItem value="Pronto Pagamento">Pronto Pagamento</SelectItem>
+              {paymentTerms.map((term) => (
+                <SelectItem key={term.id} value={term.name}>
+                  {term.name}
+                </SelectItem>
+              ))}
+              {paymentTerms.length === 0 && (
+                <>
+                  <SelectItem value="15 dias">15 Dias</SelectItem>
+                  <SelectItem value="30 dias">30 Dias</SelectItem>
+                  <SelectItem value="45 dias">45 Dias</SelectItem>
+                  <SelectItem value="60 dias">60 Dias</SelectItem>
+                  <SelectItem value="Pronto Pagamento">Pronto Pagamento</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>

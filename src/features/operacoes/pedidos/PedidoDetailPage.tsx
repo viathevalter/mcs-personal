@@ -17,11 +17,13 @@ import { PedidoTasksTab } from './components/tabs/PedidoTasksTab';
 import { PedidoTimelineTab } from './components/tabs/PedidoTimelineTab';
 import { PedidoFinanceiroTab } from './components/tabs/PedidoFinanceiroTab';
 import { PedidoDocumentosTab } from './components/tabs/PedidoDocumentosTab';
+import { usePedidoFinanceAccess } from './hooks/usePedidoFinanceAccess';
 
 export function PedidoDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+  const { hasFinanceAccess } = usePedidoFinanceAccess();
 
   const { data, isLoading: isLoadingPedido, error } = usePedidoDetail(id);
   const pedido = data?.pedido;
@@ -153,12 +155,14 @@ export function PedidoDetailPage() {
           >
             Timeline
           </TabsTrigger>
-          <TabsTrigger 
-            value="finance"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-3"
-          >
-            Financeiro
-          </TabsTrigger>
+          {hasFinanceAccess && (
+            <TabsTrigger 
+              value="finance"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-3"
+            >
+              Financeiro
+            </TabsTrigger>
+          )}
           <TabsTrigger 
             value="docs"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-3"
@@ -194,9 +198,11 @@ export function PedidoDetailPage() {
           <PedidoTimelineTab events={events} isLoading={isLoadingTimeline} />
         </TabsContent>
 
-        <TabsContent value="finance" className="focus-visible:outline-none">
-          <PedidoFinanceiroTab pedido={pedido} items={items} />
-        </TabsContent>
+        {hasFinanceAccess && (
+          <TabsContent value="finance" className="focus-visible:outline-none">
+            <PedidoFinanceiroTab pedido={pedido} items={items} />
+          </TabsContent>
+        )}
 
         <TabsContent value="docs" className="focus-visible:outline-none">
           <PedidoDocumentosTab />

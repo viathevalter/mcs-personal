@@ -19,7 +19,11 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                 .from('worker_assignments')
                 .select(`
                     *,
-                    worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab)
+                    worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
+                    replaced_assignment:worker_assignments!replacement_of_assignment_id(
+                        id,
+                        worker:workers(id, nome)
+                    )
                 `)
                 .eq('empresa_id', filters.empresa_id)
                 .in('status', ['planned', 'active']); // Ativos ou planejados

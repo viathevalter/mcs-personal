@@ -4,6 +4,7 @@ import { formatCurrency } from '@/shared/utils/currency';
 import { format } from 'date-fns';
 import { ChevronRight } from 'lucide-react';
 import type { Pedido } from '../types';
+import { usePedidoFinanceAccess } from '../hooks/usePedidoFinanceAccess';
 
 interface Props {
   pedidos: Pedido[];
@@ -12,6 +13,7 @@ interface Props {
 
 export function PedidosTable({ pedidos, isLoading }: Props) {
   const navigate = useNavigate();
+  const { hasFinanceAccess } = usePedidoFinanceAccess();
 
   if (isLoading) {
     return <div className="text-center py-10 text-muted-foreground">Carregando pedidos...</div>;
@@ -36,7 +38,7 @@ export function PedidosTable({ pedidos, isLoading }: Props) {
               <th className="px-4 py-3 font-medium">Status Comercial</th>
               <th className="px-4 py-3 font-medium">Status Operacional</th>
               <th className="px-4 py-3 font-medium">Início Previsto</th>
-              <th className="px-4 py-3 font-medium text-right">Receita Total</th>
+              {hasFinanceAccess && <th className="px-4 py-3 font-medium text-right">Receita Total</th>}
               <th className="px-4 py-3 font-medium text-center">Ações</th>
             </tr>
           </thead>
@@ -66,12 +68,14 @@ export function PedidosTable({ pedidos, isLoading }: Props) {
                 <td className="px-4 py-3 text-muted-foreground">
                   {pedido.expected_start_date ? format(new Date(pedido.expected_start_date), 'dd/MM/yyyy') : '-'}
                 </td>
-                <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-500">
-                  {formatCurrency(pedido.total_revenue_snapshot || 0)}
-                  <div className="text-xs font-normal text-muted-foreground mt-0.5">
-                    Margem: {pedido.margin_percent_snapshot}%
-                  </div>
-                </td>
+                {hasFinanceAccess && (
+                  <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-500">
+                    {formatCurrency(pedido.total_revenue_snapshot || 0)}
+                    <div className="text-xs font-normal text-muted-foreground mt-0.5">
+                      Margem: {pedido.margin_percent_snapshot}%
+                    </div>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-center">
                   <button 
                     className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"

@@ -170,11 +170,13 @@ export function ProposalSigningPage() {
             console.log("Renderizando docx da proposta...");
             proposalContainerRef.current.innerHTML = "";
             renderAsync(proposalBlob, proposalContainerRef.current, undefined, {
-                className: "docx-document",
+                className: "docx",
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
-                useBase64URL: true,
+                useBase64URL: false,
+                renderHeaders: true,
+                renderFooters: true,
             })
             .then(() => {
                 adjustDocxPreviewSpacing(proposalContainerRef.current);
@@ -191,11 +193,13 @@ export function ProposalSigningPage() {
             console.log("Renderizando docx do contrato...");
             contractContainerRef.current.innerHTML = "";
             renderAsync(contractBlob, contractContainerRef.current, undefined, {
-                className: "docx-document",
+                className: "docx",
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
-                useBase64URL: true,
+                useBase64URL: false,
+                renderHeaders: true,
+                renderFooters: true,
             })
             .then(() => {
                 adjustDocxPreviewSpacing(contractContainerRef.current);

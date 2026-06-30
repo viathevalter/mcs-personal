@@ -116,7 +116,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                     const hourRecord = hoursData.find(h => h.worker_id === w.id);
                     if (!hourRecord || hourRecord.status === 'pendente') {
                         summary.pending_hours++;
-                    } else if (hourRecord.status === 'enviado') {
+                    } else if (hourRecord.status === 'enviado' || hourRecord.status === 'processado') {
                         summary.submitted_hours++;
                     } else if (hourRecord.status === 'validado') {
                         summary.validated_hours++;

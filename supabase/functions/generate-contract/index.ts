@@ -43,6 +43,49 @@ serve(async (req) => {
       throw new Error(`Trabalhador não encontrado: ${workerErr?.message}`);
     }
 
+    // Validar se o trabalhador possui ao menos um documento de identificação cadastrado para emissão do contrato
+    const hasDocument = [worker.pasaporte, worker.dni, worker.nie, worker.nif].some(doc => doc && doc.trim() !== "");
+    if (!hasDocument) {
+      return new Response(
+        JSON.stringify({ error: "O trabalhador deve ter pelo menos um documento de identificação (Passaporte, DNI, NIE ou NIF) cadastrado para gerar o contrato." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Se o trabalhador possuir um código temporário, converter para o definitivo sequencial
+    let workerCode = worker.cod_colab;
+    if (workerCode && workerCode.startsWith("TEMP-")) {
+      console.log(`Convertendo código temporário ${workerCode} para definitivo...`);
+      
+      // Criamos um client temporário configurado para o schema 'core_personal' para chamar a RPC
+      const supabasePersonal = createClient(supabaseUrl, supabaseServiceKey, {
+        db: { schema: 'core_personal' }
+      });
+
+      const { data: nextCode, error: nextCodeErr } = await supabasePersonal
+        .rpc("fn_generate_next_cod_colab");
+        
+      if (nextCodeErr || !nextCode) {
+        throw new Error(`Falha ao gerar o próximo código de colaborador: ${nextCodeErr?.message || "Código nulo"}`);
+      }
+
+      console.log(`Próximo código de colaborador gerado: ${nextCode}`);
+
+      // Atualizar o código na tabela workers
+      const { error: updateErr } = await supabase
+        .schema("core_personal")
+        .from("workers")
+        .update({ cod_colab: nextCode })
+        .eq("id", worker_id);
+
+      if (updateErr) {
+        throw new Error(`Falha ao atualizar o código definitivo no banco: ${updateErr.message}`);
+      }
+
+      workerCode = nextCode;
+      worker.cod_colab = nextCode;
+    }
+
     // 2. Buscar informações da alocação se informada, caso contrário buscar a mais recente do trabalhador
     let assignment = null;
     if (assignment_id) {

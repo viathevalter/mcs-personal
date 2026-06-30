@@ -12,9 +12,24 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
     for (const [path, file] of Object.entries(zip.files)) {
       if (path.endsWith('.xml')) {
         let content = await file.async('string');
+        const originalContent = content;
+
+        // 1. Clean split XML tags inside {{...}}
+        if (content.includes('{{')) {
+          content = content.replace(/\{\{([\s\S]*?)\}\}/g, (match, p1) => {
+            const cleaned = p1.replace(/<[^>]+>/g, '');
+            return `{{${cleaned}}}`;
+          });
+        }
+
+        // 2. Normalize IMAGE: tags (compatibility)
         if (/\{\{\s*IMAGE\s*:\s*[a-zA-Z0-9_]+\s*\}\}/i.test(content) || content.includes('IMAGE:')) {
           console.log(`[normalizeDocx] Normalizing IMAGE: tags in ${path}`);
           content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
+        }
+
+        if (content !== originalContent) {
+          console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);
           modified = true;
         }
@@ -544,6 +559,9 @@ serve(async (req) => {
           const access_token = tokenData.access_token;
           console.log("[sign-proposal] Token do Microsoft Graph obtido com sucesso para conversão");
 
+          let savedProposalPdfPath = null;
+          let savedContractPdfPath = null;
+
           // Proposta
           if (proposalBase64 && ps.document_url) {
             console.log(`[sign-proposal] Convertendo proposta DOCX para PDF...`);
@@ -559,12 +577,18 @@ serve(async (req) => {
               }
               const pdfPath = ps.document_url.replace(/\.docx$/i, '.pdf');
               console.log(`[sign-proposal] Salvando proposta PDF no bucket: ${pdfPath}`);
-              await supabase.storage
+              const { error: uploadPdfErr } = await supabase.storage
                 .from("proposal-signatures")
                 .upload(pdfPath, pdfBytes, {
                   contentType: "application/pdf",
                   upsert: true,
                 });
+              if (uploadPdfErr) {
+                console.error("[sign-proposal] Erro ao fazer upload do PDF da proposta:", uploadPdfErr.message);
+              } else {
+                console.log("[sign-proposal] PDF da proposta salvo com sucesso no bucket.");
+                savedProposalPdfPath = pdfPath;
+              }
             }
           }
 
@@ -583,12 +607,38 @@ serve(async (req) => {
               }
               const pdfPath = ps.contract_document_url.replace(/\.docx$/i, '.pdf');
               console.log(`[sign-proposal] Salvando contrato PDF no bucket: ${pdfPath}`);
-              await supabase.storage
+              const { error: uploadPdfErr } = await supabase.storage
                 .from("proposal-signatures")
                 .upload(pdfPath, pdfBytes, {
                   contentType: "application/pdf",
                   upsert: true,
                 });
+              if (uploadPdfErr) {
+                console.error("[sign-proposal] Erro ao fazer upload do PDF do contrato:", uploadPdfErr.message);
+              } else {
+                console.log("[sign-proposal] PDF do contrato salvo com sucesso no bucket.");
+                savedContractPdfPath = pdfPath;
+              }
+            }
+          }
+
+          // Atualizar URLs de PDF no banco de dados se algum upload deu certo
+          if (savedProposalPdfPath || savedContractPdfPath) {
+            console.log(`[sign-proposal] Atualizando URLs dos PDFs na tabela proposal_signatures...`);
+            const updatePayload: any = {};
+            if (savedProposalPdfPath) updatePayload.signed_document_url = savedProposalPdfPath;
+            if (savedContractPdfPath) updatePayload.contract_signed_document_url = savedContractPdfPath;
+
+            const { error: dbUpdateErr } = await supabase
+              .schema("core_comercial")
+              .from("proposal_signatures")
+              .update(updatePayload)
+              .eq("id", ps.id);
+
+            if (dbUpdateErr) {
+              console.error("[sign-proposal] Erro ao salvar URLs de PDF no banco:", dbUpdateErr.message);
+            } else {
+              console.log("[sign-proposal] URLs de PDF salvas com sucesso no banco de dados.");
             }
           }
         } else {
@@ -600,6 +650,7 @@ serve(async (req) => {
     } catch (errPdf) {
       console.error("[sign-proposal] Erro durante conversão e salvamento de PDF:", errPdf);
     }
+
 
     // Enviar email de confirmação com anexos
     if (empresa) {

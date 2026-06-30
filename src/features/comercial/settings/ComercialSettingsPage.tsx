@@ -27,9 +27,9 @@ export function ComercialSettingsPage() {
   const [saving, setSaving] = useState(false);
   
   // Notification emails state
-  const [notificationEmails, setNotificationEmails] = useState<{ id: string; email: string; event_type: 'pedido' | 'reemplazo' | 'reubicacion' }[]>([]);
+  const [notificationEmails, setNotificationEmails] = useState<{ id: string; email: string; event_type: 'pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja' }[]>([]);
   const [newEmail, setNewEmail] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<('pedido' | 'reemplazo' | 'reubicacion')[]>(['pedido']);
+  const [selectedTypes, setSelectedTypes] = useState<('pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja')[]>(['pedido']);
   const [loadingEmails, setLoadingEmails] = useState(false);
 
   const fetchNotificationEmails = async () => {
@@ -138,11 +138,13 @@ export function ComercialSettingsPage() {
   const [activeLang, setActiveLang] = useState<string>('pt');
   const [proposalStatus, setProposalStatus] = useState<'default' | 'custom'>('default');
   const [contractStatus, setContractStatus] = useState<'default' | 'custom'>('default');
+  const [pedidoStatus, setPedidoStatus] = useState<'default' | 'custom'>('default');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [uploadingType, setUploadingType] = useState<'proposal' | 'contract' | null>(null);
+  const [uploadingType, setUploadingType] = useState<'proposal' | 'contract' | 'pedido' | null>(null);
 
   const proposalInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
+  const pedidoInputRef = useRef<HTMLInputElement>(null);
 
   const isUserAdmin = role === 'admin' || role === 'super_admin';
 
@@ -162,14 +164,17 @@ export function ComercialSettingsPage() {
         console.warn(`Error checking templates for folder: ${folderName}/${activeLang}`, error);
         setProposalStatus('default');
         setContractStatus('default');
+        setPedidoStatus('default');
         return;
       }
       
       const hasProp = files?.some(f => f.name === 'proposta.docx') || false;
       const hasCont = files?.some(f => f.name === 'contrato.docx') || false;
+      const hasPed = files?.some(f => f.name === 'pedido.docx') || false;
       
       setProposalStatus(hasProp ? 'custom' : 'default');
       setContractStatus(hasCont ? 'custom' : 'default');
+      setPedidoStatus(hasPed ? 'custom' : 'default');
     } catch (err) {
       console.error('Failed to list templates:', err);
     } finally {
@@ -328,8 +333,12 @@ export function ComercialSettingsPage() {
     }
   };
 
-  const handleDownload = async (type: 'proposta' | 'contrato') => {
-    const isCustom = type === 'proposta' ? proposalStatus === 'custom' : contractStatus === 'custom';
+  const handleDownload = async (type: 'proposta' | 'contrato' | 'pedido') => {
+    const isCustom = type === 'proposta' 
+      ? proposalStatus === 'custom' 
+      : type === 'contrato' 
+        ? contractStatus === 'custom' 
+        : pedidoStatus === 'custom';
     
     let fileName = "";
     if (isCustom) {
@@ -337,8 +346,10 @@ export function ComercialSettingsPage() {
     } else {
       if (type === 'proposta') {
         fileName = activeLang === 'pt' ? 'default.docx' : `default_${activeLang}.docx`;
-      } else {
+      } else if (type === 'contrato') {
         fileName = activeLang === 'pt' ? 'default_contrato.docx' : `default_contrato_${activeLang}.docx`;
+      } else {
+        fileName = activeLang === 'pt' ? 'default_pedido.docx' : `default_pedido_${activeLang}.docx`;
       }
     }
       
@@ -350,7 +361,11 @@ export function ComercialSettingsPage() {
       if (error) {
         // Fallback para o template padrão global de base (pt) se o específico do idioma não existir no storage
         console.warn(`Default template ${fileName} not found. Trying global default...`);
-        const fallbackFileName = type === 'proposta' ? 'default.docx' : 'default_contrato.docx';
+        const fallbackFileName = type === 'proposta' 
+          ? 'default.docx' 
+          : type === 'contrato' 
+            ? 'default_contrato.docx' 
+            : 'default_pedido.docx';
         const { data: fbData, error: fbErr } = await supabase.storage
           .from('proposal-templates')
           .download(fallbackFileName);
@@ -378,7 +393,7 @@ export function ComercialSettingsPage() {
     toast.success(t('comercial.settings.downloadSuccess', { defaultValue: 'Modelo baixado com sucesso!' }));
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'proposta' | 'contrato') => {
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'proposta' | 'contrato' | 'pedido') => {
     const file = event.target.files?.[0];
     if (!file) return;
     
@@ -388,7 +403,7 @@ export function ComercialSettingsPage() {
       return;
     }
     
-    const targetType = type === 'proposta' ? 'proposal' : 'contract';
+    const targetType = type === 'proposta' ? 'proposal' : type === 'contrato' ? 'contract' : 'pedido';
     try {
       setUploadingType(targetType);
       const path = `${folderName}/${activeLang}/${type}.docx`;
@@ -413,7 +428,7 @@ export function ComercialSettingsPage() {
     }
   };
 
-  const handleRestore = async (type: 'proposta' | 'contrato') => {
+  const handleRestore = async (type: 'proposta' | 'contrato' | 'pedido') => {
     if (!window.confirm(t('comercial.settings.confirmRestore', { defaultValue: 'Tem certeza que deseja restaurar este modelo para o padrão do sistema?' }))) {
       return;
     }
@@ -458,7 +473,7 @@ export function ComercialSettingsPage() {
   }
 
   return (
-    <div className="flex flex-col space-y-6 p-4 max-w-4xl mx-auto">
+    <div className="flex flex-col space-y-6 p-4 max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center">
           <Sliders className="mr-3 h-8 w-8 text-primary" />
@@ -889,6 +904,8 @@ export function ComercialSettingsPage() {
                   { key: 'pedido', label: 'Envio de Pedido' },
                   { key: 'reemplazo', label: 'Reemplazo' },
                   { key: 'reubicacion', label: 'Reubicación' },
+                  { key: 'prueba', label: 'Prueba (Teste Técnico)' },
+                  { key: 'baja', label: 'Baja' },
                 ].map(item => {
                   const isChecked = selectedTypes.includes(item.key as any);
                   return (
@@ -913,15 +930,27 @@ export function ComercialSettingsPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 pt-2">
-            {(['pedido', 'reemplazo', 'reubicacion'] as const).map(type => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pt-2">
+            {(['pedido', 'reemplazo', 'reubicacion', 'prueba', 'baja'] as const).map(type => {
               const emailsOfType = notificationEmails.filter(e => e.event_type === type);
-              const label = type === 'pedido' ? 'Envio de Pedido' : type === 'reemplazo' ? 'Reemplazo' : 'Reubicación';
+              const label = type === 'pedido' 
+                ? 'Envio de Pedido' 
+                : type === 'reemplazo' 
+                  ? 'Reemplazo' 
+                  : type === 'reubicacion' 
+                    ? 'Reubicación' 
+                    : type === 'prueba'
+                      ? 'Prueba'
+                      : 'Baja';
               const badgeColor = type === 'pedido' 
                 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900' 
                 : type === 'reemplazo' 
                   ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900' 
-                  : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900';
+                  : type === 'reubicacion'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900'
+                    : type === 'prueba'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
+                      : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900';
               
               return (
                 <div key={type} className="border border-slate-100 dark:border-slate-800 rounded-xl p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/10 hover:shadow-md transition-shadow">
@@ -1006,7 +1035,7 @@ export function ComercialSettingsPage() {
             </Tabs>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {/* Template da Proposta */}
             <div className="border rounded-xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
               <div className="flex justify-between items-start">
@@ -1131,6 +1160,72 @@ export function ComercialSettingsPage() {
                     variant="outline" 
                     className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-950 dark:hover:bg-rose-950/20" 
                     onClick={() => handleRestore('contrato')}
+                    title="Restaurar para padrão"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Template do Pedido Operacional */}
+            <div className="border rounded-xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <span className="font-bold text-sm block">Pedido Operacional ({activeLang.toUpperCase()})</span>
+                  <p className="text-xs text-muted-foreground font-mono">{folderName}/{activeLang}/pedido.docx</p>
+                </div>
+                {loadingTemplates ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : pedidoStatus === 'custom' ? (
+                  <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Personalizado
+                  </span>
+                ) : (
+                  <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Padrão Global
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t text-xs">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 text-xs" 
+                  onClick={() => handleDownload('pedido')}
+                  disabled={loadingTemplates}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> Baixar Atual
+                </Button>
+                
+                <input 
+                  type="file" 
+                  ref={pedidoInputRef} 
+                  className="hidden" 
+                  accept=".docx"
+                  onChange={(e) => handleUpload(e, 'pedido')}
+                />
+                <Button 
+                  size="sm" 
+                  className="flex-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium" 
+                  onClick={() => pedidoInputRef.current?.click()}
+                  disabled={uploadingType === 'pedido' || loadingTemplates}
+                >
+                  {uploadingType === 'pedido' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Upload Word
+                </Button>
+
+                {pedidoStatus === 'custom' && (
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-950 dark:hover:bg-rose-950/20" 
+                    onClick={() => handleRestore('pedido')}
                     title="Restaurar para padrão"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

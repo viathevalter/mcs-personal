@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Briefcase, DollarSign, Package, Users } from 'lucide-react';
 import { formatCurrency } from '@/shared/utils/currency';
 import type { Pedido } from '../types';
+import { usePedidoFinanceAccess } from '../hooks/usePedidoFinanceAccess';
 
 interface Props {
   pedidos: Pedido[];
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export function PedidoKpiCards({ pedidos, itemsMap = {} }: Props) {
+  const { hasFinanceAccess } = usePedidoFinanceAccess();
+  
   const totalPedidos = pedidos.length;
   const activePedidos = pedidos.filter(p => p.commercial_status === 'active').length;
   const pendingOperations = pedidos.filter(p => p.operational_status === 'pending_operations').length;
@@ -26,7 +29,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {} }: Props) {
   });
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid gap-4 md:grid-cols-2 ${hasFinanceAccess ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Pedidos Ativos / Total</CardTitle>
@@ -78,20 +81,22 @@ export function PedidoKpiCards({ pedidos, itemsMap = {} }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">Receita Snapshot Total</CardTitle>
-          <DollarSign className="h-4 w-4 text-emerald-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-500">
-            {formatCurrency(totalRevenue)}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Soma do faturamento estimado (visíveis)
-          </p>
-        </CardContent>
-      </Card>
+      {hasFinanceAccess && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Receita Snapshot Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-500">
+              {formatCurrency(totalRevenue)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Soma do faturamento estimado (visíveis)
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

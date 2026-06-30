@@ -65,10 +65,7 @@ export function LoginPage() {
                 
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 font-bold text-2xl tracking-tight mb-12">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500 text-white">
-                            M
-                        </div>
-                        MasterCorp
+                        <img src="/logo_mcs_transparent.png" alt="MCS Logo" className="h-10 w-auto object-contain" />
                     </div>
                     
                     <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
@@ -111,7 +108,7 @@ export function LoginPage() {
                 </div>
 
                 <div className="relative z-10 text-sm text-slate-500 mt-12">
-                    &copy; {new Date().getFullYear()} MasterCorp. Todos os direitos reservados.
+                    &copy; {new Date().getFullYear()} MCS. Todos os direitos reservados.
                 </div>
             </div>
 
@@ -119,11 +116,11 @@ export function LoginPage() {
             <div className="flex flex-col justify-center w-full lg:w-1/2 p-8 lg:p-24 bg-white dark:bg-slate-950">
                 <div className="w-full max-w-sm mx-auto space-y-8">
                     <div className="text-center lg:text-left space-y-2">
-                        {/* Mobile Logo */}
                         <div className="lg:hidden flex justify-center mb-6">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500 text-white font-bold text-2xl">
-                                M
-                            </div>
+                            {/* Logo transparente com texto branco no modo escuro */}
+                            <img src="/logo_mcs_transparent.png" alt="MCS Logo" className="hidden dark:block h-12 w-auto object-contain" />
+                            {/* Logo transparente com texto escuro no modo claro */}
+                            <img src="/logo_mcs_dark_text.png" alt="MCS Logo" className="block dark:hidden h-12 w-auto object-contain" />
                         </div>
                         <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Bem-vindo</h2>
                         <p className="text-slate-500 dark:text-slate-400">
@@ -141,7 +138,7 @@ export function LoginPage() {
                                         <FormLabel className="text-slate-700 dark:text-slate-300">E-mail Corporativo</FormLabel>
                                         <FormControl>
                                             <Input 
-                                                placeholder="usuario@mastercorp.com" 
+                                                placeholder="usuario@mcs.local" 
                                                 className="h-12 bg-slate-50 dark:bg-slate-900"
                                                 autoComplete="email"
                                                 {...field} 

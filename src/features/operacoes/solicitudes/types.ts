@@ -57,6 +57,15 @@ export interface SolicitudTimeline {
 }
 
 export interface SolicitudDetail extends SolicitudOperativa {
+  client?: {
+    id: string;
+    legal_name: string;
+    trade_name: string;
+  };
+  client_site?: {
+    id: string;
+    name: string;
+  };
   // Dados populados no select com joins
   pedido?: {
     id: string;
@@ -100,5 +109,17 @@ export interface SolicitudTareaDetail extends SolicitudTarea {
     due_date?: string;
     pedido_id?: string;
     tipo?: string;
+    empresa?: {
+      id: string;
+      name: string;
+    } | null;
+    pedido?: {
+      id: string;
+      client?: {
+        id: string;
+        legal_name: string;
+        trade_name: string;
+      } | null;
+    } | null;
   };
 }

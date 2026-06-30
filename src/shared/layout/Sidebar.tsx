@@ -53,10 +53,20 @@ export function Sidebar() {
         )}>
             <div className={cn("flex h-[72px] items-center border-b border-slate-200 dark:border-slate-800", isExpanded ? "px-6" : "justify-center px-0")}>
                 <NavLink to="/" className="flex items-center gap-3 font-semibold text-slate-900 dark:text-white transition-opacity hover:opacity-90">
-                    <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded bg-emerald-500 font-bold text-white text-lg leading-none">
-                        M
+                    <div className={cn("h-8 overflow-hidden shrink-0", isExpanded ? "w-auto" : "w-8")}>
+                        {/* Logo para modo escuro (texto branco) */}
+                        <img 
+                            src="/logo_mcs_transparent.png" 
+                            alt="MCS Logo" 
+                            className={cn("h-8 max-w-none hidden dark:block", isExpanded ? "w-auto object-contain" : "w-auto object-cover object-left")} 
+                        />
+                        {/* Logo para modo claro (texto escuro) */}
+                        <img 
+                            src="/logo_mcs_dark_text.png" 
+                            alt="MCS Logo" 
+                            className={cn("h-8 max-w-none block dark:hidden", isExpanded ? "w-auto object-contain" : "w-auto object-cover object-left")} 
+                        />
                     </div>
-                    {isExpanded && <span className="text-xl tracking-tight">Mastercorp</span>}
                 </NavLink>
             </div>
             <div className="px-3 mt-4 mb-2">

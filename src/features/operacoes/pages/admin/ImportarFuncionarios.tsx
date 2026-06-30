@@ -193,7 +193,7 @@ export const ImportarFuncionarios: React.FC = () => {
     };
 
     return (
-        <div className="p-6 max-w-4xl mx-auto space-y-6">
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
             <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
                 <Upload className="text-blue-600" /> {t('import_funcionarios.title')}
             </h1>

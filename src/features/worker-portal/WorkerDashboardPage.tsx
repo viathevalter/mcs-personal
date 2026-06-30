@@ -124,7 +124,7 @@ export function WorkerDashboardPage() {
 
             // Filtrar duplicatas geradas pela concorrência do React Strict Mode
             // Mantendo os registros com o status mais avançado se houver confusão.
-            const statusWeight: Record<string, number> = { 'validado': 3, 'enviado': 2, 'pendente': 1 };
+            const statusWeight: Record<string, number> = { 'validado': 4, 'processado': 3, 'enviado': 2, 'pendente': 1 };
             const uniqueRecordsMap = new Map<string, WorkerHour>();
 
             for (const record of allRecords) {
@@ -225,7 +225,7 @@ export function WorkerDashboardPage() {
                                         {t('workerPortal.dashboard.statusInfo.pending')}
                                     </p>
                                 )}
-                                {period.status === 'enviado' && (
+                                {(period.status === 'enviado' || period.status === 'processado') && (
                                     <p className="text-sm text-blue-700 bg-blue-100/50 p-2 border border-blue-200 rounded-md flex items-center gap-2">
                                         <CheckCircle2 className="h-4 w-4" />
                                         {t('workerPortal.dashboard.statusInfo.sent')}
@@ -271,6 +271,7 @@ function StatusBadge({ status }: { status: string }) {
                 </span>
             );
         case 'enviado':
+        case 'processado':
             return (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
                     <CheckCircle2 className="h-3 w-3" /> {t('workerPortal.dashboard.badge.sent')}

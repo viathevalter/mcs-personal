@@ -13,6 +13,12 @@ export interface SolicitudTargetPayload {
     action_type: 'replace' | 'relocate' | 'test' | 'offboard';
     reason?: string;
     notes?: string;
+    requires_replacement?: boolean;
+    requires_housing?: boolean;
+    housing_start_date?: string | null;
+    housing_end_date?: string | null;
+    target_client_id?: string | null;
+    target_client_site_id?: string | null;
 }
 
 export interface CreateSolicitudPayload {

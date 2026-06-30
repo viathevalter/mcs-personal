@@ -135,45 +135,51 @@ export function WorkerDocCapturePage() {
 
             // Chamar IA OCR se não for selfie
             toast.info("Processando documento com IA...");
-            const ocrRes = await processDocumentOcr({
-                file_path: filePath,
-                mime_type: file.type,
-                document_type: docType
-            });
+            try {
+                const ocrRes = await processDocumentOcr({
+                    file_path: filePath,
+                    mime_type: file.type,
+                    document_type: docType
+                });
 
-            if (ocrRes.success && ocrRes.data) {
-                toast.success("Leitura da IA concluída!");
-                const data = ocrRes.data;
+                if (ocrRes.success && ocrRes.data) {
+                    toast.success("Leitura da IA concluída!");
+                    const data = ocrRes.data;
 
-                if (docType === 'identity') {
-                    setFormData(prev => {
-                        const updated = {
-                            ...prev,
-                            nome: data.nome_completo || prev.nome,
-                            nacionalidade: data.nacionalidade || prev.nacionalidade,
-                            fecha_nacimiento: data.data_nascimento || prev.fecha_nacimiento
-                        };
+                    if (docType === 'identity') {
+                        setFormData(prev => {
+                            const updated = {
+                                ...prev,
+                                nome: prev.nome ? prev.nome : (data.nome_completo || ''),
+                                nacionalidade: prev.nacionalidade ? prev.nacionalidade : (data.nacionalidade || ''),
+                                fecha_nacimiento: prev.fecha_nacimiento ? prev.fecha_nacimiento : (data.data_nascimento || '')
+                            };
 
-                        if (data.tipo_identificacao === 'passaporte') {
-                            updated.pasaporte = data.numero_documento || '';
-                        } else if (data.tipo_identificacao === 'nie') {
-                            updated.nie = data.numero_documento || '';
-                        } else {
-                            updated.dni = data.numero_documento || '';
-                        }
-                        return updated;
-                    });
-                } else if (docType === 'nif') {
-                    setFormData(prev => ({ ...prev, nif: data.nif || '' }));
-                } else if (docType === 'niss') {
-                    setFormData(prev => ({ ...prev, niss: data.niss || '' }));
-                } else if (docType === 'license') {
-                    setFormData(prev => ({ ...prev, licencia_conducir: data.licencia_conducir || '' }));
+                            const docNum = data.numero_documento || '';
+                            if (data.tipo_identificacao === 'passaporte') {
+                                updated.pasaporte = prev.pasaporte ? prev.pasaporte : docNum;
+                            } else if (data.tipo_identificacao === 'nie') {
+                                updated.nie = prev.nie ? prev.nie : docNum;
+                            } else {
+                                updated.dni = prev.dni ? prev.dni : docNum;
+                            }
+                            return updated;
+                        });
+                    } else if (docType === 'nif') {
+                        setFormData(prev => ({ ...prev, nif: prev.nif ? prev.nif : (data.nif || '') }));
+                    } else if (docType === 'niss') {
+                        setFormData(prev => ({ ...prev, niss: prev.niss ? prev.niss : (data.niss || '') }));
+                    } else if (docType === 'license') {
+                        setFormData(prev => ({ ...prev, licencia_conducir: prev.licencia_conducir ? prev.licencia_conducir : (data.licencia_conducir || '') }));
+                    }
                 }
+            } catch (ocrErr: any) {
+                console.warn(`Erro no OCR (não impeditivo) para ${docType}:`, ocrErr);
+                toast.warning("Não foi possível extrair os dados automaticamente. Por favor, preencha as informações abaixo.");
             }
         } catch (err: any) {
-            console.error(`Erro ao processar ${docType}:`, err);
-            toast.error(`Falha no upload ou leitura do documento: ${err.message}`);
+            console.error(`Erro ao processar upload de ${docType}:`, err);
+            toast.error(`Falha no upload do documento: ${err.message || err}`);
         } finally {
             if (docType !== 'selfie') {
                 setOcrLoading(prev => ({ ...prev, [docType]: false }));
@@ -184,8 +190,8 @@ export function WorkerDocCapturePage() {
     // 3. Submeter formulário final
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!passportUrl || !nifUrl || !nissUrl || !selfieUrl) {
-            toast.error("Por favor, envie todos os documentos obrigatórios (Identidade, NIF, NISS e Selfie).");
+        if (!passportUrl || !selfieUrl) {
+            toast.error("Por favor, envie os documentos obrigatórios (Identificação e Selfie).");
             return;
         }
 
@@ -297,11 +303,19 @@ export function WorkerDocCapturePage() {
                                     <span className="text-sm">Tirar Foto ou Carregar Arquivo</span>
                                 </button>
                             ) : ocrLoading.identity ? (
-                                <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400">
-                                    <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                                    <span className="text-sm font-semibold flex items-center gap-1.5 animate-pulse">
-                                        <Sparkles className="h-4 w-4 text-amber-500" /> IA Lendo Documento...
+                                <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <Loader2 className="h-6 w-6 animate-spin mb-1" />
+                                    <span className="text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+                                        <Sparkles className="h-3 w-3 text-amber-500" /> IA Lendo Documento...
                                     </span>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
+                                        onClick={() => setOcrLoading(prev => ({ ...prev, identity: false }))}
+                                    >
+                                        Preencher manualmente
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 space-y-3">
@@ -347,7 +361,7 @@ export function WorkerDocCapturePage() {
                                     <FileText className="h-5 w-5 text-indigo-400" />
                                     2. Comprovativo de NIF
                                 </CardTitle>
-                                <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Obrigatório</Badge>
+                                <Badge variant="secondary" className="bg-slate-800 text-slate-400">Opcional</Badge>
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -368,8 +382,19 @@ export function WorkerDocCapturePage() {
                                     <span className="text-sm font-medium">Carregue seu NIF</span>
                                 </button>
                             ) : ocrLoading.nif ? (
-                                <div className="w-full h-20 border border-slate-800 rounded-xl flex items-center justify-center gap-2 bg-slate-950/80 text-indigo-400 animate-pulse">
-                                    <Loader2 className="h-5 w-5 animate-spin" /> IA lendo NIF...
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                                        <span className="text-xs animate-pulse font-medium">IA lendo NIF...</span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
+                                        onClick={() => setOcrLoading(prev => ({ ...prev, nif: false }))}
+                                    >
+                                        Preencher manualmente
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
@@ -398,7 +423,7 @@ export function WorkerDocCapturePage() {
                                     <FileText className="h-5 w-5 text-indigo-400" />
                                     3. Comprovativo de NISS
                                 </CardTitle>
-                                <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Obrigatório</Badge>
+                                <Badge variant="secondary" className="bg-slate-800 text-slate-400">Opcional</Badge>
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -419,8 +444,19 @@ export function WorkerDocCapturePage() {
                                     <span className="text-sm font-medium">Carregue seu NISS</span>
                                 </button>
                             ) : ocrLoading.niss ? (
-                                <div className="w-full h-20 border border-slate-800 rounded-xl flex items-center justify-center gap-2 bg-slate-950/80 text-indigo-400 animate-pulse">
-                                    <Loader2 className="h-5 w-5 animate-spin" /> IA lendo NISS...
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                                        <span className="text-xs animate-pulse font-medium">IA lendo NISS...</span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
+                                        onClick={() => setOcrLoading(prev => ({ ...prev, niss: false }))}
+                                    >
+                                        Preencher manualmente
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
@@ -470,8 +506,19 @@ export function WorkerDocCapturePage() {
                                     <span className="text-sm font-medium">Carregue a Carta de Condução</span>
                                 </button>
                             ) : ocrLoading.license ? (
-                                <div className="w-full h-20 border border-slate-800 rounded-xl flex items-center justify-center gap-2 bg-slate-950/80 text-indigo-400 animate-pulse">
-                                    <Loader2 className="h-5 w-5 animate-spin" /> IA lendo Carta...
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                                        <span className="text-xs animate-pulse font-medium">IA lendo Carta...</span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
+                                        onClick={() => setOcrLoading(prev => ({ ...prev, license: false }))}
+                                    >
+                                        Preencher manualmente
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">

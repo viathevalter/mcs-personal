@@ -57,8 +57,13 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
                             <TableRow>
                                 <TableHead>Trabalhador</TableHead>
-                                <TableHead>Pedido Original</TableHead>
-                                <TableHead>Obra / Local</TableHead>
+                                <TableHead>Origem (Cliente / Obra)</TableHead>
+                                {solicitud?.tipo === 'relocation' && (
+                                    <>
+                                        <TableHead>Destino (Cliente / Obra)</TableHead>
+                                        <TableHead>Alojamento / Logística</TableHead>
+                                    </>
+                                )}
                                 <TableHead>Ação</TableHead>
                                 <TableHead>Status</TableHead>
                             </TableRow>
@@ -67,7 +72,9 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                             {displayItems.map((target: any) => {
                                 const workerName = target.source_worker?.nome || 'N/A';
                                 const siteName = target.source_site?.name || 'N/A';
-                                const pedidoCode = target.source_pedido?.codigo || 'N/A';
+                                const clientName = target.source_client?.trade_name || target.source_client?.legal_name || 'N/A';
+                                const targetSiteName = target.target_site?.name || 'N/A';
+                                const targetClientName = target.target_client?.trade_name || target.target_client?.legal_name || 'N/A';
 
                                 return (
                                     <TableRow key={target.id}>
@@ -77,15 +84,40 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                 ID: {target.source_worker?.cod_colab || 'N/A'}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="font-medium text-sm">
-                                            {pedidoCode}
-                                        </TableCell>
                                         <TableCell className="text-sm">
-                                            {siteName}
+                                            <div className="font-medium">{clientName}</div>
+                                            <div className="text-xs text-muted-foreground">{siteName}</div>
                                         </TableCell>
+                                        {solicitud?.tipo === 'relocation' && (
+                                            <>
+                                                <TableCell className="text-sm">
+                                                    <div className="font-semibold text-blue-600 dark:text-blue-400">{targetClientName}</div>
+                                                    <div className="text-xs text-muted-foreground">{targetSiteName}</div>
+                                                </TableCell>
+                                                <TableCell className="text-xs">
+                                                    {target.requires_housing ? (
+                                                        <div className="flex flex-col space-y-1">
+                                                            <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 px-2 py-0.5 rounded max-w-fit text-[10px] border border-amber-200 dark:border-amber-900/50">
+                                                                Sim
+                                                            </span>
+                                                            {target.housing_start_date && (
+                                                                <span className="text-slate-500 font-medium">
+                                                                    {new Date(target.housing_start_date).toLocaleDateString('pt-PT')} a {target.housing_end_date ? new Date(target.housing_end_date).toLocaleDateString('pt-PT') : 'Fim Indefinido'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">Não</span>
+                                                    )}
+                                                </TableCell>
+                                            </>
+                                        )}
                                         <TableCell>
                                             <Badge variant="outline" className="uppercase text-[10px]">
-                                                {target.action_type}
+                                                {target.action_type === 'relocate' ? 'Realocação' : 
+                                                 target.action_type === 'replace' ? 'Substituição' : 
+                                                 target.action_type === 'offboard' ? 'Desligamento' : 
+                                                 target.action_type === 'test' ? 'Teste Técnico' : target.action_type}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>

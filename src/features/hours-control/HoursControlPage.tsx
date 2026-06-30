@@ -27,8 +27,43 @@ export function HoursControlPage() {
     const currentDate = new Date();
     const prevMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
 
-    const periodYear = parseInt(searchParams.get('year') || prevMonthDate.getFullYear().toString());
-    const periodMonth = parseInt(searchParams.get('month') || (prevMonthDate.getMonth() + 1).toString()); // 1-12
+    const getInitialPeriod = () => {
+        const paramYear = searchParams.get('year');
+        const paramMonth = searchParams.get('month');
+        if (paramYear && paramMonth) {
+            return { year: parseInt(paramYear), month: parseInt(paramMonth) };
+        }
+        try {
+            const stored = localStorage.getItem('mcs:selectedPeriod');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.year && parsed.month) {
+                    return { year: parsed.year, month: parsed.month };
+                }
+            }
+        } catch (e) {
+            console.error("Error reading stored period in HoursControlPage", e);
+        }
+        return { year: prevMonthDate.getFullYear(), month: prevMonthDate.getMonth() + 1 };
+    };
+
+    const initialPeriod = getInitialPeriod();
+    const periodYear = initialPeriod.year;
+    const periodMonth = initialPeriod.month;
+
+    // Sync selectors to page URL and localStorage
+    useEffect(() => {
+        const paramYear = searchParams.get('year');
+        const paramMonth = searchParams.get('month');
+        if (paramYear !== periodYear.toString() || paramMonth !== periodMonth.toString()) {
+            const newParams = new URLSearchParams(searchParams);
+            newParams.set('year', periodYear.toString());
+            newParams.set('month', periodMonth.toString());
+            setSearchParams(newParams, { replace: true });
+        }
+        localStorage.setItem('mcs:selectedPeriod', JSON.stringify({ year: periodYear, month: periodMonth }));
+    }, [periodYear, periodMonth, searchParams, setSearchParams]);
+
     const clientFilter = searchParams.get('clientFilter')?.split('||').filter(Boolean) || [];
     const contratanteFilter = searchParams.get('contratante') || null;
     const workerStatusFilter = searchParams.get('workerStatus') || 'all';

@@ -179,31 +179,143 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   useEffect(() => {
     if (items.length > 0) {
       const clientName = estimacion.client?.trade_name || estimacion.client?.legal_name || 'Cliente';
-      setEmailSubject(`Novo Pedido Gerado - ${estimacion.codigo} - ${clientName}`);
+      const lang = (estimacion.document_language || 'pt').toLowerCase();
+
+      // Dicionário de traduções para o assunto
+      const subjects: Record<string, string> = {
+        pt: `Novo Pedido Gerado - ${estimacion.codigo} - ${clientName}`,
+        es: `Nuevo Pedido Generado - ${estimacion.codigo} - ${clientName}`,
+        en: `New Order Generated - ${estimacion.codigo} - ${clientName}`,
+        it: `Nuovo Ordine Generato - ${estimacion.codigo} - ${clientName}`,
+        fr: `Nouvelle Commande Générée - ${estimacion.codigo} - ${clientName}`
+      };
       
+      const subject = subjects[lang] || subjects.pt;
+      setEmailSubject(subject);
+
+      // Cargos/Funções Solicitados
       const profilesList = items.map(item => {
         const name = item.job_function?.name || item.job_function?.title || 'Perfil';
-        return `<li>${name}: ${item.quantity} vaga(s)</li>`;
+        let vagasText = 'vaga(s)';
+        if (lang === 'es') vagasText = 'vacante(s)';
+        else if (lang === 'en') vagasText = 'position(s)';
+        else if (lang === 'it') vagasText = 'posizione/i';
+        else if (lang === 'fr') vagasText = 'poste(s)';
+        return `<li>${name}: ${item.quantity} ${vagasText}</li>`;
       }).join('');
 
-      const bodyHtml = `
+      const expectedStartStr = estimacion.expected_start_date 
+        ? new Date(estimacion.expected_start_date).toLocaleDateString(
+            lang === 'pt' ? 'pt-PT' : lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-US' : lang === 'it' ? 'it-IT' : 'fr-FR'
+          )
+        : null;
+
+      const expectedEndStr = estimacion.expected_end_date 
+        ? new Date(estimacion.expected_end_date).toLocaleDateString(
+            lang === 'pt' ? 'pt-PT' : lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-US' : lang === 'it' ? 'it-IT' : 'fr-FR'
+          )
+        : null;
+
+      let bodyHtml = '';
+
+      if (lang === 'es') {
+        bodyHtml = `
+<p>Hola Equipo,</p>
+<p>Se ha generado con éxito un nuevo pedido de venta a partir del presupuesto <strong>${estimacion.codigo}</strong>.</p>
+<p><strong>Resumen del Pedido:</strong></p>
+<ul>
+  <li><strong>Cliente:</strong> ${clientName}</li>
+  <li><strong>Obra/Ubicación:</strong> ${estimacion.client_site?.address_line || 'No definido'}</li>
+  <li><strong>Fecha de Inicio Prevista:</strong> ${expectedStartStr || 'No definida'}</li>
+  <li><strong>Fecha de Fin Prevista:</strong> ${expectedEndStr || 'No definida'}</li>
+</ul>
+<p><strong>Cargos/Funciones Solicitados:</strong></p>
+<ul>
+  ${profilesList}
+</ul>
+<p>El documento de Pedido Operacional en PDF ha sido adjuntado a esta notificación para su revisión y trámites operacionales.</p>
+<p>Por favor, inicien los trámites de movilización, contratación y logística necesarios.</p>
+<p>Atentamente,<br/><strong>Comercial</strong></p>
+        `;
+      } else if (lang === 'en') {
+        bodyHtml = `
+<p>Hello Team,</p>
+<p>A new sales order has been successfully generated from estimate <strong>${estimacion.codigo}</strong>.</p>
+<p><strong>Order Summary:</strong></p>
+<ul>
+  <li><strong>Client:</strong> ${clientName}</li>
+  <li><strong>Site/Location:</strong> ${estimacion.client_site?.address_line || 'Not defined'}</li>
+  <li><strong>Expected Start Date:</strong> ${expectedStartStr || 'Not defined'}</li>
+  <li><strong>Expected End Date:</strong> ${expectedEndStr || 'Not defined'}</li>
+</ul>
+<p><strong>Requested Job Functions:</strong></p>
+<ul>
+  ${profilesList}
+</ul>
+<p>The Operational Order PDF document has been attached to this notification for your review and operational processing.</p>
+<p>Please initiate the necessary mobilization, hiring, and logistics procedures.</p>
+<p>Best regards,<br/><strong>Comercial</strong></p>
+        `;
+      } else if (lang === 'it') {
+        bodyHtml = `
+<p>Ciao Team,</p>
+<p>Un nuovo ordine di vendita è stato generato con successo dal preventivo <strong>${estimacion.codigo}</strong>.</p>
+<p><strong>Riepilogo dell'Ordine:</strong></p>
+<ul>
+  <li><strong>Cliente:</strong> ${clientName}</li>
+  <li><strong>Cantiere/Ubicazione:</strong> ${estimacion.client_site?.address_line || 'Non definito'}</li>
+  <li><strong>Data di Inizio Prevista:</strong> ${expectedStartStr || 'Non definita'}</li>
+  <li><strong>Data di Fine Prevista:</strong> ${expectedEndStr || 'Non definita'}</li>
+</ul>
+<p><strong>Profili/Mansioni Richiesti:</strong></p>
+<ul>
+  ${profilesList}
+</ul>
+<p>Il documento PDF dell'Ordine Operativo è stato allegato a questa notifica per la vostra revisione e gestione operativa.</p>
+<p>Si prega di avviare le necessarie procedure di mobilitazione, assunzione e logistica.</p>
+<p>Cordiali saluti,<br/><strong>Commerciale</strong></p>
+        `;
+      } else if (lang === 'fr') {
+        bodyHtml = `
+<p>Bonjour l'équipe,</p>
+<p>Un bon de commande a été généré avec succès à partir du devis <strong>${estimacion.codigo}</strong>.</p>
+<p><strong>Résumé de la Commande :</strong></p>
+<ul>
+  <li><strong>Client :</strong> ${clientName}</li>
+  <li><strong>Chantier/Localisation :</strong> ${estimacion.client_site?.address_line || 'Non défini'}</li>
+  <li><strong>Date de Début Prévue :</strong> ${expectedStartStr || 'Non définie'}</li>
+  <li><strong>Date de Fin Prévue :</strong> ${expectedEndStr || 'Non définie'}</li>
+</ul>
+<p><strong>Postes/Fonctions Demandés :</strong></p>
+<ul>
+  ${profilesList}
+</ul>
+<p>Le document PDF du Bon de Commande Opérationnel a été joint à cette notification pour votre examen et traitement opérationnel.</p>
+<p>Veuillez lancer les procédures de mobilisation, de recrutement et de logistique nécessaires.</p>
+<p>Cordialement,<br/><strong>Commercial</strong></p>
+        `;
+      } else {
+        // Padrão: Português
+        bodyHtml = `
 <p>Olá Equipe,</p>
 <p>Um novo pedido de venda foi gerado com sucesso a partir da estimativa <strong>${estimacion.codigo}</strong>.</p>
 <p><strong>Resumo do Pedido:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
   <li><strong>Obra/Localização:</strong> ${estimacion.client_site?.address_line || 'Não definido'}</li>
-  <li><strong>Data de Início Prevista:</strong> ${estimacion.expected_start_date ? new Date(estimacion.expected_start_date).toLocaleDateString('pt-PT') : 'Não definida'}</li>
-  <li><strong>Data de Fim Prevista:</strong> ${estimacion.expected_end_date ? new Date(estimacion.expected_end_date).toLocaleDateString('pt-PT') : 'Não definida'}</li>
+  <li><strong>Data de Início Prevista:</strong> ${expectedStartStr || 'Não definida'}</li>
+  <li><strong>Data de Fim Prevista:</strong> ${expectedEndStr || 'Não definida'}</li>
 </ul>
 <p><strong>Cargos/Funções Solicitados:</strong></p>
 <ul>
   ${profilesList}
 </ul>
-<p>Os documentos de Proposta e Contrato originais assinados pelo cliente foram anexados a esta notificação.</p>
+<p>O documento de Pedido Operacional em PDF foi anexado a esta notificação para revisão e trâmites operacionais.</p>
 <p>Por favor, iniciem os trâmites de mobilização, contratação e logística necessários.</p>
 <p>Atenciosamente,<br/><strong>Comercial</strong></p>
-      `;
+        `;
+      }
+
       setEmailBody(bodyHtml.trim());
     }
   }, [items, estimacion]);

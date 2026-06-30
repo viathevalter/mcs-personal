@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { useLeads, useMutateLead } from './hooks/useLeads';
+import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
+import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
+import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +33,10 @@ import {
   Mail, 
   Phone, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  UserCheck,
+  Link,
+  Share2
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -44,11 +50,31 @@ export function LeadsPage() {
   const { data: leads = [], isLoading, error } = useLeads();
   const { empresas, selectedEmpresaId } = useEmpresa();
   const { createLead, updateLead, deleteLead, isCreating, isUpdating, isDeleting } = useMutateLead();
+  const { createClient } = useMutateClient();
+  const { data: paymentTerms = [] } = usePaymentTerms();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // Conversion Form State
+  const [conversionData, setConversionData] = useState({
+    trade_name: '',
+    legal_name: '',
+    tax_id: '',
+    email: '',
+    billing_email: '',
+    phone: '',
+    country_id: '',
+    region_id: '',
+    province: '',
+    city: '',
+    postal_code: '',
+    address_line: '',
+    payment_term_id: '',
+  });
   
   // Form State
   const [formData, setFormData] = useState({
@@ -128,6 +154,96 @@ export function LeadsPage() {
     }
   };
 
+  const handleOpenConvert = (lead: Lead) => {
+    setSelectedLead(lead);
+    setConversionData({
+      trade_name: lead.company_name || '',
+      legal_name: lead.legal_name || lead.company_name || '',
+      tax_id: lead.tax_id || '',
+      email: lead.email || '',
+      billing_email: lead.billing_email || lead.email || '',
+      phone: lead.phone || '',
+      country_id: lead.country_id || '',
+      region_id: lead.region_id || '',
+      province: lead.province || '',
+      city: lead.city || '',
+      postal_code: lead.postal_code || '',
+      address_line: lead.address_line || '',
+      payment_term_id: lead.payment_term_id || '',
+    });
+    setIsConvertOpen(true);
+  };
+
+  const handleConvert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    if (!conversionData.tax_id || !conversionData.legal_name || !conversionData.trade_name) {
+      toast.error('Nome Fantasia, Razão Social e NIF são obrigatórios');
+      return;
+    }
+
+    try {
+      // 1. Criar o cliente no banco de dados (o código CXXXX será gerado automaticamente pela trigger)
+      const newClient = await createClient({
+        trade_name: conversionData.trade_name,
+        legal_name: conversionData.legal_name,
+        tax_id: conversionData.tax_id,
+        email: conversionData.email || null,
+        billing_email: conversionData.billing_email || null,
+        phone: conversionData.phone || null,
+        country_id: conversionData.country_id || null,
+        region_id: conversionData.region_id || null,
+        province: conversionData.province || null,
+        city: conversionData.city || null,
+        postal_code: conversionData.postal_code || null,
+        address_line: conversionData.address_line || null,
+        payment_term_id: conversionData.payment_term_id === 'none' || conversionData.payment_term_id === '' ? null : conversionData.payment_term_id,
+        status: 'active',
+        codigo: null,
+      } as any);
+
+      // 2. Vincular o lead ao cliente criado
+      await updateLead({
+        id: selectedLead.id,
+        payload: {
+          client_id: newClient.id,
+          tax_id: conversionData.tax_id,
+          legal_name: conversionData.legal_name,
+          billing_email: conversionData.billing_email || null,
+          country_id: conversionData.country_id || null,
+          region_id: conversionData.region_id || null,
+          province: conversionData.province || null,
+          city: conversionData.city || null,
+          postal_code: conversionData.postal_code || null,
+          address_line: conversionData.address_line || null,
+          payment_term_id: conversionData.payment_term_id === 'none' || conversionData.payment_term_id === '' ? null : conversionData.payment_term_id,
+        } as any,
+      });
+
+      toast.success('Lead convertido em cliente com sucesso!');
+      setIsConvertOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao converter lead em cliente');
+    }
+  };
+
+  const handleCopyCollectionLink = (lead: Lead) => {
+    const url = `${window.location.origin}/public/coleta-dados/${lead.id}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link de coleta copiado para a área de transferência!');
+  };
+
+  const handleCopyNewLeadLink = () => {
+    if (!selectedEmpresaId) {
+      toast.error('Selecione uma empresa do grupo primeiro');
+      return;
+    }
+    const url = `${window.location.origin}/public/novo-lead?empresa_id=${selectedEmpresaId}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link de novo lead copiado para a área de transferência!');
+  };
+
   const filteredLeads = leads.filter(lead => {
     const search = searchTerm.toLowerCase();
     return (
@@ -163,6 +279,10 @@ export function LeadsPage() {
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <EmpresaSelector />
+          <Button onClick={handleCopyNewLeadLink} variant="outline" className="border-slate-300 dark:border-slate-800">
+            <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
+            Link de Cadastro
+          </Button>
           <Button onClick={handleOpenCreate} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-lg shadow-yellow-500/10">
             <Plus className="mr-2 h-4 w-4" />
             {t('comercial.leads.btnNew')}
@@ -266,6 +386,32 @@ export function LeadsPage() {
                     </TableCell>
                     <TableCell className="py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {lead.client_id ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 mr-2">
+                            Convertido
+                          </span>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenConvert(lead)}
+                              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                              title="Converter em Cliente"
+                            >
+                              <UserCheck className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCopyCollectionLink(lead)}
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                              title="Copiar Link de Coleta"
+                            >
+                              <Link className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -422,6 +568,198 @@ export function LeadsPage() {
               {isDeleting ? t('comercial.leads.delete.btnConfirming') : t('comercial.leads.delete.btnConfirm')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert Lead to Client Modal */}
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-600">
+              <UserCheck className="h-5 w-5" />
+              Converter Lead em Cliente
+            </DialogTitle>
+            <DialogDescription>
+              Verifique e complete as informações do cliente para contratos e faturamento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleConvert} className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="conv_trade_name">Nome Fantasia *</Label>
+                <Input
+                  id="conv_trade_name"
+                  required
+                  placeholder="Ex: Mastercorp Portugal"
+                  value={conversionData.trade_name}
+                  onChange={(e) => setFormData ? setConversionData({ ...conversionData, trade_name: e.target.value }) : null}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conv_legal_name">Razão Social *</Label>
+                <Input
+                  id="conv_legal_name"
+                  required
+                  placeholder="Ex: Mastercorp S.A."
+                  value={conversionData.legal_name}
+                  onChange={(e) => setConversionData({ ...conversionData, legal_name: e.target.value })}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="conv_tax_id">NIF / CIF / CPF *</Label>
+                <Input
+                  id="conv_tax_id"
+                  required
+                  placeholder="Ex: 500123456"
+                  value={conversionData.tax_id}
+                  onChange={(e) => setConversionData({ ...conversionData, tax_id: e.target.value })}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conv_payment_term">Prazo de Pagamento</Label>
+                <Select
+                  value={conversionData.payment_term_id}
+                  onValueChange={(val) => setConversionData({ ...conversionData, payment_term_id: val })}
+                >
+                  <SelectTrigger id="conv_payment_term" className="focus-visible:ring-emerald-500">
+                    <SelectValue placeholder="Selecione o prazo de pagamento..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum / A combinar</SelectItem>
+                    {paymentTerms.map((term) => (
+                      <SelectItem key={term.id} value={term.id}>
+                        {term.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="conv_email">E-mail de Contato</Label>
+                <Input
+                  id="conv_email"
+                  type="email"
+                  placeholder="Ex: contato@empresa.com"
+                  value={conversionData.email}
+                  onChange={(e) => setConversionData({ ...conversionData, email: e.target.value })}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conv_billing_email">E-mail Financeiro</Label>
+                <Input
+                  id="conv_billing_email"
+                  type="email"
+                  placeholder="Ex: financeiro@empresa.com"
+                  value={conversionData.billing_email}
+                  onChange={(e) => setConversionData({ ...conversionData, billing_email: e.target.value })}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="conv_phone">Telefone</Label>
+              <Input
+                id="conv_phone"
+                placeholder="Ex: +351 912 345 678"
+                value={conversionData.phone}
+                onChange={(e) => setConversionData({ ...conversionData, phone: e.target.value })}
+                className="focus-visible:ring-emerald-500"
+              />
+            </div>
+
+            <div className="border-t pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Endereço</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>País</Label>
+                  <CountrySelector
+                    value={conversionData.country_id || null}
+                    onChange={(val) => setConversionData({ ...conversionData, country_id: val || '', region_id: '' })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Região</Label>
+                  <RegionSelector
+                    countryId={conversionData.country_id || null}
+                    value={conversionData.region_id || null}
+                    onChange={(val) => setConversionData({ ...conversionData, region_id: val || '' })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="conv_province">Província</Label>
+                  <Input
+                    id="conv_province"
+                    placeholder="Ex: Madrid"
+                    value={conversionData.province}
+                    onChange={(e) => setConversionData({ ...conversionData, province: e.target.value })}
+                    className="focus-visible:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="conv_city">Cidade</Label>
+                  <Input
+                    id="conv_city"
+                    placeholder="Ex: Lisboa"
+                    value={conversionData.city}
+                    onChange={(e) => setConversionData({ ...conversionData, city: e.target.value })}
+                    className="focus-visible:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="conv_postal_code">Código Postal</Label>
+                  <Input
+                    id="conv_postal_code"
+                    placeholder="Ex: 1000-001"
+                    value={conversionData.postal_code}
+                    onChange={(e) => setConversionData({ ...conversionData, postal_code: e.target.value })}
+                    className="focus-visible:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conv_address_line">Logradouro completo</Label>
+                <Input
+                  id="conv_address_line"
+                  placeholder="Ex: Av. da Liberdade, 123"
+                  value={conversionData.address_line}
+                  onChange={(e) => setConversionData({ ...conversionData, address_line: e.target.value })}
+                  className="focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t sticky bottom-0 bg-background pb-2">
+              <Button type="button" variant="outline" onClick={() => setIsConvertOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6">
+                Confirmar e Criar Cliente
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

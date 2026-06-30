@@ -36,7 +36,7 @@
         "headerProposal": "Digital Proposal Signature",
         "headerContract": "Digital Contract Signature",
         "subtitleProposal": "Commercial Study • {{code}}",
-        "subtitleContract": "Mastercorp Ecosystem",
+        "subtitleContract": "MCS Ecosystem",
         "statusSigned": "Digitally Signed",
         "statusPending": "Awaiting Signature",
         "tabProposal": "1. Commercial Proposal",
@@ -136,6 +136,7 @@
         },
         "table": {
             "code": "Code",
+            "createdAt": "Creation Date",
             "clientSite": "Client / Site",
             "type": "Type",
             "status": "Status",
@@ -440,6 +441,14 @@
             "weeks": "weeks",
             "generalNotes": "General Notes",
             "generalNotesPlaceholder": "Special conditions, restrictions or context of the proposal...",
+            "validation": {
+                "selectCountry": "Please select the Country.",
+                "fillPostalCode": "Please enter the Postal Code.",
+                "selectSiteMultiple": "This client has multiple sites registered. Please select a site to proceed.",
+                "selectTarget": "Please select a Client or Lead.",
+                "fillStartDate": "Please enter the Expected Start Date.",
+                "fillEndDate": "Please enter the Expected End Date."
+            },
             "scheduleTitle": "Custom Working Schedule",
             "scheduleSubtitle": "Configure work days and daily hours for this proposal/estimation.",
             "weekdaysLabel": "Monday to Friday",

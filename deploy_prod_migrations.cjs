@@ -47,6 +47,7 @@ const migrationsToRun = [
   '20260525172000_fix_lodging_rls_policy.sql',
   '20260525173000_seasonal_regional_lodging.sql',
   '20260525180000_commercial_contracts.sql',
+  '20260526101500_add_empresas_write_rls.sql',
   '20260527000000_compliance_cae_schema.sql',
   '20260528120000_add_signed_to_estimacion_status.sql',
   '20260606152000_add_rpc_atualizar_estimacion.sql',
@@ -64,7 +65,26 @@ const migrationsToRun = [
   '20260610170000_add_options_to_job_function_questions.sql',
   '20260612080000_fill_contratante_during_allocation.sql',
   '20260612081000_fix_workers_functions_overload.sql',
-  '20260612140000_add_planned_end_date_to_allocation.sql'
+  '20260612140000_add_planned_end_date_to_allocation.sql',
+  '20260618100000_fix_solicitud_targets_and_add_pedido_language.sql',
+  '20260618110000_make_playbook_optional_on_iniciar_playbook.sql',
+  '20260618141500_complete_solicitud_target_on_allocation.sql',
+  '20260618142500_fix_replacement_limit_and_terminate_assignment.sql',
+  '20260618162000_allow_signed_on_aprovar_estimacion.sql',
+  '20260621132754_core_finance_schema.sql',
+  '20260621151000_faturamento_e_extracao_horas.sql',
+  '20260621160000_fix_faturamento_tables.sql',
+  '20260621183432_add_faturamento_details.sql',
+  '20260622000000_core_logistics_schema.sql',
+  '20260622120000_client_flow_adjustments.sql',
+  '20260622150000_client_contacts.sql',
+  '20260623110000_add_housing_fields_to_solicitud_targets.sql',
+  '20260623124000_add_requires_replacement_to_solicitud_targets.sql',
+  '20260625100000_sequence_generation.sql',
+  '20260625110000_update_allocate_worker_duplicate_check.sql',
+  '20260625140000_automatic_compliance_sync.sql',
+  '20260627110000_client_vies_integration.sql',
+  '20260628143000_ordens_pagamento_e_pagos.sql'
 ];
 
 async function run() {

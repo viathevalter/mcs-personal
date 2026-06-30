@@ -12,6 +12,8 @@ import { EstimacionReviewStep } from './components/EstimacionReviewStep';
 import { supabase } from '@/shared/supabase/client';
 import { calculateViability } from './utils/viabilityEngine';
 import { useTranslation } from 'react-i18next';
+import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
+import { toast } from 'sonner';
 
 export function NewEstimacionPage() {
   const navigate = useNavigate();
@@ -65,6 +67,8 @@ export function NewEstimacionPage() {
     hours_domingo: 0.0,
     additional_revenues: [],
   });
+
+  const { data: sites = [] } = useClientSites(payload.client_id || undefined);
 
   const { data: estimacion, isLoading } = useEstimacionDetail(id);
 
@@ -254,7 +258,42 @@ export function NewEstimacionPage() {
     setPayload((prev: any) => ({ ...prev, ...data }));
   };
 
-  const handleNext = () => setCurrentStep(prev => Math.min(prev + 1, 4));
+  const handleNext = () => {
+    if (currentStep === 1) {
+      if (payload.client_id) {
+        if (!payload.country_id) {
+          toast.error(t('comercial.stepGeneral.validation.selectCountry'));
+          return;
+        }
+        if (sites.length > 1 && !payload.client_site_id) {
+          toast.error(t('comercial.stepGeneral.validation.selectSiteMultiple'));
+          return;
+        }
+      } else if (payload.lead_id) {
+        if (!payload.country_id) {
+          toast.error(t('comercial.stepGeneral.validation.selectCountry'));
+          return;
+        }
+        if (!payload.postal_code) {
+          toast.error(t('comercial.stepGeneral.validation.fillPostalCode'));
+          return;
+        }
+      } else {
+        toast.error(t('comercial.stepGeneral.validation.selectTarget'));
+        return;
+      }
+
+      if (!payload.expected_start_date) {
+        toast.error(t('comercial.stepGeneral.validation.fillStartDate'));
+        return;
+      }
+      if (!payload.expected_end_date) {
+        toast.error(t('comercial.stepGeneral.validation.fillEndDate'));
+        return;
+      }
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 4));
+  };
   const handlePrev = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
   const handleSave = (status: 'draft' | 'review' | 'sent') => {

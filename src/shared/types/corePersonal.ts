@@ -145,7 +145,7 @@ export interface WorkerDocument {
     created_at: string;
 }
 
-export type WorkerHourStatus = 'pendente' | 'enviado' | 'validado';
+export type WorkerHourStatus = 'pendente' | 'enviado' | 'processado' | 'validado';
 
 export interface WorkerHour {
     id: string;

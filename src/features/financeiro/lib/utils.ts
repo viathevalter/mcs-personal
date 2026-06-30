@@ -106,9 +106,11 @@ export const parseDate = (dateStr: string): Date | null => {
   return null;
 };
 
-export const formatDate = (date: Date | null): string => {
+export const formatDate = (date: Date | string | null): string => {
   if (!date) return '-';
-  return new Intl.DateTimeFormat('es-ES').format(date);
+  const d = typeof date === 'string' ? parseDate(date) : date;
+  if (!d) return '-';
+  return new Intl.DateTimeFormat('es-ES').format(d);
 };
 
 export const isSameDay = (d1: Date, d2: Date) => {

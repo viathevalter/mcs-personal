@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { renderAsync } from 'docx-preview';
 import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
@@ -21,7 +21,7 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send
+    MessageSquare, Send, Search, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -93,6 +93,158 @@ export function DocumentacionTasksPage() {
     const [uploadingTemplate, setUploadingTemplate] = useState<string | null>(null);
     const [activeUploadDocType, setActiveUploadDocType] = useState<string | null>(null);
     const configFileInputRef = useRef<HTMLInputElement>(null);
+
+    // States para Busca e Filtros
+    const [searchTermRequests, setSearchTermRequests] = useState('');
+    const [statusFilterRequests, setStatusFilterRequests] = useState('all');
+    const [empresaFilterRequests, setEmpresaFilterRequests] = useState('all');
+    const [clientFilterRequests, setClientFilterRequests] = useState('all');
+    const [sortFieldRequests, setSortFieldRequests] = useState<'worker' | 'empresa' | 'client' | 'planned_start_date' | 'created_at'>('created_at');
+    const [sortDirectionRequests, setSortDirectionRequests] = useState<'asc' | 'desc'>('desc');
+
+    const [searchTermContracts, setSearchTermContracts] = useState('');
+    const [statusFilterContracts, setStatusFilterContracts] = useState('all');
+
+    // Get unique list of empresas from docRequests dynamically
+    const uniqueEmpresasRequests = useMemo(() => {
+        const set = new Set<string>();
+        docRequests.forEach(req => {
+            const name = req.empresa?.name || 'Stocco';
+            set.add(name);
+        });
+        return Array.from(set).sort();
+    }, [docRequests]);
+
+    // Get unique list of clients from docRequests dynamically
+    const uniqueClientsRequests = useMemo(() => {
+        const set = new Set<string>();
+        docRequests.forEach(req => {
+            const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+            const latestAssignment = req.worker?.assignments?.[0];
+            const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+            set.add(clientName);
+        });
+        return Array.from(set).sort();
+    }, [docRequests]);
+
+    // Handler for sorting requests
+    const handleRequestSort = (field: 'worker' | 'empresa' | 'client' | 'planned_start_date' | 'created_at') => {
+        if (sortFieldRequests === field) {
+            setSortDirectionRequests(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortFieldRequests(field);
+            setSortDirectionRequests('asc');
+        }
+    };
+
+    // Filtrar solicitações localmente
+    const filteredRequests = useMemo(() => {
+        const filtered = docRequests.filter(req => {
+            const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+            const latestAssignment = req.worker?.assignments?.[0];
+            const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+            
+            const empresaName = req.empresa?.name || 'Stocco';
+            const workerName = req.worker?.nome || '';
+            const workerEmail = req.worker?.email || '';
+            const workerMovil = req.worker?.movil || '';
+            const status = req.status || '';
+            
+            const textMatch = 
+                workerName.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                workerEmail.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                workerMovil.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                empresaName.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                clientName.toLowerCase().includes(searchTermRequests.toLowerCase());
+                
+            const isExpired = new Date(req.expires_at) < new Date();
+            let statusMatch = true;
+            if (statusFilterRequests !== 'all') {
+                if (statusFilterRequests === 'expired') {
+                    statusMatch = isExpired;
+                } else {
+                    statusMatch = status === statusFilterRequests && !isExpired;
+                }
+            }
+
+            let empresaMatch = true;
+            if (empresaFilterRequests !== 'all') {
+                empresaMatch = empresaName === empresaFilterRequests;
+            }
+
+            let clientMatch = true;
+            if (clientFilterRequests !== 'all') {
+                clientMatch = clientName === clientFilterRequests;
+            }
+            
+            return textMatch && statusMatch && empresaMatch && clientMatch;
+        });
+
+        return filtered.sort((a, b) => {
+            let valA: any = '';
+            let valB: any = '';
+
+            if (sortFieldRequests === 'worker') {
+                valA = a.worker?.nome || '';
+                valB = b.worker?.nome || '';
+            } else if (sortFieldRequests === 'empresa') {
+                valA = a.empresa?.name || 'Stocco';
+                valB = b.empresa?.name || 'Stocco';
+            } else if (sortFieldRequests === 'client') {
+                const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
+                const latestAssA = a.worker?.assignments?.[0];
+                valA = activeAssA?.client?.trade_name || activeAssA?.client?.legal_name ||
+                       latestAssA?.client?.trade_name || latestAssA?.client?.legal_name || 'Sem Alocação';
+
+                const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
+                const latestAssB = b.worker?.assignments?.[0];
+                valB = activeAssB?.client?.trade_name || activeAssB?.client?.legal_name ||
+                       latestAssB?.client?.trade_name || latestAssB?.client?.legal_name || 'Sem Alocação';
+            } else if (sortFieldRequests === 'planned_start_date') {
+                const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
+                const latestAssA = a.worker?.assignments?.[0];
+                valA = activeAssA?.planned_start_date || activeAssA?.start_date ||
+                       latestAssA?.planned_start_date || latestAssA?.start_date || '9999-12-31';
+
+                const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
+                const latestAssB = b.worker?.assignments?.[0];
+                valB = activeAssB?.planned_start_date || activeAssB?.start_date ||
+                       latestAssB?.planned_start_date || latestAssB?.start_date || '9999-12-31';
+            } else if (sortFieldRequests === 'created_at') {
+                valA = a.created_at || '';
+                valB = b.created_at || '';
+            }
+
+            if (valA < valB) return sortDirectionRequests === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirectionRequests === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [docRequests, searchTermRequests, statusFilterRequests, empresaFilterRequests, clientFilterRequests, sortFieldRequests, sortDirectionRequests]);
+
+    // Filtrar contratos localmente
+    const filteredContracts = useMemo(() => {
+        return contracts.filter(contract => {
+            const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || 'Sem Alocação';
+            const empresaName = contract.contratante || '';
+            const workerName = contract.worker?.nome || '';
+            const workerEmail = contract.worker?.email || '';
+            
+            const textMatch = 
+                workerName.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
+                workerEmail.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
+                empresaName.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
+                clientName.toLowerCase().includes(searchTermContracts.toLowerCase());
+                
+            let statusMatch = true;
+            if (statusFilterContracts !== 'all') {
+                statusMatch = contract.status === statusFilterContracts;
+            }
+            
+            return textMatch && statusMatch;
+        });
+    }, [contracts, searchTermContracts, statusFilterContracts]);
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
@@ -227,7 +379,8 @@ export function DocumentacionTasksPage() {
                 .from('solicitud_targets')
                 .select(`
                     *,
-                    source_worker:workers!solicitud_targets_source_worker_id_fkey(id, nome, cod_colab, email, movil, funcion)
+                    source_worker:workers!solicitud_targets_source_worker_id_fkey(id, nome, cod_colab, email, movil, funcion),
+                    target_worker:workers!solicitud_targets_target_worker_id_fkey(id, nome, cod_colab, email, movil, funcion)
                 `)
                 .eq('solicitud_id', solicitudId);
 
@@ -237,7 +390,7 @@ export function DocumentacionTasksPage() {
             if (targets && targets.length > 0) {
                 displayItems = targets.map((t: any) => ({
                     id: t.id,
-                    worker: t.source_worker,
+                    worker: t.target_worker || t.source_worker,
                     action_type: t.action_type || 'substituição',
                     status: t.status || 'pendente'
                 }));
@@ -462,11 +615,13 @@ Equipo de Contratación`;
             console.log("Renderizando visualização prévia do contrato gerado...");
             previewContainerRef.current.innerHTML = "";
             renderAsync(previewBlob, previewContainerRef.current, undefined, {
-                className: "docx-document",
+                className: "docx",
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
-                useBase64URL: true,
+                useBase64URL: false,
+                renderHeaders: true,
+                renderFooters: true,
             })
             .catch(err => {
                 console.error("Erro ao renderizar visualização do contrato gerado:", err);
@@ -667,6 +822,26 @@ Equipo de Contratación`;
         }
     };
 
+    // 8.5 Trigger para abrir modal de gerar contrato a partir de uma solicitação validada
+    const handleTriggerGenerate = (workerId: string, empresaId: string) => {
+        setSelectedWorkerId(workerId);
+        
+        // Mapear empresaId para selectedContratante
+        if (empresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
+            setSelectedContratante('STOCCO');
+        } else if (empresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+            setSelectedContratante('WISEOWE UNIPESSOAL LDA');
+        } else if (empresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
+            setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
+        } else if (empresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+            setSelectedContratante('TRIANGULO');
+        } else {
+            setSelectedContratante('');
+        }
+        
+        setGenerateDialogOpen(true);
+    };
+
     const handleCopyLink = (link: string) => {
         navigator.clipboard.writeText(link);
         toast.success("Link copiado para a área de transferência!");
@@ -674,9 +849,9 @@ Equipo de Contratación`;
 
     return (
         <Layout>
-            <div className="flex flex-col space-y-6 p-4">
+            <div className="flex flex-col h-[calc(100vh-115px)] overflow-hidden space-y-6 p-4">
                 {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 shrink-0">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
                             Painel de Documentos & Contratos
@@ -906,7 +1081,7 @@ Equipo de Contratación`;
                 </div>
 
                 {/* Tabs de Navegação */}
-                <Tabs defaultValue="tasks" className="w-full" onValueChange={(value) => {
+                <Tabs defaultValue="tasks" className="flex-1 flex flex-col min-h-0 overflow-hidden" onValueChange={(value) => {
                     if (value === 'requests') {
                         loadDocRequests();
                     } else if (value === 'contracts') {
@@ -915,7 +1090,7 @@ Equipo de Contratación`;
                         loadTaskWorkers(selectedTaskForWorkers);
                     }
                 }}>
-                    <TabsList className="grid w-full md:w-[800px] grid-cols-4">
+                    <TabsList className="grid w-full md:w-[800px] grid-cols-4 shrink-0">
                         <TabsTrigger value="tasks">Tarefas Operacionais</TabsTrigger>
                         <TabsTrigger value="requests">Solicitações de Documentos</TabsTrigger>
                         <TabsTrigger value="contracts">Contratos & Assinaturas</TabsTrigger>
@@ -923,7 +1098,7 @@ Equipo de Contratación`;
                     </TabsList>
                     
                     {/* Conteúdo 1: Tarefas do Kanban */}
-                    <TabsContent value="tasks" className="pt-4">
+                    <TabsContent value="tasks" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4">
                         <DepartmentTaskBoard 
                             title="Fila de Tarefas de Documentação" 
                             departmentCodes={['DOCUMENTACION', 'CONTRATOS']} 
@@ -936,206 +1111,426 @@ Equipo de Contratación`;
                     </TabsContent>
 
                     {/* Conteúdo 2: Solicitações de Documentos (OCR) */}
-                    <TabsContent value="requests" className="pt-4">
-                        <div className="rounded-md border bg-card">
-                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                    <TabsContent value="requests" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4 space-y-4">
+                        {/* Barra de Filtros e Busca */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    value={searchTermRequests}
+                                    onChange={(e) => setSearchTermRequests(e.target.value)}
+                                    placeholder="Pesquisar por trabalhador, empresa ou cliente..."
+                                    className="pl-9 pr-8 bg-white dark:bg-black"
+                                />
+                                {searchTermRequests && (
+                                    <button
+                                        onClick={() => setSearchTermRequests('')}
+                                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="w-[180px]">
+                                    <Select value={empresaFilterRequests} onValueChange={setEmpresaFilterRequests}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Empresa" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas as Empresas</SelectItem>
+                                            {uniqueEmpresasRequests.map(emp => (
+                                                <SelectItem key={emp} value={emp}>{emp}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="w-[200px]">
+                                    <Select value={clientFilterRequests} onValueChange={setClientFilterRequests}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Cliente" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Clientes</SelectItem>
+                                            {uniqueClientsRequests.map(cli => (
+                                                <SelectItem key={cli} value={cli}>{cli}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="w-[180px]">
+                                    <Select value={statusFilterRequests} onValueChange={setStatusFilterRequests}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Status</SelectItem>
+                                            <SelectItem value="pending_upload">Aguardando Envio</SelectItem>
+                                            <SelectItem value="submitted">Recebido - Analisar</SelectItem>
+                                            <SelectItem value="verified">Cadastro Validado</SelectItem>
+                                            <SelectItem value="expired">Expirado</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {(searchTermRequests || statusFilterRequests !== 'all' || empresaFilterRequests !== 'all' || clientFilterRequests !== 'all') && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSearchTermRequests('');
+                                            setStatusFilterRequests('all');
+                                            setEmpresaFilterRequests('all');
+                                            setClientFilterRequests('all');
+                                        }}
+                                        className="text-indigo-600 dark:text-indigo-400 font-semibold"
+                                    >
+                                        Limpar Filtros
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
                                 <h3 className="font-semibold text-slate-800 dark:text-slate-200">Links e Envios Cadastrais</h3>
                                 <Button size="sm" variant="ghost" onClick={loadDocRequests}><RefreshCw className="h-4 w-4" /></Button>
                             </div>
                             
-                            {loadingDocRequests ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                                    <span>Carregando solicitações...</span>
-                                </div>
-                            ) : docRequests.length === 0 ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-                                    <Camera className="h-10 w-10 text-slate-400" />
-                                    <span>Nenhuma solicitação de documentos ativa.</span>
-                                </div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Trabalhador</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Criado Em</TableHead>
-                                            <TableHead>Expira Em</TableHead>
-                                            <TableHead className="text-right">Ações</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {docRequests.map((req) => {
-                                            const inviteLink = `${window.location.origin}/enviar-documentos/${req.token}`;
-                                            const isExpired = new Date(req.expires_at) < new Date();
-                                            return (
-                                                <TableRow key={req.id}>
-                                                    <TableCell>
-                                                        <div className="font-semibold text-slate-800 dark:text-slate-200">{req.worker?.nome}</div>
-                                                        <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge className={
-                                                            req.status === 'verified' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                            req.status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
-                                                            isExpired ? 'bg-red-500/10 text-red-500 hover:bg-red-500/10 border-red-500/20' :
-                                                            'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10'
-                                                        }>
-                                                            {req.status === 'verified' ? 'Cadastro Validado' :
-                                                             req.status === 'submitted' ? 'Recebido - Analisar' :
-                                                             isExpired ? 'Expirado' : 'Aguardando Envio'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-slate-500 text-sm">
-                                                        {new Date(req.created_at).toLocaleDateString('pt-PT')}
-                                                    </TableCell>
-                                                    <TableCell className="text-slate-500 text-sm">
-                                                        {new Date(req.expires_at).toLocaleDateString('pt-PT')}
-                                                    </TableCell>
-                                                    <TableCell className="text-right space-x-1">
-                                                        {req.status === 'pending_upload' && !isExpired && (
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                onClick={() => handleCopyLink(inviteLink)}
-                                                                title="Copiar Link de Envio"
-                                                            >
-                                                                <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
-                                                            </Button>
-                                                        )}
-                                                        {req.status === 'submitted' && (
-                                                            <Button 
-                                                                size="sm" 
-                                                                className="bg-indigo-600 hover:bg-indigo-500"
-                                                                onClick={() => handleOpenVerify(req)}
-                                                            >
-                                                                <Eye className="h-4 w-4 mr-1" /> Analisar
-                                                            </Button>
-                                                        )}
-                                                        {req.status === 'verified' && (
-                                                            <div className="inline-flex items-center text-xs text-emerald-500 gap-1 font-semibold pr-2">
-                                                                <ShieldCheck className="h-4 w-4" /> Validado
-                                                            </div>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            )}
+                            <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
+                                {loadingDocRequests ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                        <span>Carregando solicitações...</span>
+                                    </div>
+                                ) : filteredRequests.length === 0 ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                        <Camera className="h-10 w-10 text-slate-400" />
+                                        <span>Nenhuma solicitação de documentos encontrada.</span>
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+                                            <TableRow>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    onClick={() => handleRequestSort('worker')}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        Trabalhador
+                                                        {sortFieldRequests === 'worker' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    onClick={() => handleRequestSort('empresa')}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        Empresa
+                                                        {sortFieldRequests === 'empresa' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    onClick={() => handleRequestSort('client')}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        Cliente
+                                                        {sortFieldRequests === 'client' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    onClick={() => handleRequestSort('planned_start_date')}
+                                                >
+                                                    <div className="flex items-center gap-1 flex-row">
+                                                        Início Previsto
+                                                        {sortFieldRequests === 'planned_start_date' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    onClick={() => handleRequestSort('created_at')}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        Criado Em
+                                                        {sortFieldRequests === 'created_at' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead>Expira Em</TableHead>
+                                                <TableHead className="text-right">Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredRequests.map((req) => {
+                                                const inviteLink = `${window.location.origin}/enviar-documentos/${req.token}`;
+                                                const isExpired = new Date(req.expires_at) < new Date();
+                                                
+                                                const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+                                                const latestAssignment = req.worker?.assignments?.[0];
+                                                const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                                                                   latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+                                                
+                                                const empresaName = req.empresa?.name || 'Stocco';
+                                                
+                                                const plannedStartDate = activeAssignment?.planned_start_date || activeAssignment?.start_date ||
+                                                                          latestAssignment?.planned_start_date || latestAssignment?.start_date;
+
+                                                return (
+                                                    <TableRow key={req.id}>
+                                                        <TableCell>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">{req.worker?.nome}</div>
+                                                            <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                            {empresaName}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                            {clientName}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                            {plannedStartDate ? new Date(plannedStartDate).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge className={
+                                                                req.status === 'verified' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                                req.status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
+                                                                isExpired ? 'bg-red-500/10 text-red-500 hover:bg-red-500/10 border-red-500/20' :
+                                                                'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10'
+                                                            }>
+                                                                {req.status === 'verified' ? 'Cadastro Validado' :
+                                                                 req.status === 'submitted' ? 'Recebido - Analisar' :
+                                                                 isExpired ? 'Expirado' : 'Aguardando Envio'}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-slate-500 text-sm">
+                                                            {new Date(req.created_at).toLocaleDateString('pt-PT')}
+                                                        </TableCell>
+                                                        <TableCell className="text-slate-500 text-sm">
+                                                            {new Date(req.expires_at).toLocaleDateString('pt-PT')}
+                                                        </TableCell>
+                                                        <TableCell className="text-right space-x-1 whitespace-nowrap">
+                                                            {req.status === 'pending_upload' && !isExpired && (
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    variant="outline" 
+                                                                    onClick={() => handleCopyLink(inviteLink)}
+                                                                    title="Copiar Link de Envio"
+                                                                >
+                                                                    <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
+                                                                </Button>
+                                                            )}
+                                                            {req.status === 'submitted' && (
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    className="bg-indigo-600 hover:bg-indigo-500"
+                                                                    onClick={() => handleOpenVerify(req)}
+                                                                >
+                                                                    <Eye className="h-4 w-4 mr-1" /> Analisar
+                                                                </Button>
+                                                            )}
+                                                            {req.status === 'verified' && (
+                                                                <div className="inline-flex items-center gap-2">
+                                                                    <div className="inline-flex items-center text-xs text-emerald-500 gap-1 font-semibold pr-1">
+                                                                        <ShieldCheck className="h-4 w-4" /> Validado
+                                                                    </div>
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
+                                                                        onClick={() => handleTriggerGenerate(req.worker_id, req.empresa_id)}
+                                                                    >
+                                                                        <Plus className="h-3 w-3" /> Gerar Contrato
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                )}
+                            </div>
                         </div>
                     </TabsContent>
 
                     {/* Conteúdo 3: Gerenciador de Contratos */}
-                    <TabsContent value="contracts" className="pt-4">
-                        <div className="rounded-md border bg-card">
-                            {loadingContracts ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                                    <span>Buscando contratos gerados...</span>
+                    <TabsContent value="contracts" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4 space-y-4">
+                        {/* Barra de Filtros e Busca */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    value={searchTermContracts}
+                                    onChange={(e) => setSearchTermContracts(e.target.value)}
+                                    placeholder="Pesquisar por trabalhador, empresa ou cliente..."
+                                    className="pl-9 pr-8 bg-white dark:bg-black"
+                                />
+                                {searchTermContracts && (
+                                    <button
+                                        onClick={() => setSearchTermContracts('')}
+                                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="w-[200px]">
+                                    <Select value={statusFilterContracts} onValueChange={setStatusFilterContracts}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Status</SelectItem>
+                                            <SelectItem value="pending_signature">Pendente Assinatura</SelectItem>
+                                            <SelectItem value="signed">Assinado</SelectItem>
+                                            <SelectItem value="no_signature">Não Requer Assinatura</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            ) : contracts.length === 0 ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-                                    <FileText className="h-10 w-10 text-slate-400" />
-                                    <span>Nenhum contrato gerado ainda nesta empresa.</span>
-                                </div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Trabalhador</TableHead>
-                                            <TableHead>Contratante</TableHead>
-                                            <TableHead>Tipo</TableHead>
-                                            <TableHead>OTP Código</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Data de Geração</TableHead>
-                                            <TableHead className="text-right">Ações</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {contracts.map((contract) => {
-                                            const signLink = `${window.location.origin}/assinar/${contract.signature_token}`;
-                                            return (
-                                                <TableRow key={contract.id}>
-                                                    <TableCell>
-                                                        <div className="font-semibold text-slate-800 dark:text-slate-200">
-                                                            {contract.worker?.nome}
-                                                        </div>
-                                                        <div className="text-xs text-muted-foreground">
-                                                            {contract.worker?.email || 'E-mail não cadastrado'}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="font-medium">
-                                                        {contract.contratante}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="outline" className="capitalize">
-                                                            {contract.contract_type.replace('_', ' ')}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                                                        {contract.otp_code || '-'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge className={
-                                                            contract.status === 'signed' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                            contract.status === 'pending_signature' ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20' :
-                                                            contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20' :
-                                                            'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10'
-                                                        }>
-                                                            {contract.status === 'signed' ? 'Assinado' :
-                                                             contract.status === 'pending_signature' ? 'Pendente Assinatura' :
-                                                             contract.status === 'no_signature' ? 'Não Requer Assinatura' :
-                                                             contract.status}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-sm text-slate-500">
-                                                        {contract.created_at ? new Date(contract.created_at).toLocaleDateString('pt-PT') : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right space-x-2">
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={() => handleDownloadContract(contract)}
-                                                            title="Baixar Contrato"
-                                                        >
-                                                            <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
-                                                        </Button>
 
-                                                        {contract.status !== 'no_signature' && (
-                                                            <>
-                                                                <Button
-                                                                    size="icon"
-                                                                    variant="ghost"
-                                                                    onClick={() => handleCopyLink(signLink)}
-                                                                    title="Copiar Link de Assinatura"
-                                                                >
-                                                                    <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
-                                                                </Button>
-                                                                
-                                                                <Button
-                                                                    size="icon"
-                                                                    variant="ghost"
-                                                                    onClick={() => window.open(signLink, '_blank')}
-                                                                    title="Abrir Tela de Assinatura"
-                                                                >
-                                                                    <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            )}
+                                {(searchTermContracts || statusFilterContracts !== 'all') && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSearchTermContracts('');
+                                            setStatusFilterContracts('all');
+                                        }}
+                                        className="text-indigo-600 dark:text-indigo-400 font-semibold"
+                                    >
+                                        Limpar Filtros
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Contratos Gerados</h3>
+                                <Button size="sm" variant="ghost" onClick={loadContracts}><RefreshCw className="h-4 w-4" /></Button>
+                            </div>
+
+                            <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
+                                {loadingContracts ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                        <span>Buscando contratos gerados...</span>
+                                    </div>
+                                ) : filteredContracts.length === 0 ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                        <FileText className="h-10 w-10 text-slate-400" />
+                                        <span>Nenhum contrato encontrado.</span>
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+                                            <TableRow>
+                                                <TableHead>Trabalhador</TableHead>
+                                                <TableHead>Empresa</TableHead>
+                                                <TableHead>Cliente</TableHead>
+                                                <TableHead>Tipo</TableHead>
+                                                <TableHead>OTP Código</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Data de Geração</TableHead>
+                                                <TableHead className="text-right">Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredContracts.map((contract) => {
+                                                const signLink = `${window.location.origin}/assinar/${contract.signature_token}`;
+                                                const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || 'Sem Alocação';
+                                                
+                                                return (
+                                                    <TableRow key={contract.id}>
+                                                        <TableCell>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                {contract.worker?.nome}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {contract.worker?.email || 'E-mail não cadastrado'}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="font-medium">
+                                                            {contract.contratante}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium">
+                                                            {clientName}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="outline" className="capitalize">
+                                                                {contract.contract_type.replace('_', ' ')}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                                            {contract.otp_code || '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge className={
+                                                                contract.status === 'signed' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                                contract.status === 'pending_signature' ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20' :
+                                                                contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20' :
+                                                                'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10'
+                                                            }>
+                                                                {contract.status === 'signed' ? 'Assinado' :
+                                                                 contract.status === 'pending_signature' ? 'Pendente Assinatura' :
+                                                                 contract.status === 'no_signature' ? 'Não Requer Assinatura' :
+                                                                 contract.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-sm text-slate-500">
+                                                            {contract.created_at ? new Date(contract.created_at).toLocaleDateString('pt-PT') : '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-right space-x-2 whitespace-nowrap">
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleDownloadContract(contract)}
+                                                                title="Baixar Contrato"
+                                                            >
+                                                                <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                            </Button>
+
+                                                            {contract.status !== 'no_signature' && (
+                                                                <>
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleCopyLink(signLink)}
+                                                                        title="Copiar Link de Assinatura"
+                                                                    >
+                                                                        <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                                    </Button>
+                                                                    
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => window.open(signLink, '_blank')}
+                                                                        title="Abrir Tela de Assinatura"
+                                                                    >
+                                                                        <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                )}
+                            </div>
                         </div>
                     </TabsContent>
 
                     {/* Conteúdo 4: Configuração de Modelos */}
-                    <TabsContent value="templates" className="pt-4">
+                    <TabsContent value="templates" className="flex-1 overflow-y-auto min-h-0 pt-4">
                         <div className="rounded-md border bg-card p-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
                                 <div>
@@ -1351,11 +1746,11 @@ Equipo de Contratación`;
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <Label className="text-xs">NIF (Portugal)</Label>
-                                                <Input required value={verifyFormData.nif} onChange={(e) => setVerifyFormData({ ...verifyFormData, nif: e.target.value })} />
+                                                <Input value={verifyFormData.nif} onChange={(e) => setVerifyFormData({ ...verifyFormData, nif: e.target.value })} />
                                             </div>
                                             <div>
                                                 <Label className="text-xs">NISS (Portugal)</Label>
-                                                <Input required value={verifyFormData.niss} onChange={(e) => setVerifyFormData({ ...verifyFormData, niss: e.target.value })} />
+                                                <Input value={verifyFormData.niss} onChange={(e) => setVerifyFormData({ ...verifyFormData, niss: e.target.value })} />
                                             </div>
                                         </div>
 
@@ -1436,7 +1831,7 @@ Equipo de Contratación`;
                         </div>
                     )}
 
-                    <div className="flex-1 overflow-y-auto min-h-[300px] border rounded-lg mt-2">
+                    <div className="flex-1 relative min-h-[300px] border rounded-lg mt-2 [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
                         {loadingTaskWorkers ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />

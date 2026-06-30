@@ -32,6 +32,14 @@ export interface Contract {
         nie: string;
         pasaporte: string;
     };
+    assignment?: {
+        id: string;
+        client?: {
+            id: string;
+            legal_name: string;
+            trade_name: string;
+        };
+    } | null;
 }
 
 export interface ListContractsParams {
@@ -49,6 +57,10 @@ export async function listContracts({ empresaId, workerId, status, contractType 
             *,
             worker:workers (
                 id, nome, email, movil, nif, niss, dni, nie, pasaporte
+            ),
+            assignment:worker_assignments (
+                id,
+                client_id
             )
         `);
 
@@ -74,7 +86,29 @@ export async function listContracts({ empresaId, workerId, status, contractType 
         throw mapSupabaseError(error);
     }
 
-    return (data || []) as unknown as Contract[];
+    const contracts = (data || []) as any[];
+    const clientIds = [...new Set(contracts.map(c => c.assignment?.client_id).filter(Boolean))];
+
+    let clientsMap = new Map();
+    if (clientIds.length > 0) {
+        const { data: clientsData, error: clientsErr } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, legal_name, trade_name')
+            .in('id', clientIds);
+
+        if (!clientsErr && clientsData) {
+            clientsMap = new Map(clientsData.map(c => [c.id, c]));
+        }
+    }
+
+    return contracts.map(c => ({
+        ...c,
+        assignment: c.assignment ? {
+            ...c.assignment,
+            client: clientsMap.get(c.assignment.client_id) || null
+        } : null
+    })) as unknown as Contract[];
 }
 
 export interface GenerateContractPayload {
@@ -187,7 +221,23 @@ export interface DocumentRequest {
         email: string;
         movil: string;
         cod_colab: string;
+        assignments?: Array<{
+            id: string;
+            status: string;
+            client_id: string;
+            start_date?: string;
+            planned_start_date?: string;
+            client?: {
+                id: string;
+                legal_name: string;
+                trade_name: string;
+            };
+        }>;
     };
+    empresa?: {
+        id: string;
+        name: string;
+    } | null;
 }
 
 export async function listDocumentRequests(empresaId: string): Promise<DocumentRequest[]> {
@@ -197,7 +247,10 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, cod_colab
+                id, nome, email, movil, cod_colab,
+                assignments:worker_assignments (
+                    id, status, client_id, start_date, planned_start_date
+                )
             )
         `);
 
@@ -211,7 +264,44 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
         throw mapSupabaseError(error);
     }
 
-    return (data || []) as unknown as DocumentRequest[];
+    const docRequests = (data || []) as any[];
+
+    // Fetch related empresas and clients in-memory to bypass cross-schema join restrictions in PostgREST
+    const empresaIds = [...new Set(docRequests.map(r => r.empresa_id).filter(Boolean))];
+    const clientIds: string[] = [];
+    docRequests.forEach(r => {
+        r.worker?.assignments?.forEach((a: any) => {
+            if (a.client_id) clientIds.push(a.client_id);
+        });
+    });
+    const uniqueClientIds = [...new Set(clientIds)];
+
+    const [empresasRes, clientsRes] = await Promise.all([
+        empresaIds.length > 0
+            ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
+            : Promise.resolve({ data: [] }),
+        uniqueClientIds.length > 0
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', uniqueClientIds)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
+    const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
+
+    return docRequests.map(r => {
+        const emp = empresasMap.get(r.empresa_id);
+        return {
+            ...r,
+            empresa: emp ? { id: emp.id, name: emp.nome } : null,
+            worker: r.worker ? {
+                ...r.worker,
+                assignments: r.worker.assignments?.map((a: any) => ({
+                    ...a,
+                    client: clientsMap.get(a.client_id) || null
+                })) || []
+            } : null
+        };
+    }) as unknown as DocumentRequest[];
 }
 
 export async function createDocumentRequest(empresaId: string, workerId: string): Promise<DocumentRequest> {

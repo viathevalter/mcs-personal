@@ -28,10 +28,10 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   
-  const [sortField, setSortField] = useState<'codigo' | 'client' | 'type' | 'status' | null>(null);
+  const [sortField, setSortField] = useState<'codigo' | 'createdAt' | 'client' | 'type' | 'status' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const handleSort = (field: 'codigo' | 'client' | 'type' | 'status') => {
+  const handleSort = (field: 'codigo' | 'createdAt' | 'client' | 'type' | 'status') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -50,6 +50,9 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
       if (sortField === 'codigo') {
         valA = a.codigo || '';
         valB = b.codigo || '';
+      } else if (sortField === 'createdAt') {
+        valA = a.created_at || '';
+        valB = b.created_at || '';
       } else if (sortField === 'client') {
         const clientA = a.client ? (a.client.trade_name || a.client.legal_name) : a.lead ? a.lead.company_name : '';
         const clientB = b.client ? (b.client.trade_name || b.client.legal_name) : b.lead ? b.lead.company_name : '';
@@ -138,7 +141,7 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
     return `${startFormatted}${separator}${endFormatted}`;
   };
 
-  const renderSortIcon = (field: 'codigo' | 'client' | 'type' | 'status') => {
+  const renderSortIcon = (field: 'codigo' | 'createdAt' | 'client' | 'type' | 'status') => {
     if (sortField !== field) {
       return <ArrowUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />;
     }
@@ -172,6 +175,15 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
               <div className="flex items-center">
                 {t('comercial.table.code')}
                 {renderSortIcon('codigo')}
+              </div>
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer hover:text-foreground font-semibold select-none"
+              onClick={() => handleSort('createdAt')}
+            >
+              <div className="flex items-center">
+                {t('comercial.table.createdAt')}
+                {renderSortIcon('createdAt')}
               </div>
             </TableHead>
             <TableHead className="font-semibold">{t('comercial.table.empresa')}</TableHead>
@@ -218,6 +230,9 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
                 <div className="text-xs text-muted-foreground font-normal mt-0.5">
                   {t('comercial.table.version', { version: est.current_version?.version_number || 1 })}
                 </div>
+              </TableCell>
+              <TableCell className="text-slate-650 dark:text-slate-350">
+                {est.created_at ? formatDate(est.created_at) : '-'}
               </TableCell>
               <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                 {est.empresa?.trade_name || est.empresa?.legal_name || '-'}

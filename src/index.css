@@ -88,6 +88,13 @@
 }
 
 /* docx-preview styling overrides */
+.docx-preview-container,
+.docx-preview-container-parent {
+  container-type: inline-size;
+  width: 100%;
+  overflow: auto !important; /* Permitir rolagem se necessário */
+}
+
 .docx-wrapper {
   background: transparent !important;
   padding: 0 !important;
@@ -97,23 +104,56 @@
   gap: 24px !important;
   width: 100% !important;
 }
-.docx-document {
-  margin: 0 auto !important;
+
+.docx {
+  margin: 0 auto 30px auto !important; /* Espaçamento de 30px entre as páginas */
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
   border-radius: 12px !important;
   background: white !important;
   color: #0f172a !important;
-  width: 100% !important;
-  max-width: 816px !important; /* Standard A4 page width */
   box-sizing: border-box !important;
-}
-.docx-document > section {
-  padding: 24px !important;
-  box-sizing: border-box !important;
+  /* Não forçar width: 100% ou max-width aqui para que o docx-preview use a largura nativa do documento Word (ex: A4 595.3pt / 793px).
+     Isso garante que as tabelas, parágrafos e cabeçalhos absolutos fiquem perfeitamente alinhados à página.
+     A responsividade/redimensionamento é tratada acima no contêiner com as Container Queries abaixo. */
 }
 
-@media (min-width: 768px) {
-  .docx-document > section {
-    padding: 48px !important;
+.docx > section {
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.docx img {
+  max-width: none !important;
+}
+
+/* Container Queries para redimensionamento dinâmico (zoom) das páginas do Word */
+@container (max-width: 900px) {
+  .docx-wrapper {
+    zoom: 0.85 !important;
+  }
+}
+@container (max-width: 800px) {
+  .docx-wrapper {
+    zoom: 0.75 !important;
+  }
+}
+@container (max-width: 700px) {
+  .docx-wrapper {
+    zoom: 0.65 !important;
+  }
+}
+@container (max-width: 600px) {
+  .docx-wrapper {
+    zoom: 0.55 !important;
+  }
+}
+@container (max-width: 500px) {
+  .docx-wrapper {
+    zoom: 0.45 !important;
+  }
+}
+@container (max-width: 400px) {
+  .docx-wrapper {
+    zoom: 0.38 !important;
   }
 }

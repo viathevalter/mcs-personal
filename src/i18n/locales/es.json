@@ -273,6 +273,10 @@
       "validate": "Validar Archivo",
       "reject": "Eliminar Archivo / Rechazar"
     },
+    "buttons": {
+      "validate": "Validar",
+      "validated": "Validado"
+    },
     "messages": {
       "loadError": "Error al cargar los datos de los trabajadores.",
       "generatingLink": "Generando enlace seguro...",
@@ -404,7 +408,7 @@
     "daily_mgmt": "Gestión Diaria",
     "version": "v2.5.0 (Operaciones)",
     "app_name": "MCS Operaciones",
-    "app_subtitle": "Mastercorp Suite"
+    "app_subtitle": "MCS Suite"
   },
   "dashboard": {
     "title": "Tablero Directivo",
@@ -769,7 +773,7 @@
     "headerProposal": "Firma Digital de Propuesta",
     "headerContract": "Firma Digital de Contrato",
     "subtitleProposal": "Estudio Comercial • {{code}}",
-    "subtitleContract": "Mastercorp Ecosystem",
+    "subtitleContract": "MCS Ecosystem",
     "statusSigned": "Firmado Digitalmente",
     "statusPending": "Esperando Firma",
     "tabProposal": "1. Propuesta Comercial",
@@ -869,6 +873,7 @@
     },
     "table": {
       "code": "Código",
+      "createdAt": "Fecha de Creación",
       "clientSite": "Cliente / Obra",
       "type": "Tipo",
       "status": "Estado",
@@ -1173,6 +1178,14 @@
       "weeks": "semanas",
       "generalNotes": "Notas Generales",
       "generalNotesPlaceholder": "Condiciones especiales, restricciones o contexto de la propuesta...",
+      "validation": {
+        "selectCountry": "Por favor, seleccione el País.",
+        "fillPostalCode": "Por favor, introduzca el Código Postal.",
+        "selectSiteMultiple": "Este cliente tiene múltiples obras registradas. Por favor, seleccione una obra para continuar.",
+        "selectTarget": "Por favor, seleccione un Cliente o Lead.",
+        "fillStartDate": "Por favor, introduzca la Fecha Prevista de Inicio.",
+        "fillEndDate": "Por favor, introduzca la Fecha Prevista de Fin."
+      },
       "scheduleTitle": "Jornada de Trabajo Personalizada",
       "scheduleSubtitle": "Configure los días de trabajo y las horas diarias para este presupuesto/estimación.",
       "weekdaysLabel": "Lunes a Viernes",

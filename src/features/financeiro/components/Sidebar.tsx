@@ -1,59 +1,85 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PieChart, FileText, Wallet, Settings, ArrowLeft } from 'lucide-react';
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Box, FileText, PieChart, LayoutDashboard, ArrowLeft, Menu, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { useLanguage } from '../../operacoes/i18n';
+import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
-export const Sidebar = () => {
-  const location = useLocation();
+export const Sidebar: React.FC = () => {
+  const { t } = useLanguage();
+  const { isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
-  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
+
+  const NavItem = ({ to, icon: Icon, label }: any) => (
+    <NavLink
+      to={to}
+      title={!isSidebarOpen ? label : ''}
+      className={({ isActive }) =>
+        `flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${isActive
+          ? 'bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 font-medium'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+        } ${!isSidebarOpen && 'justify-center'}`
+      }
+    >
+      <Icon size={18} className="group-hover:scale-105 transition-transform duration-200 flex-shrink-0" />
+      {isSidebarOpen && <span className="text-sm truncate">{label}</span>}
+    </NavLink>
+  );
+
+  const SectionLabel = ({ label }: { label: string }) => (
+    <div className={`px-3 mb-2 mt-6 ${!isSidebarOpen && 'text-center'}`}>
+      <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
+        {isSidebarOpen ? label : '• • •'}
+      </p>
+    </div>
+  );
 
   return (
-    <div className="w-64 bg-brand-dark text-white flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-20">
-      <div className="p-6 flex items-center gap-3 border-b border-gray-700">
-        <div className="w-10 h-10 bg-brand-action rounded-lg flex items-center justify-center font-bold text-xl">M</div>
-        <span className="font-bold text-lg tracking-tight">Mastercorp</span>
+    <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen fixed left-0 top-0 flex flex-col z-20 overflow-y-auto overflow-x-hidden transition-all duration-300`}>
+      <div className={`p-5 flex items-center mb-2 ${isSidebarOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 flex-shrink-0 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-600/20">
+            <Box size={20} />
+          </div>
+          {isSidebarOpen && (
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">Financeiro</h1>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Módulo Financeiro</p>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={toggleSidebar}
+          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+        >
+          <Menu size={18} />
+        </button>
       </div>
 
-      <div className="px-4 pt-4">
+      <div className="px-3 mb-2">
         <button 
           onClick={() => navigate('/hub')}
           className="w-full flex items-center gap-2 justify-center py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700"
         >
           <ArrowLeft size={16} />
-          Voltar para o Hub
+          {isSidebarOpen && "Voltar para o Hub"}
         </button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 mt-2">
-        <Link to="/financeiro/dashboard" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/financeiro/dashboard') ? 'bg-white/10 text-brand-action font-medium' : 'text-gray-300 hover:bg-white/5'}`}>
-          <LayoutDashboard size={20} />
-          Dashboard
-        </Link>
-        <Link to="/financeiro/analises" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/financeiro/analises') ? 'bg-white/10 text-brand-action font-medium' : 'text-gray-300 hover:bg-white/5'}`}>
-          <PieChart size={20} />
-          Análises
-        </Link>
-        <Link to="/financeiro/titulos" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/financeiro/titulos') ? 'bg-white/10 text-brand-action font-medium' : 'text-gray-300 hover:bg-white/5'}`}>
-          <FileText size={20} />
-          Títulos
-        </Link>
-
-        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase">Operacional</div>
-
-        <div className="relative group opacity-60 cursor-not-allowed">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400">
-            <Wallet size={20} />
-            Cobrança Pro
-          </div>
-          <span className="absolute right-2 top-3 bg-gray-700 text-white text-[10px] px-2 py-0.5 rounded-full">Em breve</span>
+      <div className="flex-1 px-3 py-2">
+        <SectionLabel label="Gestão Financeira" />
+        <div className="space-y-1">
+          <NavItem to="/financeiro/dashboard" icon={LayoutDashboard} label="Painel Diretoria" />
+          <NavItem to="/financeiro/titulos" icon={FileText} label="Ordens de Pagamento" />
+          <NavItem to="/financeiro/pagos" icon={FileText} label="Pagos / Contas a Pagar" />
+          <NavItem to="/financeiro/cobros" icon={FileText} label="Cobros / Recebimentos" />
+          <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label="Cobrança / Inadimplência" />
+          <NavItem to="/financeiro/analises" icon={PieChart} label="Análises" />
         </div>
-      </nav>
-
-      <div className="p-4 border-t border-gray-700">
-        <Link to="/financeiro/settings" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/financeiro/settings') ? 'bg-white/10 text-brand-action font-medium' : 'text-gray-300 hover:bg-white/5'}`}>
-          <Settings size={20} />
-          Configurações
-        </Link>
+        <SectionLabel label="Administração" />
+        <div className="space-y-1">
+          <NavItem to="/financeiro/settings" icon={SettingsIcon} label="Configurações" />
+        </div>
       </div>
-    </div>
+    </aside>
   );
 };

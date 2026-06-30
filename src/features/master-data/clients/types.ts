@@ -24,11 +24,41 @@ export const clientSchema = z.object({
   financial_status: z.enum(['active', 'debtor', 'blocked']).default('active'),
   credit_limit: z.coerce.number().nullable().optional(),
   current_debt: z.coerce.number().nullable().optional(),
+  payment_term_id: z.string().uuid().nullable().optional(),
+  vies_applicable: z.boolean().default(false).optional(),
+  vies_status: z.string().default('not_checked').optional(),
+  vies_valid: z.boolean().default(false).optional(),
+  vies_returned_name: z.string().nullable().optional(),
+  vies_returned_address: z.string().nullable().optional(),
+  vies_request_date: z.string().nullable().optional(),
+  vies_request_identifier: z.string().nullable().optional(),
+  vies_last_checked_at: z.string().nullable().optional(),
+  vies_last_checked_by: z.string().nullable().optional(),
+  vies_requires_review: z.boolean().default(false).optional(),
+  vies_last_error_code: z.string().nullable().optional(),
+  vies_last_error_message: z.string().nullable().optional(),
+  eu_vat_number: z.string().nullable().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });
 
-export type Client = z.infer<typeof clientSchema>;
+export type Client = z.infer<typeof clientSchema> & {
+  payment_term?: {
+    id: string;
+    name: string;
+    days: number;
+  } | null;
+};
+
+export interface PaymentTerm {
+  id: string;
+  empresa_id: string;
+  name: string;
+  days: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export const createClientSchema = clientSchema.omit({
   id: true,
@@ -39,3 +69,35 @@ export const createClientSchema = clientSchema.omit({
 
 export type CreateClientDTO = z.infer<typeof createClientSchema>;
 export type UpdateClientDTO = Partial<CreateClientDTO>;
+
+export interface ClientContact {
+  id: string;
+  client_id: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClientViesCheckLog {
+  id: string;
+  empresa_id: string;
+  client_id: string;
+  country_code: string;
+  vat_number: string;
+  full_vat_number: string;
+  status: string;
+  valid: boolean;
+  returned_name?: string | null;
+  returned_address?: string | null;
+  request_date?: string | null;
+  request_identifier?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  checked_at?: string | null;
+  checked_by?: string | null;
+  trigger_source?: string | null;
+  created_at?: string | null;
+}

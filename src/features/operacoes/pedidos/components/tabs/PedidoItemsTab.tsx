@@ -2,12 +2,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PedidoStatusBadge } from '../PedidoStatusBadge';
 import { formatCurrency } from '@/shared/utils/currency';
 import type { PedidoItem } from '../../types';
+import { usePedidoFinanceAccess } from '../../hooks/usePedidoFinanceAccess';
 
 interface Props {
   items: PedidoItem[];
 }
 
 export function PedidoItemsTab({ items }: Props) {
+  const { hasFinanceAccess } = usePedidoFinanceAccess();
+
   if (!items || items.length === 0) {
     return (
       <Card className="mt-6">
@@ -35,9 +38,13 @@ export function PedidoItemsTab({ items }: Props) {
                 <th className="px-4 py-3 text-center font-medium">Status</th>
                 <th className="px-4 py-3 text-center font-medium">Qtd (Preenchida/Solicitada)</th>
                 <th className="px-4 py-3 text-right font-medium">Horas Previstas</th>
-                <th className="px-4 py-3 text-right font-medium">Tarifa Base</th>
-                <th className="px-4 py-3 text-right font-medium">Tarifa Venda</th>
-                <th className="px-4 py-3 text-right font-medium">Margem</th>
+                {hasFinanceAccess && (
+                  <>
+                    <th className="px-4 py-3 text-right font-medium">Tarifa Base</th>
+                    <th className="px-4 py-3 text-right font-medium">Tarifa Venda</th>
+                    <th className="px-4 py-3 text-right font-medium">Margem</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -48,7 +55,7 @@ export function PedidoItemsTab({ items }: Props) {
                     <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                       {item.includes_accommodation_snapshot && (
                         <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
-                          Alojamento{item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? `: €${Number(item.custom_lodging_rate).toFixed(2)}/dia` : ''}
+                          Alojamento{hasFinanceAccess && item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? `: €${Number(item.custom_lodging_rate).toFixed(2)}/dia` : ''}
                         </span>
                       )}
                       {item.includes_transport_snapshot && <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">Transporte</span>}
@@ -71,21 +78,25 @@ export function PedidoItemsTab({ items }: Props) {
                   <td className="px-4 py-3 text-right text-muted-foreground">
                     {item.planned_total_hours ? `${item.planned_total_hours}h totais` : '-'}
                   </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">
-                    {formatCurrency(item.base_cost_hour_snapshot || 0)}/h
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-blue-600">
-                    {formatCurrency(item.sell_rate_hour_snapshot || 0)}/h
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      (item.margin_percent_snapshot || 0) >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                      (item.margin_percent_snapshot || 0) >= 10 ? 'bg-amber-100 text-amber-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {item.margin_percent_snapshot || 0}%
-                    </span>
-                  </td>
+                  {hasFinanceAccess && (
+                    <>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        {formatCurrency(item.base_cost_hour_snapshot || 0)}/h
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-blue-600">
+                        {formatCurrency(item.sell_rate_hour_snapshot || 0)}/h
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          (item.margin_percent_snapshot || 0) >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                          (item.margin_percent_snapshot || 0) >= 10 ? 'bg-amber-100 text-amber-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {item.margin_percent_snapshot || 0}%
+                        </span>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

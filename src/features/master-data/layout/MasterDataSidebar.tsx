@@ -8,7 +8,8 @@ import {
     HardHat,
     ChevronLeft, 
     ChevronRight, 
-    ArrowLeft 
+    ArrowLeft,
+    Calendar 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -30,6 +31,7 @@ export function MasterDataSidebar() {
         { to: '/master-data/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'commercial'] },
         { to: '/master-data/empresas', label: 'Empresas do Grupo', icon: Building2, roles: ['admin'] },
         { to: '/master-data/clients', label: 'Clientes', icon: Building2, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/payment-terms', label: 'Prazos de Pagamento', icon: Calendar, roles: ['admin', 'commercial'] },
         { to: '/master-data/client-sites', label: 'Obras / Locais', icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
         { to: '/master-data/suppliers', label: 'Fornecedores', icon: Truck, roles: ['admin', 'rh', 'commercial'] },
         { to: '/master-data/job-functions', label: 'Perfis Profissionais', icon: Briefcase, roles: ['admin', 'rh', 'commercial'] },

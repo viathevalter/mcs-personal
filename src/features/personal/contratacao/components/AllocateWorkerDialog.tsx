@@ -3,6 +3,7 @@ import { X, UserPlus, Search, Check, Briefcase, ChevronDown, HelpCircle, AlertTr
 import type { OpenPosition } from '../hooks/useOpenPositions';
 import { useAllocateWorker } from '../hooks/useAllocateWorker';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import {
@@ -114,6 +115,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
 
   // New worker form
   const [workerName, setWorkerName] = useState('');
+  const [workerDocument, setWorkerDocument] = useState('');
   
   // Common states (allocated rates, sizes, mobile, driver license)
   const [camiseta, setCamiseta] = useState('');
@@ -133,6 +135,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       setSearchWorker('');
       setSelectedFunctionFilter('');
       setWorkerName('');
+      setWorkerDocument('');
       setCamiseta('');
       setPantalones('');
       setLicenciaConducir('');
@@ -141,7 +144,14 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       setNotes('');
       setIsDropdownOpen(false);
       
-      if (position?.expected_start_date) {
+      if (position?.replacement_due_date) {
+        try {
+          const formattedDate = new Date(position.replacement_due_date).toISOString().split('T')[0];
+          setPlannedStartDate(formattedDate);
+        } catch (e) {
+          setPlannedStartDate(position.replacement_due_date.split('T')[0]);
+        }
+      } else if (position?.expected_start_date) {
         setPlannedStartDate(position.expected_start_date);
       } else {
         setPlannedStartDate(new Date().toISOString().split('T')[0]);
@@ -168,6 +178,42 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       setMovil(selectedWorker.movil || '');
     }
   }, [selectedWorker]);
+
+  const checkDuplicateDocument = async (docValue: string) => {
+    if (!docValue || !selectedEmpresaId) return;
+    
+    const cleanDoc = docValue.trim().toUpperCase();
+    if (!cleanDoc) return;
+    
+    try {
+      const { data, error } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, cod_colab, nif, dni, nie, pasaporte')
+        .or(`nif.eq.${cleanDoc},dni.eq.${cleanDoc},nie.eq.${cleanDoc},pasaporte.eq.${cleanDoc}`)
+        .limit(1);
+        
+      if (error) {
+        console.error('Erro ao verificar documento:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        const found = data[0];
+        toast.warning(
+          `Trabalhador já cadastrado: ${found.nome} (${found.cod_colab || 'Sem código'}). O sistema selecionará ele automaticamente.`,
+          { duration: 6000 }
+        );
+        
+        // Redireciona e seleciona o trabalhador
+        setMode('existing');
+        setSelectedWorkerId(found.id);
+        setSearchWorker(found.nome);
+      }
+    } catch (err) {
+      console.error('Erro na consulta do documento:', err);
+    }
+  };
 
   const { mutate: allocate, isPending } = useAllocateWorker();
 
@@ -234,6 +280,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         pedido_item_id: position.id,
         worker_id: mode === 'existing' ? selectedWorkerId : undefined,
         worker_name: mode === 'new' ? workerName : undefined,
+        worker_document: mode === 'new' ? workerDocument : undefined,
         planned_start_date: plannedStartDate,
         planned_end_date: plannedEndDate || undefined,
         notes: notes || undefined,
@@ -241,7 +288,8 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         pantalones: pantalones || undefined,
         licencia_conducir: licenciaConducir,
         movil: movil || undefined,
-        tarifa_acordada: parseFloat(tarifaAcordada)
+        tarifa_acordada: parseFloat(tarifaAcordada),
+        solicitud_id: position.solicitud_id || undefined
       },
       {
         onSuccess: () => {
@@ -314,9 +362,22 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   <span className="font-medium text-slate-600 dark:text-slate-300">Cliente/Obra:</span> {position.client_name} • {position.site_name}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  <span className="font-medium text-slate-600 dark:text-slate-300">Data Prevista:</span> {position.expected_start_date ? new Date(position.expected_start_date).toLocaleDateString('pt-BR') : 'Não informada'}
+                  <span className="font-medium text-slate-600 dark:text-slate-300">Data Prevista (Pedido):</span> {position.expected_start_date ? new Date(position.expected_start_date).toLocaleDateString('pt-BR') : 'Não informada'}
                 </p>
               </div>
+
+              {position.replacement_due_date && (
+                <div className="mt-3 flex items-start gap-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/20 p-3 rounded-lg border border-purple-200 dark:border-purple-900/40">
+                  <AlertTriangle className="h-4 w-4 text-purple-650 dark:text-purple-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Vaga de Reemplazo (Substituição) Ativa!</strong>
+                    <span className="block mt-1">
+                      Esta vaga foi reaberta devido a uma solicitação operacional de substituição. 
+                      O novo trabalhador deve iniciar em: <strong>{new Date(position.replacement_due_date).toLocaleDateString('pt-PT')}</strong>.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {(() => {
                 const qas = getProfileQuestions(position.pergunta_respuesta, position.job_function_name);
@@ -486,19 +547,36 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                 )}
               </div>
             ) : (
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome Completo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={workerName}
-                  onChange={(e) => setWorkerName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-                <div className="text-xs text-slate-500 mt-1">
-                  Nota: Você poderá completar o cadastro deste trabalhador (documento, endereço, banco, benefícios) mais tarde no módulo de Trabalhadores.
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Nome Completo <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={workerName}
+                      onChange={(e) => setWorkerName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Documento (Passaporte/DNI/NIE)
+                    </label>
+                    <input
+                      type="text"
+                      value={workerDocument}
+                      onChange={(e) => setWorkerDocument(e.target.value)}
+                      onBlur={(e) => checkDuplicateDocument(e.target.value)}
+                      placeholder="Ex: 00000000A"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500">
+                  Nota: Você poderá completar o cadastro deste trabalhador (endereço, banco, benefícios) mais tarde no módulo de Trabalhadores.
                 </div>
               </div>
             )}
