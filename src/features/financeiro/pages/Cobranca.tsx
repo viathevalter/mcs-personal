@@ -9,6 +9,8 @@ import { fetchEnrichedData, updateContaReceber, saveObservacao } from '../data/l
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
 import { ObservacoesModal } from '../components/ObservacoesModal';
+import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
+import { CobroFormSheet } from '../components/CobroFormSheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -31,6 +33,14 @@ export const Cobranca = () => {
     const [isReceberOpen, setIsReceberOpen] = useState(false);
     const [isObsOpen, setIsObsOpen] = useState(false);
     const [selectedTitulo, setSelectedTitulo] = useState<EnrichedTitulo | null>(null);
+
+    // Zoom Detail Sheet State
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [selectedDetailTitulo, setSelectedDetailTitulo] = useState<EnrichedTitulo | null>(null);
+
+    // Form editing states
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingCobro, setEditingCobro] = useState<ContasReceber | null>(null);
 
     // Email Modal
     const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -159,6 +169,28 @@ export const Cobranca = () => {
                 toast.error('Erro ao encaminhar para jurídico: ' + err.message);
             }
         }
+    };
+
+    const openZoom = (item: EnrichedTitulo) => {
+        setSelectedDetailTitulo(item);
+        setIsDetailOpen(true);
+    };
+
+    const openEditForm = (item: EnrichedTitulo) => {
+        setEditingCobro(item);
+        setIsFormOpen(true);
+    };
+
+    const handleSave = async (formData: Partial<ContasReceber>) => {
+        if (editingCobro) {
+            const updateRes = await updateContaReceber(editingCobro.id, formData);
+            if (!updateRes.success) {
+                toast.error('Erro ao atualizar: ' + (updateRes.error?.message || 'Erro desconhecido'));
+                return;
+            }
+        }
+        toast.success('Cobro salvo com sucesso!');
+        await loadData();
     };
 
     // Helper functions
@@ -437,7 +469,7 @@ export const Cobranca = () => {
                                 filteredData.map((item) => {
                                     const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                     return (
-                                        <TableRow key={item.id} className="group hover:bg-slate-50/50">
+                                        <TableRow key={item.id} className="group hover:bg-slate-50/50 cursor-pointer transition-colors duration-150" onClick={() => openZoom(item)}>
                                             <TableCell>
                                                 <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[200px] truncate" title={item.Cliente || 'Sem Nome'}>
                                                     {item.Cliente || 'Sem Nome'}
@@ -457,10 +489,10 @@ export const Cobranca = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right font-extrabold">{formatCurrency(item.Valot_total)}</TableCell>
-                                            <TableCell className="text-right font-extrabold text-brand-primary">
+                                            <TableCell className="text-right font-extrabold text-brand-primary" onClick={(e) => e.stopPropagation()}>
                                                 {formatCurrency(item.Saldo_a_pagar)}
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                 {item.Status === 'Pago' ? (
                                                      <Badge variant="default">Pago</Badge>
                                                  ) : isOverdue(item) ? (
@@ -469,7 +501,7 @@ export const Cobranca = () => {
                                                      <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">A vencer</Badge>
                                                  )}
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                 {item.Status === 'Parcial' ? (
                                                      <TooltipProvider>
                                                          <Tooltip>
@@ -502,7 +534,7 @@ export const Cobranca = () => {
                                                      <span className="text-muted-foreground">-</span>
                                                  )}
                                             </TableCell>
-                                            <TableCell className="text-right px-6">
+                                            <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-end gap-2">
                                                     {/* Cobrar Email */}
                                                     <Button 
@@ -663,6 +695,25 @@ export const Cobranca = () => {
                     />
                 </>
             )}
+
+            {selectedDetailTitulo && (
+                <CobroDetalhesSheet
+                    isOpen={isDetailOpen}
+                    onClose={() => setIsDetailOpen(false)}
+                    titulo={selectedDetailTitulo}
+                    onOpenEdit={openEditForm}
+                    onOpenReceber={openReceber}
+                    onOpenEmail={openEmailModal}
+                    onRefresh={loadData}
+                />
+            )}
+
+            <CobroFormSheet
+                isOpen={isFormOpen}
+                onClose={() => setIsFormOpen(false)}
+                onSave={handleSave}
+                initialData={editingCobro}
+            />
         </div>
     );
 };

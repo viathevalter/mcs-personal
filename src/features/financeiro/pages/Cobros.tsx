@@ -3,14 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock } from 'lucide-react';
+import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail } from 'lucide-react';
 import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
-import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber } from '../data/loader';
+import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber, saveObservacao } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { CobroFormSheet } from '../components/CobroFormSheet';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
 import { ObservacoesModal } from '../components/ObservacoesModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 
 export const Cobros = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +29,19 @@ export const Cobros = () => {
     const [isReceberOpen, setIsReceberOpen] = useState(false);
     const [isObsOpen, setIsObsOpen] = useState(false);
     const [selectedTitulo, setSelectedTitulo] = useState<EnrichedTitulo | null>(null);
+
+    // Zoom Detail Sheet State
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [selectedDetailTitulo, setSelectedDetailTitulo] = useState<EnrichedTitulo | null>(null);
+
+    // Email Modal states
+    const [isEmailOpen, setIsEmailOpen] = useState(false);
+    const [emailTemplate, setEmailTemplate] = useState<'friendly' | 'overdue' | 'legal'>('friendly');
+    const [emailDestinatario, setEmailDestinatario] = useState('');
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailBody, setEmailBody] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [currentUser, setCurrentUser] = useState('Usuário Desconhecido');
 
     // Advanced Filtering States
     const [filterEmpresa, setFilterEmpresa] = useState<string>('all');
@@ -44,9 +63,84 @@ export const Cobros = () => {
         }
     };
 
+    const fetchUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+            setCurrentUser(session.user.email);
+        }
+    };
+
     useEffect(() => {
         loadData();
+        fetchUser();
     }, []);
+
+    const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal', title: EnrichedTitulo) => {
+        setEmailTemplate(template);
+        const clientName = title.Cliente || 'Cliente';
+        const docNum = title.Num_doc || 'Fatura';
+        const docValue = formatCurrency(title.Valot_total);
+        const vencDate = title.Dt_venc ? new Date(title.Dt_venc).toLocaleDateString('pt-PT') : 'N/A';
+
+        if (template === 'friendly') {
+            setEmailSubject(`Lembrete de Vencimento: Documento ${docNum}`);
+            setEmailBody(
+                `Olá, equipe do departamento financeiro da ${clientName}.\n\n` +
+                `Gostaríamos de lembrar amigavelmente que o título ${docNum} no valor de ${docValue} vencerá em ${vencDate}.\n\n` +
+                `Por favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\n` +
+                `Agradecemos a parceria,\nDepartamento Financeiro`
+            );
+        } else if (template === 'overdue') {
+            setEmailSubject(`Aviso de Cobrança - Título em Atraso: ${docNum}`);
+            setEmailBody(
+                `Prezados,\n\n` +
+                `Constatamos em nosso sistema que o título ${docNum} no valor de ${docValue}, vencido em ${vencDate}, ainda não foi liquidado.\n\n` +
+                `Solicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\n` +
+                `Atenciosamente,\nDepartamento de Cobrança`
+            );
+        } else if (template === 'legal') {
+            setEmailSubject(`NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título ${docNum}`);
+            setEmailBody(
+                `Prezada Direção da ${clientName},\n\n` +
+                `Apesar de nossas tentativas anteriores de negociação, o título ${docNum} no valor de ${docValue} (vencido desde ${vencDate}) permanece em aberto.\n\n` +
+                `Esta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\n` +
+                `Evite maiores encargos e processos legais entrando em contato imediatamente.\n\n` +
+                `Atenciosamente,\nDiretoria Financeira`
+            );
+        }
+    };
+
+    const openEmailModal = (titulo: EnrichedTitulo) => {
+        setSelectedTitulo(titulo);
+        setEmailDestinatario(titulo.clienteInfo?.EmailCobros || titulo.clienteInfo?.EmailCobros || '');
+        handleTemplateChange('friendly', titulo);
+        setIsEmailOpen(true);
+    };
+
+    const handleSendEmail = async () => {
+        if (!selectedTitulo) return;
+        setIsSendingEmail(true);
+        try {
+            const obsToSave = {
+                conta_receber_id: selectedTitulo.id,
+                usuario: currentUser,
+                tipo: 'E-mail de Cobrança',
+                descricao: `Enviado e-mail de cobrança (${emailTemplate === 'friendly' ? 'Lembrete Amigável' : emailTemplate === 'overdue' ? 'Aviso de Atraso' : 'Notificação Pré-Jurídica'}) para ${emailDestinatario || 'cliente'}. Assunto: "${emailSubject}"`,
+                data: new Date().toISOString()
+            };
+
+            await saveObservacao(obsToSave);
+            toast.success('E-mail de cobrança enviado com sucesso!', {
+                description: `O log do envio foi registrado na linha do tempo do cobro.`
+            });
+            setIsEmailOpen(false);
+            loadData();
+        } catch (err: any) {
+            toast.error('Erro ao registrar envio de e-mail: ' + err.message);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
 
     const handleSave = async (formData: Partial<ContasReceber>) => {
         if (editingCobro) {
@@ -82,6 +176,11 @@ export const Cobros = () => {
     const openObs = (titulo: EnrichedTitulo) => {
         setSelectedTitulo(titulo);
         setIsObsOpen(true);
+    };
+
+    const openZoom = (item: EnrichedTitulo) => {
+        setSelectedDetailTitulo(item);
+        setIsDetailOpen(true);
     };
 
     const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
@@ -369,8 +468,8 @@ export const Cobros = () => {
                                 </TableRow>
                             ) : (
                                 filteredData.map((item) => (
-                                    <TableRow key={item.id} className="group">
-                                        <TableCell className="px-4">
+                                    <TableRow key={item.id} className="group cursor-pointer hover:bg-slate-50/50 transition-colors duration-150" onClick={() => openZoom(item)}>
+                                        <TableCell className="px-4" onClick={(e) => e.stopPropagation()}>
                                             <input type="checkbox" className="rounded border-gray-300" />
                                         </TableCell>
                                         <TableCell>
@@ -382,7 +481,7 @@ export const Cobros = () => {
                                         <TableCell>{formatDate(item.Data_emissao)}</TableCell>
                                         <TableCell>{formatDate(item.Dt_venc)}</TableCell>
                                         <TableCell className="text-right font-bold">{formatCurrency(item.Valot_total)}</TableCell>
-                                        <TableCell className="text-right font-bold text-brand-primary">
+                                        <TableCell className="text-right font-bold text-brand-primary" onClick={(e) => e.stopPropagation()}>
                                             {item.pagamentos_reais && item.pagamentos_reais.length > 0 ? (
                                                 <TooltipProvider>
                                                     <Tooltip>
@@ -406,7 +505,7 @@ export const Cobros = () => {
                                                 formatCurrency(item.Saldo_a_pagar)
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-center">
+                                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                             {item.Status === 'Pago' ? (
                                                 <Badge variant="default">Pago</Badge>
                                             ) : getOverdueStatus(item) ? (
@@ -415,7 +514,7 @@ export const Cobros = () => {
                                                 <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">A vencer</Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-center">
+                                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                             {item.Status === 'Parcial' ? (
                                                 <TooltipProvider>
                                                     <Tooltip>
@@ -448,7 +547,7 @@ export const Cobros = () => {
                                                 <span className="text-muted-foreground">-</span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Button variant="ghost" size="icon" title="Receber" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => openReceber(item)}>
                                                     <DollarSign size={16} />
@@ -494,6 +593,106 @@ export const Cobros = () => {
                     />
                 </>
             )}
+
+            {selectedDetailTitulo && (
+                <CobroDetalhesSheet
+                    isOpen={isDetailOpen}
+                    onClose={() => setIsDetailOpen(false)}
+                    titulo={selectedDetailTitulo}
+                    onOpenEdit={openEditForm}
+                    onOpenReceber={openReceber}
+                    onOpenEmail={openEmailModal}
+                    onRefresh={loadData}
+                />
+            )}
+
+            {/* Email Template Modal Dialog */}
+            <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
+                <DialogContent className="sm:max-w-xl dark:bg-slate-900 dark:border-slate-800">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-blue-600">
+                            <Mail className="w-5 h-5" />
+                            Enviar E-mail de Cobrança
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Selecione um modelo de texto pré-pronto, valide o destinatário de faturamento e edite se necessário.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedTitulo && (
+                        <div className="space-y-4 py-3 text-xs font-medium text-slate-700 dark:text-slate-350">
+                            {/* Templates Selection Tabs */}
+                            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-lg">
+                                <button
+                                    onClick={() => handleTemplateChange('friendly', selectedTitulo)}
+                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'friendly' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    Lembrete Amigável
+                                </button>
+                                <button
+                                    onClick={() => handleTemplateChange('overdue', selectedTitulo)}
+                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'overdue' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    Aviso de Atraso
+                                </button>
+                                <button
+                                    onClick={() => handleTemplateChange('legal', selectedTitulo)}
+                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'legal' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    Notificação Pré-Jurídico
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <Label htmlFor="emailDestinatario" className="text-[10px] text-muted-foreground font-bold uppercase">Destinatário (E-mail de Cobros do Cliente)</Label>
+                                    <Input
+                                        id="emailDestinatario"
+                                        type="email"
+                                        value={emailDestinatario}
+                                        onChange={e => setEmailDestinatario(e.target.value)}
+                                        placeholder="financeiro@cliente.com"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="emailSubject" className="text-[10px] text-muted-foreground font-bold uppercase">Assunto</Label>
+                                    <Input
+                                        id="emailSubject"
+                                        type="text"
+                                        value={emailSubject}
+                                        onChange={e => setEmailSubject(e.target.value)}
+                                        className="h-9 text-xs font-semibold"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="emailBody" className="text-[10px] text-muted-foreground font-bold uppercase">Mensagem de Cobrança</Label>
+                                    <textarea
+                                        id="emailBody"
+                                        rows={8}
+                                        value={emailBody}
+                                        onChange={e => setEmailBody(e.target.value)}
+                                        className="w-full border rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 bg-background resize-none font-sans"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="border-t dark:border-slate-800 pt-3">
+                        <Button variant="outline" onClick={() => setIsEmailOpen(false)} disabled={isSendingEmail}>
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleSendEmail} 
+                            disabled={isSendingEmail || !emailDestinatario}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                            {isSendingEmail ? 'Enviando...' : 'Enviar e Registrar no Histórico'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
