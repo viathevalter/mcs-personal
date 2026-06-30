@@ -107,6 +107,7 @@ export function ValidationScreen({
     const [workerFuncId, setWorkerFuncId] = useState<string | null>(null);
     const [jobFunctions, setJobFunctions] = useState<{ id: string; name: string }[]>([]);
     const [ocrSnapshot, setOcrSnapshot] = useState<Record<number, { inicio: string; fim: string; totalHoras: string }>>({});
+    const [selectedDays, setSelectedDays] = useState<number[]>([]);
     
     // For Setup Obra modal
     const [newSiteOpen, setNewSiteOpen] = useState(false);
@@ -383,6 +384,7 @@ export function ValidationScreen({
             toast.error("Nenhum arquivo encontrado para processamento.");
             return;
         }
+        setSelectedDays([]);
         setExtracting(true);
         try {
             const isPdfFile = fileName?.toLowerCase().endsWith('.pdf') || filePath.toLowerCase().includes('.pdf');
@@ -470,6 +472,18 @@ export function ValidationScreen({
     };
 
     const totalHours = records.reduce((acc, curr) => acc + (parseFloat(curr.totalHoras) || 0), 0);
+
+    const handleBulkApplyObra = (siteId: string) => {
+        if (selectedDays.length === 0) return;
+        setRecords(prev => prev.map(r => 
+            selectedDays.includes(r.day) 
+                ? { ...r, obra: siteId } 
+                : r
+        ));
+        const siteName = clientSites.find(s => s.id === siteId)?.name || 'Obra';
+        toast.success(`Obra "${siteName}" aplicada em lote para ${selectedDays.length} dias!`);
+        setSelectedDays([]);
+    };
 
     const handleSave = async () => {
         if (!clientId) {
@@ -733,6 +747,23 @@ export function ValidationScreen({
                             )}
                             Extrair Dados (IA)
                         </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                                const daysWithHours = records.filter(r => (parseFloat(r.totalHoras) || 0) > 0).map(r => r.day);
+                                setSelectedDays(daysWithHours);
+                                if (daysWithHours.length > 0) {
+                                    toast.info(`${daysWithHours.length} dias com horas foram marcados. Agora selecione a Obra em lote abaixo.`);
+                                } else {
+                                    toast.warning("Não há nenhum dia com horas preenchidas para selecionar.");
+                                }
+                            }}
+                            disabled={loading || loadingSites || records.length === 0} 
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50/50 font-semibold shadow-sm transition-all py-2"
+                        >
+                            Selecionar Dias c/ Horas
+                        </Button>
                         <Button variant="outline" size="sm" onClick={onClose} disabled={loading} className="text-slate-600 border-slate-200 hover:bg-slate-50 font-semibold shadow-sm transition-all py-2">
                             Cancelar
                         </Button>
@@ -748,6 +779,43 @@ export function ValidationScreen({
                     </div>
                 </div>
                 
+                {/* Bulk Action Bar */}
+                {selectedDays.length > 0 && (
+                    <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2.5 flex items-center gap-4 text-indigo-900 text-xs font-semibold animate-in fade-in duration-200">
+                        <div className="flex items-center gap-1.5">
+                            <span className="bg-indigo-600 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
+                                {selectedDays.length}
+                            </span>
+                            <span>{selectedDays.length === 1 ? 'dia selecionado' : 'dias selecionados'}</span>
+                        </div>
+                        <div className="h-4 w-px bg-indigo-200"></div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-slate-500 font-normal">Aplicar Obra em Lote:</span>
+                            <select
+                                onChange={(e) => {
+                                    const siteId = e.target.value;
+                                    if (siteId) {
+                                        handleBulkApplyObra(siteId);
+                                    }
+                                    e.target.value = '';
+                                }}
+                                className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-2xs"
+                            >
+                                <option value="">Selecione uma obra...</option>
+                                {clientSites.map((site) => (
+                                    <option key={site.id} value={site.id}>{site.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={() => setSelectedDays([])}
+                            className="ml-auto text-indigo-600 hover:text-indigo-800 text-xs font-bold hover:underline"
+                        >
+                            Desmarcar todos
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-auto p-0">
                     {loadingSites ? (
                         <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
@@ -758,7 +826,21 @@ export function ValidationScreen({
                         <Table>
                             <TableHeader className="sticky top-0 bg-slate-50/80 backdrop-blur-md z-10">
                                 <TableRow className="border-b border-slate-200/80">
-                                    <TableHead className="w-[70px] text-center font-bold text-slate-600">Dia</TableHead>
+                                    <TableHead className="w-[45px] text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={records.length > 0 && selectedDays.length === records.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedDays(records.map(r => r.day));
+                                                } else {
+                                                    setSelectedDays([]);
+                                                }
+                                            }}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                                        />
+                                    </TableHead>
+                                    <TableHead className="w-[60px] text-center font-bold text-slate-600">Dia</TableHead>
                                     <TableHead className="w-[130px] font-bold text-slate-600">Dia da Semana</TableHead>
                                     <TableHead className="w-[100px] text-center font-bold text-slate-600">Inicio</TableHead>
                                     <TableHead className="w-[100px] text-center font-bold text-slate-600">Fim</TableHead>
@@ -793,6 +875,20 @@ export function ValidationScreen({
                                             key={record.day} 
                                             className={rowClass}
                                         >
+                                            <TableCell className="p-2 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={selectedDays.includes(record.day)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedDays(prev => [...prev, record.day]);
+                                                        } else {
+                                                            setSelectedDays(prev => prev.filter(d => d !== record.day));
+                                                        }
+                                                    }}
+                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                                                />
+                                            </TableCell>
                                             <TableCell className="p-2 text-center font-semibold">
                                                 <span className={`inline-flex items-center justify-center h-7 w-7 rounded-full text-xs font-semibold ${
                                                     isModified
