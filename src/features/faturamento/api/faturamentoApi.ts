@@ -300,7 +300,7 @@ export async function getHorasPendentesFaturamento(
       const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
       
       clientHours.forEach(h => {
-        const oId = h.obra || null;
+        const oId = h.obra_id || null;
         if (!obrasMap.has(oId)) {
           const siteName = oId ? (clientSitesMap.get(oId) || 'Obra Desconhecida') : 'Sem Obra';
           obrasMap.set(oId, {

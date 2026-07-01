@@ -798,7 +798,7 @@ MCS - Gestão Comercial`;
             // Filter workers and their hours based on the selected Obra
             const filteredWorkers = f.workers.map(w => {
               const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-                if (!hasObraFilter || h.obra === selectedObraId) {
+                if (!hasObraFilter || h.obra_id === selectedObraId) {
                   acc[date] = h;
                 }
                 return acc;
@@ -972,7 +972,7 @@ MCS - Gestão Comercial`;
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 text-left">
                     {/* Obras Filter Cards */}
-                    {f.obras && f.obras.length > 1 && (
+                    {f.obras && f.obras.some(o => o.id !== null) && (
                       <div className="p-5 bg-slate-50/50 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Filtrar e Faturar por Obra / Centro de Custo</span>
                         <div className="flex flex-wrap gap-3">
