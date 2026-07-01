@@ -809,25 +809,79 @@ serve(async (req) => {
         }
       }
     } else if (is_faturamento) {
-      const createDummyPDF = (title: string, client: string, code: string) => {
-        const pdfText = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << >> /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 180 >>\nstream\nBT\n/F1 12 Tf\n70 750 Td\n(${title}) Tj\n0 -25 Td\n(Cliente: ${client}) Tj\n0 -20 Td\n(Fatura Referencia: #${code}) Tj\n0 -25 Td\n(Documento gerado para fins de validacao de faturamento.) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000056 00000 n \n0000000111 00000 n \n0000000212 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n380\n%%EOF`;
-        return encode(new TextEncoder().encode(pdfText));
+      const generateValidPDF = (title: string, client: string, code: string) => {
+        const content = [
+          "BT",
+          "/F1 12 Tf",
+          "70 750 Td",
+          `(${title}) Tj`,
+          "0 -25 Td",
+          `(Cliente: ${client}) Tj`,
+          "0 -20 Td",
+          `(Fatura Referencia: #${code}) Tj`,
+          "0 -25 Td",
+          "(Documento gerado para fins de validacao de faturamento.) Tj",
+          "ET"
+        ].join("\n");
+
+        const streamBytes = new TextEncoder().encode(content);
+        const streamLength = streamBytes.length;
+
+        const header = "%PDF-1.4\n";
+        const obj1 = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+        const obj2 = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+        const obj3 = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents 4 0 R >>\nendobj\n";
+        const obj4Header = `4 0 obj\n<< /Length ${streamLength} >>\nstream\n`;
+        const obj4Footer = "\nendstream\nendobj\n";
+
+        const offset1 = header.length;
+        const offset2 = offset1 + obj1.length;
+        const offset3 = offset2 + obj2.length;
+        const offset4 = offset3 + obj3.length;
+        const obj4TotalLength = obj4Header.length + streamLength + obj4Footer.length;
+        const startxref = offset4 + obj4TotalLength;
+
+        const xref = `xref\n0 5\n0000000000 65535 f \n${String(offset1).padStart(10, '0')} 00000 n \n${String(offset2).padStart(10, '0')} 00000 n \n${String(offset3).padStart(10, '0')} 00000 n \n${String(offset4).padStart(10, '0')} 00000 n \n`;
+        const trailer = `trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF`;
+
+        const encoder = new TextEncoder();
+        const pdfParts = [
+          encoder.encode(header),
+          encoder.encode(obj1),
+          encoder.encode(obj2),
+          encoder.encode(obj3),
+          encoder.encode(obj4Header),
+          streamBytes,
+          encoder.encode(obj4Footer),
+          encoder.encode(xref),
+          encoder.encode(trailer)
+        ];
+
+        const totalLength = pdfParts.reduce((sum, part) => sum + part.length, 0);
+        const pdfBytes = new Uint8Array(totalLength);
+        let pos = 0;
+        for (const part of pdfParts) {
+          pdfBytes.set(part, pos);
+          pos += part.length;
+        }
+
+        return encode(pdfBytes);
       };
 
       attachments.push({
         name: "Relatorio_Datas_Trabalhadas.pdf",
         contentType: "application/pdf",
-        contentBytes: createDummyPDF("MCS - Relatorio de Datas Trabalhadas", client_name || "Cliente", fatura_code || "FATURA")
+        contentBytes: generateValidPDF("MCS - Relatorio de Datas Trabalhadas", client_name || "Cliente", fatura_code || "FATURA")
       });
       attachments.push({
         name: "Informe_Facturacion.pdf",
         contentType: "application/pdf",
-        contentBytes: createDummyPDF("MCS - Informe de Facturacion", client_name || "Cliente", fatura_code || "FATURA")
+        contentBytes: generateValidPDF("MCS - Informe de Facturacion", client_name || "Cliente", fatura_code || "FATURA")
       });
       attachments.push({
         name: "Factura_Pro_forma.pdf",
         contentType: "application/pdf",
-        contentBytes: createDummyPDF("MCS - Factura Pro-forma", client_name || "Cliente", fatura_code || "FATURA")
+        contentBytes: generateValidPDF("MCS - Factura Pro-forma", client_name || "Cliente", fatura_code || "FATURA")
       });
 
       if (resolvedEmpresaId) {
