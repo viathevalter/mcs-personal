@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/shared/supabase/client';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +36,7 @@ import {
   Send,
   Check,
   Search,
+  Download,
   X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -453,6 +456,269 @@ MCS - Gestão Comercial`;
 
     const selectedTheme = themes[index % themes.length];
     return isSelected ? selectedTheme.selected : selectedTheme.idle;
+  };
+
+  const handleExportHoursPDF = async (f: ClientBillingSummary) => {
+    toast.info("Aguarde, gerando PDF do Relatório de Horas...");
+    
+    // Create a temporary container for the PDF content
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px'; // standard landscape width
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    // Add title & header info
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const periodStr = `${months[f.month]} / ${f.year}`;
+    
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Relatório de Horas</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>${f.clientName}</strong> | Período: <strong>${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${f.totalHoras.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ ${f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    // Render tables list
+    // 1. First table: Combined (Todas as Obras)
+    const tablesToRender = [
+      {
+        title: 'OBRA: TODAS AS OBRAS',
+        workers: f.workers,
+        totalHoras: f.totalHoras,
+        totalValor: f.totalValor
+      }
+    ];
+
+    // 2. Subsequent tables: Each distinct Obra (if has actual Obras)
+    if (f.obras && f.obras.some(o => o.id !== null)) {
+      f.obras.forEach(obra => {
+        // Filter workers for this Obra
+        const oWorkers = f.workers.map(w => {
+          const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+            if (h.obra_id === obra.id) {
+              acc[date] = h;
+            }
+            return acc;
+          }, {} as Record<string, any>);
+
+          const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+          const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+          return {
+            ...w,
+            horasDiarias: filteredHorasDiarias,
+            totalHoras: wTotalHoras,
+            totalValor: wTotalValor
+          };
+        }).filter(w => w.totalHoras > 0);
+
+        if (oWorkers.length > 0) {
+          tablesToRender.push({
+            title: `OBRA: ${obra.name.toUpperCase()}`,
+            workers: oWorkers,
+            totalHoras: obra.totalHoras,
+            totalValor: obra.totalValor
+          });
+        }
+      });
+    }
+
+    const numDays = new Date(f.year, f.month + 1, 0).getDate();
+    const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
+
+    // Generate HTML for each table in tablesToRender
+    tablesToRender.forEach((table) => {
+      let tableHtml = `
+        <div style="margin-bottom: 40px; page-break-inside: avoid;">
+          <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+            ${table.title}
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabalhador</th>
+      `;
+
+      // Header days
+      daysArray.forEach(day => {
+        const cellDate = new Date(f.year, f.month, day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const label = weekdays[dayOfWeek];
+        
+        let headerColor = '#64748b';
+        let headerBg = '';
+        if (isSunday) {
+          headerColor = '#e11d48';
+          headerBg = 'background-color: #ffe4e6;';
+        } else if (isSaturday) {
+          headerColor = '#d97706';
+          headerBg = 'background-color: #fef3c7;';
+        }
+
+        tableHtml += `
+          <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+            <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(day).padStart(2, '0')}</div>
+          </th>
+        `;
+      });
+
+      tableHtml += `
+                <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      // Worker rows
+      table.workers.forEach(w => {
+        const workerTotal = Object.values(w.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
+        tableHtml += `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+        `;
+
+        daysArray.forEach(day => {
+          const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const hourObj = w.horasDiarias[dateKey] as any;
+          const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+          
+          const cellDate = new Date(f.year, f.month, day);
+          const dayOfWeek = cellDate.getDay();
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+
+          let cellStyle = 'color: #94a3b8;';
+          let cellBg = '';
+          if (hoursVal > 0) {
+            cellStyle = 'color: #2563eb; font-weight: 700;';
+          }
+          if (isSunday) {
+            cellBg = 'background-color: #fff1f2;';
+          } else if (isSaturday) {
+            cellBg = 'background-color: #fffbeb;';
+          }
+
+          tableHtml += `
+            <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+              ${hoursVal > 0 ? hoursVal : '-'}
+            </td>
+          `;
+        });
+
+        tableHtml += `
+            <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+          </tr>
+        `;
+      });
+
+      tableHtml += `
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.innerHTML += tableHtml;
+    });
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2, // high quality
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Standard a4 landscape is 297mm x 210mm
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // If height is larger than page height, handle multipage or scale
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+      
+      pdf.save(`relatorio-horas-${f.clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+      toast.success("PDF do Relatório de Horas gerado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
+  const handleExportA4PDF = async (clientId: string, clientName: string, type: 'informe' | 'factura') => {
+    const elementId = `${type}-sheet-${clientId}`;
+    const element = document.getElementById(elementId);
+    
+    if (!element) {
+      toast.error(`Não foi possível localizar o elemento visual do ${type === 'informe' ? 'Informe' : 'Pro-forma'}.`);
+      return;
+    }
+    
+    toast.info(`Aguarde, gerando PDF do ${type === 'informe' ? 'Informe de Facturación' : 'Fatura Pró-forma'}...`);
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Standard A4 portrait is 210mm x 297mm
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      pdf.save(filename);
+      toast.success(`PDF do ${type === 'informe' ? 'Informe' : 'Pro-forma'} gerado com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    }
   };
 
   const getOnlyDateStr = (dateVal: string) => {
@@ -1291,7 +1557,18 @@ MCS - Gestão Comercial`;
                       <div className="p-6 bg-white dark:bg-slate-950 overflow-x-auto">
                         <div className="mb-6 flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
                           <div>
-                            <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100">Relatório de Horas</h4>
+                            <div className="flex items-center gap-3">
+                              <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100">Relatório de Horas</h4>
+                              <Button 
+                                onClick={() => handleExportHoursPDF(f)}
+                                variant="outline" 
+                                size="sm" 
+                                className="h-8 border-indigo-200 bg-indigo-50/30 text-indigo-700 hover:bg-indigo-50 font-bold gap-1.5 text-[11px] py-1 dark:border-indigo-900 dark:bg-indigo-950/20 dark:text-indigo-400"
+                              >
+                                <Download size={12} />
+                                Exportar PDF (Horizontal)
+                              </Button>
+                            </div>
                             <p className="text-xs text-muted-foreground mt-0.5">Cliente: <span className="font-semibold">{f.clientName}</span> | Período: <span className="font-semibold">{getMonthName(f.month)} / {f.year}</span></p>
                           </div>
                           <div className="text-right">
@@ -1550,9 +1827,20 @@ MCS - Gestão Comercial`;
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
 
                       return (
-                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex justify-center">
+                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
+                          <div className="w-full max-w-[800px] flex justify-end">
+                            <Button 
+                              onClick={() => handleExportA4PDF(f.clientId, f.clientName, 'informe')}
+                              variant="default"
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm"
+                            >
+                              <Download size={14} />
+                              Baixar Informe (PDF)
+                            </Button>
+                          </div>
                           {/* Folha A4 simulada */}
-                          <div className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left">
+                          <div id={`informe-sheet-${f.clientId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left">
                             {/* Header */}
                             <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-800 pb-6 mb-6">
                               <div className="space-y-1">
@@ -1682,12 +1970,22 @@ MCS - Gestão Comercial`;
                       const adj = clientAdjustments[f.clientId] || initAdjustments(f);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
-                      const periodStr = `${getMonthName(f.month)} / ${f.year}`;
 
                       return (
-                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex justify-center">
+                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
+                          <div className="w-full max-w-[800px] flex justify-end">
+                            <Button 
+                              onClick={() => handleExportA4PDF(f.clientId, f.clientName, 'factura')}
+                              variant="default"
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm"
+                            >
+                              <Download size={14} />
+                              Baixar Fatura Pró-forma (PDF)
+                            </Button>
+                          </div>
                           {/* Folha A4 da Fatura */}
-                          <div className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left relative">
+                          <div id={`factura-sheet-${f.clientId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left relative">
                             
                             {selectedObra && (
                               <div className="text-center font-bold text-xs bg-slate-100 dark:bg-slate-950 py-1 rounded text-slate-700 dark:text-slate-400 mb-6">
