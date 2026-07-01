@@ -519,12 +519,31 @@ MCS - Gestão Comercial`;
                         #{fatura.id.split('-')[0].toUpperCase()}
                       </TableCell>
                       <TableCell className="font-medium text-slate-700 dark:text-slate-300">
-                        {fatura.client?.codigo ? (
-                          <span className="text-slate-400 font-normal mr-1.5 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[11px]">
-                            {fatura.client.codigo}
-                          </span>
-                        ) : null}
-                        {fatura.client?.nombre_comercial || 'Cliente Desconhecido'}
+                        <div className="flex flex-col gap-1 text-left">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {fatura.client?.codigo ? (
+                              <span className="text-slate-400 font-normal bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">
+                                {fatura.client.codigo}
+                              </span>
+                            ) : null}
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
+                          </div>
+                          {fatura.client?.viesApplicable && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[9px] font-extrabold px-1.5 py-0 w-fit flex items-center gap-1 shrink-0 ${
+                                fatura.client.viesValid 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' 
+                                  : fatura.client.viesStatus === 'invalid'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-250 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800'
+                                    : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+                              }`}
+                              title={fatura.client.viesLastCheckedAt ? `Última consulta VIES: ${new Date(fatura.client.viesLastCheckedAt).toLocaleString('pt-PT')}` : 'Nunca verificado no VIES'}
+                            >
+                              VIES: {fatura.client.viesValid ? 'Ativo' : fatura.client.viesStatus === 'invalid' ? 'Inválido' : 'Pendente'}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {fatura.data_emissao ? new Date(fatura.data_emissao).toLocaleDateString() : '--/--/----'}
@@ -1514,6 +1533,26 @@ MCS - Gestão Comercial`;
                       </div>
                     )}
                   </div>
+
+                  {cobroConfirmFatura.client?.viesApplicable && (
+                    <div className={`p-3.5 rounded-xl border flex gap-2.5 text-xs font-semibold ${
+                      cobroConfirmFatura.client.viesValid
+                        ? 'bg-emerald-50/50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/40'
+                        : 'bg-rose-50/50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/40 animate-pulse'
+                    }`}>
+                      <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${cobroConfirmFatura.client.viesValid ? 'text-emerald-600' : 'text-rose-600'}`} />
+                      <div className="leading-relaxed font-normal">
+                        <span className="font-extrabold block text-[11px] uppercase tracking-wider mb-0.5">
+                          Cadastro VIES: {cobroConfirmFatura.client.viesValid ? 'Válido / Ativo' : 'Inválido ou Pendente'}
+                        </span>
+                        {cobroConfirmFatura.client.viesValid ? (
+                          <span>O cliente possui registro de IVA comunitário ativo. A isenção de IVA (taxa de 0%) é aplicável.</span>
+                        ) : (
+                          <span>O NIF/IVA do cliente está inválido ou pendente no VIES. Recomenda-se cobrar IVA a 23% para evitar riscos tributários.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Detalhes do Faturamento */}
                   <div className="bg-slate-50 dark:bg-slate-950 p-4 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5 shadow-sm">

@@ -87,6 +87,77 @@ export function FaturasPendentes() {
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [sendEmailCheckbox, setSendEmailCheckbox] = useState(true);
 
+  const [checkingViesClient, setCheckingViesClient] = useState<string | null>(null);
+
+  const handleCheckVies = async (f: ClientBillingSummary) => {
+    if (!f.taxId || !f.countryId) {
+      toast.error('Cliente não possui NIF ou País Fiscal configurados.');
+      return;
+    }
+    
+    try {
+      setCheckingViesClient(f.clientId);
+      toast.loading('Consultando registro VIES da Comissão Europeia...', { id: 'vies-loading' });
+      
+      const { data: country, error: countryErr } = await supabase
+        .schema('core_common')
+        .from('countries')
+        .select('iso2')
+        .eq('id', f.countryId)
+        .single();
+        
+      if (countryErr || !country?.iso2) {
+        throw new Error('Falha ao obter o código ISO2 do país do cliente.');
+      }
+      
+      const countryCode = country.iso2.toUpperCase();
+      const cleanTax = f.taxId.trim().toUpperCase().replace(/[\s\.\-\,]+/g, '');
+      const vatNumber = cleanTax.startsWith(countryCode)
+        ? cleanTax.substring(countryCode.length)
+        : cleanTax;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/check-vies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          client_id: f.clientId,
+          country_code: countryCode,
+          vat_number: vatNumber,
+          trigger_source: 'manual'
+        })
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `Erro na API VIES: Status ${response.status}`);
+      }
+
+      const result = await response.json();
+      toast.dismiss('vies-loading');
+      
+      if (result.valid) {
+        toast.success('VIES validado com sucesso! Número de IVA ativo.');
+      } else {
+        toast.warning('O número de IVA informado foi rejeitado pelo VIES ou está inativo.');
+      }
+      
+      await fetchHoras();
+    } catch (err: any) {
+      console.error('Erro na validação VIES:', err);
+      toast.dismiss('vies-loading');
+      toast.error('Falha na validação VIES: ' + err.message);
+    } finally {
+      setCheckingViesClient(null);
+    }
+  };
+
   const getMonthName = (mIndex: number) => {
     const months = [
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -1188,6 +1259,24 @@ MCS - Gestão Comercial`;
                           }`}>
                             <Calendar size={12} /> Prazo: {f.paymentTermName || 'N/A'}
                           </span>
+                          {f.viesApplicable && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700 text-xs shrink-0">•</span>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-[10px] font-bold px-1.5 py-0 flex items-center gap-1 shrink-0 ${
+                                  f.viesValid 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' 
+                                    : f.viesStatus === 'invalid'
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+                                }`}
+                                title={f.viesLastCheckedAt ? `Última consulta VIES: ${new Date(f.viesLastCheckedAt).toLocaleString('pt-PT')}` : 'Nunca verificado no VIES'}
+                              >
+                                VIES: {f.viesValid ? 'Válido' : f.viesStatus === 'invalid' ? 'Inválido' : 'Pendente'}
+                              </Badge>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1285,6 +1374,49 @@ MCS - Gestão Comercial`;
                 {/* Área Expandida (Trabalhadores e Horas Diárias com Abas) */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 text-left">
+                    {/* Alerta de Validação VIES */}
+                    {f.viesApplicable && !f.viesValid && (
+                      <div className="mx-5 mt-4 p-4 rounded-xl bg-amber-50/80 dark:bg-amber-950/15 border border-amber-250 dark:border-amber-900/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all duration-200 shadow-sm">
+                        <div className="flex gap-3">
+                          <div className="p-2 bg-amber-100 dark:bg-amber-950/40 rounded-lg text-amber-700 dark:text-amber-400 shrink-0 self-start">
+                            <AlertTriangle className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h5 className="text-sm font-bold text-amber-800 dark:text-amber-400">Validação VIES Intracomunitária Pendente</h5>
+                            <p className="text-xs text-amber-700 dark:text-amber-500/90 mt-1 leading-relaxed">
+                              Este cliente está cadastrado como intracomunitário (VIES Aplicável), mas o NIF/IVA <span className="font-extrabold underline">{f.taxId || 'Não Informado'}</span> não está ativo ou não foi validado no VIES europeu.
+                              {f.viesLastCheckedAt ? (
+                                <span className="block mt-1.5 font-medium text-[11px]">
+                                  Última verificação: {new Date(f.viesLastCheckedAt).toLocaleString('pt-PT')} ({f.viesStatus === 'invalid' ? 'Rejeitado/Inválido' : 'Expirado/Necessita consulta'}).
+                                </span>
+                              ) : (
+                                <span className="block mt-1.5 font-medium text-[11px] text-amber-600/90 dark:text-amber-500/80">
+                                  Nenhuma verificação foi realizada para este cliente até o momento.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCheckVies(f);
+                          }}
+                          disabled={checkingViesClient === f.clientId}
+                          variant="outline"
+                          size="sm"
+                          className="h-9 shrink-0 bg-white hover:bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 font-bold text-xs gap-1.5 shadow-sm"
+                        >
+                          {checkingViesClient === f.clientId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Search className="h-3.5 w-3.5" />
+                          )}
+                          Validar no VIES Agora
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Obras Filter Cards */}
                     {f.obras && f.obras.some(o => o.id !== null) && (
                       <div className="p-5 bg-slate-50/50 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
@@ -1588,28 +1720,26 @@ MCS - Gestão Comercial`;
                               {daysArray.map(day => {
                                 const cellDate = new Date(f.year, f.month, day);
                                 const dayOfWeek = cellDate.getDay();
-                                const isSunday = dayOfWeek === 0;
-                                const isSaturday = dayOfWeek === 6;
-                                const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-                                const label = weekdays[dayOfWeek];
-
-                                let textStyle = 'text-slate-400 dark:text-slate-500';
-                                let bgStyle = '';
-                                if (isSunday) {
-                                  textStyle = 'text-rose-600 dark:text-rose-400 font-bold';
-                                  bgStyle = 'bg-rose-50/20 dark:bg-rose-950/10';
-                                } else if (isSaturday) {
-                                  textStyle = 'text-amber-600 dark:text-amber-400 font-bold';
-                                  bgStyle = 'bg-amber-50/15 dark:bg-amber-950/5';
-                                }
+                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+                                const weekdayLabel = weekdays[dayOfWeek];
 
                                 return (
-                                  <TableHead key={day} className={`text-center p-1 min-w-[32px] max-w-[38px] ${bgStyle}`}>
-                                    <div className={`text-[8px] uppercase tracking-tighter ${textStyle}`}>
-                                      {label}
-                                    </div>
-                                    <div className="text-[10px] font-bold mt-0.5 text-slate-800 dark:text-slate-200">
-                                      {String(day).padStart(2, '0')}
+                                  <TableHead 
+                                    key={day} 
+                                    className={`text-center p-1 min-w-[32px] max-w-[38px] transition-colors ${
+                                      isWeekend 
+                                        ? 'bg-amber-50/50 dark:bg-amber-950/20' 
+                                        : ''
+                                    }`}
+                                  >
+                                    <div className="flex flex-col items-center">
+                                      <span className={`text-[10px] font-extrabold leading-none ${isWeekend ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                        {String(day).padStart(2, '0')}
+                                      </span>
+                                      <span className={`text-[8px] font-bold leading-normal mt-0.5 ${isWeekend ? 'text-amber-500/70' : 'text-slate-400/70'}`}>
+                                        {weekdayLabel}
+                                      </span>
                                     </div>
                                   </TableHead>
                                 );
@@ -1630,23 +1760,21 @@ MCS - Gestão Comercial`;
                                     
                                     const cellDate = new Date(f.year, f.month, day);
                                     const dayOfWeek = cellDate.getDay();
-                                    const isSunday = dayOfWeek === 0;
-                                    const isSaturday = dayOfWeek === 6;
-
-                                    let cellBg = '';
-                                    if (isSunday) {
-                                      cellBg = 'bg-rose-50/20 dark:bg-rose-950/10 text-rose-700 dark:text-rose-400';
-                                    } else if (isSaturday) {
-                                      cellBg = 'bg-amber-50/10 dark:bg-amber-950/5 text-amber-700 dark:text-amber-400';
-                                    }
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                                     return (
                                       <TableCell 
                                         key={day} 
-                                        className={`text-center text-xs p-1 ${cellBg} ${
+                                        className={`text-center text-xs p-1 transition-colors ${
+                                          isWeekend 
+                                            ? 'bg-amber-50/15 dark:bg-amber-950/5 border-x border-x-amber-100/20 dark:border-x-amber-900/10' 
+                                            : ''
+                                        } ${
                                           hoursVal > 0 
-                                            ? 'font-bold text-blue-600 dark:text-blue-400' 
-                                            : 'text-slate-300/70 dark:text-slate-700/60'
+                                            ? isWeekend 
+                                              ? 'font-bold text-amber-700 dark:text-amber-400'
+                                              : 'font-bold text-blue-600 dark:text-blue-400' 
+                                            : 'text-slate-300 dark:text-slate-700'
                                         }`}
                                       >
                                         {hoursVal > 0 ? hoursVal : '-'}
@@ -2260,6 +2388,16 @@ MCS - Gestão Comercial`;
                       </div>
                     </div>
                   </div>
+                  
+                  {currentFaturamento.viesApplicable && !currentFaturamento.viesValid && (
+                    <div className="p-3.5 bg-rose-50/50 dark:bg-rose-950/10 border border-rose-200 dark:border-rose-900/40 rounded-xl flex gap-2.5 text-rose-800 dark:text-rose-450 font-medium">
+                      <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+                      <div className="leading-relaxed font-normal">
+                        <span className="font-extrabold text-[11px] uppercase tracking-wider block text-rose-800 dark:text-rose-400 mb-0.5">Risco Fiscal: VIES Pendente / Inválido</span>
+                        Este cliente está configurado como faturamento intracomunitário (com isenção de IVA), mas seu cadastro VIES está **inválido** ou **não verificado**. Faturar sem cobrar IVA sob estas condições pode gerar multas e autuações tributárias.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Ajustes no Faturamento */}
                   <div className="space-y-2">

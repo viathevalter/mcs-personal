@@ -70,6 +70,12 @@ export interface ClientBillingSummary {
   paymentTermDays?: number | null;
   billingEmail?: string | null;
   clientEmail?: string | null;
+  viesApplicable?: boolean;
+  viesStatus?: string | null;
+  viesValid?: boolean;
+  viesLastCheckedAt?: string | null;
+  taxId?: string | null;
+  countryId?: string | null;
   obras: Array<{
     id: string | null;
     name: string;
@@ -130,7 +136,7 @@ export async function getHorasPendentesFaturamento(
     const { data: clientsData, error: clientsError } = await supabase
       .schema('core_common')
       .from('clients')
-      .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email');
+      .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id');
 
     if (clientsError) throw mapSupabaseError(clientsError);
 
@@ -172,7 +178,7 @@ export async function getHorasPendentesFaturamento(
             legal_name: name,
             status: 'active'
           })
-          .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email')
+          .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
           .single();
 
         if (insertError) {
@@ -489,6 +495,12 @@ export async function getHorasPendentesFaturamento(
         paymentTermDays: termDays,
         billingEmail: client.billing_email || null,
         clientEmail: client.email || null,
+        viesApplicable: client.vies_applicable || false,
+        viesStatus: client.vies_status || 'not_checked',
+        viesValid: client.vies_valid || false,
+        viesLastCheckedAt: client.vies_last_checked_at || null,
+        taxId: client.tax_id || null,
+        countryId: client.country_id || null,
         obras: obrasSummary,
         workers: workersSummary
       });
@@ -683,7 +695,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       const { data: clientsData, error: clientsError } = await supabase
         .schema('core_common')
         .from('clients')
-        .select('id, codigo, trade_name, payment_terms, payment_term_id, billing_email, email')
+        .select('id, codigo, trade_name, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
         .in('id', clientIds);
       if (clientsError) console.error('Erro ao buscar clientes para tracking:', clientsError);
       else clients = clientsData || [];
@@ -737,7 +749,13 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           paymentTermName: termName,
           paymentTermDays: termDays,
           billingEmail: client.billing_email || null,
-          clientEmail: client.email || null
+          clientEmail: client.email || null,
+          viesApplicable: client.vies_applicable || false,
+          viesStatus: client.vies_status || 'not_checked',
+          viesValid: client.vies_valid || false,
+          viesLastCheckedAt: client.vies_last_checked_at || null,
+          taxId: client.tax_id || null,
+          countryId: client.country_id || null
         } : undefined,
         total_horas: hoursMap.get(f.id) || 0,
         total_valor: valueMap.get(f.id) || 0
