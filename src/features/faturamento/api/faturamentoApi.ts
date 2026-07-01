@@ -658,17 +658,29 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
 
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
   try {
-    // 1. Resolve client IDs belonging to the company if empresaId is provided
-    let clientIdsFiltered: string[] = [];
+    // 1. Resolve fatura IDs belonging to the company if empresaId is provided
+    let faturaIdsFiltered: string[] = [];
     if (empresaId) {
-      const { data: clientsData } = await supabase
-        .schema('core_common')
-        .from('clients')
+      // Get all workers of this company
+      const { data: companyWorkers } = await supabase
+        .schema('core_personal')
+        .from('workers')
         .select('id')
         .eq('empresa_id', empresaId);
       
-      clientIdsFiltered = (clientsData || []).map(c => c.id);
-      if (clientIdsFiltered.length === 0) return [];
+      const workerIds = (companyWorkers || []).map(w => w.id).filter(Boolean);
+      if (workerIds.length === 0) return [];
+
+      // Get all unique fatura_ids referenced in horas_trabalhadas for these workers
+      const { data: htData } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .select('fatura_id')
+        .in('worker_id', workerIds)
+        .not('fatura_id', 'is', null);
+
+      faturaIdsFiltered = Array.from(new Set((htData || []).map(h => h.fatura_id).filter(Boolean))) as string[];
+      if (faturaIdsFiltered.length === 0) return [];
     }
 
     // 2. Fetch faturas
@@ -678,8 +690,8 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (empresaId && clientIdsFiltered.length > 0) {
-      query = query.in('client_id', clientIdsFiltered);
+    if (empresaId && faturaIdsFiltered.length > 0) {
+      query = query.in('id', faturaIdsFiltered);
     }
 
     const { data: faturas, error: faturasError } = await query;
