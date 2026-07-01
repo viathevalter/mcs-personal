@@ -407,6 +407,54 @@ MCS - Gestão Comercial`;
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
+  const getObraColorClasses = (index: number, isSelected: boolean) => {
+    // Distinct premium pastel color themes: Slate, Blue, Emerald, Amber, Violet, Rose, Cyan
+    const themes = [
+      {
+        // Blue
+        selected: 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-100 dark:ring-blue-950 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-100',
+        idle: 'bg-blue-50/20 border-blue-100/70 text-blue-700 hover:bg-blue-50/50 hover:border-blue-300 dark:bg-blue-950/10 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/20'
+      },
+      {
+        // Emerald
+        selected: 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-100 dark:ring-emerald-950 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-100',
+        idle: 'bg-emerald-50/20 border-emerald-100/70 text-emerald-700 hover:bg-emerald-50/50 hover:border-emerald-300 dark:bg-emerald-950/10 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-950/20'
+      },
+      {
+        // Amber
+        selected: 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-100 dark:ring-amber-950 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-100',
+        idle: 'bg-amber-50/20 border-amber-100/70 text-amber-700 hover:bg-amber-50/50 hover:border-amber-300 dark:bg-amber-950/10 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/20'
+      },
+      {
+        // Violet
+        selected: 'bg-violet-50 border-violet-500 text-violet-900 ring-2 ring-violet-100 dark:ring-violet-950 dark:bg-violet-950/40 dark:border-violet-700 dark:text-violet-100',
+        idle: 'bg-violet-50/20 border-violet-100/70 text-violet-700 hover:bg-violet-50/50 hover:border-violet-300 dark:bg-violet-950/10 dark:border-violet-900/50 dark:text-violet-400 dark:hover:bg-violet-950/20'
+      },
+      {
+        // Rose
+        selected: 'bg-rose-50 border-rose-500 text-rose-900 ring-2 ring-rose-100 dark:ring-rose-950 dark:bg-rose-950/40 dark:border-rose-700 dark:text-rose-100',
+        idle: 'bg-rose-50/20 border-rose-100/70 text-rose-700 hover:bg-rose-50/50 hover:border-rose-300 dark:bg-rose-950/10 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/20'
+      },
+      {
+        // Cyan
+        selected: 'bg-cyan-50 border-cyan-500 text-cyan-900 ring-2 ring-cyan-100 dark:ring-cyan-950 dark:bg-cyan-950/40 dark:border-cyan-700 dark:text-cyan-100',
+        idle: 'bg-cyan-50/20 border-cyan-100/70 text-cyan-700 hover:bg-sky-50/50 hover:border-sky-300 dark:bg-cyan-950/10 dark:border-cyan-900/50 dark:text-cyan-400 dark:hover:bg-cyan-950/20'
+      }
+    ];
+
+    const defaultTheme = {
+      selected: 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-100 dark:ring-indigo-950 dark:bg-indigo-950/40 dark:border-indigo-700 dark:text-indigo-100',
+      idle: 'bg-slate-50/50 border-slate-200 text-slate-700 hover:bg-slate-100 dark:bg-slate-900/30 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900/60'
+    };
+
+    if (index === -1) {
+      return isSelected ? defaultTheme.selected : defaultTheme.idle;
+    }
+
+    const selectedTheme = themes[index % themes.length];
+    return isSelected ? selectedTheme.selected : selectedTheme.idle;
+  };
+
   const getOnlyDateStr = (dateVal: string) => {
     if (!dateVal) return '';
     if (dateVal.includes('T')) {
@@ -983,41 +1031,33 @@ MCS - Gestão Comercial`;
                               delete next[f.clientId];
                               return next;
                             })}
-                            className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${
-                              selectedObraByClient[f.clientId] === undefined
-                                ? 'bg-white border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/30 shadow-xs'
-                                : 'bg-slate-50/50 border-slate-200 hover:bg-white dark:border-slate-800'
-                            }`}
+                            className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${getObraColorClasses(-1, selectedObraByClient[f.clientId] === undefined)}`}
                           >
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Todas as Obras</span>
-                              <span className="text-xs text-slate-400 mt-0.5">{f.totalHoras.toFixed(2)} hrs</span>
+                              <span className="text-xs font-bold">Todas as Obras</span>
+                              <span className="text-[10px] opacity-75 mt-0.5">{f.totalHoras.toFixed(2)} hrs</span>
                             </div>
-                            <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                            <span className="font-extrabold text-sm">
                               € {f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
 
                           {/* Cards for each Obra */}
-                          {f.obras.map((obra) => {
+                          {f.obras.map((obra, idx) => {
                             const isSelected = selectedObraByClient[f.clientId] === obra.id;
                             return (
                               <div 
                                 key={obra.id || 'sem_obra'}
                                 onClick={() => setSelectedObraByClient(prev => ({ ...prev, [f.clientId]: obra.id }))}
-                                className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${
-                                  isSelected
-                                    ? 'bg-white border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/30 shadow-xs'
-                                    : 'bg-slate-50/50 border-slate-200 hover:bg-white dark:border-slate-800'
-                                }`}
+                                className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${getObraColorClasses(idx, isSelected)}`}
                               >
                                 <div className="flex flex-col min-w-0">
-                                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate" title={obra.name}>
+                                  <span className="text-xs font-bold truncate" title={obra.name}>
                                     {obra.name}
                                   </span>
-                                  <span className="text-xs text-slate-400 mt-0.5">{obra.totalHoras.toFixed(2)} hrs</span>
+                                  <span className="text-[10px] opacity-75 mt-0.5">{obra.totalHoras.toFixed(2)} hrs</span>
                                 </div>
-                                <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100 shrink-0">
+                                <span className="font-extrabold text-sm shrink-0">
                                   € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                               </div>
@@ -1268,11 +1308,35 @@ MCS - Gestão Comercial`;
                           <TableHeader className="bg-slate-50 dark:bg-slate-900">
                             <TableRow>
                               <TableHead className="font-bold text-xs pl-4">Trabalhador</TableHead>
-                              {daysArray.map(day => (
-                                <TableHead key={day} className="text-center font-bold text-[10px] p-1 min-w-[28px] max-w-[34px]">
-                                  {String(day).padStart(2, '0')}
-                                </TableHead>
-                              ))}
+                              {daysArray.map(day => {
+                                const cellDate = new Date(f.year, f.month, day);
+                                const dayOfWeek = cellDate.getDay();
+                                const isSunday = dayOfWeek === 0;
+                                const isSaturday = dayOfWeek === 6;
+                                const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                                const label = weekdays[dayOfWeek];
+
+                                let textStyle = 'text-slate-400 dark:text-slate-500';
+                                let bgStyle = '';
+                                if (isSunday) {
+                                  textStyle = 'text-rose-600 dark:text-rose-400 font-bold';
+                                  bgStyle = 'bg-rose-50/20 dark:bg-rose-950/10';
+                                } else if (isSaturday) {
+                                  textStyle = 'text-amber-600 dark:text-amber-400 font-bold';
+                                  bgStyle = 'bg-amber-50/15 dark:bg-amber-950/5';
+                                }
+
+                                return (
+                                  <TableHead key={day} className={`text-center p-1 min-w-[32px] max-w-[38px] ${bgStyle}`}>
+                                    <div className={`text-[8px] uppercase tracking-tighter ${textStyle}`}>
+                                      {label}
+                                    </div>
+                                    <div className="text-[10px] font-bold mt-0.5 text-slate-800 dark:text-slate-200">
+                                      {String(day).padStart(2, '0')}
+                                    </div>
+                                  </TableHead>
+                                );
+                              })}
                               <TableHead className="text-right font-bold text-xs pr-4">TOTAL</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -1286,8 +1350,28 @@ MCS - Gestão Comercial`;
                                     const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                     const hourObj = worker.horasDiarias[dateKey] as any;
                                     const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+                                    
+                                    const cellDate = new Date(f.year, f.month, day);
+                                    const dayOfWeek = cellDate.getDay();
+                                    const isSunday = dayOfWeek === 0;
+                                    const isSaturday = dayOfWeek === 6;
+
+                                    let cellBg = '';
+                                    if (isSunday) {
+                                      cellBg = 'bg-rose-50/20 dark:bg-rose-950/10 text-rose-700 dark:text-rose-400';
+                                    } else if (isSaturday) {
+                                      cellBg = 'bg-amber-50/10 dark:bg-amber-950/5 text-amber-700 dark:text-amber-400';
+                                    }
+
                                     return (
-                                      <TableCell key={day} className={`text-center text-xs p-1 ${hoursVal > 0 ? 'font-bold text-blue-600 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}`}>
+                                      <TableCell 
+                                        key={day} 
+                                        className={`text-center text-xs p-1 ${cellBg} ${
+                                          hoursVal > 0 
+                                            ? 'font-bold text-blue-600 dark:text-blue-400' 
+                                            : 'text-slate-300/70 dark:text-slate-700/60'
+                                        }`}
+                                      >
                                         {hoursVal > 0 ? hoursVal : '-'}
                                       </TableCell>
                                     );
