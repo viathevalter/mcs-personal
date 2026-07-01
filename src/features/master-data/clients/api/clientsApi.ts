@@ -25,6 +25,7 @@ export const clientsApi = {
       .insert({
         ...payload,
         empresa_id: empresaId,
+        vies_applicable: true,
       })
       .select()
       .single();

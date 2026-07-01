@@ -1328,12 +1328,20 @@ MCS - Gestão Comercial`;
                       <Button 
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (f.viesApplicable && !f.viesValid) {
+                            toast.error('Faturamento Bloqueado: O VIES deste cliente está inválido ou pendente. Realize a consulta e validação no painel acima antes de prosseguir.');
+                            return;
+                          }
                           handleSolicitarAprovacao(f.clientId, filteredWorkers);
                         }}
                         disabled={isProcessing}
-                        variant="default"
+                        variant={f.viesApplicable && !f.viesValid ? "destructive" : "default"}
                         size="sm"
-                        className="shadow-sm bg-blue-600 hover:bg-blue-700 text-white font-medium gap-1.5 shrink-0"
+                        className={`shadow-sm font-medium gap-1.5 shrink-0 ${
+                          f.viesApplicable && !f.viesValid
+                            ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
                       >
                         {isProcessing ? (
                           <Loader2 className="h-4 w-4 animate-spin" />

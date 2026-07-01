@@ -176,7 +176,8 @@ export async function getHorasPendentesFaturamento(
             empresa_id: empresaId,
             trade_name: name,
             legal_name: name,
-            status: 'active'
+            status: 'active',
+            vies_applicable: true
           })
           .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
           .single();

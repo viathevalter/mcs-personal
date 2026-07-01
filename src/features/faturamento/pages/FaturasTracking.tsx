@@ -1538,17 +1538,17 @@ MCS - Gestão Comercial`;
                     <div className={`p-3.5 rounded-xl border flex gap-2.5 text-xs font-semibold ${
                       cobroConfirmFatura.client.viesValid
                         ? 'bg-emerald-50/50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/40'
-                        : 'bg-rose-50/50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/40 animate-pulse'
+                        : 'bg-rose-50/50 text-rose-800 border-rose-250 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/40 animate-pulse'
                     }`}>
                       <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${cobroConfirmFatura.client.viesValid ? 'text-emerald-600' : 'text-rose-600'}`} />
-                      <div className="leading-relaxed font-normal">
+                      <div className="leading-relaxed font-normal text-left">
                         <span className="font-extrabold block text-[11px] uppercase tracking-wider mb-0.5">
-                          Cadastro VIES: {cobroConfirmFatura.client.viesValid ? 'Válido / Ativo' : 'Inválido ou Pendente'}
+                          Cadastro VIES: {cobroConfirmFatura.client.viesValid ? 'Válido / Ativo' : 'BLOQUEADO / INVÁLIDO'}
                         </span>
                         {cobroConfirmFatura.client.viesValid ? (
                           <span>O cliente possui registro de IVA comunitário ativo. A isenção de IVA (taxa de 0%) é aplicável.</span>
                         ) : (
-                          <span>O NIF/IVA do cliente está inválido ou pendente no VIES. Recomenda-se cobrar IVA a 23% para evitar riscos tributários.</span>
+                          <span>Este faturamento está bloqueado porque o NIF/IVA do cliente está inválido ou pendente no VIES. Corrija o cadastro ou realize a consulta no Master Data antes de prosseguir.</span>
                         )}
                       </div>
                     </div>
@@ -1631,8 +1631,12 @@ MCS - Gestão Comercial`;
                   </Button>
                   <Button
                     onClick={() => handleConfirmGerarCobro()}
-                    disabled={isGeneratingCobro || !cobroDueDate}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                    disabled={isGeneratingCobro || !cobroDueDate || (cobroConfirmFatura.client?.viesApplicable && !cobroConfirmFatura.client?.viesValid)}
+                    className={`text-white border-none ${
+                      cobroConfirmFatura.client?.viesApplicable && !cobroConfirmFatura.client?.viesValid
+                        ? 'bg-slate-350 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                   >
                     {isGeneratingCobro ? (
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
