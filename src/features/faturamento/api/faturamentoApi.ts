@@ -205,18 +205,16 @@ export async function getHorasPendentesFaturamento(
     const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
 
     // 4. Fetch validation status of sheet records (worker_hours)
-    const workerIds = Array.from(new Set(activeWorkers.map(w => w.id).filter(Boolean)));
-    let workerHoursList: any[] = [];
-    if (workerIds.length > 0) {
-      const { data: whData } = await supabase
-        .schema('core_personal')
-        .from('worker_hours')
-        .select('worker_id, status, observacoes')
-        .in('worker_id', workerIds)
-        .eq('period_year', periodYear)
-        .eq('period_month', periodMonth);
-      workerHoursList = whData || [];
-    }
+    // We filter only by period to avoid HTTP Header Overflow errors with large arrays of worker IDs (e.g., 600+)
+    const { data: whData, error: whError } = await supabase
+      .schema('core_personal')
+      .from('worker_hours')
+      .select('worker_id, status, observacoes')
+      .eq('period_year', periodYear)
+      .eq('period_month', periodMonth);
+
+    if (whError) throw mapSupabaseError(whError);
+    const workerHoursList = whData || [];
     const workerHoursMap = new Map(workerHoursList.map(wh => [wh.worker_id, { status: wh.status, observacoes: wh.observacoes }]));
 
     // 5. Fetch validated hours in core_finance.horas_trabalhadas for the period
