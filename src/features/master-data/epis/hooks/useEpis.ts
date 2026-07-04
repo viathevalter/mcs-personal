@@ -2,10 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { episApi } from '../api/episApi';
 import type { CreateEpiDTO, UpdateEpiDTO } from '../types';
 
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+
 export function useEpis() {
+  const { selectedEmpresaId } = useEmpresa();
+
   return useQuery({
-    queryKey: ['epis'],
-    queryFn: () => episApi.getEpis(),
+    queryKey: ['epis', selectedEmpresaId],
+    queryFn: () => {
+      if (!selectedEmpresaId) return Promise.resolve([]);
+      return episApi.getEpis(selectedEmpresaId);
+    },
+    enabled: !!selectedEmpresaId,
   });
 }
 

@@ -2,11 +2,12 @@ import { supabase } from '@/shared/supabase/client';
 import type { Epi, CreateEpiDTO, UpdateEpiDTO } from '../types';
 
 export const episApi = {
-  async getEpis(): Promise<Epi[]> {
+  async getEpis(empresaId: string): Promise<Epi[]> {
     const { data, error } = await supabase
       .schema('core_logistica')
       .from('epis')
       .select('*')
+      .eq('empresa_id', empresaId)
       .neq('status', 'archived')
       .order('name');
     
