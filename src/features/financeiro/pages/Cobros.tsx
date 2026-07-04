@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail } from 'lucide-react';
+import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw } from 'lucide-react';
 import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
 import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber, saveObservacao } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -50,6 +50,34 @@ export const Cobros = () => {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
     const [showFilters, setShowFilters] = useState<boolean>(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const handleSyncSharePoint = async () => {
+        setIsSyncing(true);
+        const toastId = toast.loading('Iniciando sincronização com o SharePoint...');
+        try {
+            const { data: resData, error: invokeErr } = await supabase.functions.invoke('sync-contas-receber');
+            
+            if (invokeErr) {
+                throw new Error(invokeErr.message);
+            }
+            
+            if (resData && resData.success) {
+                toast.success('Sincronização concluída!', {
+                    id: toastId,
+                    description: `${resData.synced_records} títulos de contas a receber foram atualizados com o SharePoint.`
+                });
+                await loadData();
+            } else {
+                throw new Error(resData?.error || 'Erro desconhecido na sincronização.');
+            }
+        } catch (err: any) {
+            console.error('Sync failed:', err);
+            toast.error('Erro na Sincronização: ' + err.message, { id: toastId });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const loadData = async () => {
         setIsLoading(true);
@@ -274,9 +302,24 @@ export const Cobros = () => {
                         <h2 className="text-3xl font-bold tracking-tight">Cobros / Recebimentos</h2>
                         <p className="text-muted-foreground mt-1">Gerencie as contas a receber da empresa.</p>
                     </div>
-                    <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm">
-                        <Plus size={18} /> Novo Cobro
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        <Button 
+                            onClick={handleSyncSharePoint} 
+                            disabled={isSyncing} 
+                            variant="outline" 
+                            className="flex items-center gap-2 border-slate-300 dark:border-slate-800"
+                        >
+                            {isSyncing ? (
+                                <span className="h-4.5 w-4.5 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
+                            ) : (
+                                <RefreshCw size={18} className="text-slate-500" />
+                            )}
+                            {isSyncing ? 'Sincronizando...' : 'Sincronizar SharePoint'}
+                        </Button>
+                        <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm">
+                            <Plus size={18} /> Novo Cobro
+                        </Button>
+                    </div>
                 </div>
 
                 {/* KPIs Row */}
