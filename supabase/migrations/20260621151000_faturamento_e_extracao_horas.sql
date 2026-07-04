@@ -7,6 +7,7 @@ VALUES ('extracao-horas', 'extracao-horas', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage RLS (Bucket: extracao-horas)
+DROP POLICY IF EXISTS "Allow all operations on extracao-horas" ON storage.objects;
 CREATE POLICY "Allow all operations on extracao-horas"
 ON storage.objects FOR ALL
 USING (bucket_id = 'extracao-horas')

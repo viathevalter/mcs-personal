@@ -20,6 +20,10 @@ export interface Lead {
   billing_email?: string;
   payment_term_id?: string;
   client_id?: string;
+  sector?: string;
+  cargo?: string;
+  servicio_producto?: string;
+  origen_lead?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;

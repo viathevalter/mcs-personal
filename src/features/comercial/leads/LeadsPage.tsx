@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 import { useLeads, useMutateLead } from './hooks/useLeads';
+import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
@@ -36,28 +39,102 @@ import {
   AlertCircle,
   UserCheck,
   Link,
-  Share2
+  Share2,
+  FileSpreadsheet,
+  Upload,
+  FileUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { Lead } from '../estimaciones/types';
 import { useTranslation } from 'react-i18next';
-
 export function LeadsPage() {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const { data: leads = [], isLoading, error } = useLeads();
   const { empresas, selectedEmpresaId } = useEmpresa();
-  const { createLead, updateLead, deleteLead, isCreating, isUpdating, isDeleting } = useMutateLead();
+  const { createLead, updateLead, deleteLead, isCreating, isUpdating, isDeleting, createLeadsBatch, isCreatingBatch } = useMutateLead();
   const { createClient } = useMutateClient();
   const { data: paymentTerms = [] } = usePaymentTerms();
+  const { data: stages = [] } = useKanbanStages();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // ETL Import State
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+  const [fileRows, setFileRows] = useState<any[][]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [mappings, setMappings] = useState({
+    nameCol: '',
+    companyCol: '',
+    emailCol: '',
+    phoneCol: '',
+    notesCol: '',
+    sectorCol: '',
+    cargoCol: '',
+    serviceCol: '',
+    originCol: '',
+  });
+  const [updateExisting, setUpdateExisting] = useState(false);
+
+  // Leads Sorting States
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const renderSortHeader = (field: string, label: string) => {
+    const isActive = sortField === field;
+    return (
+      <button
+        onClick={() => handleSort(field)}
+        className="flex items-center gap-1.5 hover:text-yellow-600 dark:hover:text-yellow-500 font-semibold focus:outline-none select-none transition-colors py-1"
+      >
+        <span>{label}</span>
+        {isActive ? (
+          sortDirection === 'asc' ? <ArrowUp size={13} className="text-yellow-600 dark:text-yellow-500 shrink-0" /> : <ArrowDown size={13} className="text-yellow-600 dark:text-yellow-500 shrink-0" />
+        ) : (
+          <ArrowUpDown size={13} className="text-muted-foreground/35 shrink-0 hover:text-yellow-500/50" />
+        )}
+      </button>
+    );
+  };
+
+  // Main Table Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortField, sortDirection]);
+
+  const [etlResult, setEtlResult] = useState<{
+    total: number;
+    valid: any[];
+    invalidCount: number;
+    duplicateCount: number;
+    dbDuplicateCount: number;
+    analyzed: boolean;
+  } | null>(null);
 
   // Conversion Form State
   const [conversionData, setConversionData] = useState({
@@ -75,7 +152,6 @@ export function LeadsPage() {
     address_line: '',
     payment_term_id: '',
   });
-  
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -84,6 +160,10 @@ export function LeadsPage() {
     company_name: '',
     notes: '',
     empresa_id: '',
+    sector: '',
+    cargo: '',
+    servicio_producto: '',
+    origen_lead: '',
   });
 
   const handleOpenCreate = () => {
@@ -95,6 +175,10 @@ export function LeadsPage() {
       company_name: '',
       notes: '',
       empresa_id: selectedEmpresaId || '',
+      sector: '',
+      cargo: '',
+      servicio_producto: '',
+      origen_lead: '',
     });
     setIsFormOpen(true);
   };
@@ -108,6 +192,10 @@ export function LeadsPage() {
       company_name: lead.company_name || '',
       notes: lead.notes || '',
       empresa_id: lead.empresa_id || selectedEmpresaId || '',
+      sector: lead.sector || '',
+      cargo: lead.cargo || '',
+      servicio_producto: lead.servicio_producto || '',
+      origen_lead: lead.origen_lead || '',
     });
     setIsFormOpen(true);
   };
@@ -244,6 +332,259 @@ export function LeadsPage() {
     toast.success('Link de novo lead copiado para a área de transferência!');
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+        if (data.length === 0) {
+          toast.error('A planilha está vazia.');
+          return;
+        }
+
+        const headers = data[0].map(h => String(h || '').trim());
+        const rows = data.slice(1).filter(row => row.some(cell => cell !== null && cell !== ''));
+
+        setFileHeaders(headers);
+        setFileRows(rows);
+        // Auto mapping
+        const mapObj = {
+          nameCol: '',
+          companyCol: '',
+          emailCol: '',
+          phoneCol: '',
+          notesCol: '',
+          sectorCol: '',
+          cargoCol: '',
+          serviceCol: '',
+          originCol: ''
+        };
+        headers.forEach(h => {
+          const normalized = h.toLowerCase();
+          if (normalized.includes('contacto') || normalized.includes('contato') || normalized.includes('nombre del contacto') || (normalized.includes('nome') && !normalized.includes('empresa'))) {
+            if (!mapObj.nameCol) mapObj.nameCol = h;
+          }
+          if (normalized.includes('empresa') || normalized.includes('company') || normalized.includes('cliente') || normalized.includes('fantasia') || normalized.includes('razão') || normalized.includes('trade')) {
+            if (!mapObj.companyCol) mapObj.companyCol = h;
+          }
+          if (normalized.includes('email') || normalized.includes('e-mail') || normalized.includes('correo') || normalized.includes('mail')) {
+            if (!mapObj.emailCol) mapObj.emailCol = h;
+          }
+          if (normalized.includes('tel') || normalized.includes('fone') || normalized.includes('phone') || normalized.includes('cel') || normalized.includes('movil') || normalized.includes('móvel')) {
+            if (!mapObj.phoneCol) mapObj.phoneCol = h;
+          }
+          if (normalized.includes('obs') || normalized.includes('nota') || normalized.includes('note') || normalized.includes('próximo paso') || normalized.includes('passo') || normalized.includes('next')) {
+            if (!mapObj.notesCol) mapObj.notesCol = h;
+          }
+          if (normalized.includes('setor') || normalized.includes('sector') || normalized.includes('industria') || normalized.includes('sector')) {
+            if (!mapObj.sectorCol) mapObj.sectorCol = h;
+          }
+          if (normalized.includes('cargo') || normalized.includes('puesto') || normalized.includes('role') || normalized.includes('position') || normalized.includes('função')) {
+            if (!mapObj.cargoCol) mapObj.cargoCol = h;
+          }
+          if (normalized.includes('servicio') || normalized.includes('produto') || normalized.includes('service') || normalized.includes('product')) {
+            if (!mapObj.serviceCol) mapObj.serviceCol = h;
+          }
+          if (normalized.includes('origen') || normalized.includes('origem') || normalized.includes('source') || normalized.includes('origem do lead')) {
+            if (!mapObj.originCol) mapObj.originCol = h;
+          }
+        });
+        setMappings(mapObj);
+
+        toast.success(`Planilha lida com sucesso: ${rows.length} linhas encontradas.`);
+      } catch (err: any) {
+        console.error(err);
+        toast.error('Erro ao ler a planilha. Verifique o formato do arquivo.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+  const runEtlAnalysis = () => {
+    if (!mappings.companyCol || !mappings.emailCol) {
+      setEtlResult(null);
+      return;
+    }
+
+    const nameIdx = mappings.nameCol ? fileHeaders.indexOf(mappings.nameCol) : -1;
+    const companyIdx = fileHeaders.indexOf(mappings.companyCol);
+    const emailIdx = fileHeaders.indexOf(mappings.emailCol);
+    const phoneIdx = mappings.phoneCol ? fileHeaders.indexOf(mappings.phoneCol) : -1;
+    const notesIdx = mappings.notesCol ? fileHeaders.indexOf(mappings.notesCol) : -1;
+    const sectorIdx = mappings.sectorCol ? fileHeaders.indexOf(mappings.sectorCol) : -1;
+    const cargoIdx = mappings.cargoCol ? fileHeaders.indexOf(mappings.cargoCol) : -1;
+    const serviceIdx = mappings.serviceCol ? fileHeaders.indexOf(mappings.serviceCol) : -1;
+    const originIdx = mappings.originCol ? fileHeaders.indexOf(mappings.originCol) : -1;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    // Lista de e-mails já existentes no banco para a empresa selecionada
+    const dbEmails = new Set(leads.map(l => l.email.toLowerCase().trim()));
+
+    const validLeads: any[] = [];
+    const uniqueEmailsInFile = new Set<string>();
+    
+    let invalidCount = 0;
+    let duplicateCount = 0;
+    let dbDuplicateCount = 0;
+
+    fileRows.forEach(row => {
+      const name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
+      const email = String(row[emailIdx] || '').trim().toLowerCase();
+      const companyName = String(row[companyIdx] || '').trim();
+      const phone = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
+      const notes = notesIdx !== -1 ? String(row[notesIdx] || '').trim() : '';
+      const sector = sectorIdx !== -1 ? String(row[sectorIdx] || '').trim() : '';
+      const cargo = cargoIdx !== -1 ? String(row[cargoIdx] || '').trim() : '';
+      const service = serviceIdx !== -1 ? String(row[serviceIdx] || '').trim() : '';
+      const origin = originIdx !== -1 ? String(row[originIdx] || '').trim() : '';
+
+      // Se a linha for completamente vazia nos campos principais, apenas pula silenciosamente
+      if (!name && !email && !companyName) return;
+
+      // Validação de dados mínimos aceitáveis (Empresa + E-mail válido)
+      const hasCompany = !!companyName;
+      const isEmailValid = email && email !== 'x' && emailRegex.test(email);
+
+      if (!hasCompany || !isEmailValid) {
+        invalidCount++;
+        return;
+      }
+
+      // Duplicados no próprio arquivo
+      if (uniqueEmailsInFile.has(email)) {
+        duplicateCount++;
+        return;
+      }
+
+      // Duplicados no banco de dados
+      const existingLead = leads.find(l => l.email.toLowerCase().trim() === email);
+      if (existingLead) {
+        if (!updateExisting) {
+          dbDuplicateCount++;
+          return;
+        }
+      }
+
+      // Fallback inteligente para o Nome de Contato (obrigatório NOT NULL no banco de dados)
+      const finalName = name || cargo || (existingLead ? existingLead.name : 'Responsável');
+
+      uniqueEmailsInFile.add(email);
+      validLeads.push({
+        ...(existingLead ? { id: existingLead.id } : {}),
+        name: finalName,
+        email,
+        company_name: companyName,
+        phone: phone || (existingLead ? existingLead.phone : null),
+        notes: notes || (existingLead ? existingLead.notes : null),
+        sector: sector || (existingLead ? existingLead.sector : null),
+        cargo: cargo || (existingLead ? existingLead.cargo : null),
+        servicio_producto: service || (existingLead ? existingLead.servicio_producto : null),
+        origen_lead: origin || (existingLead ? existingLead.origen_lead : null),
+      });
+    });
+
+    setEtlResult({
+      total: fileRows.length,
+      valid: validLeads,
+      invalidCount,
+      duplicateCount,
+      dbDuplicateCount,
+      analyzed: true,
+    });
+  };
+
+  useEffect(() => {
+    if (fileHeaders.length > 0 && fileRows.length > 0) {
+      runEtlAnalysis();
+    } else {
+      setEtlResult(null);
+    }
+  }, [mappings, fileHeaders, fileRows, leads, updateExisting]);
+
+  const handleImportLeads = async () => {
+    if (!selectedEmpresaId) {
+      toast.error('Selecione uma empresa do grupo primeiro.');
+      return;
+    }
+    if (!etlResult || !etlResult.analyzed || etlResult.valid.length === 0) {
+      toast.error('Nenhum lead válido para importação. Verifique os mapeamentos.');
+      return;
+    }
+
+    // Buscar estágio inicial
+    const defaultStage = stages.find(s => s.name === 'Novo');
+    const defaultStageId = defaultStage?.id || null;
+
+    const inserts: any[] = [];
+    const updates: any[] = [];
+
+    etlResult.valid.forEach(lead => {
+      const formattedLead = {
+        ...lead,
+        empresa_id: selectedEmpresaId
+      };
+      if (lead.id) {
+        updates.push(formattedLead);
+      } else {
+        formattedLead.stage_id = defaultStageId;
+        inserts.push(formattedLead);
+      }
+    });
+
+    try {
+      const chunkSize = 500;
+      let importedCount = 0;
+      let updatedCount = 0;
+
+      // 1. Inserir novos leads
+      if (inserts.length > 0) {
+        for (let i = 0; i < inserts.length; i += chunkSize) {
+          const chunk = inserts.slice(i, i + chunkSize);
+          await createLeadsBatch(chunk);
+          importedCount += chunk.length;
+        }
+      }
+
+      // 2. Atualizar leads existentes
+      if (updates.length > 0) {
+        for (let i = 0; i < updates.length; i += chunkSize) {
+          const chunk = updates.slice(i, i + chunkSize);
+          const { error: upsertErr } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .upsert(chunk, { onConflict: 'id' });
+          if (upsertErr) throw upsertErr;
+          updatedCount += chunk.length;
+        }
+      }
+
+      // Invalidar cache de leads do react-query
+      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+
+      toast.success(
+        `Importação concluída! ${importedCount} novos leads cadastrados e ${updatedCount} leads existentes atualizados.`
+      );
+      setIsImportOpen(false);
+      // Reset state
+      setFileHeaders([]);
+      setFileRows([]);
+      setImportFileName('');
+      setEtlResult(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao importar leads para o banco.');
+    }
+  };
+
   const filteredLeads = leads.filter(lead => {
     const search = searchTerm.toLowerCase();
     return (
@@ -253,6 +594,28 @@ export function LeadsPage() {
       (lead.phone && lead.phone.includes(search))
     );
   });
+
+  const sortedLeads = [...filteredLeads].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let valA = a[sortField as keyof typeof a] || '';
+    let valB = b[sortField as keyof typeof b] || '';
+
+    if (sortField === 'email') {
+      valA = a.email || a.phone || '';
+      valB = b.email || b.phone || '';
+    }
+
+    if (typeof valA === 'string') valA = valA.toLowerCase().trim();
+    if (typeof valB === 'string') valB = valB.toLowerCase().trim();
+
+    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const totalLeadPages = Math.ceil(sortedLeads.length / itemsPerPage);
+  const paginatedSortedLeads = sortedLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -282,6 +645,10 @@ export function LeadsPage() {
           <Button onClick={handleCopyNewLeadLink} variant="outline" className="border-slate-300 dark:border-slate-800">
             <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
             Link de Cadastro
+          </Button>
+          <Button onClick={() => setIsImportOpen(true)} variant="outline" className="border-slate-300 dark:border-slate-800">
+            <FileSpreadsheet className="mr-2 h-4 w-4 text-yellow-500" />
+            Importar Planilha
           </Button>
           <Button onClick={handleOpenCreate} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-lg shadow-yellow-500/10">
             <Plus className="mr-2 h-4 w-4" />
@@ -334,23 +701,38 @@ export function LeadsPage() {
           )}
         </div>
       ) : (
-        <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="py-4">{t('comercial.leads.table.company')}</TableHead>
-                  <TableHead className="py-4">{t('comercial.leads.table.name')}</TableHead>
-                  <TableHead className="py-4">{t('comercial.leads.table.contact')}</TableHead>
-                  <TableHead className="py-4">{t('comercial.leads.table.notes')}</TableHead>
-                  <TableHead className="py-4">{t('comercial.leads.table.date')}</TableHead>
-                  <TableHead className="py-4 text-right">{t('comercial.leads.table.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium text-foreground py-4">
+        <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
+          <div className="overflow-auto max-h-[600px] scrollbar-thin">
+            <table className="w-full caption-bottom text-sm border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 border-b shadow-sm">
+                <tr className="border-b transition-colors bg-slate-50 dark:bg-slate-900">
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {renderSortHeader('company_name', t('comercial.leads.table.company'))}
+                  </th>
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {renderSortHeader('sector', i18n.resolvedLanguage === 'es' ? 'Sector' : i18n.resolvedLanguage === 'en' ? 'Sector' : 'Setor')}
+                  </th>
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {renderSortHeader('name', t('comercial.leads.table.name'))}
+                  </th>
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {renderSortHeader('email', t('comercial.leads.table.contact'))}
+                  </th>
+                  <th className="py-3 px-4 text-left align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {t('comercial.leads.table.notes')}
+                  </th>
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {renderSortHeader('created_at', t('comercial.leads.table.date'))}
+                  </th>
+                  <th className="py-3 px-4 text-right align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {t('comercial.leads.table.actions')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="[&_tr:last-child]:border-0 bg-card">
+                {paginatedSortedLeads.map((lead) => (
+                  <tr key={lead.id} className="border-b transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="p-4 align-middle font-medium text-foreground">
                       {lead.company_name ? (
                         <span className="flex items-center gap-2">
                           <Building className="h-4 w-4 text-muted-foreground/75 shrink-0" />
@@ -359,11 +741,27 @@ export function LeadsPage() {
                       ) : (
                         <span className="text-muted-foreground/60 italic text-sm font-normal">{t('comercial.leads.table.noCompany')}</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-foreground/90 py-4">
-                      {lead.name}
-                    </TableCell>
-                    <TableCell className="py-4 space-y-1">
+                    </td>
+                    <td className="p-4 align-middle text-foreground/90">
+                      {lead.sector ? (
+                        <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded text-xs font-semibold">
+                          {lead.sector}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/60 italic text-xs">--</span>
+                      )}
+                    </td>
+                    <td className="p-4 align-middle text-foreground/90">
+                      <span className="flex flex-col">
+                        <span>{lead.name}</span>
+                        {lead.cargo && (
+                          <span className="text-[11px] text-muted-foreground font-normal">
+                            Cargo: {lead.cargo}
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="p-4 align-middle space-y-1">
                       <div className="flex items-center gap-2 text-foreground/90 text-sm">
                         <Mail className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
                         <span className="hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors">{lead.email}</span>
@@ -374,17 +772,31 @@ export function LeadsPage() {
                           <span>{lead.phone}</span>
                         </div>
                       )}
-                    </TableCell>
-                    <TableCell className="py-4 text-muted-foreground max-w-xs truncate text-sm">
-                      {lead.notes || <span className="text-muted-foreground/50 italic">{t('comercial.leads.table.noNotes')}</span>}
-                    </TableCell>
-                    <TableCell className="py-4">
+                    </td>
+                    <td className="p-4 align-middle text-muted-foreground max-w-xs text-sm">
+                      <div className="flex flex-col gap-1">
+                        {lead.servicio_producto && (
+                          <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                            Produto: {lead.servicio_producto}
+                          </span>
+                        )}
+                        {lead.origen_lead && (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            Origem: {lead.origen_lead}
+                          </span>
+                        )}
+                        <span className="truncate">
+                          {lead.notes || <span className="text-muted-foreground/50 italic">{t('comercial.leads.table.noNotes')}</span>}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-4 align-middle">
                       <div className="flex items-center gap-2 text-muted-foreground text-sm">
                         <Calendar className="h-4 w-4 text-muted-foreground/75 shrink-0" />
                         <span>{formatDate(lead.created_at)}</span>
                       </div>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
+                    </td>
+                    <td className="p-4 align-middle text-right">
                       <div className="flex items-center justify-end gap-2">
                         {lead.client_id ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 mr-2">
@@ -431,11 +843,46 @@ export function LeadsPage() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {totalLeadPages > 1 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card border rounded-xl p-4 shadow-sm mt-4">
+          <span className="text-xs text-muted-foreground">
+            Mostrando <strong className="text-slate-700 dark:text-slate-350">{Math.min(sortedLeads.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(sortedLeads.length, currentPage * itemsPerPage)}</strong> de <strong className="text-slate-700 dark:text-slate-350">{sortedLeads.length}</strong> leads
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="h-8 text-xs px-3 font-semibold"
+            >
+              Anterior
+            </Button>
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
+              <span className="text-muted-foreground">Página</span>
+              <span className="bg-slate-100 dark:bg-slate-950 border px-2.5 py-1 rounded text-slate-800 dark:text-slate-200">
+                {currentPage}
+              </span>
+              <span className="text-muted-foreground">de {totalLeadPages}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalLeadPages}
+              onClick={() => setCurrentPage(p => Math.min(totalLeadPages, p + 1))}
+              className="h-8 text-xs px-3 font-semibold"
+            >
+              Próxima
+            </Button>
           </div>
         </div>
       )}
@@ -510,7 +957,6 @@ export function LeadsPage() {
                   className="focus-visible:ring-yellow-500"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="phone">{t('comercial.leads.form.phone')}</Label>
                 <Input
@@ -519,6 +965,54 @@ export function LeadsPage() {
                   placeholder={t('comercial.leads.form.phonePlaceholder')}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="focus-visible:ring-yellow-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sector">Setor da Empresa</Label>
+                <Input
+                  id="sector"
+                  placeholder="Ex: Indústria"
+                  value={formData.sector}
+                  onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                  className="focus-visible:ring-yellow-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cargo">Cargo / Puesto</Label>
+                <Input
+                  id="cargo"
+                  placeholder="Ex: Gerente de Compras"
+                  value={formData.cargo}
+                  onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
+                  className="focus-visible:ring-yellow-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="servicio_producto">Serviço / Produto de Interesse</Label>
+                <Input
+                  id="servicio_producto"
+                  placeholder="Ex: Mão de Obra de Solda"
+                  value={formData.servicio_producto}
+                  onChange={(e) => setFormData({ ...formData, servicio_producto: e.target.value })}
+                  className="focus-visible:ring-yellow-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="origen_lead">Origem do Lead</Label>
+                <Input
+                  id="origen_lead"
+                  placeholder="Ex: Campanha de E-mail"
+                  value={formData.origen_lead}
+                  onChange={(e) => setFormData({ ...formData, origen_lead: e.target.value })}
                   className="focus-visible:ring-yellow-500"
                 />
               </div>
@@ -760,6 +1254,256 @@ export function LeadsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Spreadsheet Import Modal */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="sm:max-w-[800px] lg:max-w-[950px] max-h-[90vh] flex flex-col p-6">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle>Importar Leads de Planilha</DialogTitle>
+            <DialogDescription>
+              Faça upload de uma planilha Excel (.xlsx, .xls) ou CSV, mapeie as colunas e realize a importação em lote com validação automática.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 max-h-[62vh]">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Left Column: Upload & Mapping Selectors (col-span-7) */}
+              <div className="md:col-span-7 space-y-4">
+                {/* Step 1: Upload File */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Selecionar Arquivo</Label>
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-300 dark:border-slate-850 rounded-xl p-5 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors flex flex-col justify-center items-center gap-2"
+                  >
+                    <FileUp className="h-8 w-8 text-yellow-500" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {importFileName || 'Arraste ou clique para selecionar planilha'}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Formatos aceitos: .xlsx, .xls ou .csv</span>
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+
+                {/* Option to update existing leads */}
+                <div className="flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-900 border rounded-xl p-3">
+                  <input
+                    type="checkbox"
+                    id="chkUpdateExisting"
+                    checked={updateExisting}
+                    onChange={(e) => setUpdateExisting(e.target.checked)}
+                    className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer"
+                  />
+                  <Label htmlFor="chkUpdateExisting" className="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Atualizar dados de leads existentes se o e-mail já estiver cadastrado no CRM
+                  </Label>
+                </div>
+
+                {/* Step 2: Mapping columns (shows up if file is uploaded) */}
+                {fileHeaders.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <h4 className="font-semibold text-xs text-slate-800 dark:text-slate-200">Mapeamento de Colunas (ETL)</h4>
+                      <p className="text-[11px] text-slate-500">Associe as colunas do seu arquivo aos campos correspondentes do lead.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Nome do Contato (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.nameCol}
+                          onChange={(e) => setMappings({ ...mappings, nameCol: e.target.value })}
+                        >
+                          <option value="">Nenhum / Opcional</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Nome da Empresa *</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.companyCol}
+                          onChange={(e) => setMappings({ ...mappings, companyCol: e.target.value })}
+                        >
+                          <option value="">Selecione...</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">E-mail do Lead *</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.emailCol}
+                          onChange={(e) => setMappings({ ...mappings, emailCol: e.target.value })}
+                        >
+                          <option value="">Selecione...</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Telefone (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.phoneCol}
+                          onChange={(e) => setMappings({ ...mappings, phoneCol: e.target.value })}
+                        >
+                          <option value="">Nenhum</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Setor da Empresa (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.sectorCol}
+                          onChange={(e) => setMappings({ ...mappings, sectorCol: e.target.value })}
+                        >
+                          <option value="">Nenhum</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Cargo / Puesto (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.cargoCol}
+                          onChange={(e) => setMappings({ ...mappings, cargoCol: e.target.value })}
+                        >
+                          <option value="">Nenhum</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Serviço / Produto (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.serviceCol}
+                          onChange={(e) => setMappings({ ...mappings, serviceCol: e.target.value })}
+                        >
+                          <option value="">Nenhum</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Origem do Lead (Opcional)</Label>
+                        <select
+                          className="w-full border rounded p-1.5 text-xs bg-background"
+                          value={mappings.originCol}
+                          onChange={(e) => setMappings({ ...mappings, originCol: e.target.value })}
+                        >
+                          <option value="">Nenhum</option>
+                          {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Observações / Notas / Próximo Passo (Opcional)</Label>
+                      <select
+                        className="w-full border rounded p-1.5 text-xs bg-background"
+                        value={mappings.notesCol}
+                        onChange={(e) => setMappings({ ...mappings, notesCol: e.target.value })}
+                      >
+                        <option value="">Nenhum</option>
+                        {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: ETL Analysis Dashboard (col-span-5) */}
+              <div className="md:col-span-5 flex flex-col justify-start space-y-4 border-t md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0">
+                {fileHeaders.length > 0 && etlResult && etlResult.analyzed ? (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-xs flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                      <FileSpreadsheet className="h-4 w-4 text-yellow-500" />
+                      Resultado da Análise ETL
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-slate-50 dark:bg-slate-900 border p-2.5 rounded-lg flex flex-col justify-center">
+                        <span className="text-[10px] text-muted-foreground">Linhas no Arquivo</span>
+                        <span className="text-lg font-bold text-slate-850 dark:text-slate-100">{etlResult.total}</span>
+                      </div>
+                      
+                      <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 p-2.5 rounded-lg flex flex-col justify-center">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Aceitáveis para Envio</span>
+                        <span className="text-lg font-bold text-emerald-700 dark:text-emerald-450">{etlResult.valid.length}</span>
+                      </div>
+
+                      <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 p-2.5 rounded-lg flex flex-col justify-center">
+                        <span className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold">Incompletos (Ignorados)</span>
+                        <span className="text-lg font-bold text-rose-700 dark:text-rose-400">{etlResult.invalidCount}</span>
+                      </div>
+
+                      <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-lg flex flex-col justify-center">
+                        <span className="text-[10px] text-amber-600 dark:text-amber-455 font-semibold">Duplicados Descartados</span>
+                        <span className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                          {etlResult.duplicateCount + etlResult.dbDuplicateCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-muted-foreground space-y-1 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-850">
+                      <div className="flex justify-between">
+                        <span>• Novos cadastros (inserir):</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-450">
+                          {etlResult.valid.filter(l => !l.id).length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>• Cadastros existentes (atualizar):</span>
+                        <span className="font-semibold text-amber-600 dark:text-amber-450">
+                          {etlResult.valid.filter(l => l.id).length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 mt-1">
+                        <span>• E-mails duplicados na planilha:</span>
+                        <span className="font-semibold">{etlResult.duplicateCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>• Já cadastrados (ignorados):</span>
+                        <span className="font-semibold">{etlResult.dbDuplicateCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>• Linhas inválidas:</span>
+                        <span className="font-semibold">{etlResult.invalidCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full min-h-[220px] flex flex-col justify-center items-center text-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed text-muted-foreground text-xs">
+                    <FileSpreadsheet className="h-8 w-8 mb-2 text-slate-400" />
+                    <span>Mapeie os campos obrigatórios (* Empresa e * E-mail) para exibir os dados de ETL e de-duplicação em tempo real.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t">
+            <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleImportLeads} 
+              disabled={isCreatingBatch || fileHeaders.length === 0 || !etlResult || etlResult.valid.length === 0}
+              className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
+            >
+              {isCreatingBatch ? 'Processando...' : 'Processar Importação'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

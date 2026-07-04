@@ -10,15 +10,33 @@ export function useLeads() {
     queryKey: ['leads', selectedEmpresaId],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
-      const { data, error } = await supabase
-        .schema('core_comercial')
-        .from('leads')
-        .select('*')
-        .eq('empresa_id', selectedEmpresaId)
-        .order('name', { ascending: true });
+      let allLeads: Lead[] = [];
+      let from = 0;
+      let to = 999;
+      let hasMore = true;
 
-      if (error) throw error;
-      return data as Lead[];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('*')
+          .eq('empresa_id', selectedEmpresaId)
+          .order('id', { ascending: true })
+          .range(from, to);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allLeads = [...allLeads, ...data];
+          from += 1000;
+          to += 1000;
+          if (data.length < 1000) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      return allLeads;
     },
     enabled: !!selectedEmpresaId,
   });
@@ -83,9 +101,33 @@ export function useMutateLead() {
     },
   });
 
+  const createBatchMutation = useMutation({
+    mutationFn: async (payloads: Array<Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'> & { empresa_id?: string }>) => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+      const items = payloads.map(p => ({
+        ...p,
+        empresa_id: p.empresa_id || selectedEmpresaId
+      }));
+
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('leads')
+        .insert(items)
+        .select();
+
+      if (error) throw error;
+      return data as Lead[];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+    },
+  });
+
   return {
     createLead: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
+    createLeadsBatch: createBatchMutation.mutateAsync,
+    isCreatingBatch: createBatchMutation.isPending,
     updateLead: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     deleteLead: deleteMutation.mutateAsync,

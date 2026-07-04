@@ -15,6 +15,8 @@ export function ColetaDadosPublicaPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isOptOut, setIsOptOut] = useState(false);
+  const optOutParam = searchParams.get('opt_out');
   
   // Lead info loaded if editing
   const [leadName, setLeadName] = useState('');
@@ -46,6 +48,55 @@ export function ColetaDadosPublicaPage() {
           setEmpresaId(empresaIdParam);
         } else {
           toast.error('Parâmetros inválidos. O link precisa conter o identificador da empresa.');
+        }
+        return;
+      }
+
+      // Check if it's an Opt-Out Request
+      if (optOutParam === '1') {
+        setIsOptOut(true);
+        setIsLoading(true);
+        try {
+          const { data: lead, error: fetchErr } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (fetchErr) throw fetchErr;
+
+          if (lead) {
+            const alreadyOptedOut = lead.name?.startsWith('[DESCADASTRADO]') || lead.notes?.includes('[Opt-out]');
+            
+            if (!alreadyOptedOut) {
+              const newName = `[DESCADASTRADO] ${lead.name}`;
+              const newNotes = `${lead.notes || ''}\n[Opt-out via e-mail comercial em ${new Date().toLocaleDateString()}]`.trim();
+              
+              const { data: stage } = await supabase
+                .schema('core_comercial')
+                .from('kanban_stages')
+                .select('id')
+                .eq('empresa_id', lead.empresa_id)
+                .eq('name', 'Perdido')
+                .maybeSingle();
+
+              await supabase
+                .schema('core_comercial')
+                .from('leads')
+                .update({
+                  name: newName,
+                  notes: newNotes,
+                  ...(stage ? { stage_id: stage.id } : {}),
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+            }
+          }
+        } catch (err: any) {
+          console.error("Opt-out error:", err);
+        } finally {
+          setIsLoading(false);
         }
         return;
       }
@@ -166,6 +217,28 @@ export function ColetaDadosPublicaPage() {
       setIsLoading(false);
     }
   };
+
+  if (isOptOut) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-red-500/5 via-slate-950 to-slate-950 pointer-events-none" />
+        <div className="relative w-full max-w-lg bg-slate-900/60 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
+          <div className="h-20 w-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
+            <CheckCircle className="h-10 w-10 text-red-500" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-white tracking-tight">Suscripción Cancelada</h1>
+            <p className="text-slate-400 text-lg">
+              Su dirección de correo electrónico ha sido dada de baja.
+            </p>
+          </div>
+          <p className="text-slate-500 text-sm">
+            Ya no receberá más correos de nuestras campañas de marketing. Si esto fue un error, por favor póngase en contacto con nuestro equipo comercial.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isSubmitted) {
     return (

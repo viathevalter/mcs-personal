@@ -88,7 +88,9 @@ const migrationsToRun = [
   '20260625110000_update_allocate_worker_duplicate_check.sql',
   '20260625140000_automatic_compliance_sync.sql',
   '20260627110000_client_vies_integration.sql',
-  '20260628143000_ordens_pagamento_e_pagos.sql'
+  '20260628143000_ordens_pagamento_e_pagos.sql',
+  '20260701161500_comercial_marketing_and_crm.sql',
+  '20260701171000_add_crm_fields_to_leads.sql'
 ];
 
 async function run() {

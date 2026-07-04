@@ -2,7 +2,10 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const prodConnectionString = 'postgresql://postgres:Stkrt%402026%23%40%23@db.unbepkdzvsfvylnysrcq.supabase.co:5432/postgres';
+const prodConnectionStrings = [
+  'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres',
+  'postgresql://postgres:Stkrt%402026%23%40%23@db.unbepkdzvsfvylnysrcq.supabase.co:5432/postgres'
+];
 
 const migrationsToRun = [
   '20260415000000_bloco3_registro_general.sql',
@@ -84,14 +87,39 @@ const migrationsToRun = [
   '20260625110000_update_allocate_worker_duplicate_check.sql',
   '20260625140000_automatic_compliance_sync.sql',
   '20260627110000_client_vies_integration.sql',
-  '20260628143000_ordens_pagamento_e_pagos.sql'
+  '20260628142000_create_bancos_table.sql',
+  '20260628143000_ordens_pagamento_e_pagos.sql',
+  '20260701161500_comercial_marketing_and_crm.sql',
+  '20260701171000_add_crm_fields_to_leads.sql',
+  '20260703141500_fix_rpc_allocation_pedido_id.sql',
+  '20260703142000_fix_rpc_allocation_job_function_id.sql',
+  '20260703142200_fix_rpc_allocation_operational_status.sql',
+  '20260703142500_fix_rpc_allocation_check_constraint.sql',
+  '20260704103000_create_core_operacoes_views.sql'
 ];
 
 async function run() {
-    const client = new Client({ connectionString: prodConnectionString });
+    let client;
+    let connected = false;
+    for (const connStr of prodConnectionStrings) {
+        const masked = connStr.replace(/:[^:@]+@/, ':***@');
+        console.log(`Connecting to PROD database using: ${masked}...`);
+        try {
+            client = new Client({ connectionString: connStr, ssl: { rejectUnauthorized: false } });
+            await client.connect();
+            console.log("Connected to PROD database successfully!");
+            connected = true;
+            break;
+        } catch (e) {
+            console.warn(`Connection failed: ${e.message}`);
+        }
+    }
+    if (!connected) {
+        console.error("All production connection attempts failed.");
+        process.exit(1);
+    }
     try {
-        await client.connect();
-        console.log("Connected to PROD database. Running pre-migration tasks...");
+        console.log("Running pre-migration tasks...");
         
         // Manually record the first two which we know ran successfully
         await client.query(`

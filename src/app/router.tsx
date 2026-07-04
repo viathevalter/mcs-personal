@@ -77,6 +77,8 @@ import { EstimacionDetailPage } from '../features/comercial/estimaciones/Estimac
 import { NewEstimacionPage } from '../features/comercial/estimaciones/NewEstimacionPage';
 import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
 import { LeadsPage } from '../features/comercial/leads/LeadsPage';
+import { KanbanPage } from '../features/comercial/leads/KanbanPage';
+import { CampaignsPage } from '../features/comercial/leads/CampaignsPage';
 import { ComercialSettingsPage } from '../features/comercial/settings/ComercialSettingsPage';
 
 import { LogisticaLayout } from '../features/logistica/layout/LogisticaLayout';
@@ -188,6 +190,8 @@ export const router = createBrowserRouter([
                     { index: true, element: <Navigate to="/comercial/estimaciones" replace /> },
                     { path: 'tarefas', element: <ComercialTasksPage /> },
                     { path: 'leads', element: <LeadsPage /> },
+                    { path: 'kanban', element: <KanbanPage /> },
+                    { path: 'campanhas', element: <CampaignsPage /> },
                     { path: 'estimaciones', element: <EstimacionesPage /> },
                     { path: 'estimaciones/nova', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/:id', element: <EstimacionDetailPage /> },
