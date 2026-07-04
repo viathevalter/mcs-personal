@@ -69,11 +69,22 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
   const pageSize = 1000;
 
   while (true) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('contas_receber')
       .select('*, contas_receber_pagamentos(valor, data_recebimento, tipo_recebimento)')
       .order('id', { ascending: false })
       .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) {
+      console.warn('Joint fetch failed (likely missing relation in PROD), falling back to single table query...', error.message);
+      const fallback = await supabase
+        .from('contas_receber')
+        .select('*')
+        .order('id', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error('Error fetching contas_receber:', error);
