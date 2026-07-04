@@ -9,6 +9,7 @@ export const clientSitesApi = {
       .schema('core_common')
       .from('client_sites')
       .select('*, client:clients(*)')
+      .eq('empresa_id', empresaId)
       .neq('status', 'archived');
 
     if (clientId) {

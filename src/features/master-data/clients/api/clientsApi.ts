@@ -9,6 +9,7 @@ export const clientsApi = {
       .schema('core_common')
       .from('clients')
       .select('*, payment_term:payment_term_id ( id, name, days )')
+      .eq('empresa_id', empresaId)
       .neq('status', 'archived')
       .order('trade_name', { ascending: true });
 
