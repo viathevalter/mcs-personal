@@ -46,10 +46,26 @@ export const Cobros = () => {
     // Advanced Filtering States
     const [filterEmpresa, setFilterEmpresa] = useState(() => localStorage.getItem('cobros_filterEmpresa') || 'all');
     const [filterBanco, setFilterBanco] = useState(() => localStorage.getItem('cobros_filterBanco') || 'all');
-    const [filterPeriodo, setFilterPeriodo] = useState(() => localStorage.getItem('cobros_filterPeriodo') || 'all');
-    const [startDate, setStartDate] = useState(() => localStorage.getItem('cobros_startDate') || '');
-    const [endDate, setEndDate] = useState(() => localStorage.getItem('cobros_endDate') || '');
-    const [showFilters, setShowFilters] = useState(() => localStorage.getItem('cobros_showFilters') === 'true');
+    const [filterPeriodoFat, setFilterPeriodoFat] = useState(() => localStorage.getItem('cobros_filterPeriodoFat') || 'all');
+    const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => localStorage.getItem('cobros_filterPeriodoEmissao') || 'all');
+    const [startDateEmissao, setStartDateEmissao] = useState(() => localStorage.getItem('cobros_startDateEmissao') || '');
+    const [endDateEmissao, setEndDateEmissao] = useState(() => localStorage.getItem('cobros_endDateEmissao') || '');
+    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => localStorage.getItem('cobros_filterPeriodoVencimento') || 'all');
+    const [startDateVencimento, setStartDateVencimento] = useState(() => localStorage.getItem('cobros_startDateVencimento') || '');
+    const [endDateVencimento, setEndDateVencimento] = useState(() => localStorage.getItem('cobros_endDateVencimento') || '');
+
+    // Temporary/Draft states for Popover Form
+    const [tempFilterEmpresa, setTempFilterEmpresa] = useState(filterEmpresa);
+    const [tempFilterBanco, setTempFilterBanco] = useState(filterBanco);
+    const [tempFilterPeriodoFat, setTempFilterPeriodoFat] = useState(filterPeriodoFat);
+    const [tempFilterPeriodoEmissao, setTempFilterPeriodoEmissao] = useState(filterPeriodoEmissao);
+    const [tempStartDateEmissao, setTempStartDateEmissao] = useState(startDateEmissao);
+    const [tempEndDateEmissao, setTempEndDateEmissao] = useState(endDateEmissao);
+    const [tempFilterPeriodoVencimento, setTempFilterPeriodoVencimento] = useState(filterPeriodoVencimento);
+    const [tempStartDateVencimento, setTempStartDateVencimento] = useState(startDateVencimento);
+    const [tempEndDateVencimento, setTempEndDateVencimento] = useState(endDateVencimento);
+
+    const [showFilters, setShowFilters] = useState(false);
     const [activeKpiFilter, setActiveKpiFilter] = useState<'all' | 'pago' | 'vencido' | 'a_vencer'>(() => (localStorage.getItem('cobros_activeKpiFilter') as any) || 'all');
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -118,24 +134,51 @@ export const Cobros = () => {
     }, [filterBanco]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterPeriodo', filterPeriodo);
-    }, [filterPeriodo]);
+        localStorage.setItem('cobros_filterPeriodoFat', filterPeriodoFat);
+    }, [filterPeriodoFat]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_startDate', startDate);
-    }, [startDate]);
+        localStorage.setItem('cobros_filterPeriodoEmissao', filterPeriodoEmissao);
+    }, [filterPeriodoEmissao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_endDate', endDate);
-    }, [endDate]);
+        localStorage.setItem('cobros_startDateEmissao', startDateEmissao);
+    }, [startDateEmissao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_showFilters', showFilters.toString());
-    }, [showFilters]);
+        localStorage.setItem('cobros_endDateEmissao', endDateEmissao);
+    }, [endDateEmissao]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_filterPeriodoVencimento', filterPeriodoVencimento);
+    }, [filterPeriodoVencimento]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_startDateVencimento', startDateVencimento);
+    }, [startDateVencimento]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_endDateVencimento', endDateVencimento);
+    }, [endDateVencimento]);
 
     useEffect(() => {
         localStorage.setItem('cobros_activeKpiFilter', activeKpiFilter);
     }, [activeKpiFilter]);
+
+    // Sync temp states with active states when popover opens
+    useEffect(() => {
+        if (showFilters) {
+            setTempFilterEmpresa(filterEmpresa);
+            setTempFilterBanco(filterBanco);
+            setTempFilterPeriodoFat(filterPeriodoFat);
+            setTempFilterPeriodoEmissao(filterPeriodoEmissao);
+            setTempStartDateEmissao(startDateEmissao);
+            setTempEndDateEmissao(endDateEmissao);
+            setTempFilterPeriodoVencimento(filterPeriodoVencimento);
+            setTempStartDateVencimento(startDateVencimento);
+            setTempEndDateVencimento(endDateVencimento);
+        }
+    }, [showFilters]);
 
     const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal', title: EnrichedTitulo) => {
         setEmailTemplate(template);
@@ -247,6 +290,7 @@ export const Cobros = () => {
 
     const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
     const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean)));
+    const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
 
     const kpiData = data.filter(item => {
         // Search filter
@@ -263,29 +307,48 @@ export const Cobros = () => {
         // Banco filter
         if (filterBanco !== 'all' && item.Banco !== filterBanco) return false;
 
-        // Smart Period filter
-        if (filterPeriodo !== 'all') {
+        // Periodo Fat filter
+        if (filterPeriodoFat !== 'all' && item.periodo_fat !== filterPeriodoFat) return false;
+
+        // Periodo Emissao filter
+        if (filterPeriodoEmissao !== 'all') {
             const itemDate = item.Data_emissao ? new Date(item.Data_emissao) : null;
             if (!itemDate) return false;
 
             const now = new Date();
-            if (filterPeriodo === 'this-month') {
+            if (filterPeriodoEmissao === 'this-month') {
                 const start = new Date(now.getFullYear(), now.getMonth(), 1);
                 const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
                 if (itemDate < start || itemDate > end) return false;
-            } else if (filterPeriodo === 'next-30') {
-                const start = new Date(now.setHours(0,0,0,0));
-                const end = new Date();
-                end.setDate(start.getDate() + 30);
-                if (itemDate < start || itemDate > end) return false;
-            } else if (filterPeriodo === 'past-30') {
+            } else if (filterPeriodoEmissao === 'past-30') {
                 const end = new Date();
                 const start = new Date();
                 start.setDate(end.getDate() - 30);
                 if (itemDate < start || itemDate > end) return false;
-            } else if (filterPeriodo === 'custom') {
-                if (startDate && new Date(itemDate) < new Date(startDate)) return false;
-                if (endDate && new Date(itemDate) > new Date(endDate)) return false;
+            } else if (filterPeriodoEmissao === 'custom') {
+                if (startDateEmissao && new Date(itemDate) < new Date(startDateEmissao)) return false;
+                if (endDateEmissao && new Date(itemDate) > new Date(endDateEmissao)) return false;
+            }
+        }
+
+        // Periodo Vencimento filter
+        if (filterPeriodoVencimento !== 'all') {
+            const itemDate = item.Dt_venc ? new Date(item.Dt_venc) : null;
+            if (!itemDate) return false;
+
+            const now = new Date();
+            if (filterPeriodoVencimento === 'this-month') {
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                if (itemDate < start || itemDate > end) return false;
+            } else if (filterPeriodoVencimento === 'next-30') {
+                const start = new Date(now.setHours(0,0,0,0));
+                const end = new Date();
+                end.setDate(start.getDate() + 30);
+                if (itemDate < start || itemDate > end) return false;
+            } else if (filterPeriodoVencimento === 'custom') {
+                if (startDateVencimento && new Date(itemDate) < new Date(startDateVencimento)) return false;
+                if (endDateVencimento && new Date(itemDate) > new Date(endDateVencimento)) return false;
             }
         }
 
@@ -326,6 +389,14 @@ export const Cobros = () => {
         if (activeKpiFilter === 'a_vencer' && !(item.Status !== 'Pago' && !getOverdueStatus(item))) return false;
         return true;
     });
+
+    const activeFiltersCount = [
+        filterEmpresa !== 'all',
+        filterBanco !== 'all',
+        filterPeriodoFat !== 'all',
+        filterPeriodoEmissao !== 'all',
+        filterPeriodoVencimento !== 'all'
+    ].filter(Boolean).length;
 
     const getStatusVariant = (status: string, dtVenc?: Date | null): "default" | "secondary" | "destructive" | "outline" | "warning" => {
         if (status === 'Pago') return 'default';
@@ -445,22 +516,224 @@ export const Cobros = () => {
                             />
                         </div>
                         <div className="flex items-center gap-2 w-full md:w-auto">
-                            <Button 
-                                variant={showFilters ? "default" : "outline"} 
-                                onClick={() => setShowFilters(!showFilters)} 
-                                className="flex items-center gap-2 w-full md:w-auto"
-                            >
-                                <Filter size={16} /> Filtros {showFilters ? 'Ativos' : ''}
-                            </Button>
-                            {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodo !== 'all' || activeKpiFilter !== 'all' || searchTerm !== '') && (
+                            <div className="relative">
+                                <Button 
+                                    variant={activeFiltersCount > 0 ? "default" : "outline"} 
+                                    onClick={() => setShowFilters(!showFilters)} 
+                                    className="flex items-center gap-2 w-full md:w-auto"
+                                >
+                                    <Filter size={16} /> Filtros {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
+                                </Button>
+
+                                {showFilters && (
+                                    <div className="absolute right-0 top-full mt-2 z-50 w-[300px] sm:w-[380px] bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-xl shadow-2xl p-4 space-y-4 text-left">
+                                        <div className="flex justify-between items-center border-b pb-2 dark:border-slate-800">
+                                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">Filtrar Lançamentos</h3>
+                                            <button 
+                                                onClick={() => setShowFilters(false)}
+                                                className="text-muted-foreground hover:text-slate-850 dark:hover:text-slate-100"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                                            {/* Empresa Filter */}
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Empresa</label>
+                                                <select
+                                                    value={tempFilterEmpresa}
+                                                    onChange={(e) => setTempFilterEmpresa(e.target.value)}
+                                                    className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                >
+                                                    <option value="all">Todas as Empresas</option>
+                                                    {uniqueEmpresas.map(emp => (
+                                                        <option key={emp} value={emp}>{emp}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Banco Filter */}
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Banco</label>
+                                                <select
+                                                    value={tempFilterBanco}
+                                                    onChange={(e) => setTempFilterBanco(e.target.value)}
+                                                    className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                >
+                                                    <option value="all">Todos os Bancos</option>
+                                                    {uniqueBancos.map(b => (
+                                                        <option key={b} value={b}>{b}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Mês de Faturamento */}
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mês de Faturamento</label>
+                                                <select
+                                                    value={tempFilterPeriodoFat}
+                                                    onChange={(e) => setTempFilterPeriodoFat(e.target.value)}
+                                                    className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                >
+                                                    <option value="all">Todos os Meses</option>
+                                                    {uniquePeriodosFat.map(pf => (
+                                                        <option key={pf} value={pf}>{pf}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Período de Emissão */}
+                                            <div className="space-y-1 pt-2 border-t dark:border-slate-800">
+                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período de Emissão</label>
+                                                <select
+                                                    value={tempFilterPeriodoEmissao}
+                                                    onChange={(e) => setTempFilterPeriodoEmissao(e.target.value)}
+                                                    className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                >
+                                                    <option value="all">Todo o Período</option>
+                                                    <option value="this-month">Este Mês</option>
+                                                    <option value="past-30">Últimos 30 Dias</option>
+                                                    <option value="custom">Personalizado...</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Custom Emissao dates */}
+                                            {tempFilterPeriodoEmissao === 'custom' && (
+                                                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-dashed dark:border-slate-800">
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-semibold text-muted-foreground">DE</label>
+                                                        <input
+                                                            type="date"
+                                                            value={tempStartDateEmissao}
+                                                            onChange={(e) => setTempStartDateEmissao(e.target.value)}
+                                                            className="w-full px-2 py-1 bg-background border rounded text-[11px]"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-semibold text-muted-foreground">ATÉ</label>
+                                                        <input
+                                                            type="date"
+                                                            value={tempEndDateEmissao}
+                                                            onChange={(e) => setTempEndDateEmissao(e.target.value)}
+                                                            className="w-full px-2 py-1 bg-background border rounded text-[11px]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Período de Vencimento */}
+                                            <div className="space-y-1 pt-2 border-t dark:border-slate-800">
+                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período de Vencimento</label>
+                                                <select
+                                                    value={tempFilterPeriodoVencimento}
+                                                    onChange={(e) => setTempFilterPeriodoVencimento(e.target.value)}
+                                                    className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                >
+                                                    <option value="all">Todo o Período</option>
+                                                    <option value="this-month">Este Mês</option>
+                                                    <option value="next-30">Próximos 30 Dias</option>
+                                                    <option value="custom">Personalizado...</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Custom Vencimento dates */}
+                                            {tempFilterPeriodoVencimento === 'custom' && (
+                                                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-dashed dark:border-slate-800">
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-semibold text-muted-foreground">DE</label>
+                                                        <input
+                                                            type="date"
+                                                            value={tempStartDateVencimento}
+                                                            onChange={(e) => setTempStartDateVencimento(e.target.value)}
+                                                            className="w-full px-2 py-1 bg-background border rounded text-[11px]"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-semibold text-muted-foreground">ATÉ</label>
+                                                        <input
+                                                            type="date"
+                                                            value={tempEndDateVencimento}
+                                                            onChange={(e) => setTempEndDateVencimento(e.target.value)}
+                                                            className="w-full px-2 py-1 bg-background border rounded text-[11px]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Action buttons */}
+                                        <div className="flex justify-between items-center pt-3 border-t dark:border-slate-800">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    // Clear temporary
+                                                    setTempFilterEmpresa('all');
+                                                    setTempFilterBanco('all');
+                                                    setTempFilterPeriodoFat('all');
+                                                    setTempFilterPeriodoEmissao('all');
+                                                    setTempStartDateEmissao('');
+                                                    setTempEndDateEmissao('');
+                                                    setTempFilterPeriodoVencimento('all');
+                                                    setTempStartDateVencimento('');
+                                                    setTempEndDateVencimento('');
+
+                                                    // Clear active
+                                                    setFilterEmpresa('all');
+                                                    setFilterBanco('all');
+                                                    setFilterPeriodoFat('all');
+                                                    setFilterPeriodoEmissao('all');
+                                                    setStartDateEmissao('');
+                                                    setEndDateEmissao('');
+                                                    setFilterPeriodoVencimento('all');
+                                                    setStartDateVencimento('');
+                                                    setEndDateVencimento('');
+
+                                                    setShowFilters(false);
+                                                }}
+                                                className="text-[11px] font-semibold h-8"
+                                            >
+                                                Limpar
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => {
+                                                    // Apply filters
+                                                    setFilterEmpresa(tempFilterEmpresa);
+                                                    setFilterBanco(tempFilterBanco);
+                                                    setFilterPeriodoFat(tempFilterPeriodoFat);
+                                                    setFilterPeriodoEmissao(tempFilterPeriodoEmissao);
+                                                    setStartDateEmissao(tempStartDateEmissao);
+                                                    setEndDateEmissao(tempEndDateEmissao);
+                                                    setFilterPeriodoVencimento(tempFilterPeriodoVencimento);
+                                                    setStartDateVencimento(tempStartDateVencimento);
+                                                    setEndDateVencimento(tempEndDateVencimento);
+
+                                                    setShowFilters(false);
+                                                }}
+                                                className="text-[11px] font-bold h-8 text-white bg-primary hover:bg-primary/95"
+                                            >
+                                                Aplicar Filtros
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodoFat !== 'all' || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || activeKpiFilter !== 'all' || searchTerm !== '') && (
                                 <Button 
                                     variant="ghost" 
                                     onClick={() => {
                                         setFilterEmpresa('all');
                                         setFilterBanco('all');
-                                        setFilterPeriodo('all');
-                                        setStartDate('');
-                                        setEndDate('');
+                                        setFilterPeriodoFat('all');
+                                        setFilterPeriodoEmissao('all');
+                                        setStartDateEmissao('');
+                                        setEndDateEmissao('');
+                                        setFilterPeriodoVencimento('all');
+                                        setStartDateVencimento('');
+                                        setEndDateVencimento('');
                                         setSearchTerm('');
                                         setActiveKpiFilter('all');
                                     }}
@@ -472,100 +745,102 @@ export const Cobros = () => {
                         </div>
                     </div>
 
-                    {activeKpiFilter !== 'all' && (
-                        <div className="flex items-center gap-2 pt-1">
-                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Filtro rápido ativo:</span>
-                            <Badge 
-                                variant={
-                                    activeKpiFilter === 'pago' ? 'default' : 
-                                    activeKpiFilter === 'vencido' ? 'destructive' : 'secondary'
-                                }
-                                className={`flex items-center gap-1.5 font-bold shadow-sm py-1 pl-2 pr-1.5 ${
-                                    activeKpiFilter === 'a_vencer' ? 'bg-blue-100 hover:bg-blue-200 text-blue-800' : ''
-                                }`}
-                            >
-                                <span className="capitalize">{activeKpiFilter.replace('_', ' ')}</span>
-                                <button 
-                                    onClick={() => setActiveKpiFilter('all')} 
-                                    className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-                                    title="Remover filtro"
+                    {(activeKpiFilter !== 'all' || filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodoFat !== 'all' || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all') && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-dashed dark:border-slate-800">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Filtros ativos:</span>
+                            
+                            {/* KPI Filter */}
+                            {activeKpiFilter !== 'all' && (
+                                <Badge 
+                                    variant={
+                                        activeKpiFilter === 'pago' ? 'default' : 
+                                        activeKpiFilter === 'vencido' ? 'destructive' : 'secondary'
+                                    }
+                                    className={`flex items-center gap-1 font-bold shadow-sm py-0.5 pl-2 pr-1 ${
+                                        activeKpiFilter === 'a_vencer' ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 dark:bg-blue-950/30 dark:text-blue-450' : ''
+                                    }`}
                                 >
-                                    <X size={12} />
-                                </button>
-                            </Badge>
-                        </div>
-                    )}
+                                    <span className="capitalize">{activeKpiFilter.replace('_', ' ')}</span>
+                                    <button 
+                                        onClick={() => setActiveKpiFilter('all')} 
+                                        className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
+                            )}
 
-                    {showFilters && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-dashed">
                             {/* Empresa Filter */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Filtrar por Empresa</label>
-                                <select
-                                    value={filterEmpresa}
-                                    onChange={(e) => setFilterEmpresa(e.target.value)}
-                                    className="w-full px-3 py-2 bg-background border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                                >
-                                    <option value="all">Todas as Empresas</option>
-                                    {uniqueEmpresas.map(emp => (
-                                        <option key={emp} value={emp}>{emp}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {filterEmpresa !== 'all' && (
+                                <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
+                                    <span>Empresa: {filterEmpresa}</span>
+                                    <button 
+                                        onClick={() => setFilterEmpresa('all')} 
+                                        className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
+                            )}
 
                             {/* Banco Filter */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Filtrar por Banco</label>
-                                <select
-                                    value={filterBanco}
-                                    onChange={(e) => setFilterBanco(e.target.value)}
-                                    className="w-full px-3 py-2 bg-background border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                                >
-                                    <option value="all">Todos os Bancos</option>
-                                    {uniqueBancos.map(b => (
-                                        <option key={b} value={b}>{b}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {filterBanco !== 'all' && (
+                                <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
+                                    <span>Banco: {filterBanco}</span>
+                                    <button 
+                                        onClick={() => setFilterBanco('all')} 
+                                        className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
+                            )}
 
-                            {/* Period Filter */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Período de Emissão</label>
-                                <select
-                                    value={filterPeriodo}
-                                    onChange={(e) => setFilterPeriodo(e.target.value)}
-                                    className="w-full px-3 py-2 bg-background border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                                >
-                                    <option value="all">Todo o Período</option>
-                                    <option value="this-month">Este Mês</option>
-                                    <option value="next-30">Próximos 30 Dias</option>
-                                    <option value="past-30">Últimos 30 Dias</option>
-                                    <option value="custom">Personalizado...</option>
-                                </select>
-                            </div>
+                            {/* Periodo Fat Filter */}
+                            {filterPeriodoFat !== 'all' && (
+                                <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
+                                    <span>Fat: {filterPeriodoFat}</span>
+                                    <button 
+                                        onClick={() => setFilterPeriodoFat('all')} 
+                                        className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
+                            )}
 
-                            {/* Custom Date Inputs */}
-                            {filterPeriodo === 'custom' && (
-                                <div className="sm:col-span-3 grid grid-cols-2 gap-4 pt-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-dashed">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-semibold text-muted-foreground">De</label>
-                                        <input
-                                            type="date"
-                                            value={startDate}
-                                            onChange={(e) => setStartDate(e.target.value)}
-                                            className="w-full px-3 py-1.5 bg-background border rounded-lg text-xs"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-semibold text-muted-foreground">Até</label>
-                                        <input
-                                            type="date"
-                                            value={endDate}
-                                            onChange={(e) => setEndDate(e.target.value)}
-                                            className="w-full px-3 py-1.5 bg-background border rounded-lg text-xs"
-                                        />
-                                    </div>
-                                </div>
+                            {/* Periodo Emissao Filter */}
+                            {filterPeriodoEmissao !== 'all' && (
+                                <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
+                                    <span>Emissão: {filterPeriodoEmissao === 'custom' ? `${formatDate(startDateEmissao)} a ${formatDate(endDateEmissao)}` : filterPeriodoEmissao.replace('-', ' ')}</span>
+                                    <button 
+                                        onClick={() => {
+                                            setFilterPeriodoEmissao('all');
+                                            setStartDateEmissao('');
+                                            setEndDateEmissao('');
+                                        }} 
+                                        className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
+                            )}
+
+                            {/* Periodo Vencimento Filter */}
+                            {filterPeriodoVencimento !== 'all' && (
+                                <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
+                                    <span>Venc: {filterPeriodoVencimento === 'custom' ? `${formatDate(startDateVencimento)} a ${formatDate(endDateVencimento)}` : filterPeriodoVencimento.replace('-', ' ')}</span>
+                                    <button 
+                                        onClick={() => {
+                                            setFilterPeriodoVencimento('all');
+                                            setStartDateVencimento('');
+                                            setEndDateVencimento('');
+                                        }} 
+                                        className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </Badge>
                             )}
                         </div>
                     )}
