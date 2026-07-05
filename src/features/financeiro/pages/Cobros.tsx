@@ -311,19 +311,19 @@ export const Cobros = () => {
         pagoCount: kpiData.filter(i => i.Status === 'Pago').length,
         pagoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Pago')),
         
-        vencido: kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        vencidoCount: kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).length,
-        vencidoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i))),
+        vencido: kpiData.filter(i => i.Status !== 'Pago' && getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        vencidoCount: kpiData.filter(i => i.Status !== 'Pago' && getOverdueStatus(i)).length,
+        vencidoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && getOverdueStatus(i))),
         
-        a_vencer: kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        a_vencerCount: kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).length,
-        a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i))),
+        a_vencer: kpiData.filter(i => i.Status !== 'Pago' && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        a_vencerCount: kpiData.filter(i => i.Status !== 'Pago' && !getOverdueStatus(i)).length,
+        a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && !getOverdueStatus(i))),
     };
 
     const filteredData = kpiData.filter(item => {
         if (activeKpiFilter === 'pago' && item.Status !== 'Pago') return false;
-        if (activeKpiFilter === 'vencido' && !(item.Status === 'Vencido' || getOverdueStatus(item))) return false;
-        if (activeKpiFilter === 'a_vencer' && !((item.Status === 'A vencer' || item.Status === 'a_vencer' || item.Status === 'Parcial') && !getOverdueStatus(item))) return false;
+        if (activeKpiFilter === 'vencido' && !(item.Status !== 'Pago' && getOverdueStatus(item))) return false;
+        if (activeKpiFilter === 'a_vencer' && !(item.Status !== 'Pago' && !getOverdueStatus(item))) return false;
         return true;
     });
 
