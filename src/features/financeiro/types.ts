@@ -107,6 +107,7 @@ export interface Obra {
 
 export interface EnrichedTitulo extends ContasReceber {
   clienteInfo?: Cliente;
+  lastObsDate?: Date | null;
 }
 
 export interface DashboardMetrics {
