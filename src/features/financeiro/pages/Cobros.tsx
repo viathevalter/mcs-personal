@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 
 export const Cobros = () => {
-    const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('cobros_searchTerm') || '');
+    const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('cobros_searchTerm') || '');
     const [data, setData] = useState<EnrichedTitulo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -44,18 +44,18 @@ export const Cobros = () => {
     const [currentUser, setCurrentUser] = useState('Usuário Desconhecido');
 
     // Advanced Filtering States
-    const [filterEmpresa, setFilterEmpresa] = useState(() => localStorage.getItem('cobros_filterEmpresa') || 'all');
-    const [filterBanco, setFilterBanco] = useState(() => localStorage.getItem('cobros_filterBanco') || 'all');
-    const [filterPeriodoFat, setFilterPeriodoFat] = useState(() => localStorage.getItem('cobros_filterPeriodoFat') || 'all');
-    const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => localStorage.getItem('cobros_filterPeriodoEmissao') || 'all');
-    const [startDateEmissao, setStartDateEmissao] = useState(() => localStorage.getItem('cobros_startDateEmissao') || '');
-    const [endDateEmissao, setEndDateEmissao] = useState(() => localStorage.getItem('cobros_endDateEmissao') || '');
-    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => localStorage.getItem('cobros_filterPeriodoVencimento') || 'all');
-    const [startDateVencimento, setStartDateVencimento] = useState(() => localStorage.getItem('cobros_startDateVencimento') || '');
-    const [endDateVencimento, setEndDateVencimento] = useState(() => localStorage.getItem('cobros_endDateVencimento') || '');
-    const [filterPeriodoAlteracao, setFilterPeriodoAlteracao] = useState(() => localStorage.getItem('cobros_filterPeriodoAlteracao') || 'all');
-    const [startDateAlteracao, setStartDateAlteracao] = useState(() => localStorage.getItem('cobros_startDateAlteracao') || '');
-    const [endDateAlteracao, setEndDateAlteracao] = useState(() => localStorage.getItem('cobros_endDateAlteracao') || '');
+    const [filterEmpresa, setFilterEmpresa] = useState(() => sessionStorage.getItem('cobros_filterEmpresa') || 'all');
+    const [filterBanco, setFilterBanco] = useState(() => sessionStorage.getItem('cobros_filterBanco') || 'all');
+    const [filterPeriodoFat, setFilterPeriodoFat] = useState(() => sessionStorage.getItem('cobros_filterPeriodoFat') || 'all');
+    const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => sessionStorage.getItem('cobros_filterPeriodoEmissao') || 'all');
+    const [startDateEmissao, setStartDateEmissao] = useState(() => sessionStorage.getItem('cobros_startDateEmissao') || '');
+    const [endDateEmissao, setEndDateEmissao] = useState(() => sessionStorage.getItem('cobros_endDateEmissao') || '');
+    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobros_filterPeriodoVencimento') || 'this-month');
+    const [startDateVencimento, setStartDateVencimento] = useState(() => sessionStorage.getItem('cobros_startDateVencimento') || '');
+    const [endDateVencimento, setEndDateVencimento] = useState(() => sessionStorage.getItem('cobros_endDateVencimento') || '');
+    const [filterPeriodoAlteracao, setFilterPeriodoAlteracao] = useState(() => sessionStorage.getItem('cobros_filterPeriodoAlteracao') || 'all');
+    const [startDateAlteracao, setStartDateAlteracao] = useState(() => sessionStorage.getItem('cobros_startDateAlteracao') || '');
+    const [endDateAlteracao, setEndDateAlteracao] = useState(() => sessionStorage.getItem('cobros_endDateAlteracao') || '');
 
     // Temporary/Draft states for Popover Form
     const [tempFilterEmpresa, setTempFilterEmpresa] = useState(filterEmpresa);
@@ -72,7 +72,7 @@ export const Cobros = () => {
     const [tempEndDateAlteracao, setTempEndDateAlteracao] = useState(endDateAlteracao);
 
     const [showFilters, setShowFilters] = useState(false);
-    const [activeKpiFilter, setActiveKpiFilter] = useState<'all' | 'pago' | 'vencido' | 'a_vencer'>(() => (localStorage.getItem('cobros_activeKpiFilter') as any) || 'all');
+    const [activeKpiFilter, setActiveKpiFilter] = useState<'all' | 'pago' | 'vencido' | 'a_vencer'>(() => (sessionStorage.getItem('cobros_activeKpiFilter') as any) || 'all');
     const [isSyncing, setIsSyncing] = useState(false);
 
     const handleSyncSharePoint = async () => {
@@ -148,59 +148,59 @@ export const Cobros = () => {
 
     // Save states to localStorage
     useEffect(() => {
-        localStorage.setItem('cobros_searchTerm', searchTerm);
+        sessionStorage.setItem('cobros_searchTerm', searchTerm);
     }, [searchTerm]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterEmpresa', filterEmpresa);
+        sessionStorage.setItem('cobros_filterEmpresa', filterEmpresa);
     }, [filterEmpresa]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterBanco', filterBanco);
+        sessionStorage.setItem('cobros_filterBanco', filterBanco);
     }, [filterBanco]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterPeriodoFat', filterPeriodoFat);
+        sessionStorage.setItem('cobros_filterPeriodoFat', filterPeriodoFat);
     }, [filterPeriodoFat]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterPeriodoEmissao', filterPeriodoEmissao);
+        sessionStorage.setItem('cobros_filterPeriodoEmissao', filterPeriodoEmissao);
     }, [filterPeriodoEmissao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_startDateEmissao', startDateEmissao);
+        sessionStorage.setItem('cobros_startDateEmissao', startDateEmissao);
     }, [startDateEmissao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_endDateEmissao', endDateEmissao);
+        sessionStorage.setItem('cobros_endDateEmissao', endDateEmissao);
     }, [endDateEmissao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterPeriodoVencimento', filterPeriodoVencimento);
+        sessionStorage.setItem('cobros_filterPeriodoVencimento', filterPeriodoVencimento);
     }, [filterPeriodoVencimento]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_startDateVencimento', startDateVencimento);
+        sessionStorage.setItem('cobros_startDateVencimento', startDateVencimento);
     }, [startDateVencimento]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_endDateVencimento', endDateVencimento);
+        sessionStorage.setItem('cobros_endDateVencimento', endDateVencimento);
     }, [endDateVencimento]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_activeKpiFilter', activeKpiFilter);
+        sessionStorage.setItem('cobros_activeKpiFilter', activeKpiFilter);
     }, [activeKpiFilter]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_filterPeriodoAlteracao', filterPeriodoAlteracao);
+        sessionStorage.setItem('cobros_filterPeriodoAlteracao', filterPeriodoAlteracao);
     }, [filterPeriodoAlteracao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_startDateAlteracao', startDateAlteracao);
+        sessionStorage.setItem('cobros_startDateAlteracao', startDateAlteracao);
     }, [startDateAlteracao]);
 
     useEffect(() => {
-        localStorage.setItem('cobros_endDateAlteracao', endDateAlteracao);
+        sessionStorage.setItem('cobros_endDateAlteracao', endDateAlteracao);
     }, [endDateAlteracao]);
 
     // Sync temp states with active states when popover opens
