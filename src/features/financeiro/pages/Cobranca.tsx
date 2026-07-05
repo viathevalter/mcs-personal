@@ -19,15 +19,15 @@ import { supabase } from '../lib/supabase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const Cobranca = () => {
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('cobranca_searchTerm') || '');
     const [data, setData] = useState<EnrichedTitulo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Filters
-    const [filterEmpresa, setFilterEmpresa] = useState<string>('all');
-    const [filterBanco, setFilterBanco] = useState<string>('all');
-    const [showFilters, setShowFilters] = useState<boolean>(false);
-    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'judicial'>('atraso');
+    const [filterEmpresa, setFilterEmpresa] = useState(() => localStorage.getItem('cobranca_filterEmpresa') || 'all');
+    const [filterBanco, setFilterBanco] = useState(() => localStorage.getItem('cobranca_filterBanco') || 'all');
+    const [showFilters, setShowFilters] = useState(() => localStorage.getItem('cobranca_showFilters') === 'true');
+    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'judicial'>(() => (localStorage.getItem('cobranca_activeTab') as any) || 'atraso');
 
     // Modals
     const [isReceberOpen, setIsReceberOpen] = useState(false);
@@ -55,6 +55,27 @@ export const Cobranca = () => {
         loadData();
         fetchUser();
     }, []);
+
+    // Save states to localStorage
+    useEffect(() => {
+        localStorage.setItem('cobranca_searchTerm', searchTerm);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        localStorage.setItem('cobranca_filterEmpresa', filterEmpresa);
+    }, [filterEmpresa]);
+
+    useEffect(() => {
+        localStorage.setItem('cobranca_filterBanco', filterBanco);
+    }, [filterBanco]);
+
+    useEffect(() => {
+        localStorage.setItem('cobranca_showFilters', showFilters.toString());
+    }, [showFilters]);
+
+    useEffect(() => {
+        localStorage.setItem('cobranca_activeTab', activeTab);
+    }, [activeTab]);
 
     const fetchUser = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -262,7 +283,7 @@ export const Cobranca = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 space-y-6 w-full max-w-[1600px] mx-auto">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-6 w-full max-w-[1600px] mx-auto">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>

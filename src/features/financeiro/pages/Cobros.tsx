@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw } from 'lucide-react';
+import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw, X } from 'lucide-react';
 import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
 import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber, saveObservacao } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 
 export const Cobros = () => {
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('cobros_searchTerm') || '');
     const [data, setData] = useState<EnrichedTitulo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -44,12 +44,13 @@ export const Cobros = () => {
     const [currentUser, setCurrentUser] = useState('Usuário Desconhecido');
 
     // Advanced Filtering States
-    const [filterEmpresa, setFilterEmpresa] = useState<string>('all');
-    const [filterBanco, setFilterBanco] = useState<string>('all');
-    const [filterPeriodo, setFilterPeriodo] = useState<string>('all');
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
-    const [showFilters, setShowFilters] = useState<boolean>(false);
+    const [filterEmpresa, setFilterEmpresa] = useState(() => localStorage.getItem('cobros_filterEmpresa') || 'all');
+    const [filterBanco, setFilterBanco] = useState(() => localStorage.getItem('cobros_filterBanco') || 'all');
+    const [filterPeriodo, setFilterPeriodo] = useState(() => localStorage.getItem('cobros_filterPeriodo') || 'all');
+    const [startDate, setStartDate] = useState(() => localStorage.getItem('cobros_startDate') || '');
+    const [endDate, setEndDate] = useState(() => localStorage.getItem('cobros_endDate') || '');
+    const [showFilters, setShowFilters] = useState(() => localStorage.getItem('cobros_showFilters') === 'true');
+    const [activeKpiFilter, setActiveKpiFilter] = useState<'all' | 'pago' | 'vencido' | 'a_vencer'>(() => (localStorage.getItem('cobros_activeKpiFilter') as any) || 'all');
     const [isSyncing, setIsSyncing] = useState(false);
 
     const handleSyncSharePoint = async () => {
@@ -102,6 +103,39 @@ export const Cobros = () => {
         loadData();
         fetchUser();
     }, []);
+
+    // Save states to localStorage
+    useEffect(() => {
+        localStorage.setItem('cobros_searchTerm', searchTerm);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_filterEmpresa', filterEmpresa);
+    }, [filterEmpresa]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_filterBanco', filterBanco);
+    }, [filterBanco]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_filterPeriodo', filterPeriodo);
+    }, [filterPeriodo]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_startDate', startDate);
+    }, [startDate]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_endDate', endDate);
+    }, [endDate]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_showFilters', showFilters.toString());
+    }, [showFilters]);
+
+    useEffect(() => {
+        localStorage.setItem('cobros_activeKpiFilter', activeKpiFilter);
+    }, [activeKpiFilter]);
 
     const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal', title: EnrichedTitulo) => {
         setEmailTemplate(template);
@@ -214,7 +248,7 @@ export const Cobros = () => {
     const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
     const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean)));
 
-    const filteredData = data.filter(item => {
+    const kpiData = data.filter(item => {
         // Search filter
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = 
@@ -263,19 +297,35 @@ export const Cobros = () => {
         return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
     };
 
-    const kpis = {
-        total: filteredData.reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        totalCount: filteredData.length,
-        
-        pago: filteredData.filter(i => i.Status === 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        pagoCount: filteredData.filter(i => i.Status === 'Pago').length,
-        
-        vencido: filteredData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        vencidoCount: filteredData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).length,
-        
-        a_vencer: filteredData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        a_vencerCount: filteredData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).length,
+    const getUniqueClientsCount = (items: EnrichedTitulo[]) => {
+        const clients = items.map(i => i.Cliente || i.Cliente_id).filter(Boolean);
+        return new Set(clients).size;
     };
+
+    const kpis = {
+        total: kpiData.reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        totalCount: kpiData.length,
+        totalClientes: getUniqueClientsCount(kpiData),
+        
+        pago: kpiData.filter(i => i.Status === 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        pagoCount: kpiData.filter(i => i.Status === 'Pago').length,
+        pagoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Pago')),
+        
+        vencido: kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        vencidoCount: kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i)).length,
+        vencidoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Vencido' || getOverdueStatus(i))),
+        
+        a_vencer: kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        a_vencerCount: kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i)).length,
+        a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => (i.Status === 'A vencer' || i.Status === 'a_vencer' || i.Status === 'Parcial') && !getOverdueStatus(i))),
+    };
+
+    const filteredData = kpiData.filter(item => {
+        if (activeKpiFilter === 'pago' && item.Status !== 'Pago') return false;
+        if (activeKpiFilter === 'vencido' && !(item.Status === 'Vencido' || getOverdueStatus(item))) return false;
+        if (activeKpiFilter === 'a_vencer' && !((item.Status === 'A vencer' || item.Status === 'a_vencer' || item.Status === 'Parcial') && !getOverdueStatus(item))) return false;
+        return true;
+    });
 
     const getStatusVariant = (status: string, dtVenc?: Date | null): "default" | "secondary" | "destructive" | "outline" | "warning" => {
         if (status === 'Pago') return 'default';
@@ -295,7 +345,7 @@ export const Cobros = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 space-y-6 w-full max-w-[1600px] mx-auto">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-6 w-full max-w-[1600px] mx-auto">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>
@@ -324,40 +374,60 @@ export const Cobros = () => {
 
                 {/* KPIs Row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <Card className="border-l-4 border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30">
+                    <Card 
+                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'all' ? 'border-l-slate-600 bg-slate-100/50 dark:bg-slate-800/40 ring-1 ring-slate-200/50' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        onClick={() => setActiveKpiFilter('all')}
+                    >
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total Geral</CardTitle>
+                            <CardTitle className="text-[10px] font-semibold text-slate-650 dark:text-slate-400 uppercase tracking-wider">Total Geral</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">{formatCurrency(kpis.total)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.totalCount} {kpis.totalCount === 1 ? 'título' : 'títulos'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">
+                                {kpis.totalCount} {kpis.totalCount === 1 ? 'título' : 'títulos'} ({kpis.totalClientes} {kpis.totalClientes === 1 ? 'cliente' : 'clientes'})
+                            </p>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/10">
+                    <Card 
+                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'pago' ? 'border-l-emerald-600 bg-emerald-100/30 dark:bg-emerald-950/20 ring-1 ring-emerald-200/40' : 'border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/10'}`}
+                        onClick={() => setActiveKpiFilter('pago')}
+                    >
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Pago</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(kpis.pago)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.pagoCount} {kpis.pagoCount === 1 ? 'título pago' : 'títulos pagos'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">
+                                {kpis.pagoCount} {kpis.pagoCount === 1 ? 'título pago' : 'títulos pagos'} ({kpis.pagoClientes} {kpis.pagoClientes === 1 ? 'cliente' : 'clientes'})
+                            </p>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-destructive bg-destructive/5 dark:bg-destructive/10">
+                    <Card 
+                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'vencido' ? 'border-l-destructive bg-destructive/10 dark:bg-destructive/20 ring-1 ring-destructive/20' : 'border-l-destructive bg-destructive/5 dark:bg-destructive/10'}`}
+                        onClick={() => setActiveKpiFilter('vencido')}
+                    >
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-semibold text-destructive uppercase tracking-wider">Total Vencido</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-destructive">{formatCurrency(kpis.vencido)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.vencidoCount} {kpis.vencidoCount === 1 ? 'título vencido' : 'títulos vencidos'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">
+                                {kpis.vencidoCount} {kpis.vencidoCount === 1 ? 'título vencido' : 'títulos vencidos'} ({kpis.vencidoClientes} {kpis.vencidoClientes === 1 ? 'cliente' : 'clientes'})
+                            </p>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/10">
+                    <Card 
+                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'a_vencer' ? 'border-l-blue-600 bg-blue-100/30 dark:bg-blue-950/20 ring-1 ring-blue-200/40' : 'border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/10'}`}
+                        onClick={() => setActiveKpiFilter('a_vencer')}
+                    >
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Total A Vencer</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">{formatCurrency(kpis.a_vencer)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.a_vencerCount} {kpis.a_vencerCount === 1 ? 'título a vencer' : 'títulos a vencer'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">
+                                {kpis.a_vencerCount} {kpis.a_vencerCount === 1 ? 'título a vencer' : 'títulos a vencer'} ({kpis.a_vencerClientes} {kpis.a_vencerClientes === 1 ? 'cliente' : 'clientes'})
+                            </p>
                         </CardContent>
                     </Card>
                 </div>
@@ -382,7 +452,7 @@ export const Cobros = () => {
                             >
                                 <Filter size={16} /> Filtros {showFilters ? 'Ativos' : ''}
                             </Button>
-                            {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodo !== 'all') && (
+                            {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodo !== 'all' || activeKpiFilter !== 'all' || searchTerm !== '') && (
                                 <Button 
                                     variant="ghost" 
                                     onClick={() => {
@@ -391,6 +461,8 @@ export const Cobros = () => {
                                         setFilterPeriodo('all');
                                         setStartDate('');
                                         setEndDate('');
+                                        setSearchTerm('');
+                                        setActiveKpiFilter('all');
                                     }}
                                     className="text-xs text-muted-foreground hover:text-destructive"
                                 >
@@ -399,6 +471,30 @@ export const Cobros = () => {
                             )}
                         </div>
                     </div>
+
+                    {activeKpiFilter !== 'all' && (
+                        <div className="flex items-center gap-2 pt-1">
+                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Filtro rápido ativo:</span>
+                            <Badge 
+                                variant={
+                                    activeKpiFilter === 'pago' ? 'default' : 
+                                    activeKpiFilter === 'vencido' ? 'destructive' : 'secondary'
+                                }
+                                className={`flex items-center gap-1.5 font-bold shadow-sm py-1 pl-2 pr-1.5 ${
+                                    activeKpiFilter === 'a_vencer' ? 'bg-blue-100 hover:bg-blue-200 text-blue-800' : ''
+                                }`}
+                            >
+                                <span className="capitalize">{activeKpiFilter.replace('_', ' ')}</span>
+                                <button 
+                                    onClick={() => setActiveKpiFilter('all')} 
+                                    className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                                    title="Remover filtro"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </Badge>
+                        </div>
+                    )}
 
                     {showFilters && (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-dashed">
