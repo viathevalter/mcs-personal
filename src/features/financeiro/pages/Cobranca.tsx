@@ -30,7 +30,7 @@ export const Cobranca = () => {
     const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoEmissao') || 'all');
     const [startDateEmissao, setStartDateEmissao] = useState(() => sessionStorage.getItem('cobranca_startDateEmissao') || '');
     const [endDateEmissao, setEndDateEmissao] = useState(() => sessionStorage.getItem('cobranca_endDateEmissao') || '');
-    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento') || 'all');
+    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento') || 'this-month');
     const [startDateVencimento, setStartDateVencimento] = useState(() => sessionStorage.getItem('cobranca_startDateVencimento') || '');
     const [endDateVencimento, setEndDateVencimento] = useState(() => sessionStorage.getItem('cobranca_endDateVencimento') || '');
     const [filterPeriodoAlteracao, setFilterPeriodoAlteracao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoAlteracao') || 'all');
