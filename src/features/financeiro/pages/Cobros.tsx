@@ -584,7 +584,7 @@ export const Cobros = () => {
 
                 <div className="flex flex-col gap-4 bg-card p-4 rounded-xl border shadow-sm mt-4">
                     <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-                        <div className="relative flex-1 w-full md:max-w-md">
+                        <div className="relative flex-1 w-full md:max-w-2xl">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                             <input
                                 type="text"
