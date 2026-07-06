@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { usePaymentTerms } from '../hooks/usePaymentTerms';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
+import { useCountries } from '../../locations/hooks/useLocations';
 import { ClientSheet } from './ClientSheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ export function ClientsDataTable() {
   const { data: clients = [], isLoading } = useClients();
   const { data: paymentTerms = [] } = usePaymentTerms();
   const { data: allSites = [] } = useClientSites();
+  const { data: countries = [] } = useCountries();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentTermFilter, setPaymentTermFilter] = useState<string>('all');
@@ -159,6 +161,7 @@ export function ClientsDataTable() {
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500">NIF</th>
+                <th className="px-4 py-3 font-medium text-slate-500">País</th>
                 <th className="px-4 py-3 font-medium text-slate-500 text-center">Obras</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Contato</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Status</th>
@@ -167,12 +170,13 @@ export function ClientsDataTable() {
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
               ) : sortedClients.length === 0 ? (
-                <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhum cliente encontrado.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">Nenhum cliente encontrado.</td></tr>
               ) : (
                 sortedClients.map((client) => {
                   const siteCount = allSites.filter(s => s.client_id === client.id).length;
+                  const countryName = countries.find(co => co.id === client.country_id)?.name || '--';
                   return (
                     <tr 
                       key={client.id} 
@@ -183,6 +187,7 @@ export function ClientsDataTable() {
                       <td className="px-4 py-3 font-medium">{client.trade_name}</td>
                       <td className="px-4 py-3 text-slate-500">{client.legal_name}</td>
                       <td className="px-4 py-3 text-slate-500 font-mono text-xs">{client.tax_id || '--'}</td>
+                      <td className="px-4 py-3 text-slate-500 font-semibold text-xs">{countryName}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant="outline" className="bg-orange-50/30 text-orange-700 border-orange-200/50">
                           {siteCount} {siteCount === 1 ? 'obra' : 'obras'}
