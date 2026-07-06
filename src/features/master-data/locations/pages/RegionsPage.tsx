@@ -147,7 +147,6 @@ export function RegionsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-300"
                           onClick={() => {
                             setConfiguringRegion({ id: region.id, name: region.name });
                             setDialogOpen(true);
