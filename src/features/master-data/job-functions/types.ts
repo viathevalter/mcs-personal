@@ -62,6 +62,16 @@ export const jobFunctionQuestionSchema = z.object({
 
 export type JobFunctionQuestion = z.infer<typeof jobFunctionQuestionSchema>;
 
+export const createJobFunctionQuestionSchema = jobFunctionQuestionSchema.omit({
+  id: true,
+  empresa_id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type CreateJobFunctionQuestionDTO = z.infer<typeof createJobFunctionQuestionSchema>;
+export type UpdateJobFunctionQuestionDTO = Partial<CreateJobFunctionQuestionDTO>;
+
 // --- EPIS (Fase 4) ---
 export const epiSchema = z.object({
   id: uuidSchema,
