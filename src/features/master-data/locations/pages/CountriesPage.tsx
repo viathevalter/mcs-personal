@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCountries } from '../hooks/useLocations';
 import {
   Table,
@@ -19,6 +20,7 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/shared/utils/currency';
 
 export function CountriesPage() {
+  const { t } = useTranslation();
   const { data: countries, isLoading: isLoadingCountries, error: countriesError } = useCountries();
   const { data: lodgingRates = [], isLoading: isLoadingLodging } = useLodgingRates();
   const { data: taxParams = [], isLoading: isLoadingTaxes } = useCountryTaxParameters();
@@ -80,22 +82,24 @@ export function CountriesPage() {
         destacado_base_salary: editDestacadoBase
       });
       setEditingId(null);
-      toast.success('Parâmetros do país salvos com sucesso!');
+      toast.success(t('masterData.locations.saveSuccess', { defaultValue: 'Parâmetros do país salvos com sucesso!' }));
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao salvar parâmetros', { description: err.message });
+      toast.error(t('masterData.locations.saveError', { defaultValue: 'Erro ao salvar parâmetros' }), { description: err.message });
     } finally {
       setIsSaving(false);
     }
   };
 
   const isLoading = isLoadingCountries || isLoadingLodging || isLoadingTaxes;
-  const error = countriesError;  return (
+  const error = countriesError;
+
+  return (
     <div className="space-y-6 w-full px-8 py-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Países e Regras Fiscais</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{t('masterData.locations.countriesTitle', { defaultValue: 'Países e Regras Fiscais' })}</h2>
         <p className="text-muted-foreground">
-          Gestão de países do sistema, diárias padrão de alojamento e parâmetros de Seguridade Social (impostos locais e destacados).
+          {t('masterData.locations.countriesSubtitle', { defaultValue: 'Gestão de países do sistema, diárias padrão de alojamento e parâmetros de Seguridade Social (impostos locais e destacados).' })}
         </p>
       </div>
 
@@ -106,7 +110,7 @@ export function CountriesPage() {
               <TableRow>
                 <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
-                    Nome
+                    {t('masterData.fields.name', { defaultValue: 'Nome' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </TableHead>
@@ -116,11 +120,11 @@ export function CountriesPage() {
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'iso2' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </TableHead>
-                <TableHead className="w-24">Moeda</TableHead>
-                <TableHead className="w-40">Alojamento Padrão</TableHead>
-                <TableHead>Seguridade Social (Parâmetros)</TableHead>
-                <TableHead className="w-24 text-center">Status</TableHead>
-                <TableHead className="w-28 text-right">Ações</TableHead>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 w-24">{t('masterData.fields.country', { defaultValue: 'Moeda' }) === 'País' ? 'Moeda' : 'Moneda'}</th>
+                <TableHead className="w-40">{t('masterData.locations.standardLodging', { defaultValue: 'Alojamento Padrão' })}</TableHead>
+                <TableHead>{t('masterData.locations.taxParameters', { defaultValue: 'Seguridade Social (Parâmetros)' })}</TableHead>
+                <TableHead className="w-24 text-center">{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
+                <TableHead className="w-28 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y">
@@ -129,20 +133,20 @@ export function CountriesPage() {
                   <TableCell colSpan={7} className="h-24 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      <span>Carregando dados dos países...</span>
+                      <span>{t('masterData.locations.loadingCountries', { defaultValue: 'Carregando dados dos países...' })}</span>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-red-500">
-                    Erro ao carregar dados.
+                    {t('masterData.locations.errorLoadingCountries', { defaultValue: 'Erro ao carregar dados dos países.' })}
                   </TableCell>
                 </TableRow>
               ) : sortedCountries.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Nenhum país encontrado.
+                    {t('masterData.locations.noCountries', { defaultValue: 'Nenhum país encontrado.' })}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -173,11 +177,11 @@ export function CountriesPage() {
                               onChange={(e) => setEditLodgingRate(Number(e.target.value))}
                               className="w-24 font-mono h-8 text-xs bg-white dark:bg-slate-950"
                             />
-                            <span className="text-xs text-slate-500">/dia</span>
+                            <span className="text-xs text-slate-500">{t('masterData.locations.perDay', { defaultValue: '/dia' })}</span>
                           </div>
                         ) : (
                           <span className="font-mono text-xs">
-                            {formatCurrency(lodging?.rate_per_day || 0)}/dia
+                            {formatCurrency(lodging?.rate_per_day || 0)}{t('masterData.locations.perDay', { defaultValue: '/dia' })}
                           </span>
                         )}
                       </TableCell>
@@ -187,7 +191,7 @@ export function CountriesPage() {
                         {isEditing ? (
                           <div className="flex flex-wrap gap-4 items-end bg-slate-50 dark:bg-slate-950 p-2 rounded-md border border-slate-200 dark:border-slate-800">
                             <div className="flex flex-col gap-1 text-[10px]">
-                              <span className="font-bold text-slate-500 dark:text-slate-400">Patronal (%)</span>
+                              <span className="font-bold text-slate-500 dark:text-slate-400">{t('masterData.locations.employer', { defaultValue: 'Patronal (%)' })}</span>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -198,7 +202,7 @@ export function CountriesPage() {
                             </div>
                             
                             <div className="flex flex-col gap-1 text-[10px]">
-                              <span className="font-bold text-slate-500 dark:text-slate-400">Trabalhador (%)</span>
+                              <span className="font-bold text-slate-500 dark:text-slate-400">{t('masterData.locations.employee', { defaultValue: 'Trabalhador (%)' })}</span>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -209,7 +213,7 @@ export function CountriesPage() {
                             </div>
 
                             <div className="flex flex-col gap-1 text-[10px]">
-                              <span className="font-bold text-slate-500 dark:text-slate-400">Base Destacado (€)</span>
+                              <span className="font-bold text-slate-500 dark:text-slate-400">{t('masterData.locations.baseDestacado', { defaultValue: 'Base Destacado (€)' })}</span>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -227,7 +231,7 @@ export function CountriesPage() {
                                 className="border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
                               />
                               <label htmlFor={`use-total-${country.id}`} className="text-[10px] text-slate-650 dark:text-slate-350 cursor-pointer font-medium select-none">
-                                Usar Total ({editSsEmployer + editSsEmployee}%)
+                                {t('masterData.locations.useTotal', { defaultValue: 'Usar Total' })} ({editSsEmployer + editSsEmployee}%)
                               </label>
                             </div>
                           </div>
@@ -235,27 +239,26 @@ export function CountriesPage() {
                           <div className="text-xs space-y-0.5 text-slate-650 dark:text-slate-350">
                             <div>
                               <span className="font-medium text-slate-900 dark:text-slate-100">
-                                Imposto Aplicado: {tax.ss_use_total ? (Number(tax.ss_employer_rate) + Number(tax.ss_employee_rate)) : tax.ss_employer_rate}%
+                                {t('masterData.locations.appliedTax', { defaultValue: 'Imposto Aplicado: ' })}{tax.ss_use_total ? (Number(tax.ss_employer_rate) + Number(tax.ss_employee_rate)) : tax.ss_employer_rate}%
                               </span>
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1.5">
-                                (Patronal: {tax.ss_employer_rate}% | Trab: {tax.ss_employee_rate}%)
+                                {t('masterData.locations.appliedTaxSummary', { employer: tax.ss_employer_rate, employee: tax.ss_employee_rate, defaultValue: `(Patronal: ${tax.ss_employer_rate}% | Trab: ${tax.ss_employee_rate}%)` })}
                               </span>
                             </div>
                             <div>
-                              <span>Salário Mínimo de Destino: </span>
-                              <span className="font-mono font-medium text-slate-900 dark:text-slate-100">{formatCurrency(tax.destacado_base_salary)}/mês</span>
+                              <span>{t('masterData.locations.minDestinationSalary', { defaultValue: 'Salário Mínimo de Destino: ' })}</span>
+                              <span className="font-mono font-medium text-slate-900 dark:text-slate-100">{formatCurrency(tax.destacado_base_salary)}{t('masterData.locations.perMonth', { defaultValue: '/mês' })}</span>
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-450 italic">Sem parâmetros definidos</span>
+                          <span className="text-xs text-slate-450 italic">{t('masterData.locations.notConfiguredParams', { defaultValue: 'Sem parâmetros definidos' })}</span>
                         )}
                       </TableCell>
 
-                      <TableCell className="text-center">
-                        <Badge variant={country.status === 'active' ? 'default' : 'secondary'}>
-                          {country.status}
-                        </Badge>
-                      </TableCell>
+                      <td className="px-4 py-3 text-center">
+                        {country.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                        {country.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
+                      </td>
 
                       {/* Coluna Ações */}
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -288,7 +291,7 @@ export function CountriesPage() {
                             className="h-8 border-slate-200 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800 gap-1 text-slate-700 dark:text-slate-300"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            Configurar
+                            {t('masterData.locations.configure', { defaultValue: 'Configurar' })}
                           </Button>
                         )}
                       </TableCell>

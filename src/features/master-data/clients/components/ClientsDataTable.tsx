@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { usePaymentTerms } from '../hooks/usePaymentTerms';
@@ -13,6 +14,7 @@ import { Search, Building2, Edit, Filter, ArrowUpDown } from 'lucide-react';
 import type { Client } from '../types';
 
 export function ClientsDataTable() {
+  const { t } = useTranslation();
   const { data: clients = [], isLoading } = useClients();
   const { data: paymentTerms = [] } = usePaymentTerms();
   const { data: allSites = [] } = useClientSites();
@@ -97,7 +99,7 @@ export function ClientsDataTable() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome ou NIF..."
+              placeholder={t('masterData.clientes.searchPlaceholder', { defaultValue: 'Buscar por nome ou NIF...' })}
               className="pl-8 focus-visible:ring-orange-500 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -108,11 +110,11 @@ export function ClientsDataTable() {
           <div className="w-full sm:w-56">
             <Select value={paymentTermFilter} onValueChange={setPaymentTermFilter}>
               <SelectTrigger className="bg-white focus-visible:ring-orange-500">
-                <SelectValue placeholder="Prazos de Pagamento" />
+                <SelectValue placeholder={t('masterData.sidebar.prazos', { defaultValue: 'Prazos de Pagamento' })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Prazos</SelectItem>
-                <SelectItem value="none">Sem Prazo Cadastrado</SelectItem>
+                <SelectItem value="all">{t('masterData.clientes.allTerms', { defaultValue: 'Todos os Prazos' })}</SelectItem>
+                <SelectItem value="none">{t('masterData.clientes.noTerm', { defaultValue: 'Sem Prazo Cadastrado' })}</SelectItem>
                 {paymentTerms.map((term) => (
                   <SelectItem key={term.id} value={term.id}>
                     {term.name}
@@ -126,12 +128,12 @@ export function ClientsDataTable() {
           <div className="w-full sm:w-48">
             <Select value={sitesFilter} onValueChange={setSitesFilter}>
               <SelectTrigger className="bg-white focus-visible:ring-orange-500">
-                <SelectValue placeholder="Obras / Locais" />
+                <SelectValue placeholder={t('masterData.sidebar.obras', { defaultValue: 'Obras / Locais' })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as Obras</SelectItem>
-                <SelectItem value="with">Com Obra Cadastrada</SelectItem>
-                <SelectItem value="without">Sem Obra Cadastrada</SelectItem>
+                <SelectItem value="all">{t('masterData.clientes.allSites', { defaultValue: 'Todas as Obras' })}</SelectItem>
+                <SelectItem value="with">{t('masterData.clientes.withSite', { defaultValue: 'Com Obra Cadastrada' })}</SelectItem>
+                <SelectItem value="without">{t('masterData.clientes.withoutSite', { defaultValue: 'Sem Obra Cadastrada' })}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -140,10 +142,10 @@ export function ClientsDataTable() {
           <div className="w-full sm:w-48">
             <Select value={countryFilter} onValueChange={setCountryFilter}>
               <SelectTrigger className="bg-white focus-visible:ring-orange-500">
-                <SelectValue placeholder="Países" />
+                <SelectValue placeholder={t('masterData.sidebar.paises', { defaultValue: 'Países' })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Países</SelectItem>
+                <SelectItem value="all">{t('masterData.clientes.allCountries', { defaultValue: 'Todos os Países' })}</SelectItem>
                 {countries.map((country) => (
                   <SelectItem key={country.id} value={country.id}>
                     {country.name}
@@ -156,7 +158,7 @@ export function ClientsDataTable() {
 
         <Button onClick={handleNew} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg shadow-orange-500/10 w-full sm:w-auto shrink-0">
           <Building2 className="h-4 w-4 mr-2" />
-          Novo Cliente
+          {t('masterData.clientes.btnNew', { defaultValue: 'Novo Cliente' })}
         </Button>
       </div>
 
@@ -167,35 +169,35 @@ export function ClientsDataTable() {
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('codigo')}>
                   <div className="flex items-center gap-1">
-                    Código
+                    {t('masterData.fields.code', { defaultValue: 'Código' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('trade_name')}>
                   <div className="flex items-center gap-1">
-                    Nome Fantasia
+                    {t('masterData.fields.name_fantasy', { defaultValue: 'Nome Fantasia' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'trade_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('legal_name')}>
                   <div className="flex items-center gap-1">
-                    Razão Social
+                    {t('masterData.fields.social_reason', { defaultValue: 'Razão Social' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'legal_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">NIF</th>
-                <th className="px-4 py-3 font-medium text-slate-500">País</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-center">Obras</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Contato</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Status</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.nif', { defaultValue: 'NIF' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.country', { defaultValue: 'País' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-center">{t('masterData.fields.sites', { defaultValue: 'Obras' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.contact', { defaultValue: 'Contato' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedClients.length === 0 ? (
-                <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">Nenhum cliente encontrado.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">{t('masterData.clientes.noClients', { defaultValue: 'Nenhum cliente encontrado.' })}</td></tr>
               ) : (
                 sortedClients.map((client) => {
                   const siteCount = allSites.filter(s => s.client_id === client.id).length;
@@ -213,7 +215,7 @@ export function ClientsDataTable() {
                       <td className="px-4 py-3 text-slate-500 font-semibold text-xs">{countryName}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant="outline" className="bg-orange-50/30 text-orange-700 border-orange-200/50">
-                          {siteCount} {siteCount === 1 ? 'obra' : 'obras'}
+                          {siteCount} {siteCount === 1 ? t('masterData.clientes.site', { defaultValue: 'obra' }) : t('masterData.clientes.sites', { defaultValue: 'obras' })}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-slate-500">
@@ -224,8 +226,8 @@ export function ClientsDataTable() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Ativo</Badge>}
-                        {client.status === 'inactive' && <Badge variant="secondary">Inativo</Badge>}
+                        {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                        {client.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>

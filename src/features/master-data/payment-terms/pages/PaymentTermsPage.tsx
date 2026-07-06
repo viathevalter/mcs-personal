@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePaymentTerms, useMutatePaymentTerm } from '../../clients/hooks/usePaymentTerms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,7 @@ import { toast } from 'sonner';
 import type { PaymentTerm } from '../../clients/types';
 
 export function PaymentTermsPage() {
+  const { t } = useTranslation();
   const { data: paymentTerms = [], isLoading, error } = usePaymentTerms();
   const { createPaymentTerm, updatePaymentTerm, deletePaymentTerm, isCreating, isUpdating, isDeleting } = useMutatePaymentTerm();
 
@@ -68,7 +70,7 @@ export function PaymentTermsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      toast.error('Nome do prazo é obrigatório');
+      toast.error(t('masterData.paymentTerms.nameRequired', { defaultValue: 'Nome do prazo é obrigatório' }));
       return;
     }
 
@@ -78,15 +80,15 @@ export function PaymentTermsPage() {
           id: selectedTerm.id,
           payload: formData,
         });
-        toast.success('Prazo de pagamento atualizado com sucesso!');
+        toast.success(t('masterData.paymentTerms.updateSuccess', { defaultValue: 'Prazo de pagamento atualizado com sucesso!' }));
       } else {
         await createPaymentTerm(formData);
-        toast.success('Prazo de pagamento criado com sucesso!');
+        toast.success(t('masterData.paymentTerms.createSuccess', { defaultValue: 'Prazo de pagamento criado com sucesso!' }));
       }
       setIsFormOpen(false);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao salvar prazo de pagamento');
+      toast.error(err.message || t('masterData.paymentTerms.saveError', { defaultValue: 'Erro ao salvar prazo de pagamento' }));
     }
   };
 
@@ -94,11 +96,11 @@ export function PaymentTermsPage() {
     if (!selectedTerm) return;
     try {
       await deletePaymentTerm(selectedTerm.id);
-      toast.success('Prazo de pagamento excluído com sucesso!');
+      toast.success(t('masterData.paymentTerms.deleteSuccess', { defaultValue: 'Prazo de pagamento excluído com sucesso!' }));
       setIsDeleteOpen(false);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao excluir prazo de pagamento');
+      toast.error(err.message || t('masterData.paymentTerms.deleteError', { defaultValue: 'Erro ao excluir prazo de pagamento' }));
     }
   };
 
@@ -135,10 +137,10 @@ export function PaymentTermsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Calendar className="h-8 w-8 text-orange-500" />
-            Prazos de Pagamento
+            {t('masterData.paymentTerms.title', { defaultValue: 'Prazos de Pagamento' })}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie os prazos de faturamento e condições de pagamento acordados com os clientes.
+            {t('masterData.paymentTerms.subtitle', { defaultValue: 'Gerencie os prazos de faturamento e condições de pagamento acordados com os clientes.' })}
           </p>
         </div>
         <Button
@@ -146,7 +148,7 @@ export function PaymentTermsPage() {
           className="bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg shadow-orange-500/10"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Novo Prazo
+          {t('masterData.paymentTerms.btnNew', { defaultValue: 'Novo Prazo' })}
         </Button>
       </div>
 
@@ -155,7 +157,7 @@ export function PaymentTermsPage() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome do prazo..."
+            placeholder={t('masterData.paymentTerms.searchPlaceholder', { defaultValue: 'Buscar por nome do prazo...' })}
             className="pl-10 focus-visible:ring-orange-500 focus-visible:border-orange-500 bg-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -168,7 +170,7 @@ export function PaymentTermsPage() {
         <div className="p-8 border border-red-950 bg-red-950/20 text-red-400 rounded-xl flex items-center gap-3">
           <AlertCircle className="h-6 w-6 shrink-0" />
           <div>
-            <h3 className="font-semibold text-lg">Erro ao carregar dados</h3>
+            <h3 className="font-semibold text-lg">{t('masterData.jobFunctions.load_error', { defaultValue: 'Erro ao carregar dados' })}</h3>
             <p className="text-sm">{(error as any).message || 'Por favor, verifique sua conexão.'}</p>
           </div>
         </div>
@@ -183,15 +185,15 @@ export function PaymentTermsPage() {
           <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4 border">
             <Calendar className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="text-xl font-semibold text-foreground mb-2">Nenhum Prazo Encontrado</h3>
+          <h3 className="text-xl font-semibold text-foreground mb-2">{t('masterData.paymentTerms.emptyTitle', { defaultValue: 'Nenhum Prazo Encontrado' })}</h3>
           <p className="text-muted-foreground max-w-md mb-6">
             {searchTerm
-              ? 'Nenhum prazo corresponde aos filtros de busca informados.'
-              : 'Cadastre seu primeiro prazo de pagamento clicando no botão acima.'}
+              ? t('masterData.paymentTerms.emptyDescFilter', { defaultValue: 'Nenhum prazo corresponde aos filtros de busca informados.' })
+              : t('masterData.paymentTerms.emptyDesc', { defaultValue: 'Cadastre seu primeiro prazo de pagamento clicando no botão acima.' })}
           </p>
           {searchTerm && (
             <Button variant="outline" onClick={() => setSearchTerm('')}>
-              Limpar Filtros
+              {t('masterData.paymentTerms.clearFilters', { defaultValue: 'Limpar Filtros' })}
             </Button>
           )}
         </div>
@@ -203,17 +205,17 @@ export function PaymentTermsPage() {
                 <TableRow>
                   <TableHead className="py-4 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
                     <div className="flex items-center gap-1">
-                      Nome do Prazo
+                      {t('masterData.paymentTerms.termName', { defaultValue: 'Nome do Prazo' })}
                       <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                     </div>
                   </TableHead>
                   <TableHead className="py-4 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('days')}>
                     <div className="flex items-center gap-1">
-                      Dias para Vencimento
+                      {t('masterData.paymentTerms.daysToDue', { defaultValue: 'Dias para Vencimento' })}
                       <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'days' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                     </div>
                   </TableHead>
-                  <TableHead className="py-4 text-right">Ações</TableHead>
+                  <TableHead className="py-4 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y">
@@ -225,7 +227,7 @@ export function PaymentTermsPage() {
                   >
                     <TableCell className="font-medium text-foreground py-4">{term.name}</TableCell>
                     <TableCell className="text-foreground/90 py-4">
-                      {term.days === 0 ? 'Pronto Pagamento' : `${term.days} dias`}
+                      {term.days === 0 ? t('masterData.paymentTerms.cashPayment', { defaultValue: 'Pronto Pagamento' }) : t('masterData.paymentTerms.days', { count: term.days, defaultValue: '{{count}} dias' })}
                     </TableCell>
                     <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
@@ -234,7 +236,7 @@ export function PaymentTermsPage() {
                           size="icon"
                           onClick={() => handleOpenEdit(term)}
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title="Editar Prazo"
+                          title={t('masterData.paymentTerms.editTermTooltip', { defaultValue: 'Editar Prazo' })}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -243,7 +245,7 @@ export function PaymentTermsPage() {
                           size="icon"
                           onClick={() => handleOpenDelete(term)}
                           className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          title="Excluir Prazo"
+                          title={t('masterData.paymentTerms.deleteTermTooltip', { defaultValue: 'Excluir Prazo' })}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -263,20 +265,20 @@ export function PaymentTermsPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Calendar className="h-5 w-5 text-orange-500" />
-              {selectedTerm ? 'Editar Prazo de Pagamento' : 'Novo Prazo de Pagamento'}
+              {selectedTerm ? t('masterData.paymentTerms.modalEditTitle', { defaultValue: 'Editar Prazo de Pagamento' }) : t('masterData.paymentTerms.modalNewTitle', { defaultValue: 'Novo Prazo de Pagamento' })}
             </DialogTitle>
             <DialogDescription>
-              Preencha as informações para registrar as condições de cobrança.
+              {t('masterData.paymentTerms.modalDesc', { defaultValue: 'Preencha as informações para registrar as condições de cobrança.' })}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome do Prazo *</Label>
+              <Label htmlFor="name">{t('masterData.paymentTerms.labelName', { defaultValue: 'Nome do Prazo *' })}</Label>
               <Input
                 id="name"
                 required
-                placeholder="Ex: 30 dias após faturamento"
+                placeholder={t('masterData.paymentTerms.placeholderName', { defaultValue: 'Ex: 30 dias após faturamento' })}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="focus-visible:ring-orange-500"
@@ -284,7 +286,7 @@ export function PaymentTermsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="days">Dias para Vencimento *</Label>
+              <Label htmlFor="days">{t('masterData.paymentTerms.labelDays', { defaultValue: 'Dias para Vencimento *' })}</Label>
               <Input
                 id="days"
                 type="number"
@@ -295,20 +297,20 @@ export function PaymentTermsPage() {
                 className="focus-visible:ring-orange-500"
               />
               <p className="text-xs text-muted-foreground">
-                Informe 0 para faturamento de pronto pagamento / imediato.
+                {t('masterData.paymentTerms.helpDays', { defaultValue: 'Informe 0 para faturamento de pronto pagamento / imediato.' })}
               </p>
             </div>
 
             <DialogFooter className="pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
-                Cancelar
+                {t('common.cancel', { defaultValue: 'Cancelar' })}
               </Button>
               <Button
                 type="submit"
                 disabled={isCreating || isUpdating}
                 className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6"
               >
-                {isCreating || isUpdating ? 'Salvando...' : 'Salvar'}
+                {isCreating || isUpdating ? t('masterData.paymentTerms.saving', { defaultValue: 'Salvando...' }) : t('common.save', { defaultValue: 'Salvar' })}
               </Button>
             </DialogFooter>
           </form>
@@ -321,24 +323,23 @@ export function PaymentTermsPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-red-500">
               <AlertCircle className="h-5 w-5" />
-              Confirmar Exclusão
+              {t('masterData.paymentTerms.modalDeleteTitle', { defaultValue: 'Confirmar Exclusão' })}
             </DialogTitle>
             <DialogDescription>
-              Esta ação é permanente. Tem certeza de que deseja excluir o prazo de pagamento{' '}
-              <strong className="text-foreground">"{selectedTerm?.name}"</strong>?
+              {t('masterData.paymentTerms.modalDeleteDesc', { name: selectedTerm?.name, defaultValue: `Esta ação é permanente. Tem certeza de que deseja excluir o prazo de pagamento "${selectedTerm?.name}"?` })}
             </DialogDescription>
           </DialogHeader>
 
           <DialogFooter className="pt-4 border-t flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
-              Cancelar
+              {t('common.cancel', { defaultValue: 'Cancelar' })}
             </Button>
             <Button
               onClick={handleDelete}
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700 text-white font-semibold"
             >
-              {isDeleting ? 'Excluindo...' : 'Excluir'}
+              {isDeleting ? t('masterData.paymentTerms.deleting', { defaultValue: 'Excluindo...' }) : t('masterData.paymentTerms.delete', { defaultValue: 'Excluir' })}
             </Button>
           </DialogFooter>
         </DialogContent>

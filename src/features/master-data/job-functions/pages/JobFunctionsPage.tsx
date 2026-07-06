@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useJobFunctions } from '../hooks/useJobFunctions';
 import { useMutateJobFunction } from '../hooks/useMutateJobFunction';
 import { JobFunctionsDataTable } from '../components/JobFunctionsDataTable';
@@ -9,6 +10,7 @@ import { Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function JobFunctionsPage() {
+  const { t } = useTranslation();
   const { data: jobFunctions = [], isLoading, error } = useJobFunctions();
   const { archiveJobFunction } = useMutateJobFunction();
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,7 +24,7 @@ export function JobFunctionsPage() {
     return (
       <div className="p-6">
         <div className="bg-red-50 text-red-600 p-4 rounded-md">
-          Erro ao carregar as funções: {(error as Error).message}
+          {t('masterData.jobFunctions.load_error', { defaultValue: 'Erro ao carregar as funções:' })} {(error as Error).message}
         </div>
       </div>
     );
@@ -32,9 +34,11 @@ export function JobFunctionsPage() {
     <div className="space-y-6 w-full px-8 py-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Perfis Profissionais</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t('masterData.jobFunctions.title', { defaultValue: 'Perfis Profissionais' })}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie as funções, riscos, EPIs obrigatórios e tarifas de referência.
+            {t('masterData.jobFunctions.subtitle', { defaultValue: 'Gerencie as funções, riscos, EPIs obrigatórios e tarifas de referência.' })}
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -58,7 +62,7 @@ export function JobFunctionsPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Buscar por código ou nome..."
+            placeholder={t('masterData.jobFunctions.searchPlaceholder', { defaultValue: 'Buscar por código ou nome...' })}
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

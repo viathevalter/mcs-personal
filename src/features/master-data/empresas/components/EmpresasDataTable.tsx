@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEmpresasList } from '../hooks/useEmpresas';
 import { EmpresaSheet } from './EmpresaSheet';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Search, Building, Edit, ArrowUpDown } from 'lucide-react';
 import type { Empresa } from '../types';
 
 export function EmpresasDataTable() {
+  const { t } = useTranslation();
   const { data: empresas = [], isLoading } = useEmpresasList();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -57,7 +59,7 @@ export function EmpresasDataTable() {
         <div className="relative w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou código..."
+            placeholder={t('masterData.empresas.searchPlaceholder', { defaultValue: 'Buscar por nome ou código...' })}
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -65,7 +67,7 @@ export function EmpresasDataTable() {
         </div>
         <Button onClick={handleNew}>
           <Building className="h-4 w-4 mr-2" />
-          Nova Empresa
+          {t('masterData.empresas.btnNew', { defaultValue: 'Nova Empresa' })}
         </Button>
       </div>
 
@@ -76,25 +78,25 @@ export function EmpresasDataTable() {
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('codigo')}>
                   <div className="flex items-center gap-1">
-                    Código
+                    {t('masterData.fields.code', { defaultValue: 'Código' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('nome')}>
                   <div className="flex items-center gap-1">
-                    Nome da Empresa
+                    {t('masterData.empresas.companyName', { defaultValue: 'Nome da Empresa' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'nome' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">Status</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedEmpresas.length === 0 ? (
-                <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Nenhuma empresa encontrada.</td></tr>
+                <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">{t('masterData.empresas.noCompanies', { defaultValue: 'Nenhuma empresa encontrada.' })}</td></tr>
               ) : (
                 sortedEmpresas.map((empresa) => (
                   <tr 
@@ -106,8 +108,8 @@ export function EmpresasDataTable() {
                     <td className="px-4 py-3 text-slate-700 font-semibold">{empresa.nome}</td>
                     <td className="px-4 py-3">
                       {empresa.is_active 
-                          ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Ativa</Badge>
-                          : <Badge variant="secondary">Inativa</Badge>}
+                          ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active', { defaultValue: 'Ativa' })}</Badge>
+                          : <Badge variant="secondary">{t('masterData.status.inactive', { defaultValue: 'Inativa' })}</Badge>}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(empresa)}>

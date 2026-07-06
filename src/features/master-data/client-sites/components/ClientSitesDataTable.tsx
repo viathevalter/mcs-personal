@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useClientSites } from '../hooks/useClientSites';
 import { ClientSiteSheet } from './ClientSiteSheet';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Search, MapPin, Edit, ArrowUpDown } from 'lucide-react';
 import type { ClientSite } from '../types';
 
 export function ClientSitesDataTable() {
+  const { t } = useTranslation();
   const { data: sites = [], isLoading } = useClientSites();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -71,7 +73,7 @@ export function ClientSitesDataTable() {
         <div className="relative w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, cliente ou cidade..."
+            placeholder={t('masterData.sites.searchPlaceholder', { defaultValue: 'Buscar por nome, cliente ou cidade...' })}
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -79,7 +81,7 @@ export function ClientSitesDataTable() {
         </div>
         <Button onClick={handleNew}>
           <MapPin className="h-4 w-4 mr-2" />
-          Nova Obra
+          {t('masterData.sites.btnNew', { defaultValue: 'Nova Obra' })}
         </Button>
       </div>
 
@@ -90,32 +92,32 @@ export function ClientSitesDataTable() {
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
-                    Nome da Obra
+                    {t('masterData.sites.siteName', { defaultValue: 'Nome da Obra' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('client')}>
                   <div className="flex items-center gap-1">
-                    Cliente
+                    {t('masterData.fields.client', { defaultValue: 'Cliente' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'client' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('city')}>
                   <div className="flex items-center gap-1">
-                    Localização
+                    {t('masterData.fields.location', { defaultValue: 'Localização' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'city' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">Contato (Obra)</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Status</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.sites.contactSite', { defaultValue: 'Contato (Obra)' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedSites.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhuma obra encontrada.</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{t('masterData.sites.noSites', { defaultValue: 'Nenhuma obra encontrada.' })}</td></tr>
               ) : (
                 sortedSites.map((site) => (
                   <tr 
@@ -125,7 +127,7 @@ export function ClientSitesDataTable() {
                   >
                     <td className="px-4 py-3 font-medium">{site.name}</td>
                     <td className="px-4 py-3">
-                      {site.client?.trade_name || <span className="text-muted-foreground italic">Sem cliente</span>}
+                      {site.client?.trade_name || <span className="text-muted-foreground italic">{t('masterData.sites.noClient', { defaultValue: 'Sem cliente' })}</span>}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       {site.city}{site.city && site.country ? ', ' : ''}{site.country}
@@ -139,8 +141,8 @@ export function ClientSitesDataTable() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {site.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Em Andamento</Badge>}
-                      {site.status === 'inactive' && <Badge variant="secondary">Paralisada</Badge>}
+                      {site.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.sites.status_active', { defaultValue: 'Em Andamento' })}</Badge>}
+                      {site.status === 'inactive' && <Badge variant="secondary">{t('masterData.sites.status_inactive', { defaultValue: 'Paralisada' })}</Badge>}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(site)}>

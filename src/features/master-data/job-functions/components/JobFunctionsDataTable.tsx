@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { JobFunction } from '../types';
 import {
   Table,
@@ -20,6 +21,7 @@ interface JobFunctionsDataTableProps {
 }
 
 export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTableProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // Sorting State
@@ -47,11 +49,11 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Ativa</Badge>;
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">{t('masterData.status.active', { defaultValue: 'Ativa' })}</Badge>;
       case 'inactive':
-        return <Badge variant="secondary">Inativa</Badge>;
+        return <Badge variant="secondary">{t('masterData.status.inactive', { defaultValue: 'Inativa' })}</Badge>;
       case 'archived':
-        return <Badge variant="destructive">Arquivada</Badge>;
+        return <Badge variant="destructive">{t('masterData.status.archived', { defaultValue: 'Arquivada' })}</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -59,10 +61,10 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
 
   const getRiskBadge = (risk?: string | null) => {
     switch (risk) {
-      case 'low': return <Badge variant="outline" className="text-green-600 border-green-200">Baixo</Badge>;
-      case 'medium': return <Badge variant="outline" className="text-yellow-600 border-yellow-200">Médio</Badge>;
-      case 'high': return <Badge variant="outline" className="text-orange-600 border-orange-200">Alto</Badge>;
-      case 'critical': return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">Crítico</Badge>;
+      case 'low': return <Badge variant="outline" className="text-green-600 border-green-200">{t('masterData.jobFunctions.risk_low', { defaultValue: 'Baixo' })}</Badge>;
+      case 'medium': return <Badge variant="outline" className="text-yellow-600 border-yellow-200">{t('masterData.jobFunctions.risk_medium', { defaultValue: 'Médio' })}</Badge>;
+      case 'high': return <Badge variant="outline" className="text-orange-600 border-orange-200">{t('masterData.jobFunctions.risk_high', { defaultValue: 'Alto' })}</Badge>;
+      case 'critical': return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">{t('masterData.jobFunctions.risk_critical', { defaultValue: 'Crítico' })}</Badge>;
       default: return <span className="text-muted-foreground text-sm">-</span>;
     }
   };
@@ -76,27 +78,27 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
               <TableRow>
                 <TableHead className="sticky left-0 top-0 bg-slate-50 dark:bg-slate-900 z-30 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none border-r border-slate-200 dark:border-slate-800" onClick={() => handleSort('code')}>
                   <div className="flex items-center gap-1">
-                    Código
+                    {t('masterData.fields.code', { defaultValue: 'Código' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'code' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </TableHead>
                 <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
-                    Nome
+                    {t('masterData.fields.name', { defaultValue: 'Nome' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </TableHead>
-                <TableHead>Risco</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Atualizado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t('masterData.fields.risk', { defaultValue: 'Risco' })}</TableHead>
+                <TableHead>{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
+                <TableHead>{t('masterData.fields.updated_at', { defaultValue: 'Atualizado em' })}</TableHead>
+                <TableHead className="text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y">
               {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Nenhuma função encontrada.
+                    {t('masterData.jobFunctions.no_functions', { defaultValue: 'Nenhuma função encontrada.' })}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -123,7 +125,7 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
                         variant="ghost" 
                         size="icon" 
                         onClick={() => navigate(`/master-data/job-functions/${job.id}`)}
-                        title="Editar"
+                        title={t('common.edit', { defaultValue: 'Editar' })}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -133,11 +135,11 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
                           size="icon" 
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
                           onClick={() => {
-                            if (confirm('Deseja arquivar esta função? Ela deixará de aparecer em novos pedidos.')) {
+                            if (confirm(t('masterData.jobFunctions.confirm_archive', { defaultValue: 'Deseja arquivar esta função? Ela deixará de aparecer em novos pedidos.' }))) {
                               if(job.id) onArchive(job.id);
                             }
                           }}
-                          title="Arquivar"
+                          title={t('common.archive', { defaultValue: 'Arquivar' })}
                         >
                           <Archive className="h-4 w-4" />
                         </Button>

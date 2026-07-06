@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { SupplierSheet } from './SupplierSheet';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Search, Truck, Edit, ArrowUpDown } from 'lucide-react';
 import type { Supplier } from '../types';
 
 export function SuppliersDataTable() {
+  const { t } = useTranslation();
   const { data: suppliers = [], isLoading } = useSuppliers();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -58,7 +60,7 @@ export function SuppliersDataTable() {
         <div className="relative w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou NIF..."
+            placeholder={t('masterData.clientes.searchPlaceholder', { defaultValue: 'Buscar por nome ou NIF...' })}
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -66,7 +68,7 @@ export function SuppliersDataTable() {
         </div>
         <Button onClick={handleNew}>
           <Truck className="h-4 w-4 mr-2" />
-          Novo Fornecedor
+          {t('masterData.suppliers.btnNew', { defaultValue: 'Novo Fornecedor' })}
         </Button>
       </div>
 
@@ -77,27 +79,27 @@ export function SuppliersDataTable() {
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('trade_name')}>
                   <div className="flex items-center gap-1">
-                    Nome Fantasia
+                    {t('masterData.fields.name_fantasy', { defaultValue: 'Nome Fantasia' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'trade_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('legal_name')}>
                   <div className="flex items-center gap-1">
-                    Razão Social
+                    {t('masterData.fields.social_reason', { defaultValue: 'Razão Social' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'legal_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">NIF</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Categoria</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Status</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.nif', { defaultValue: 'NIF' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.suppliers.category', { defaultValue: 'Categoria' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedSuppliers.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhum fornecedor encontrado.</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{t('masterData.suppliers.noSuppliers', { defaultValue: 'Nenhum fornecedor encontrado.' })}</td></tr>
               ) : (
                 sortedSuppliers.map((supplier) => (
                   <tr 
@@ -112,8 +114,8 @@ export function SuppliersDataTable() {
                       {supplier.supplier_type || '--'}
                     </td>
                     <td className="px-4 py-3">
-                      {supplier.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Ativo</Badge>}
-                      {supplier.status === 'inactive' && <Badge variant="secondary">Inativo</Badge>}
+                      {supplier.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                      {supplier.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(supplier)}>

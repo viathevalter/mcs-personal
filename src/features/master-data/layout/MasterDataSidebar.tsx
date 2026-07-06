@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
     LayoutDashboard, 
     Building2, 
@@ -26,18 +27,19 @@ type SidebarLink = {
 export function MasterDataSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const links: SidebarLink[] = [
-        { to: '/master-data/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/empresas', label: 'Empresas do Grupo', icon: Building2, roles: ['admin'] },
-        { to: '/master-data/clients', label: 'Clientes', icon: Building2, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/payment-terms', label: 'Prazos de Pagamento', icon: Calendar, roles: ['admin', 'commercial'] },
-        { to: '/master-data/client-sites', label: 'Obras / Locais', icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/suppliers', label: 'Fornecedores', icon: Truck, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/job-functions', label: 'Perfis Profissionais', icon: Briefcase, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/epis', label: 'Catálogo de EPIs', icon: HardHat, roles: ['admin', 'rh'] },
-        { to: '/master-data/countries', label: 'Países', icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/master-data/regions', label: 'Regiões', icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/dashboard', label: t('masterData.sidebar.dashboard', { defaultValue: 'Dashboard' }), icon: LayoutDashboard, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/empresas', label: t('masterData.sidebar.empresas', { defaultValue: 'Empresas do Grupo' }), icon: Building2, roles: ['admin'] },
+        { to: '/master-data/clients', label: t('masterData.sidebar.clientes', { defaultValue: 'Clientes' }), icon: Building2, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/payment-terms', label: t('masterData.sidebar.prazos', { defaultValue: 'Prazos de Pagamento' }), icon: Calendar, roles: ['admin', 'commercial'] },
+        { to: '/master-data/client-sites', label: t('masterData.sidebar.obras', { defaultValue: 'Obras / Locais' }), icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/suppliers', label: t('masterData.sidebar.fornecedores', { defaultValue: 'Fornecedores' }), icon: Truck, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/job-functions', label: t('masterData.sidebar.perfis', { defaultValue: 'Perfis Profissionais' }), icon: Briefcase, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/epis', label: t('masterData.sidebar.epis', { defaultValue: 'Catálogo de EPIs' }), icon: HardHat, roles: ['admin', 'rh'] },
+        { to: '/master-data/countries', label: t('masterData.sidebar.paises', { defaultValue: 'Países' }), icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/master-data/regions', label: t('masterData.sidebar.regioes', { defaultValue: 'Regiões' }), icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
     ];
 
     return (
@@ -61,10 +63,10 @@ export function MasterDataSidebar() {
                         "flex items-center justify-center py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700",
                         isExpanded ? "w-full gap-2 px-4" : "w-12 mx-auto"
                     )}
-                    title={!isExpanded ? "Voltar para o Hub" : undefined}
+                    title={!isExpanded ? t('masterData.sidebar.backHub', { defaultValue: 'Voltar para o Hub' }) : undefined}
                 >
                     <ArrowLeft size={16} className="shrink-0" />
-                    {isExpanded && <span>Voltar para o Hub</span>}
+                    {isExpanded && <span>{t('masterData.sidebar.backHub', { defaultValue: 'Voltar para o Hub' })}</span>}
                 </button>
             </div>
             
@@ -72,7 +74,7 @@ export function MasterDataSidebar() {
                 <div>
                     {isExpanded && (
                         <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                            Registro General
+                            {t('masterData.sidebar.registroGeneral', { defaultValue: 'Registro Geral' })}
                         </div>
                     )}
                     <nav className="grid items-start px-2 text-sm font-medium gap-1">
@@ -106,7 +108,7 @@ export function MasterDataSidebar() {
                             "flex items-center text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-slate-800",
                             isExpanded ? "justify-end w-full" : "justify-center w-full mx-auto"
                         )}
-                        title={isExpanded ? 'Recolher Menu' : 'Expandir Menu'}
+                        title={isExpanded ? t('navigation.collapse', { defaultValue: 'Recolher Menu' }) : t('navigation.expand', { defaultValue: 'Expandir Menu' })}
                     >
                         {isExpanded ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                     </button>

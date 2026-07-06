@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEpis } from '../hooks/useEpis';
 import { EpiSheet } from '../components/EpiSheet';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Search, Edit, HardHat, ArrowUpDown } from 'lucide-react';
 import type { Epi } from '../types';
 
 export function EpisPage() {
+  const { t } = useTranslation();
   const { data: epis = [], isLoading } = useEpis();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -55,9 +57,11 @@ export function EpisPage() {
     <div className="space-y-6 w-full px-8 py-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Catálogo de EPIs</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t('masterData.epis.title', { defaultValue: 'Catálogo de EPIs' })}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie o catálogo de Equipamentos de Proteção Individual disponíveis para atribuição.
+            {t('masterData.epis.subtitle', { defaultValue: 'Gerencie o catálogo de Equipamentos de Proteção Individual disponíveis para atribuição.' })}
           </p>
         </div>
       </div>
@@ -66,7 +70,7 @@ export function EpisPage() {
         <div className="relative w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou código..."
+            placeholder={t('masterData.empresas.searchPlaceholder', { defaultValue: 'Buscar por nome ou código...' })}
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -74,7 +78,7 @@ export function EpisPage() {
         </div>
         <Button onClick={handleNew} className="gap-2">
           <HardHat className="h-4 w-4" />
-          Novo EPI
+          {t('masterData.epis.btnNew', { defaultValue: 'Novo EPI' })}
         </Button>
       </div>
 
@@ -85,27 +89,27 @@ export function EpisPage() {
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('code')}>
                   <div className="flex items-center gap-1">
-                    Código
+                    {t('masterData.fields.code', { defaultValue: 'Código' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'code' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
-                    Nome / Descrição
+                    {t('masterData.epis.nameDesc', { defaultValue: 'Nome / Descrição' })}
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Categoria</th>
-                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">Custo (€)</th>
-                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Status</th>
-                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">Ações</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.suppliers.category', { defaultValue: 'Categoria' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">{t('masterData.epis.cost', { defaultValue: 'Custo (€)' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
-                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Carregando catálogo...</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{t('masterData.epis.loading', { defaultValue: 'Carregando catálogo...' })}</td></tr>
               ) : sortedEpis.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhum EPI encontrado.</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{t('masterData.epis.noEpis', { defaultValue: 'Nenhum EPI encontrado.' })}</td></tr>
               ) : (
                 sortedEpis.map((epi) => (
                   <tr 
@@ -123,8 +127,8 @@ export function EpisPage() {
                       {epi.default_cost ? epi.default_cost.toFixed(2) : '-'}
                     </td>
                     <td className="px-4 py-3">
-                      {epi.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Ativo</Badge>}
-                      {epi.status === 'inactive' && <Badge variant="secondary">Inativo</Badge>}
+                      {epi.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active', { defaultValue: 'Ativa' })}</Badge>}
+                      {epi.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive', { defaultValue: 'Inativa' })}</Badge>}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(epi)}>
