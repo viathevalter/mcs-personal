@@ -68,29 +68,29 @@ export function RegionsPage() {
         </div>
       </div>
 
-      <div className="border rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col">
+      <div className="border rounded-xl bg-white dark:bg-slate-900/50 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
           <Table className="relative">
-            <TableHeader className="bg-slate-50 dark:bg-slate-800 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
-              <TableRow>
-                <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
+            <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)]">
+              <TableRow className="hover:bg-transparent dark:hover:bg-transparent border-b dark:border-slate-800">
+                <TableHead className="cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.name', { defaultValue: 'Nome' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </TableHead>
-                <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('code')}>
+                <TableHead className="cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('code')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.locations.codeOptional', { defaultValue: 'Código (Opcional)' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'code' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'code' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </TableHead>
-                <TableHead>{t('masterData.locations.baseLodging', { defaultValue: 'Alojamento Base' })}</TableHead>
-                <TableHead>{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
-                <TableHead className="text-right w-36">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
+                <TableHead className="text-slate-500 dark:text-slate-400">{t('masterData.locations.baseLodging', { defaultValue: 'Alojamento Base' })}</TableHead>
+                <TableHead className="text-slate-500 dark:text-slate-400">{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
+                <TableHead className="text-right w-36 text-slate-500 dark:text-slate-400">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y">
+            <TableBody className="divide-y dark:divide-slate-800/50">
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
@@ -126,27 +126,28 @@ export function RegionsPage() {
                   return (
                     <TableRow 
                       key={region.id} 
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800"
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800/70 border-b dark:border-slate-800/50"
                       onClick={() => {
                         setConfiguringRegion({ id: region.id, name: region.name });
                         setDialogOpen(true);
                       }}
                     >
-                      <TableCell className="font-semibold text-slate-900 dark:text-white">{region.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{region.code || '-'}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200 font-medium">
+                      <TableCell className="font-semibold text-slate-900 dark:text-slate-200">{region.name}</TableCell>
+                      <TableCell className="font-mono text-xs dark:text-slate-300">{region.code || '-'}</TableCell>
+                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300 font-medium">
                         {baseRate ? `€${Number(baseRate.rate_per_day).toFixed(2)}${t('masterData.locations.perDay', { defaultValue: '/dia' })}` : (
-                          <span className="text-slate-400 italic font-normal">{t('masterData.locations.notConfigured', { defaultValue: 'Não configurado' })}</span>
+                          <span className="text-slate-400 dark:text-slate-500 italic font-normal">{t('masterData.locations.notConfigured', { defaultValue: 'Não configurado' })}</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {region.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
-                        {region.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
+                        {region.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                        {region.status === 'inactive' && <Badge variant="secondary" className="dark:bg-slate-800 dark:text-slate-300">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-300"
                           onClick={() => {
                             setConfiguringRegion({ id: region.id, name: region.name });
                             setDialogOpen(true);

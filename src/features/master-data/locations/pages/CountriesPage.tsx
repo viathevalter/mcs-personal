@@ -103,34 +103,34 @@ export function CountriesPage() {
         </p>
       </div>
 
-      <div className="border rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col">
+      <div className="border rounded-xl bg-white dark:bg-slate-900/50 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
           <Table className="relative">
-            <TableHeader className="bg-slate-50 dark:bg-slate-800 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
-              <TableRow>
-                <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
+            <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)]">
+              <TableRow className="hover:bg-transparent dark:hover:bg-transparent border-b dark:border-slate-800">
+                <TableHead className="cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.name', { defaultValue: 'Nome' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </TableHead>
-                <TableHead className="w-24 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('iso2')}>
+                <TableHead className="w-24 cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('iso2')}>
                   <div className="flex items-center gap-1">
                     ISO2
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'iso2' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'iso2' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </TableHead>
                 <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 w-24">{t('masterData.fields.country', { defaultValue: 'Moeda' }) === 'País' ? 'Moeda' : 'Moneda'}</th>
-                <TableHead className="w-40">{t('masterData.locations.standardLodging', { defaultValue: 'Alojamento Padrão' })}</TableHead>
-                <TableHead>{t('masterData.locations.taxParameters', { defaultValue: 'Seguridade Social (Parâmetros)' })}</TableHead>
-                <TableHead className="w-24 text-center">{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
-                <TableHead className="w-28 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
+                <TableHead className="w-40 text-slate-500 dark:text-slate-400">{t('masterData.locations.standardLodging', { defaultValue: 'Alojamento Padrão' })}</TableHead>
+                <TableHead className="text-slate-500 dark:text-slate-400">{t('masterData.locations.taxParameters', { defaultValue: 'Seguridade Social (Parâmetros)' })}</TableHead>
+                <TableHead className="w-24 text-center text-slate-500 dark:text-slate-400">{t('masterData.fields.status', { defaultValue: 'Status' })}</TableHead>
+                <TableHead className="w-28 text-right text-slate-500 dark:text-slate-400">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y">
+            <TableBody className="divide-y dark:divide-slate-800/50">
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       <span>{t('masterData.locations.loadingCountries', { defaultValue: 'Carregando dados dos países...' })}</span>
@@ -158,15 +158,15 @@ export function CountriesPage() {
                   return (
                     <TableRow 
                       key={country.id} 
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800"
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800/70 border-b dark:border-slate-800/50"
                       onClick={() => !isEditing && handleEditClick(country)}
                     >
-                      <TableCell className="font-semibold text-slate-900 dark:text-white">{country.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{country.iso2}</TableCell>
-                      <TableCell className="font-mono text-xs">{country.currency_code || '-'}</TableCell>
+                      <TableCell className="font-semibold text-slate-900 dark:text-slate-200">{country.name}</TableCell>
+                      <TableCell className="font-mono text-xs dark:text-slate-300">{country.iso2}</TableCell>
+                      <TableCell className="font-mono text-xs dark:text-slate-300">{country.currency_code || '-'}</TableCell>
                       
                       {/* Coluna Alojamento */}
-                      <TableCell onClick={(e) => isEditing && e.stopPropagation()}>
+                      <TableCell onClick={(e) => isEditing && e.stopPropagation()} className="dark:text-slate-300">
                         {isEditing ? (
                           <div className="flex items-center gap-1.5">
                             <Input
@@ -175,21 +175,21 @@ export function CountriesPage() {
                               min="0"
                               value={editLodgingRate}
                               onChange={(e) => setEditLodgingRate(Number(e.target.value))}
-                              className="w-24 font-mono h-8 text-xs bg-white dark:bg-slate-950"
+                              className="w-24 font-mono h-8 text-xs bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
                             />
-                            <span className="text-xs text-slate-500">{t('masterData.locations.perDay', { defaultValue: '/dia' })}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">{t('masterData.locations.perDay', { defaultValue: '/dia' })}</span>
                           </div>
                         ) : (
-                          <span className="font-mono text-xs">
+                          <span className="font-mono text-xs dark:text-slate-300">
                             {formatCurrency(lodging?.rate_per_day || 0)}{t('masterData.locations.perDay', { defaultValue: '/dia' })}
                           </span>
                         )}
                       </TableCell>
                       
                       {/* Coluna Seguridade Social */}
-                      <TableCell onClick={(e) => isEditing && e.stopPropagation()}>
+                      <TableCell onClick={(e) => isEditing && e.stopPropagation()} className="dark:text-slate-300">
                         {isEditing ? (
-                          <div className="flex flex-wrap gap-4 items-end bg-slate-50 dark:bg-slate-950 p-2 rounded-md border border-slate-200 dark:border-slate-800">
+                          <div className="flex flex-wrap gap-4 items-end bg-slate-50 dark:bg-slate-950/80 p-2 rounded-md border border-slate-200 dark:border-slate-800">
                             <div className="flex flex-col gap-1 text-[10px]">
                               <span className="font-bold text-slate-500 dark:text-slate-400">{t('masterData.locations.employer', { defaultValue: 'Patronal (%)' })}</span>
                               <Input
@@ -197,7 +197,7 @@ export function CountriesPage() {
                                 step="0.01"
                                 value={editSsEmployer}
                                 onChange={(e) => setEditSsEmployer(Number(e.target.value))}
-                                className="w-16 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950"
+                                className="w-16 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
                               />
                             </div>
                             
@@ -208,7 +208,7 @@ export function CountriesPage() {
                                 step="0.01"
                                 value={editSsEmployee}
                                 onChange={(e) => setEditSsEmployee(Number(e.target.value))}
-                                className="w-16 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950"
+                                className="w-16 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
                               />
                             </div>
 
@@ -219,7 +219,7 @@ export function CountriesPage() {
                                 step="0.01"
                                 value={editDestacadoBase}
                                 onChange={(e) => setEditDestacadoBase(Number(e.target.value))}
-                                className="w-20 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950"
+                                className="w-20 font-mono h-7 text-xs p-1 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
                               />
                             </div>
 

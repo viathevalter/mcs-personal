@@ -153,12 +153,12 @@ export function PaymentTermsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center bg-card border p-4 rounded-xl shadow-sm">
+      <div className="flex items-center bg-card dark:bg-slate-900/50 border dark:border-slate-800 p-4 rounded-xl shadow-sm">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('masterData.paymentTerms.searchPlaceholder', { defaultValue: 'Buscar por nome do prazo...' })}
-            className="pl-10 focus-visible:ring-orange-500 focus-visible:border-orange-500 bg-white"
+            className="pl-10 focus-visible:ring-orange-500 focus-visible:border-orange-500 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -177,12 +177,12 @@ export function PaymentTermsPage() {
       ) : isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-muted/20 animate-pulse rounded-xl border" />
+            <div key={i} className="h-16 bg-muted/20 animate-pulse rounded-xl border dark:border-slate-800" />
           ))}
         </div>
       ) : sortedTerms.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/10 text-center">
-          <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4 border">
+        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed dark:border-slate-800 rounded-xl bg-muted/10 text-center">
+          <div className="h-16 w-16 bg-muted dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border dark:border-slate-800">
             <Calendar className="h-8 w-8 text-muted-foreground" />
           </div>
           <h3 className="text-xl font-semibold text-foreground mb-2">{t('masterData.paymentTerms.emptyTitle', { defaultValue: 'Nenhum Prazo Encontrado' })}</h3>
@@ -198,35 +198,35 @@ export function PaymentTermsPage() {
           )}
         </div>
       ) : (
-        <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-card dark:bg-slate-900/50 border dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
           <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
             <Table className="relative">
-              <TableHeader className="bg-slate-50 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
-                <TableRow>
-                  <TableHead className="py-4 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('name')}>
+              <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)]">
+                <TableRow className="hover:bg-transparent dark:hover:bg-transparent border-b dark:border-slate-800">
+                  <TableHead className="py-4 cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('name')}>
                     <div className="flex items-center gap-1">
                       {t('masterData.paymentTerms.termName', { defaultValue: 'Nome do Prazo' })}
-                      <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                      <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'name' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                     </div>
                   </TableHead>
-                  <TableHead className="py-4 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('days')}>
+                  <TableHead className="py-4 cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('days')}>
                     <div className="flex items-center gap-1">
                       {t('masterData.paymentTerms.daysToDue', { defaultValue: 'Dias para Vencimento' })}
-                      <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'days' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                      <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'days' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                     </div>
                   </TableHead>
-                  <TableHead className="py-4 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
+                  <TableHead className="py-4 text-right text-slate-500 dark:text-slate-400">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y">
+              <TableBody className="divide-y dark:divide-slate-800/50">
                 {sortedTerms.map((term) => (
                   <TableRow 
                     key={term.id} 
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100" 
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800/70 border-b dark:border-slate-800/50" 
                     onClick={() => handleOpenEdit(term)}
                   >
-                    <TableCell className="font-medium text-foreground py-4">{term.name}</TableCell>
-                    <TableCell className="text-foreground/90 py-4">
+                    <TableCell className="font-medium text-foreground dark:text-slate-200 py-4">{term.name}</TableCell>
+                    <TableCell className="text-foreground/90 dark:text-slate-300 py-4">
                       {term.days === 0 ? t('masterData.paymentTerms.cashPayment', { defaultValue: 'Pronto Pagamento' }) : t('masterData.paymentTerms.days', { count: term.days, defaultValue: '{{count}} dias' })}
                     </TableCell>
                     <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -235,7 +235,7 @@ export function PaymentTermsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenEdit(term)}
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground dark:hover:text-slate-200"
                           title={t('masterData.paymentTerms.editTermTooltip', { defaultValue: 'Editar Prazo' })}
                         >
                           <Edit className="h-4 w-4" />

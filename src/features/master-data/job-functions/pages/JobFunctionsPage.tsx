@@ -57,13 +57,13 @@ export function JobFunctionsPage() {
         <JobFunctionsKPIs data={jobFunctions} />
       )}
 
-      <div className="flex items-center space-x-2 bg-white p-4 rounded-md border">
+      <div className="flex items-center space-x-2 bg-white dark:bg-slate-900/50 p-4 rounded-md border dark:border-slate-800">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder={t('masterData.jobFunctions.searchPlaceholder', { defaultValue: 'Buscar por código ou nome...' })}
-            className="pl-8"
+            className="pl-8 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />

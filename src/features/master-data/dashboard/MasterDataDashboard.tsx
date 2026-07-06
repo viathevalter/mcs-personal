@@ -96,8 +96,8 @@ export function MasterDataDashboard() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
-        <Card className="col-span-4 border-emerald-100 dark:border-slate-800">
-          <CardHeader className="bg-emerald-50/50 dark:bg-slate-900 border-b border-emerald-100 dark:border-slate-800 rounded-t-lg">
+        <Card className="col-span-4 border-emerald-100 dark:border-slate-800 dark:bg-slate-900/40">
+          <CardHeader className="bg-emerald-50/50 dark:bg-slate-900/80 border-b border-emerald-100 dark:border-slate-800 rounded-t-lg">
             <CardTitle className="text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5" />
               {t('masterData.dashboard.db_health', { defaultValue: 'Saúde da Base de Dados' })}
@@ -109,16 +109,16 @@ export function MasterDataDashboard() {
             </p>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-md">
+              <div className="flex items-center justify-between p-3 border dark:border-slate-800 rounded-md">
                 <div className="flex flex-col">
-                  <span className="font-medium text-sm">
+                  <span className="font-medium text-sm text-foreground dark:text-slate-200">
                     {t('masterData.sidebar.epis', { defaultValue: 'Catálogo de EPIs' })}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {t('masterData.dashboard.epis_available', { defaultValue: '{{count}} itens disponíveis para atribuição', count: epis.length })}
                   </span>
                 </div>
-                <Badge variant="outline" className="cursor-pointer hover:bg-slate-50" onClick={() => navigate('/master-data/epis')}>
+                <Badge variant="outline" className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-300" onClick={() => navigate('/master-data/epis')}>
                   {t('masterData.dashboard.manage', { defaultValue: 'Gerenciar' })}
                 </Badge>
               </div>
@@ -126,9 +126,9 @@ export function MasterDataDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3 border-amber-200">
-          <CardHeader className="bg-amber-50 border-b border-amber-200 rounded-t-lg">
-            <CardTitle className="text-amber-800 flex items-center gap-2">
+        <Card className="col-span-3 border-amber-200 dark:border-slate-800 dark:bg-slate-900/40">
+          <CardHeader className="bg-amber-50 dark:bg-slate-900/80 border-b border-amber-200 dark:border-slate-800 rounded-t-lg">
+            <CardTitle className="text-amber-800 dark:text-amber-450 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
               {t('masterData.dashboard.alerts', { defaultValue: 'Alertas Operacionais' })}
             </CardTitle>
@@ -137,24 +137,23 @@ export function MasterDataDashboard() {
             {!loadingClients && !loadingSites && (
               <div className="space-y-3">
                 {clientsWithoutSites.length > 0 ? (
-                  <div className="text-sm bg-white border border-amber-200 p-3 rounded-md flex flex-col gap-2">
-                    <div className="font-medium text-amber-800 flex items-center gap-2">
+                  <div className="text-sm bg-white dark:bg-slate-950 border border-amber-200 dark:border-slate-800/80 p-3 rounded-md flex flex-col gap-2">
+                    <div className="font-medium text-amber-800 dark:text-amber-450 flex items-center gap-2">
                       <span className="flex h-2 w-2 rounded-full bg-amber-500"></span>
                       {t('masterData.dashboard.clients_no_sites', { defaultValue: 'Clientes sem obras vinculadas ({{count}})', count: clientsWithoutSites.length })}
                     </div>
-                    <div className="text-slate-600 text-xs">
+                    <div className="text-slate-600 dark:text-slate-400 text-xs">
                       {t('masterData.dashboard.clients_no_sites_desc', { defaultValue: 'Clientes ativos não poderão alocar trabalhadores sem pelo menos uma obra/local cadastrado.' })}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 p-3 rounded-md flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    {t('masterData.dashboard.all_clients_have_sites', { defaultValue: 'Todos os clientes possuem obras.' })}
+                  <div className="text-sm bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-450 border border-emerald-100 dark:border-emerald-900/30 p-3 rounded-md flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                    <span>{t('masterData.dashboard.all_good', { defaultValue: 'Todas as bases estão parametrizadas corretamente!' })}</span>
                   </div>
                 )}
                 
                 {functions.length > 0 && (
-                  <div className="text-sm bg-white border border-slate-200 p-3 rounded-md flex flex-col gap-2">
                     <div className="font-medium text-slate-700 flex items-center gap-2">
                       <span className="flex h-2 w-2 rounded-full bg-slate-300"></span>
                       {t('masterData.dashboard.profiles_audit', { defaultValue: 'Auditoria de Perfis' })}

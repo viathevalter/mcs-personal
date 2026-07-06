@@ -60,39 +60,39 @@ export function EmpresasDataTable() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('masterData.empresas.searchPlaceholder', { defaultValue: 'Buscar por nome ou código...' })}
-            className="pl-8"
+            className="pl-8 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 focus-visible:ring-orange-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button onClick={handleNew}>
+        <Button onClick={handleNew} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg shadow-orange-500/10">
           <Building className="h-4 w-4 mr-2" />
           {t('masterData.empresas.btnNew', { defaultValue: 'Nova Empresa' })}
         </Button>
       </div>
 
-      <div className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="border rounded-xl bg-white dark:bg-slate-900/50 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
           <table className="w-full text-sm text-left relative">
-            <thead className="bg-slate-50 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
+            <thead className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)]">
               <tr>
-                <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('codigo')}>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('codigo')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.code', { defaultValue: 'Código' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('nome')}>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('nome')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.empresas.companyName', { defaultValue: 'Nome da Empresa' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'nome' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'nome' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-slate-800/50">
               {isLoading ? (
                 <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedEmpresas.length === 0 ? (
@@ -101,19 +101,19 @@ export function EmpresasDataTable() {
                 sortedEmpresas.map((empresa) => (
                   <tr 
                     key={empresa.id} 
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100"
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800/70"
                     onClick={() => handleEdit(empresa)}
                   >
-                    <td className="px-4 py-3 font-medium">{empresa.codigo}</td>
-                    <td className="px-4 py-3 text-slate-700 font-semibold">{empresa.nome}</td>
+                    <td className="px-4 py-3 font-medium dark:text-slate-200">{empresa.codigo}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-semibold">{empresa.nome}</td>
                     <td className="px-4 py-3">
                       {empresa.is_active 
-                          ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active', { defaultValue: 'Ativa' })}</Badge>
-                          : <Badge variant="secondary">{t('masterData.status.inactive', { defaultValue: 'Inativa' })}</Badge>}
+                          ? <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100">{t('masterData.status.active', { defaultValue: 'Ativa' })}</Badge>
+                          : <Badge variant="secondary" className="dark:bg-slate-800 dark:text-slate-300">{t('masterData.status.inactive', { defaultValue: 'Inativa' })}</Badge>}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(empresa)}>
-                        <Edit className="h-4 w-4 text-slate-500" />
+                        <Edit className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                       </Button>
                     </td>
                   </tr>

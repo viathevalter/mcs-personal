@@ -100,7 +100,7 @@ export function ClientsDataTable() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={t('masterData.clientes.searchPlaceholder', { defaultValue: 'Buscar por nome ou NIF...' })}
-              className="pl-8 focus-visible:ring-orange-500 bg-white"
+              className="pl-8 focus-visible:ring-orange-500 bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -109,7 +109,7 @@ export function ClientsDataTable() {
           {/* Payment Term Select */}
           <div className="w-full sm:w-56">
             <Select value={paymentTermFilter} onValueChange={setPaymentTermFilter}>
-              <SelectTrigger className="bg-white focus-visible:ring-orange-500">
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
                 <SelectValue placeholder={t('masterData.sidebar.prazos', { defaultValue: 'Prazos de Pagamento' })} />
               </SelectTrigger>
               <SelectContent>
@@ -127,7 +127,7 @@ export function ClientsDataTable() {
           {/* Sites Select */}
           <div className="w-full sm:w-48">
             <Select value={sitesFilter} onValueChange={setSitesFilter}>
-              <SelectTrigger className="bg-white focus-visible:ring-orange-500">
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
                 <SelectValue placeholder={t('masterData.sidebar.obras', { defaultValue: 'Obras / Locais' })} />
               </SelectTrigger>
               <SelectContent>
@@ -141,7 +141,7 @@ export function ClientsDataTable() {
           {/* Country Filter */}
           <div className="w-full sm:w-48">
             <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger className="bg-white focus-visible:ring-orange-500">
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
                 <SelectValue placeholder={t('masterData.sidebar.paises', { defaultValue: 'Países' })} />
               </SelectTrigger>
               <SelectContent>
@@ -162,38 +162,38 @@ export function ClientsDataTable() {
         </Button>
       </div>
 
-      <div className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="border rounded-xl bg-white dark:bg-slate-900/50 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
           <table className="w-full text-sm text-left relative">
-            <thead className="bg-slate-50 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
+            <thead className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)]">
               <tr>
-                <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('codigo')}>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('codigo')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.code', { defaultValue: 'Código' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'codigo' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('trade_name')}>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('trade_name')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.name_fantasy', { defaultValue: 'Nome Fantasia' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'trade_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'trade_name' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('legal_name')}>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none" onClick={() => handleSort('legal_name')}>
                   <div className="flex items-center gap-1">
                     {t('masterData.fields.social_reason', { defaultValue: 'Razão Social' })}
-                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'legal_name' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
+                    <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'legal_name' ? 'text-orange-500 scale-110' : 'text-slate-400 dark:text-slate-500 opacity-55'}`} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.nif', { defaultValue: 'NIF' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.country', { defaultValue: 'País' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-center">{t('masterData.fields.sites', { defaultValue: 'Obras' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.contact', { defaultValue: 'Contato' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.nif', { defaultValue: 'NIF' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.country', { defaultValue: 'País' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-center">{t('masterData.fields.sites', { defaultValue: 'Obras' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.contact', { defaultValue: 'Contato' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('masterData.fields.status', { defaultValue: 'Status' })}</th>
+                <th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">{t('masterData.fields.actions', { defaultValue: 'Ações' })}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-slate-800/50">
               {isLoading ? (
                 <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{t('common.loading', { defaultValue: 'Carregando...' })}</td></tr>
               ) : sortedClients.length === 0 ? (
@@ -205,20 +205,20 @@ export function ClientsDataTable() {
                   return (
                     <tr 
                       key={client.id} 
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100"
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800/70"
                       onClick={() => handleEdit(client)}
                     >
-                      <td className="px-4 py-3 font-mono font-semibold text-slate-600 text-xs">{client.codigo || '--'}</td>
-                      <td className="px-4 py-3 font-medium">{client.trade_name}</td>
-                      <td className="px-4 py-3 text-slate-500">{client.legal_name}</td>
-                      <td className="px-4 py-3 text-slate-500 font-mono text-xs">{client.tax_id || '--'}</td>
-                      <td className="px-4 py-3 text-slate-500 font-semibold text-xs">{countryName}</td>
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-xs">{client.codigo || '--'}</td>
+                      <td className="px-4 py-3 font-medium dark:text-slate-200">{client.trade_name}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{client.legal_name}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">{client.tax_id || '--'}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-semibold text-xs">{countryName}</td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant="outline" className="bg-orange-50/30 text-orange-700 border-orange-200/50">
+                        <Badge variant="outline" className="bg-orange-50/30 text-orange-700 border-orange-200/50 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30">
                           {siteCount} {siteCount === 1 ? t('masterData.clientes.site', { defaultValue: 'obra' }) : t('masterData.clientes.sites', { defaultValue: 'obras' })}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                         <div className="flex flex-col text-xs">
                           {client.email && <span>{client.email}</span>}
                           {client.phone && <span>{client.phone}</span>}
@@ -226,12 +226,12 @@ export function ClientsDataTable() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
-                        {client.status === 'inactive' && <Badge variant="secondary">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
+                        {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                        {client.status === 'inactive' && <Badge variant="secondary" className="dark:bg-slate-800 dark:text-slate-300">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
-                          <Edit className="h-4 w-4 text-slate-500" />
+                          <Edit className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                         </Button>
                       </td>
                     </tr>
