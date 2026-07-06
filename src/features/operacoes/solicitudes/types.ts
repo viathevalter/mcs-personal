@@ -6,7 +6,7 @@ export interface SolicitudOperativa {
   target_assignment_id?: string;
   source_entity_id?: string;
   source_module: string;
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination';
   title: string;
   description?: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -61,6 +61,8 @@ export interface SolicitudDetail extends SolicitudOperativa {
     id: string;
     legal_name: string;
     trade_name: string;
+    email?: string;
+    phone?: string;
   };
   client_site?: {
     id: string;
@@ -72,15 +74,26 @@ export interface SolicitudDetail extends SolicitudOperativa {
     codigo: string;
     client_id: string;
     client_site_id: string;
+    fecha_inicio_pedido?: string;
+    fecha_fin_pedido?: string;
+    status_pedido?: string;
     client?: {
       id: string;
       legal_name: string;
       trade_name: string;
+      email?: string;
+      phone?: string;
     };
     client_site?: {
       id: string;
       name: string;
     };
+  };
+  empresa?: {
+    id: string;
+    nome?: string;
+    legal_name?: string;
+    trade_name?: string;
   };
 }
 

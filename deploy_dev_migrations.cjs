@@ -90,7 +90,10 @@ const migrationsToRun = [
   '20260627110000_client_vies_integration.sql',
   '20260628143000_ordens_pagamento_e_pagos.sql',
   '20260701161500_comercial_marketing_and_crm.sql',
-  '20260701171000_add_crm_fields_to_leads.sql'
+  '20260701171000_add_crm_fields_to_leads.sql',
+  '20260705093500_add_cobranca_email_to_empresas.sql',
+  '20260705120000_order_extension_and_termination.sql',
+  '20260705130000_order_postponement_and_notifications.sql'
 ];
 
 async function run() {

@@ -238,7 +238,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name } = await req.json();
+    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name, custom_attachments, sender_email } = await req.json();
 
     if (!to_emails || !Array.isArray(to_emails) || to_emails.length === 0) {
       return new Response(
@@ -251,6 +251,11 @@ serve(async (req) => {
     let senderEmail = "vendas@stoco.es";
     let senderName = "Comercial";
     let attachments: EmailAttachment[] = [];
+    
+    if (custom_attachments && Array.isArray(custom_attachments)) {
+      attachments.push(...custom_attachments);
+    }
+
     let pedido: any = null;
 
     if (pedido_id) {
@@ -910,6 +915,8 @@ serve(async (req) => {
         senderEmail = empresa.proposal_sender_email || senderEmail;
         senderName = empresa.trade_name || senderName;
       }
+    if (sender_email) {
+      senderEmail = sender_email;
     }
 
     // 8. Enviar email via Microsoft Graph API

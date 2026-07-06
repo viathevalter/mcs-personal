@@ -27,9 +27,9 @@ export function ComercialSettingsPage() {
   const [saving, setSaving] = useState(false);
   
   // Notification emails state
-  const [notificationEmails, setNotificationEmails] = useState<{ id: string; email: string; event_type: 'pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja' }[]>([]);
+  const [notificationEmails, setNotificationEmails] = useState<{ id: string; email: string; event_type: 'pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja' | 'prorrogacao' | 'finalizacao' }[]>([]);
   const [newEmail, setNewEmail] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<('pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja')[]>(['pedido']);
+  const [selectedTypes, setSelectedTypes] = useState<('pedido' | 'reemplazo' | 'reubicacion' | 'prueba' | 'baja' | 'prorrogacao' | 'finalizacao')[]>(['pedido']);
   const [loadingEmails, setLoadingEmails] = useState(false);
 
   const fetchNotificationEmails = async () => {
@@ -906,6 +906,8 @@ export function ComercialSettingsPage() {
                   { key: 'reubicacion', label: 'Reubicación' },
                   { key: 'prueba', label: 'Prueba (Teste Técnico)' },
                   { key: 'baja', label: 'Baja' },
+                  { key: 'prorrogacao', label: 'Prorrogação de Obra' },
+                  { key: 'finalizacao', label: 'Finalização de Obra' },
                 ].map(item => {
                   const isChecked = selectedTypes.includes(item.key as any);
                   return (
@@ -930,8 +932,8 @@ export function ComercialSettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pt-2">
-            {(['pedido', 'reemplazo', 'reubicacion', 'prueba', 'baja'] as const).map(type => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 pt-2">
+            {(['pedido', 'reemplazo', 'reubicacion', 'prueba', 'baja', 'prorrogacao', 'finalizacao'] as const).map(type => {
               const emailsOfType = notificationEmails.filter(e => e.event_type === type);
               const label = type === 'pedido' 
                 ? 'Envio de Pedido' 
@@ -941,7 +943,11 @@ export function ComercialSettingsPage() {
                     ? 'Reubicación' 
                     : type === 'prueba'
                       ? 'Prueba'
-                      : 'Baja';
+                      : type === 'baja'
+                        ? 'Baja'
+                        : type === 'prorrogacao'
+                          ? 'Prorrogação'
+                          : 'Finalização';
               const badgeColor = type === 'pedido' 
                 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900' 
                 : type === 'reemplazo' 
@@ -949,8 +955,12 @@ export function ComercialSettingsPage() {
                   : type === 'reubicacion'
                     ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900'
                     : type === 'prueba'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
-                      : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900';
+                      ? 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-400 dark:border-cyan-900'
+                      : type === 'baja'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900'
+                        : type === 'prorrogacao'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/40 dark:text-slate-400 dark:border-slate-900';
               
               return (
                 <div key={type} className="border border-slate-100 dark:border-slate-800 rounded-xl p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/10 hover:shadow-md transition-shadow">

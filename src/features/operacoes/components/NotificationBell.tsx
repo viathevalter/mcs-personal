@@ -1,75 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, AlertCircle, Info } from 'lucide-react';
+import { Bell, Check, AlertCircle, Info, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { supabaseTaskService } from '../services/db/SupabaseTaskService';
-import type { Notification } from '../types/models';
+import { supabase } from '../../../shared/supabase/client';
+
+interface DbNotification {
+    id: string;
+    title: string;
+    message: string;
+    type: 'date_change' | 'new_order' | 'task_blocked' | 'incident';
+    severity: 'info' | 'warning' | 'critical';
+    link_url?: string;
+    read_at?: string;
+    created_at: string;
+}
 
 export const NotificationBell: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<DbNotification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    const getClient = () => {
+        return (supabase as any).schema ? (supabase as any).schema('core_common') : supabase;
+    };
+
     const loadNotifications = async () => {
-        if (!user?.email) return;
+        if (!user?.id) return;
 
         try {
-            // 1. Fetch ALL tasks assigned to user
-            // We use listAll() but filter in memory for now as listByUser isn't in service public API yet, 
-            // or better, we can assume listAll returns everything and we filter.
-            // Actually, we should use a proper service method, but for now let's use what we have available or add a method.
-            // Looking at previous context, we have incidentTaskService (which is supabaseTaskService).
-            // It has listAll(). Let's fetch all and filter client-side for now to avoid modifying backend service yet, 
-            // or if listAll is too heavy, we might need a query.
-            // But let's check if we can filter by assigned_to.
+            const client = getClient();
+            const { data, error } = await client
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(20);
 
-            const allTasks = await supabaseTaskService.listAll();
-            const myTasks = allTasks.filter(t => t.assigned_to === user.email);
+            if (error) throw error;
 
-            const generatedNotifications: Notification[] = [];
-
-            myTasks.forEach(task => {
-                // A. Overdue Check
-                if (task.due_at && new Date(task.due_at) < new Date() && task.status !== 'Concluida') {
-                    generatedNotifications.push({
-                        id: `overdue-${task.id}`,
-                        user_email: user.email!,
-                        type: 'task_overdue',
-                        title: 'Tarefa Vencida',
-                        message: `A tarefa "${task.title}" venceu.`,
-                        entity_type: 'task',
-                        entity_id: task.incident_id, // We link to Incident as Task Detail isn't standalone
-                        severity: 'danger',
-                        created_at: task.due_at // Vencimento como data
-                    });
-                }
-
-                // B. Newly Assigned (Pending/In Progress)
-                if (task.status !== 'Concluida') {
-                    generatedNotifications.push({
-                        id: `assigned-${task.id}`,
-                        user_email: user.email!,
-                        type: 'task_assigned',
-                        title: 'Tarefa Pendente',
-                        message: `Você tem a tarefa "${task.title}" em aberto.`,
-                        entity_type: 'task',
-                        entity_id: task.incident_id,
-                        severity: 'info',
-                        created_at: task.created_at || new Date().toISOString()
-                    });
-                }
-            });
-
-            // Sort by date desc
-            generatedNotifications.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-            setNotifications(generatedNotifications);
-            setUnreadCount(generatedNotifications.length);
-
+            const list = (data || []) as DbNotification[];
+            setNotifications(list);
+            setUnreadCount(list.filter(n => !n.read_at).length);
         } catch (error) {
             console.error("Failed to load notifications", error);
         }
@@ -77,10 +52,30 @@ export const NotificationBell: React.FC = () => {
 
     useEffect(() => {
         loadNotifications();
-        // Polling every minute
-        const interval = setInterval(loadNotifications, 60000);
-        return () => clearInterval(interval);
-    }, [user]);
+
+        if (!user?.id) return;
+
+        // Subscrição em tempo real para novas notificações
+        const channel = supabase
+            .channel(`user-notifications-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'core_common',
+                    table: 'notifications',
+                    filter: `user_id=eq.${user.id}`
+                },
+                () => {
+                    loadNotifications();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id]);
 
     // Close on click outside
     useEffect(() => {
@@ -93,18 +88,47 @@ export const NotificationBell: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleItemClick = (n: Notification) => {
+    const handleItemClick = async (n: DbNotification) => {
         setIsOpen(false);
-        if (n.entity_type === 'task' || n.entity_type === 'incident') {
-            navigate(`/incidencias/${n.entity_id}`);
+        
+        if (!n.read_at) {
+            try {
+                const client = getClient();
+                await client
+                    .from('notifications')
+                    .update({ read_at: new Date().toISOString() })
+                    .eq('id', n.id);
+                loadNotifications();
+            } catch (err) {
+                console.error("Failed to mark notification as read", err);
+            }
+        }
+
+        if (n.link_url) {
+            navigate(n.link_url);
         }
     };
 
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'task_overdue': return <AlertCircle size={16} className="text-red-500" />;
-            case 'task_assigned': return <Check size={16} className="text-blue-500" />;
-            case 'incident_update': return <Info size={16} className="text-amber-500" />;
+    const handleMarkAllAsRead = async () => {
+        if (!user?.id) return;
+        try {
+            const client = getClient();
+            await client
+                .from('notifications')
+                .update({ read_at: new Date().toISOString() })
+                .eq('user_id', user.id)
+                .is('read_at', null);
+            loadNotifications();
+        } catch (err) {
+            console.error("Failed to mark all as read", err);
+        }
+    };
+
+    const getIcon = (severity: string) => {
+        switch (severity) {
+            case 'critical': return <AlertCircle size={16} className="text-red-500" />;
+            case 'warning': return <AlertCircle size={16} className="text-amber-500" />;
+            case 'info': return <Info size={16} className="text-blue-500" />;
             default: return <Bell size={16} className="text-slate-500" />;
         }
     };
@@ -113,7 +137,8 @@ export const NotificationBell: React.FC = () => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                className="relative p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                title="Torre de Controle - Alertas"
             >
                 <Bell size={20} />
                 {unreadCount > 0 && (
@@ -124,37 +149,51 @@ export const NotificationBell: React.FC = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-slate-200 z-50 animate-fade-in origin-top-right">
-                    <div className="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
-                        <h3 className="text-sm font-bold text-slate-700">Notificações</h3>
+                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-800 z-50 animate-fade-in origin-top-right">
+                    <div className="flex justify-between items-center p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-lg">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Torre de Controle</h3>
+                        {unreadCount > 0 && (
+                            <button
+                                onClick={handleMarkAllAsRead}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                            >
+                                <CheckSquare size={12} />
+                                Lidas
+                            </button>
+                        )}
                     </div>
 
                     <div className="max-h-[400px] overflow-y-auto">
                         {notifications.length === 0 ? (
-                            <div className="p-6 text-center text-slate-400 text-sm">
-                                Nenhuma notificação.
+                            <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-sm">
+                                Nenhuma notificação ativa.
                             </div>
                         ) : (
-                            <ul className="divide-y divide-slate-50">
+                            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {notifications.map(n => (
                                     <li
                                         key={n.id}
                                         onClick={() => handleItemClick(n)}
-                                        className="p-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                                        className={`p-3 cursor-pointer transition-colors ${!n.read_at ? 'bg-blue-50/30 dark:bg-blue-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                                     >
                                         <div className="flex gap-3">
                                             <div className="mt-1 flex-shrink-0">
-                                                {getIcon(n.type)}
+                                                {getIcon(n.severity)}
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-sm font-semibold text-slate-800">
-                                                    {n.title}
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                                                <div className="flex justify-between items-start">
+                                                    <p className={`text-sm font-semibold ${!n.read_at ? 'text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {n.title}
+                                                    </p>
+                                                    {!n.read_at && (
+                                                        <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1.5"></span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
                                                     {n.message}
                                                 </p>
-                                                <span className="text-[10px] text-slate-400 mt-1 block">
-                                                    {new Date(n.created_at).toLocaleDateString()}
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                                                    {new Date(n.created_at).toLocaleDateString(undefined, { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         </div>

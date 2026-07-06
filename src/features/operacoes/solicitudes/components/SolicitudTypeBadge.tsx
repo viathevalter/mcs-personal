@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle } from 'lucide-react';
+import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle, CalendarDays, ClipboardCheck } from 'lucide-react';
 
 interface Props {
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination';
   className?: string;
 }
 
@@ -17,6 +17,8 @@ export function SolicitudTypeBadge({ tipo, className }: Props) {
     offboarding: { label: 'Baja', color: 'bg-rose-500/10 text-rose-500', icon: UserMinus },
     scope_change: { label: 'Cambio Alcance', color: 'bg-amber-500/10 text-amber-500', icon: FileEdit },
     incident: { label: 'Incidencia', color: 'bg-red-500/10 text-red-500', icon: AlertTriangle },
+    order_extension: { label: 'Prorrogação de Obra', color: 'bg-emerald-500/10 text-emerald-500', icon: CalendarDays },
+    order_termination: { label: 'Finalização de Obra', color: 'bg-slate-500/10 text-slate-500', icon: ClipboardCheck },
   };
 
   const { label, color, icon: Icon } = config[tipo] || config.new_order;

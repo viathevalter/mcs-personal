@@ -55,6 +55,27 @@ export function SolicitudOverviewTab({ solicitud }: Props) {
             <p className="text-base">
               {solicitud.client?.trade_name || solicitud.client?.legal_name || solicitud.pedido?.client?.trade_name || solicitud.pedido?.client?.legal_name || 'N/A'}
             </p>
+            {(() => {
+              const email = solicitud.client?.email || solicitud.pedido?.client?.email;
+              const phone = solicitud.client?.phone || solicitud.pedido?.client?.phone;
+              if (email || phone) {
+                return (
+                  <div className="mt-1.5 space-y-1">
+                    {email && (
+                      <a href={`mailto:${email}`} className="block text-xs text-blue-650 dark:text-blue-400 hover:underline truncate font-medium">
+                        📧 {email}
+                      </a>
+                    )}
+                    {phone && (
+                      <a href={`tel:${phone}`} className="block text-xs text-blue-650 dark:text-blue-400 hover:underline font-medium">
+                        📞 {phone}
+                      </a>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">

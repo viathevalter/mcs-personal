@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { supabase } from '@/shared/supabase/client';
+import { usePedidos } from '../pedidos/hooks/usePedidos';
+import { useAuth } from '../contexts/AuthContext';
 
 export function NewSolicitudPage() {
     const navigate = useNavigate();
@@ -21,6 +23,7 @@ export function NewSolicitudPage() {
     const initialSiteId = searchParams.get('site_id') || 'all';
     
     const { selectedEmpresaId } = useEmpresa();
+    const { user } = useAuth();
     const { data: clients = [] } = useClients();
     
     const [selectedClientId, setSelectedClientId] = useState<string>(initialClientId);
@@ -30,6 +33,12 @@ export function NewSolicitudPage() {
     const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
     const [workerSearch, setWorkerSearch] = useState('');
     const [pedidoSearch, setPedidoSearch] = useState('');
+    
+    const initialPedidoId = searchParams.get('pedido_id') || 'all';
+    const [selectedPedidoId, setSelectedPedidoId] = useState<string>(initialPedidoId);
+    const { data: pedidosData } = usePedidos();
+    const pedidos = pedidosData?.pedidos || [];
+    const [parentSolicitud, setParentSolicitud] = useState<{ codigo: string; title: string } | null>(null);
     
     // Solicitud Form State
     const [actionType, setActionType] = useState<string>(initialType);
@@ -63,13 +72,52 @@ export function NewSolicitudPage() {
 
     const { data: assignments = [] } = useWorkerAssignments({
         empresa_id: selectedEmpresaId,
-        client_id: selectedClientId !== 'all' ? selectedClientId : null,
-        client_site_id: selectedClientSiteId !== 'all' ? selectedClientSiteId : null,
+        client_id: null,
+        client_site_id: null,
+        pedido_id: null
     });
 
     const { createSolicitudWithTargets } = useCreateSolicitud();
 
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const selectedClientName = selectedClient?.trade_name || selectedClient?.legal_name || '';
+
+    const filteredDropdownPedidos = selectedClientId !== 'all' 
+        ? pedidos.filter(p => {
+            const pClientName = p.client?.trade_name || p.client?.legal_name || '';
+            return pClientName.toLowerCase() === selectedClientName.toLowerCase();
+          }) 
+        : pedidos;
+
     const filteredAssignments = assignments.filter(a => {
+        // Filter by Client
+        if (selectedClientId !== 'all') {
+            const assignmentClientName = a.client?.trade_name || a.client?.legal_name || '';
+            if (assignmentClientName.toLowerCase() !== selectedClientName.toLowerCase()) {
+                return false;
+            }
+        }
+
+        // Filter by Pedido (Obra)
+        if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') && selectedPedidoId !== 'all') {
+            const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
+            const selectedPedidoCode = selectedPedido?.codigo || '';
+            const assignmentPedidoCode = a.pedido?.codigo || '';
+            if (assignmentPedidoCode.toLowerCase() !== selectedPedidoCode.toLowerCase()) {
+                return false;
+            }
+        }
+
+        // Filter by Client Site (for other types)
+        if (actionType !== 'order_extension' && actionType !== 'order_termination' && actionType !== 'order_postponement' && selectedClientSiteId !== 'all') {
+            const selectedSite = clientSites.find(s => s.id === selectedClientSiteId);
+            const selectedSiteName = selectedSite?.name || '';
+            const assignmentSiteName = a.client_site?.name || '';
+            if (assignmentSiteName.toLowerCase() !== selectedSiteName.toLowerCase()) {
+                return false;
+            }
+        }
+
         // Filter by worker name or code
         if (workerSearch.trim()) {
             const workerName = a.worker?.nome || '';
@@ -90,7 +138,7 @@ export function NewSolicitudPage() {
         return true;
     });
 
-    // Reset site when client changes (but skip the first initialization if from URL)
+    // Reset site and pedido when client changes (but skip the first initialization if from URL)
     const isFirstRender = React.useRef(true);
     useEffect(() => {
         if (isFirstRender.current) {
@@ -98,6 +146,7 @@ export function NewSolicitudPage() {
             return;
         }
         setSelectedClientSiteId('all');
+        setSelectedPedidoId('all');
     }, [selectedClientId]);
 
     // Reset target site when target client changes
@@ -105,12 +154,60 @@ export function NewSolicitudPage() {
         setTargetClientSiteId('all');
     }, [targetClientId]);
 
+    // Auto-select workers from selected Pedido for order-level operations
+    useEffect(() => {
+        if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') && selectedPedidoId !== 'all') {
+            const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
+            if (selectedPedido) {
+                const selectedPedidoCode = selectedPedido.codigo || '';
+                const matchingAssignments = assignments.filter(a => {
+                    const assignmentPedidoCode = a.pedido?.codigo || '';
+                    return assignmentPedidoCode.toLowerCase() === selectedPedidoCode.toLowerCase();
+                });
+                const nextIds = matchingAssignments.map(a => a.id);
+                setSelectedAssignments(prev => {
+                    if (prev.length === nextIds.length && prev.every(id => nextIds.includes(id))) {
+                        return prev;
+                    }
+                    return nextIds;
+                });
+            }
+        } else {
+            setSelectedAssignments(prev => prev.length === 0 ? prev : []);
+        }
+    }, [selectedPedidoId, actionType, assignments, pedidos]);
+
+    // Query parent solicitude for selected Pedido
+    useEffect(() => {
+        if (selectedPedidoId && selectedPedidoId !== 'all') {
+            supabase
+                .schema('core_operacoes')
+                .from('solicitudes_operativas')
+                .select('codigo, title')
+                .eq('pedido_id', selectedPedidoId)
+                .eq('tipo', 'new_order')
+                .maybeSingle()
+                .then(({ data }) => {
+                    if (data) {
+                        setParentSolicitud(data);
+                    } else {
+                        setParentSolicitud(null);
+                    }
+                });
+        } else {
+            setParentSolicitud(null);
+        }
+    }, [selectedPedidoId]);
+
     // Default title based on type and selected targets
     useEffect(() => {
         const typeName = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
                          actionType === 'relocation' ? 'Realocação' : 
                          actionType === 'technical_test' ? 'Prueba (Teste Técnico)' : 
-                         actionType === 'offboarding' ? 'Desligamento' : 'Operação';
+                         actionType === 'offboarding' ? 'Desligamento' : 
+                         actionType === 'order_extension' ? 'Prorrogação de Obra' : 
+                         actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 
+                         actionType === 'order_termination' ? 'Finalização de Obra' : 'Operação';
         
         if (selectedAssignments.length > 0) {
             setTitle(`${typeName} de ${selectedAssignments.length} trabalhador(es)`);
@@ -129,7 +226,10 @@ export function NewSolicitudPage() {
                     replacement: 'reemplazo',
                     relocation: 'reubicacion',
                     technical_test: 'prueba',
-                    offboarding: 'baja'
+                    offboarding: 'baja',
+                    order_extension: 'pedido',
+                    order_postponement: 'pedido',
+                    order_termination: 'pedido'
                 };
                 const eventType = eventTypeMap[actionType] || 'reemplazo';
 
@@ -158,17 +258,31 @@ export function NewSolicitudPage() {
     useEffect(() => {
         const selectedList = assignments.filter(a => selectedAssignments.includes(a.id));
         const firstAssignment = selectedList[0];
-        const clientName = firstAssignment?.client?.trade_name || firstAssignment?.client?.legal_name || 'Cliente';
-        const workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
+        
+        const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
+        
+        const clientName = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? (selectedPedido?.client?.trade_name || selectedPedido?.client?.legal_name || 'Cliente')
+            : (firstAssignment?.client?.trade_name || firstAssignment?.client?.legal_name || 'Cliente');
+
+        const pedidoCodigo = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? (selectedPedido?.codigo || 'N/A')
+            : (firstAssignment?.pedido?.codigo || firstAssignment?.pedido_codigo || 'N/A');
+
+        const workerNames = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ')
+            : selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
+
         const expectedStartStr = dueDate 
             ? new Date(dueDate).toLocaleDateString('pt-PT')
             : 'Não informado';
 
         const typeLabel = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
                           actionType === 'relocation' ? 'Realocação (Reubicación)' : 
-                          actionType === 'technical_test' ? 'Teste Técnico (Prueba)' : 'Desligamento (Baja)';
-
-        const pedidoCodigo = firstAssignment?.pedido?.codigo || firstAssignment?.pedido_codigo || 'N/A';
+                          actionType === 'technical_test' ? 'Teste Técnico (Prueba)' : 
+                          actionType === 'offboarding' ? 'Desligamento (Baja)' : 
+                          actionType === 'order_extension' ? 'Prorrogação de Obra' : 
+                          actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 'Finalização de Obra';
 
         if (!isSubjectEdited) {
             const subject = `Notificação Operacional: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
@@ -191,7 +305,7 @@ export function NewSolicitudPage() {
 <p>Atentamente,<br/><strong>Operações</strong></p>`;
             setEmailBody(body);
         }
-    }, [actionType, selectedAssignments, assignments, dueDate, reason, notes, isSubjectEdited, isBodyEdited]);
+    }, [actionType, selectedAssignments, assignments, selectedPedidoId, pedidos, dueDate, reason, notes, isSubjectEdited, isBodyEdited]);
 
     const handleFormat = (command: string, value: string = '') => {
         document.execCommand(command, false, value);
@@ -237,7 +351,19 @@ export function NewSolicitudPage() {
 
         const selectedList = assignments.filter(a => selectedAssignments.includes(a.id));
         const firstAssignment = selectedList[0];
-        const originPedidoId = firstAssignment?.pedido_id || null;
+        
+        const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
+        const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? (selectedPedidoId !== 'all' ? selectedPedidoId : null)
+            : (firstAssignment?.pedido_id || null);
+
+        const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? (selectedPedido?.client_id || null)
+            : (actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null);
+
+        const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+            ? (selectedPedido?.client_site_id || null)
+            : (actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null);
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
@@ -252,11 +378,14 @@ export function NewSolicitudPage() {
             requires_housing: actionType === 'relocation' ? requiresHousing : false,
             housing_start_date: actionType === 'relocation' && requiresHousing && housingStartDate ? housingStartDate : null,
             housing_end_date: actionType === 'relocation' && requiresHousing && housingEndDate ? housingEndDate : null,
-            requires_replacement: actionType === 'offboarding' ? requiresReplacement : true,
+            requires_replacement: (actionType === 'offboarding') ? requiresReplacement : false,
             action_type: (actionType === 'replacement' ? 'replace' : 
                           actionType === 'relocation' ? 'relocate' : 
                           actionType === 'offboarding' ? 'offboard' : 
-                          actionType === 'technical_test' ? 'test' : 'replace') as 'replace' | 'relocate' | 'offboard' | 'test',
+                          actionType === 'technical_test' ? 'test' : 
+                          actionType === 'order_extension' ? 'extend' : 
+                          actionType === 'order_postponement' ? 'postpone' : 
+                          actionType === 'order_termination' ? 'offboard' : 'replace') as any,
             reason: reason,
             notes: notes
         }));
@@ -265,12 +394,12 @@ export function NewSolicitudPage() {
             empresa_id: selectedEmpresaId!,
             type: actionType,
             title: title,
-            description: notes || `Solicitação gerada para ${selectedAssignments.length} alvo(s)`,
+            description: reason || `Solicitação gerada para ${selectedAssignments.length} alvo(s)`,
             priority: priority,
             due_date: (actionType === 'offboarding' && !requiresReplacement) ? null : (dueDate ? new Date(dueDate).toISOString() : null),
             origin_pedido_id: originPedidoId,
-            client_id: actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null,
-            client_site_id: actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null,
+            client_id: clientId,
+            client_site_id: clientSiteId,
             targets: targets
         };
 
@@ -297,7 +426,8 @@ export function NewSolicitudPage() {
                                 to_emails: toEmails,
                                 email_subject: emailSubject,
                                 email_body: emailBody,
-                                solicitud_id: newSolicitudId
+                                solicitud_id: newSolicitudId,
+                                sender_email: user?.email
                             }
                         });
                     }
@@ -326,67 +456,167 @@ export function NewSolicitudPage() {
                 </div>
             </div>
 
+
+            {/* Layout Principal: Duas Colunas */}
             <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 flex-1 min-h-0 overflow-hidden">
                 
                 {/* Esquerda: Filtros e Tabela */}
-                <div className="lg:col-span-3 xl:col-span-4 h-full flex flex-col min-h-0 overflow-hidden">
+                <div className={`${
+                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
+                        ? 'lg:col-span-2 xl:col-span-2' 
+                        : 'lg:col-span-3 xl:col-span-4'
+                } h-full flex flex-col min-h-0 overflow-hidden`}>
                     <div className="bg-white dark:bg-slate-950 p-3 md:p-4 rounded-md border shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b shrink-0">
                             <Users className="w-5 h-5 text-blue-500" />
-                            <h2 className="text-lg font-semibold">1. Buscar Alocações (Trabalhadores)</h2>
+                            <h2 className="text-lg font-semibold">
+                                {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
+                                    ? '1. Selecionar Pedido (Obra)' 
+                                    : '1. Buscar Alocações (Trabalhadores)'}
+                            </h2>
                         </div>
                         
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
-                                    <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Todos os Clientes" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos os Clientes</SelectItem>
-                                            {clients.map(c => (
-                                                <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                        {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') ? (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
+                                        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Todos os Clientes" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos os Clientes</SelectItem>
+                                                {clients.map(c => (
+                                                    <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Pedido (Obra)</label>
+                                        <Select value={selectedPedidoId} onValueChange={setSelectedPedidoId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Todos os Pedidos" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos os Pedidos</SelectItem>
+                                                {filteredDropdownPedidos.map(p => (
+                                                    <SelectItem key={p.id} value={p.id?.toString() || ''}>
+                                                        {p.codigo} - {p.client?.trade_name || p.client?.legal_name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {selectedPedidoId !== 'all' && (() => {
+                                        const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                                        if (!p) return null;
+                                        return (
+                                            <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 p-3 rounded-lg space-y-2">
+                                                <div className="flex justify-between items-center border-b pb-1.5 border-slate-200 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Informações da Obra Selecionada</span>
+                                                    <span className="text-xs font-mono font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900/50">
+                                                        {p.codigo}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    <div>
+                                                        <span className="text-slate-450 dark:text-slate-500 block">Cliente:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {p.client?.trade_name || p.client?.legal_name || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-450 dark:text-slate-500 block">Obra / Local:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {p.client_site?.name || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-450 dark:text-slate-500 block">Data de Início Original:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {p.expected_start_date ? new Date(p.expected_start_date).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-450 dark:text-slate-500 block">Data de Fim Prevista:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {p.expected_end_date ? new Date(p.expected_end_date).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                        </span>
+                                                    </div>
+                                                    {parentSolicitud && (
+                                                        <div className="col-span-2 pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
+                                                            <span className="text-slate-450 dark:text-slate-500 block">Solicitação de Origem (Novo Pedido):</span>
+                                                            <div className="flex items-center gap-1.5 mt-0.5 font-sans">
+                                                                <span className="font-mono font-semibold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200 dark:border-indigo-900/30">
+                                                                    {parentSolicitud.codigo}
+                                                                </span>
+                                                                <span className="text-slate-600 dark:text-slate-400 text-[11px] font-medium">
+                                                                    {parentSolicitud.title}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Obra / Local</label>
-                                    <Select value={selectedClientSiteId} onValueChange={setSelectedClientSiteId} disabled={selectedClientId === 'all'}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={selectedClientId === 'all' ? 'Selecione um cliente primeiro' : 'Todas as Obras'} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todas as Obras</SelectItem>
-                                            {clientSites.map(s => (
-                                                <SelectItem key={s.id} value={s.id || ''}>{s.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
+                                        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Todos os Clientes" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos os Clientes</SelectItem>
+                                                {clients.map(c => (
+                                                    <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Obra / Local</label>
+                                        <Select value={selectedClientSiteId} onValueChange={setSelectedClientSiteId} disabled={selectedClientId === 'all'}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={selectedClientId === 'all' ? 'Selecione um cliente primeiro' : 'Todas as Obras'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todas as Obras</SelectItem>
+                                                {clientSites.map(s => (
+                                                    <SelectItem key={s.id} value={s.id || ''}>{s.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Código do Pedido</label>
+                                        <Input 
+                                            placeholder="Ex: PED-2026-..."
+                                            value={pedidoSearch}
+                                            onChange={e => setPedidoSearch(e.target.value)}
+                                            className="h-10 text-sm"
+                                        />
+                                    </div>
                                 </div>
+
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Código do Pedido</label>
+                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Buscar Trabalhador</label>
                                     <Input 
-                                        placeholder="Ex: PED-2026-..."
-                                        value={pedidoSearch}
-                                        onChange={e => setPedidoSearch(e.target.value)}
-                                        className="h-10 text-sm"
+                                        placeholder="Buscar por nome ou código do trabalhador..."
+                                        value={workerSearch}
+                                        onChange={e => setWorkerSearch(e.target.value)}
+                                        className="h-10 text-sm w-full"
                                     />
                                 </div>
                             </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Buscar Trabalhador</label>
-                                <Input 
-                                    placeholder="Buscar por nome ou código do trabalhador..."
-                                    value={workerSearch}
-                                    onChange={e => setWorkerSearch(e.target.value)}
-                                    className="h-10 text-sm w-full"
-                                />
-                            </div>
-                        </div>
+                        )}
 
                         <div className="flex-1 min-h-0 flex flex-col pt-2 overflow-hidden">
                             <div className="flex justify-between items-center mb-3 shrink-0">
@@ -403,6 +633,7 @@ export function NewSolicitudPage() {
                                     selectedIds={selectedAssignments}
                                     onToggleSelection={handleToggleSelection}
                                     onToggleAll={handleToggleAll}
+                                    isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement'}
                                 />
                             </div>
                         </div>
@@ -410,7 +641,11 @@ export function NewSolicitudPage() {
                 </div>
 
                 {/* Direita: Formulário de Solicitação */}
-                <div className="h-full overflow-y-auto pr-1">
+                <div className={`${
+                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
+                        ? 'lg:col-span-2 xl:col-span-3' 
+                        : 'lg:col-span-1 xl:col-span-1'
+                } h-full overflow-y-auto pr-1`}>
                     <div className="bg-white dark:bg-slate-950 p-3 md:p-4 rounded-md border shadow-sm space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b">
                             <FileText className="w-5 h-5 text-indigo-500" />
@@ -429,6 +664,9 @@ export function NewSolicitudPage() {
                                         <SelectItem value="relocation">Reubicación (Realocação)</SelectItem>
                                         <SelectItem value="technical_test">Prueba (Teste Técnico)</SelectItem>
                                         <SelectItem value="offboarding">Baja (Desligamento)</SelectItem>
+                                        <SelectItem value="order_postponement">Adiamento de Início de Obra</SelectItem>
+                                        <SelectItem value="order_extension">Prorrogação de Obra</SelectItem>
+                                        <SelectItem value="order_termination">Finalização de Obra</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -477,9 +715,13 @@ export function NewSolicitudPage() {
 
                             {((actionType !== 'offboarding') || (actionType === 'offboarding' && requiresReplacement)) && (
                                  <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                        {actionType === 'relocation' ? 'Data de Início da Realocação' : 'Data de Início da Nova Contratação'}
-                                    </label>
+                                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                         {actionType === 'relocation' ? 'Data de Início da Realocação' : 
+                                          actionType === 'order_postponement' ? 'Nova Data de Início da Obra' : 
+                                          actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
+                                          actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
+                                          'Data de Início da Nova Contratação'}
+                                     </label>
                                     <Input 
                                         type="date"
                                         value={dueDate} 
@@ -601,7 +843,13 @@ export function NewSolicitudPage() {
                                         {/* Destinatários Configurados */}
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-slate-700 dark:text-slate-350 block">
-                                                Destinatários de Notificação ({actionType === 'replacement' ? 'Reemplazo' : actionType === 'relocation' ? 'Reubicación' : actionType === 'technical_test' ? 'Prueba' : 'Baja'})
+                                                Destinatários de Notificação ({
+                                                    actionType === 'replacement' ? 'Reemplazo' : 
+                                                    actionType === 'relocation' ? 'Reubicación' : 
+                                                    actionType === 'technical_test' ? 'Prueba' : 
+                                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination') ? 'Pedido' : 
+                                                    'Baja'
+                                                })
                                             </label>
                                             {loadingEmails ? (
                                                 <div className="flex items-center space-x-2 text-slate-400">
@@ -749,18 +997,28 @@ export function NewSolicitudPage() {
                             <Button 
                                 className="w-full" 
                                 size="lg"
-                                disabled={selectedAssignments.length === 0 || !reason.trim() || createSolicitudWithTargets.isPending}
+                                disabled={
+                                    ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+                                        ? (selectedPedidoId === 'all')
+                                        : (selectedAssignments.length === 0)) ||
+                                    !reason.trim() ||
+                                    createSolicitudWithTargets.isPending
+                                }
                                 onClick={handleSubmit}
                             >
                                 <CheckCircle2 className="w-5 h-5 mr-2" />
                                 {createSolicitudWithTargets.isPending ? 'Criando...' : 'Iniciar Operação'}
                             </Button>
-                            {selectedAssignments.length === 0 && (
+                            {((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+                                ? (selectedPedidoId === 'all')
+                                : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
-                                    Selecione pelo menos um trabalhador na tabela.
+                                    {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+                                        ? 'Selecione um Pedido (Obra) para continuar.'
+                                        : 'Selecione pelo menos um trabalhador na tabela.'}
                                 </p>
                             )}
-                            {selectedAssignments.length > 0 && !reason.trim() && (
+                            {!reason.trim() && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     Informe um motivo para continuar.
                                 </p>

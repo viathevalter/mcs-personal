@@ -50,7 +50,7 @@ export function useSolicitudDetail(solicitudId: string | undefined) {
       if (targetClientId || targetSiteId) {
         const [{ data: clientData }, { data: siteData }] = await Promise.all([
           targetClientId 
-            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', targetClientId).maybeSingle() 
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, email, phone').eq('id', targetClientId).maybeSingle() 
             : Promise.resolve({ data: null }),
           targetSiteId 
             ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', targetSiteId).maybeSingle() 

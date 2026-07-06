@@ -10,7 +10,7 @@ export interface SolicitudTargetPayload {
     source_pedido_item_id: string;
     source_client_id: string;
     source_client_site_id: string;
-    action_type: 'replace' | 'relocate' | 'test' | 'offboard';
+    action_type: 'replace' | 'relocate' | 'test' | 'offboard' | 'extend' | 'postpone';
     reason?: string;
     notes?: string;
     requires_replacement?: boolean;

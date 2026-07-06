@@ -47,10 +47,13 @@ export interface Pedido {
   id: number;
   CodPedido: string;
   Cliente: string;
+  ClienteEmail?: string;
+  ClientePhone?: string;
   Comercial: string;
   Empresa: string;
   DataEmissao: string;
   DataInicio: string;
+  DataFim?: string;
   Status: string;
   TrabalhadoresSolicitados?: number;
 }

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface CobroDetalhesSheetProps {
     isOpen: boolean;
@@ -47,6 +48,7 @@ export function CobroDetalhesSheet({
     onOpenEmail,
     onRefresh
 }: CobroDetalhesSheetProps) {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('origem');
     const [isLoadingFatura, setIsLoadingFatura] = useState(false);
     
@@ -144,14 +146,14 @@ export function CobroDetalhesSheet({
 
                 const enrichedHoras = (horasData || []).map(h => ({
                     ...h,
-                    worker_nome: workersMap.get(h.worker_id)?.nome || 'Trabalhador Desconhecido'
+                    worker_nome: workersMap.get(h.worker_id)?.nome || t('financeiro.detail_sheet.unknown_worker', 'Trabalhador Desconhecido')
                 }));
 
                 setHorasTrabalhadas(enrichedHoras);
             }
         } catch (err: any) {
-            console.error('Erro ao carregar dados do faturamento:', err);
-            toast.error('Não foi possível carregar a origem do faturamento: ' + err.message);
+            console.error(t('financeiro.detail_sheet.err_billing_load', 'Erro ao carregar dados do faturamento:'), err);
+            toast.error(t('financeiro.detail_sheet.err_billing_origin', 'Não foi possível carregar a origem do faturamento: ') + err.message);
         } finally {
             setIsLoadingFatura(false);
         }
@@ -164,23 +166,23 @@ export function CobroDetalhesSheet({
             const obsToSave = {
                 conta_receber_id: titulo.id,
                 usuario: currentUser,
-                tipo: 'Anotação Manual',
+                tipo: t('financeiro.modals.obs_manual_note', 'Anotação Manual'),
                 descricao: novaObs.trim(),
                 data: new Date().toISOString()
             };
             await saveObservacao(obsToSave);
             setNovaObs('');
             loadTimeline();
-            toast.success('Histórico atualizado!');
+            toast.success(t('financeiro.detail_sheet.msg_history_updated', 'Histórico atualizado!'));
         } catch (err: any) {
-            toast.error('Erro ao salvar anotação: ' + err.message);
+            toast.error(t('financeiro.detail_sheet.err_obs_save', 'Erro ao salvar anotação: ') + err.message);
         } finally {
             setIsSavingObs(false);
         }
     };
 
     const handleSendToLegal = async () => {
-        if (window.confirm(`Deseja encaminhar o título ${titulo.Num_doc} para cobrança judicial?`)) {
+        if (window.confirm(t('financeiro.detail_sheet.confirm_legal', 'Deseja encaminhar o título {{num_doc}} para cobrança judicial?', { num_doc: titulo.Num_doc }))) {
             try {
                 const updateRes = await updateContaReceber(titulo.id, { Status: 'Judicial' });
                 if (!updateRes.success) throw updateRes.error;
@@ -188,17 +190,17 @@ export function CobroDetalhesSheet({
                 const obsToSave = {
                     conta_receber_id: titulo.id,
                     usuario: currentUser,
-                    tipo: 'Encaminhamento Judicial',
-                    descricao: `Título encaminhado para cobrança jurídica/judicial via assessoria de advocacia.`,
+                    tipo: t('financeiro.detail_sheet.legal_forward', 'Encaminhamento Judicial'),
+                    descricao: t('financeiro.detail_sheet.legal_forward_desc', 'Título encaminhado para cobrança jurídica/judicial via assessoria de advocacia.'),
                     data: new Date().toISOString()
                 };
                 await saveObservacao(obsToSave);
 
-                toast.success('Título enviado para o Jurídico!');
+                toast.success(t('financeiro.detail_sheet.msg_legal_sent', 'Título enviado para o Jurídico!'));
                 onRefresh();
                 onClose();
             } catch (err: any) {
-                toast.error('Erro ao encaminhar para jurídico: ' + err.message);
+                toast.error(t('financeiro.detail_sheet.err_legal_forward', 'Erro ao encaminhar para jurídico: ') + err.message);
             }
         }
     };
@@ -217,24 +219,24 @@ export function CobroDetalhesSheet({
                         </div>
                         <div className="flex gap-1">
                             <Badge variant={titulo.Status === 'Pago' ? 'default' : isOverdue ? 'destructive' : 'secondary'} className="font-bold">
-                                {titulo.Status === 'Pago' ? 'Pago' : isOverdue ? 'Vencido' : 'A vencer'}
+                                {titulo.Status === 'Pago' ? t('financeiro.status.paid', 'Pago') : isOverdue ? t('financeiro.status.overdue', 'Vencido') : t('financeiro.status.due_soon', 'A vencer')}
                             </Badge>
                             {titulo.Status === 'Parcial' && (
-                                <Badge variant="warning" className="bg-amber-500 text-white font-bold">Parcial</Badge>
+                                <Badge variant="warning" className="bg-amber-500 text-white font-bold">{t('financeiro.status.partial', 'Parcial')}</Badge>
                             )}
                             {titulo.Status === 'Judicial' && (
-                                <Badge variant="outline" className="border-red-600 text-red-600 font-bold bg-red-50">Jurídico</Badge>
+                                <Badge variant="outline" className="border-red-600 text-red-600 font-bold bg-red-50">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
                             )}
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 bg-white dark:bg-slate-900 p-3 rounded-lg border shadow-sm">
                         <div>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor do Título</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">{t('financeiro.detail_sheet.value_title', 'Valor do Título')}</p>
                             <p className="text-xl font-extrabold text-slate-700 dark:text-slate-300">{formatCurrency(titulo.Valot_total)}</p>
                         </div>
                         <div>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Saldo Pendente</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">{t('financeiro.detail_sheet.pending_balance', 'Saldo Pendente')}</p>
                             <p className="text-xl font-extrabold text-brand-primary">{formatCurrency(titulo.Saldo_a_pagar)}</p>
                         </div>
                     </div>
@@ -244,8 +246,8 @@ export function CobroDetalhesSheet({
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                     <div className="px-6 border-b flex-none bg-slate-50 dark:bg-slate-950">
                         <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="origem" className="text-xs font-bold">Origem / Faturamento</TabsTrigger>
-                            <TabsTrigger value="timeline" className="text-xs font-bold">Linha do Tempo ({observacoes.length})</TabsTrigger>
+                            <TabsTrigger value="origem" className="text-xs font-bold">{t('financeiro.detail_sheet.tab_origin', 'Origem / Faturamento')}</TabsTrigger>
+                            <TabsTrigger value="timeline" className="text-xs font-bold">{t('financeiro.detail_sheet.tab_timeline', 'Linha do Tempo ({{count}})', { count: observacoes.length })}</TabsTrigger>
                         </TabsList>
                     </div>
 
@@ -256,15 +258,15 @@ export function CobroDetalhesSheet({
                             <div className="space-y-3">
                                 <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 border-b pb-1">
                                     <FileText size={16} className="text-brand-primary" />
-                                    Detalhamento Geral
+                                    {t('financeiro.detail_sheet.general_details', 'Detalhamento Geral')}
                                 </h3>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                                    <div className="flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">Empresa:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.Empresa || '-'}</span></div>
-                                    <div className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">Emissão:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(titulo.Data_emissao)}</span></div>
-                                    <div className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">Vencimento:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(titulo.Dt_venc)}</span></div>
-                                    <div className="flex items-center gap-1.5"><Briefcase size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">Banco de Depósito:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.Banco || 'Não Vinculado'}</span></div>
+                                    <div className="flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.filters.empresa', 'Empresa')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.Empresa || '-'}</span></div>
+                                    <div className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.filters.emissao', 'Emissão')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(titulo.Data_emissao)}</span></div>
+                                    <div className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.filters.vencimento', 'Vencimento')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(titulo.Dt_venc)}</span></div>
+                                    <div className="flex items-center gap-1.5"><Briefcase size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.detail_sheet.deposit_bank', 'Banco de Depósito')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.Banco || t('financeiro.detail_sheet.not_linked', 'Não Vinculado')}</span></div>
                                     {titulo.periodo_fat && (
-                                        <div className="flex items-center gap-1.5 col-span-2"><Info size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">Mês de Faturamento:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.periodo_fat}</span></div>
+                                        <div className="flex items-center gap-1.5 col-span-2"><Info size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.detail_sheet.billing_month', 'Mês de Faturamento')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.periodo_fat}</span></div>
                                     )}
                                 </div>
                             </div>
@@ -273,39 +275,39 @@ export function CobroDetalhesSheet({
                             {!titulo.fatura_id ? (
                                 <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-lg border border-dashed text-center flex flex-col items-center justify-center space-y-2">
                                     <AlertCircle className="w-8 h-8 text-slate-400" />
-                                    <p className="text-xs text-slate-500 font-semibold">Lançamento Manual</p>
-                                    <p className="text-[11px] text-slate-400">Este cobro foi registrado manualmente. Não há vinculação direta com planilha de horas de trabalhadores.</p>
+                                    <p className="text-xs text-slate-500 font-semibold">{t('financeiro.detail_sheet.manual_entry', 'Lançamento Manual')}</p>
+                                    <p className="text-[11px] text-slate-400">{t('financeiro.detail_sheet.manual_entry_desc', 'Este cobro foi registrado manualmente. Não há vinculação direta com planilha de horas de trabalhadores.')}</p>
                                 </div>
                             ) : isLoadingFatura ? (
                                 <div className="flex justify-center items-center py-12">
                                     <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                                    <span className="text-xs text-slate-500 ml-2">Buscando faturamento e planilha de horas...</span>
+                                    <span className="text-xs text-slate-500 ml-2">{t('financeiro.detail_sheet.fetching_billing', 'Buscando faturamento e planilha de horas...')}</span>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
                                     {/* Fatura Summary */}
                                     {faturaInfo && (
                                         <div className="bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border text-xs space-y-2">
-                                            <p className="font-bold text-slate-700 dark:text-slate-300">Fatura Vinc. ID: <span className="font-mono text-slate-500">{faturaInfo.id.substring(0,8).toUpperCase()}</span></p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-300">{t('financeiro.detail_sheet.billing_fatura_linked', 'Fatura Vinc. ID:')} <span className="font-mono text-slate-500">{faturaInfo.id.substring(0,8).toUpperCase()}</span></p>
                                             <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-400 font-medium">
-                                                <div>Período: <span className="font-bold text-slate-800 dark:text-slate-200">{faturaInfo.periodo || '-'}</span></div>
-                                                <div>Total Horas: <span className="font-bold text-slate-800 dark:text-slate-200">{horasTrabalhadas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0)}h</span></div>
-                                                <div>Subtotal: <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.subtotal || 0)}</span></div>
-                                                <div>IVA (21%): <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.iva || 0)}</span></div>
+                                                <div>{t('financeiro.detail_sheet.period', 'Período:')} <span className="font-bold text-slate-800 dark:text-slate-200">{faturaInfo.periodo || '-'}</span></div>
+                                                <div>{t('financeiro.detail_sheet.total_hours', 'Total Horas:')} <span className="font-bold text-slate-800 dark:text-slate-200">{horasTrabalhadas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0)}h</span></div>
+                                                <div>{t('financeiro.detail_sheet.subtotal', 'Subtotal:')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.subtotal || 0)}</span></div>
+                                                <div>{t('financeiro.detail_sheet.tax_iva', 'IVA (21%):')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.iva || 0)}</span></div>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Workers Hours Table */}
                                     <div className="space-y-2">
-                                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Trabalhadores e Horas Faturadas</h4>
+                                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">{t('financeiro.detail_sheet.workers_hours_title', 'Trabalhadores e Horas Faturadas')}</h4>
                                         <div className="border rounded-lg overflow-hidden">
                                             <Table>
                                                 <TableHeader className="bg-slate-50 dark:bg-slate-800/30">
                                                     <TableRow>
-                                                        <TableHead className="py-2 text-[10px] font-bold">Nome</TableHead>
-                                                        <TableHead className="py-2 text-[10px] font-bold text-center">Horas</TableHead>
-                                                        <TableHead className="py-2 text-[10px] font-bold text-right">Tarifa</TableHead>
+                                                        <TableHead className="py-2 text-[10px] font-bold">{t('financeiro.detail_sheet.worker_name', 'Nome')}</TableHead>
+                                                        <TableHead className="py-2 text-[10px] font-bold text-center">{t('financeiro.detail_sheet.hours', 'Horas')}</TableHead>
+                                                        <TableHead className="py-2 text-[10px] font-bold text-right">{t('financeiro.detail_sheet.rate', 'Tarifa')}</TableHead>
                                                         <TableHead className="py-2 text-[10px] font-bold text-right">Subtotal</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
@@ -313,7 +315,7 @@ export function CobroDetalhesSheet({
                                                     {horasTrabalhadas.length === 0 ? (
                                                         <TableRow>
                                                             <TableCell colSpan={4} className="text-center py-4 text-slate-400">
-                                                                Nenhum registro de horas detalhado.
+                                                                {t('financeiro.detail_sheet.no_hours_records', 'Nenhum registro de horas detalhado.')}
                                                             </TableCell>
                                                         </TableRow>
                                                     ) : (
@@ -341,7 +343,7 @@ export function CobroDetalhesSheet({
                                 <Input 
                                     value={novaObs}
                                     onChange={e => setNovaObs(e.target.value)}
-                                    placeholder="Registrar ligação, e-mail ou nota..."
+                                    placeholder={t('financeiro.detail_sheet.obs_placeholder', 'Registrar ligação, e-mail ou nota...')}
                                     className="flex-1 h-9 text-xs"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') handleAddObs();
@@ -353,7 +355,7 @@ export function CobroDetalhesSheet({
                                     className="bg-brand-primary hover:bg-brand-primary/90 h-9 text-xs"
                                 >
                                     {isSavingObs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                                    Salvar
+                                    {t('financeiro.detail_sheet.btn_save', 'Salvar')}
                                 </Button>
                             </div>
 
@@ -399,7 +401,7 @@ export function CobroDetalhesSheet({
                                     onClick={handleSendToLegal}
                                     className="text-red-700 hover:text-red-800 hover:bg-red-50 border-red-200 text-xs h-9 font-semibold"
                                 >
-                                    <Scale size={14} className="mr-1.5" /> Enviar ao Jurídico
+                                    <Scale size={14} className="mr-1.5" /> {t('financeiro.detail_sheet.btn_send_legal', 'Enviar ao Jurídico')}
                                 </Button>
                             )}
 
@@ -410,7 +412,7 @@ export function CobroDetalhesSheet({
                                     onClick={() => onOpenEmail(titulo)}
                                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 text-xs h-9 font-semibold"
                                 >
-                                    <Mail size={14} className="mr-1.5" /> Enviar E-mail
+                                    <Mail size={14} className="mr-1.5" /> {t('financeiro.detail_sheet.btn_send_email', 'Enviar E-mail')}
                                 </Button>
                             )}
                         </div>
@@ -422,7 +424,7 @@ export function CobroDetalhesSheet({
                                 onClick={() => { onOpenEdit(titulo); onClose(); }}
                                 className="text-slate-600 hover:text-slate-800 text-xs h-9 font-semibold"
                             >
-                                <Edit size={14} className="mr-1.5" /> Alterar
+                                <Edit size={14} className="mr-1.5" /> {t('financeiro.detail_sheet.btn_edit', 'Alterar')}
                             </Button>
 
                             {/* Receber / Liquidar */}
@@ -431,7 +433,7 @@ export function CobroDetalhesSheet({
                                     onClick={() => { onOpenReceber(titulo); onClose(); }}
                                     className="bg-green-600 hover:bg-green-700 text-white text-xs h-9 font-bold"
                                 >
-                                    <DollarSign size={14} className="mr-1.5" /> Liquidar / Receber
+                                    <DollarSign size={14} className="mr-1.5" /> {t('financeiro.detail_sheet.btn_liquidar', 'Liquidar / Receber')}
                                 </Button>
                             )}
                         </div>

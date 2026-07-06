@@ -42,11 +42,11 @@ export async function fetchClientes(): Promise<Cliente[]> {
   })).filter((c: Cliente) => c.CodCliente);
 }
 
-export async function fetchModernEmpresas(): Promise<{ id: string; nome: string }[]> {
+export async function fetchModernEmpresas(): Promise<{ id: string; nome: string; codigo: string; trade_name?: string | null; billing_email?: string | null; cobranca_email?: string | null; email?: string | null }[]> {
   const { data, error } = await supabase
     .schema('core_common')
     .from('empresas')
-    .select('id, nome')
+    .select('id, nome, codigo, trade_name, billing_email, cobranca_email, email')
     .eq('is_active', true)
     .order('nome');
 

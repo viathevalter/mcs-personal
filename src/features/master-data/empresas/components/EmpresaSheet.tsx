@@ -59,6 +59,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       mobile: '',
       email: '',
       billing_email: '',
+      cobranca_email: '',
       proposal_sender_email: '',
       iban: '',
       latitude: undefined,
@@ -90,6 +91,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           mobile: empresa.mobile || '',
           email: empresa.email || '',
           billing_email: empresa.billing_email || '',
+          cobranca_email: (empresa as any).cobranca_email || '',
           proposal_sender_email: empresa.proposal_sender_email || '',
           iban: empresa.iban || '',
           latitude: empresa.latitude || undefined,
@@ -115,6 +117,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           mobile: '',
           email: '',
           billing_email: '',
+          cobranca_email: '',
           proposal_sender_email: '',
           iban: '',
           latitude: undefined,
@@ -419,9 +422,23 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
 
                 <FormField
                   control={form.control}
+                  name="cobranca_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-mail para Envio de Cobrança</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: cobranca@empresa.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="proposal_sender_email"
                   render={({ field }) => (
-                    <FormItem className="md:col-span-2">
+                    <FormItem>
                       <FormLabel>E-mail Remetente de Propostas (Outlook)</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="Ex: vendas@stoco.es" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />

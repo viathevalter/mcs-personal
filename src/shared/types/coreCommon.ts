@@ -21,6 +21,7 @@ export interface Empresa {
     mobile?: string | null;
     email?: string | null;
     billing_email?: string | null;
+    cobranca_email?: string | null;
     iban?: string | null;
     latitude?: number | null;
     longitude?: number | null;

@@ -3,22 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { fetchEnrichedData, updateContaReceber, saveObservacao } from '../data/loader';
+import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
 import { ObservacoesModal } from '../components/ObservacoesModal';
 import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
 import { CobroFormSheet } from '../components/CobroFormSheet';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTranslation } from 'react-i18next';
 
 export const Cobranca = () => {
+    const { t } = useTranslation();
     const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('cobranca_searchTerm') || '');
     const [data, setData] = useState<EnrichedTitulo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,14 +74,23 @@ export const Cobranca = () => {
     const [isEmailOpen, setIsEmailOpen] = useState(false);
     const [emailTemplate, setEmailTemplate] = useState<'friendly' | 'overdue' | 'legal'>('friendly');
     const [emailDestinatario, setEmailDestinatario] = useState('');
+    const [emailRemetente, setEmailRemetente] = useState('');
     const [emailSubject, setEmailSubject] = useState('');
     const [emailBody, setEmailBody] = useState('');
     const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailAttachment, setEmailAttachment] = useState<{ name: string; contentType: string; contentBytes: string } | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [currentUser, setCurrentUser] = useState('Usuário Desconhecido');
+    const [empresas, setEmpresas] = useState<{ id: string; nome: string; billing_email?: string | null; cobranca_email?: string | null; email?: string | null }[]>([]);
 
     useEffect(() => {
         loadData();
         fetchUser();
+        const loadEmpresas = async () => {
+            const data = await fetchModernEmpresas();
+            setEmpresas(data);
+        };
+        loadEmpresas();
     }, []);
 
     // Save states to sessionStorage
@@ -194,8 +206,7 @@ export const Cobranca = () => {
             setIsLoading(false);
         }
     };
-
-    // Templates definition
+    // Templates definition
     const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal', title: EnrichedTitulo) => {
         setEmailTemplate(template);
         const clientName = title.Cliente || 'Cliente';
@@ -203,30 +214,33 @@ export const Cobranca = () => {
         const docValue = formatCurrency(title.Valot_total);
         const vencDate = title.Dt_venc ? new Date(title.Dt_venc).toLocaleDateString('pt-PT') : 'N/A';
 
+        const toHtml = (text: string) => {
+            return text.split('\n').map(line => `<p>${line || '<br>'}</p>`).join('');
+        };
+
         if (template === 'friendly') {
-            setEmailSubject(`Lembrete de Vencimento: Documento ${docNum}`);
+            setEmailSubject(t('financeiro.email_modal.friendly_subject', 'Lembrete de Vencimento: Documento {{docNum}}', { docNum }));
             setEmailBody(
-                `Olá, equipe do departamento financeiro da ${clientName}.\n\n` +
-                `Gostaríamos de lembrar amigavelmente que o título ${docNum} no valor de ${docValue} vencerá em ${vencDate}.\n\n` +
-                `Por favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\n` +
-                `Agradecemos a parceria,\nDepartamento Financeiro`
+                toHtml(t('financeiro.email_modal.friendly_body', 
+                    'Olá, equipe do departamento financeiro da {{clientName}}.\n\nGostaríamos de lembrar amigavelmente que o título {{docNum}} no valor de {{docValue}} vencerá em {{vencDate}}.\n\nPor favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\nAgradecemos a parceria,\nDepartamento Financeiro',
+                    { clientName, docNum, docValue, vencDate }
+                ))
             );
         } else if (template === 'overdue') {
-            setEmailSubject(`Aviso de Cobrança - Título em Atraso: ${docNum}`);
+            setEmailSubject(t('financeiro.email_modal.overdue_subject', 'Aviso de Cobrança - Título em Atraso: {{docNum}}', { docNum }));
             setEmailBody(
-                `Prezados,\n\n` +
-                `Constatamos em nosso sistema que o título ${docNum} no valor de ${docValue}, vencido em ${vencDate}, ainda não foi liquidado.\n\n` +
-                `Solicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\n` +
-                `Atenciosamente,\nDepartamento de Cobrança`
+                toHtml(t('financeiro.email_modal.overdue_body',
+                    'Prezados,\n\nConstatamos em nosso sistema que o título {{docNum}} no valor de {{docValue}}, vencido em {{vencDate}}, ainda não foi liquidado.\n\nSolicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\nAtenciosamente,\nDepartamento de Cobrança',
+                    { docNum, docValue, vencDate }
+                ))
             );
         } else if (template === 'legal') {
-            setEmailSubject(`NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título ${docNum}`);
+            setEmailSubject(t('financeiro.email_modal.legal_subject', 'NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título {{docNum}}', { docNum }));
             setEmailBody(
-                `Prezada Direção da ${clientName},\n\n` +
-                `Apesar de nossas tentativas anteriores de negociação, o título ${docNum} no valor de ${docValue} (vencido desde ${vencDate}) permanece em aberto.\n\n` +
-                `Esta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\n` +
-                `Evite maiores encargos e processos legais entrando em contato imediatamente.\n\n` +
-                `Atenciosamente,\nDiretoria Financeira`
+                toHtml(t('financeiro.email_modal.legal_body',
+                    'Prezada Direção da {{clientName}},\n\nApesar de nossas tentativas anteriores de negociação, o título {{docNum}} no valor de {{docValue}} (vencido desde {{vencDate}}) permanece em aberto.\n\nEsta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\nEvite maiores encargos e processos legais entrando em contato imediatamente.\n\nAtenciosamente,\nDiretoria Financeira',
+                    { clientName, docNum, docValue, vencDate }
+                ))
             );
         }
     };
@@ -234,6 +248,24 @@ export const Cobranca = () => {
     const openEmailModal = (titulo: EnrichedTitulo) => {
         setSelectedTitulo(titulo);
         setEmailDestinatario(titulo.clienteInfo?.EmailCobros || titulo.clienteInfo?.EmailCobros || '');
+        
+        // Match company sender email robustly (checking trade_name, nome, codigo, partials)
+        const cleanEmpName = (titulo.Empresa || '').trim().toLowerCase();
+        let matchedEmp = empresas.find(e => (e.trade_name || '').trim().toLowerCase() === cleanEmpName);
+        if (!matchedEmp) matchedEmp = empresas.find(e => e.nome.trim().toLowerCase() === cleanEmpName);
+        if (!matchedEmp) matchedEmp = empresas.find(e => e.codigo.trim().toLowerCase() === cleanEmpName);
+        if (!matchedEmp) {
+            matchedEmp = empresas.find(e => {
+                const name = e.nome.toLowerCase();
+                const trade = (e.trade_name || '').toLowerCase();
+                return name.includes(cleanEmpName) || cleanEmpName.includes(name) || (trade && (trade.includes(cleanEmpName) || cleanEmpName.includes(trade)));
+            });
+        }
+
+        const senderEmail = matchedEmp?.cobranca_email || matchedEmp?.billing_email || matchedEmp?.email || 'financeiro@kotrik.com';
+        setEmailRemetente(senderEmail);
+        setEmailAttachment(null);
+
         handleTemplateChange('friendly', titulo);
         setIsEmailOpen(true);
     };
@@ -242,23 +274,63 @@ export const Cobranca = () => {
         if (!selectedTitulo) return;
         setIsSendingEmail(true);
         try {
+            // Match company sender email robustly to get its ID
+            const cleanEmpName = (selectedTitulo.Empresa || '').trim().toLowerCase();
+            let matchedEmp = empresas.find(e => (e.trade_name || '').trim().toLowerCase() === cleanEmpName);
+            if (!matchedEmp) matchedEmp = empresas.find(e => e.nome.trim().toLowerCase() === cleanEmpName);
+            if (!matchedEmp) matchedEmp = empresas.find(e => e.codigo.trim().toLowerCase() === cleanEmpName);
+            if (!matchedEmp) {
+                matchedEmp = empresas.find(e => {
+                    const name = e.nome.toLowerCase();
+                    const trade = (e.trade_name || '').toLowerCase();
+                    return name.includes(cleanEmpName) || cleanEmpName.includes(name) || (trade && (trade.includes(cleanEmpName) || cleanEmpName.includes(trade)));
+                });
+            }
+            const matchedEmpresaId = matchedEmp?.id;
+
+            const toEmails = emailDestinatario.split(/[,;]/).map(e => e.trim()).filter(Boolean);
+            if (toEmails.length === 0) {
+                toast.error(t('financeiro.email_modal.err_no_recipient', 'Por favor, informe pelo menos um destinatário de e-mail.'));
+                setIsSendingEmail(false);
+                return;
+            }
+
+            // Trigger Edge Function to send email via MS Graph (Outlook) and save to Sent Items
+            const { error: functionErr } = await supabase.functions.invoke('send-order-notification', {
+                body: {
+                    empresa_id: matchedEmpresaId,
+                    to_emails: toEmails,
+                    email_subject: emailSubject,
+                    email_body: emailBody, // HTML body from Editor
+                    is_faturamento: false,
+                    client_name: selectedTitulo.Cliente,
+                    custom_attachments: emailAttachment ? [emailAttachment] : []
+                }
+            });
+
+            if (functionErr) {
+                console.error('Error invoking send-order-notification:', functionErr);
+                throw new Error(functionErr.message);
+            }
+
             // Save action in timelines table
+            const attachmentText = emailAttachment ? `\nAnexo: ${emailAttachment.name}` : '';
             const obsToSave = {
                 conta_receber_id: selectedTitulo.id,
                 usuario: currentUser,
                 tipo: 'E-mail de Cobrança',
-                descricao: `Enviado e-mail de cobrança (${emailTemplate === 'friendly' ? 'Lembrete Amigável' : emailTemplate === 'overdue' ? 'Aviso de Atraso' : 'Notificação Pré-Jurídica'}) para ${emailDestinatario || 'cliente'}. Assunto: "${emailSubject}"`,
+                descricao: `Enviado e-mail de cobrança (${emailTemplate === 'friendly' ? 'Lembrete Amigável' : emailTemplate === 'overdue' ? 'Aviso de Atraso' : 'Notificação Pré-Jurídica'}) para ${emailDestinatario || 'cliente'} de ${emailRemetente}. Assunto: "${emailSubject}"${attachmentText}`,
                 data: new Date().toISOString()
             };
 
             await saveObservacao(obsToSave);
-            toast.success('E-mail de cobrança enviado com sucesso!', {
-                description: `O log do envio foi registrado na linha do tempo do cobro.`
+            toast.success(t('financeiro.email_modal.msg_email_sent', 'E-mail de cobrança enviado com sucesso!'), {
+                description: t('financeiro.email_modal.msg_email_log', 'O log do envio foi registrado na linha do tempo do cobro.')
             });
             setIsEmailOpen(false);
             loadData();
         } catch (err: any) {
-            toast.error('Erro ao registrar envio de e-mail: ' + err.message);
+            toast.error(t('financeiro.email_modal.err_email_log', 'Erro ao registrar envio de e-mail: ') + err.message);
         } finally {
             setIsSendingEmail(false);
         }
@@ -486,9 +558,9 @@ export const Cobranca = () => {
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
                             <ShieldAlert className="w-8 h-8 text-destructive" />
-                            Gestão de Cobrança / Inadimplência
+                            {t('financeiro.title_cobranca', 'Gestão de Cobrança / Inadimplência')}
                         </h2>
-                        <p className="text-muted-foreground mt-1">Monitore clientes inadimplentes, emita lembretes e encaminhe títulos para cobrança jurídica.</p>
+                        <p className="text-muted-foreground mt-1">{t('financeiro.subtitle_cobranca', 'Monitore clientes inadimplentes, emita lembretes e encaminhe títulos para cobrança jurídica.')}</p>
                     </div>
                 </div>
 
@@ -499,11 +571,11 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('atraso')}
                     >
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-destructive uppercase tracking-wider">Em Atraso (Vencidos)</CardTitle>
+                            <CardTitle className="text-[10px] font-bold text-destructive uppercase tracking-wider">{t('financeiro.kpis.title_overdue', 'Em Atraso (Vencidos)')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-destructive">{formatCurrency(kpis.atrasoVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.atrasoCount} {kpis.atrasoCount === 1 ? 'título em atraso' : 'títulos em atraso'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.atrasoCount} {kpis.atrasoCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
                         </CardContent>
                     </Card>
 
@@ -512,11 +584,11 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('alerta')}
                     >
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">A Vencer (Próximos 7 Dias)</CardTitle>
+                            <CardTitle className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{t('financeiro.kpis.title_due_soon', 'A Vencer (Próximos 7 Dias)')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-amber-500">{formatCurrency(kpis.alertaVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.alertaCount} {kpis.alertaCount === 1 ? 'título em alerta' : 'títulos em alerta'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.alertaCount} {kpis.alertaCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
                         </CardContent>
                     </Card>
 
@@ -525,21 +597,21 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('judicial')}
                     >
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-red-800 uppercase tracking-wider">Setor Judicial</CardTitle>
+                            <CardTitle className="text-[10px] font-bold text-red-800 uppercase tracking-wider">{t('financeiro.kpis.title_judicial', 'Setor Judicial')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-red-800">{formatCurrency(kpis.judicialVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.judicialCount} {kpis.judicialCount === 1 ? 'processo' : 'processos ativos'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos ativos')}</p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-l-4 border-l-slate-600 bg-slate-100/50">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Total Sob Cobrança</CardTitle>
+                            <CardTitle className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{t('financeiro.kpis.title_total', 'Total Sob Cobrança')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-extrabold text-slate-800">{formatCurrency(kpis.totalVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.totalCount} {kpis.totalCount === 1 ? 'título pendente' : 'títulos pendentes'}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -551,7 +623,7 @@ export const Cobranca = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                             <input
                                 type="text"
-                                placeholder="Buscar por cliente, documento..."
+                                placeholder={t('financeiro.filters.search_placeholder_cobranca', 'Buscar por cliente, documento...')}
                                 className="w-full pl-10 pr-4 py-2.5 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -564,13 +636,13 @@ export const Cobranca = () => {
                                     onClick={() => setShowFilters(!showFilters)} 
                                     className="flex items-center gap-2 w-full md:w-auto"
                                 >
-                                    <Filter size={16} /> Filtros {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
+                                    <Filter size={16} /> {t('financeiro.filters.btn_filter', 'Filtros')} {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
                                 </Button>
 
                                 {showFilters && (
                                     <div className="absolute right-0 top-full mt-2 z-50 w-[300px] sm:w-[600px] md:w-[680px] bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-xl shadow-2xl p-5 space-y-4 text-left">
                                         <div className="flex justify-between items-center border-b pb-2 dark:border-slate-800">
-                                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">Filtrar Lançamentos</h3>
+                                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">{t('financeiro.filters.title_popover', 'Filtrar Lançamentos')}</h3>
                                             <button 
                                                 onClick={() => setShowFilters(false)}
                                                 className="text-muted-foreground hover:text-slate-850 dark:hover:text-slate-100"
@@ -584,13 +656,13 @@ export const Cobranca = () => {
                                             <div className="space-y-3">
                                                 {/* Empresa Filter */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Empresa</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.empresa', 'Empresa')}</label>
                                                     <select
                                                         value={tempFilterEmpresa}
                                                         onChange={(e) => setTempFilterEmpresa(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todas as Empresas</option>
+                                                        <option value="all">{t('financeiro.filters.all_companies', 'Todas as Empresas')}</option>
                                                         {uniqueEmpresas.map(emp => (
                                                             <option key={emp} value={emp}>{emp}</option>
                                                         ))}
@@ -599,13 +671,13 @@ export const Cobranca = () => {
 
                                                 {/* Banco Filter */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Banco</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.banco', 'Banco')}</label>
                                                     <select
                                                         value={tempFilterBanco}
                                                         onChange={(e) => setTempFilterBanco(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todos os Bancos</option>
+                                                        <option value="all">{t('financeiro.filters.all_banks', 'Todos os Bancos')}</option>
                                                         {uniqueBancos.map(b => (
                                                             <option key={b} value={b}>{b}</option>
                                                         ))}
@@ -614,13 +686,13 @@ export const Cobranca = () => {
 
                                                 {/* Mês de Faturamento */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mês de Faturamento</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_fat', 'Mês de Faturamento')}</label>
                                                     <select
                                                         value={tempFilterPeriodoFat}
                                                         onChange={(e) => setTempFilterPeriodoFat(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todos os Meses</option>
+                                                        <option value="all">{t('financeiro.filters.all_months', 'Todos os Meses')}</option>
                                                         {uniquePeriodosFat.map(pf => (
                                                             <option key={pf} value={pf}>{pf}</option>
                                                         ))}
@@ -632,16 +704,16 @@ export const Cobranca = () => {
                                             <div className="space-y-3 sm:border-l sm:pl-4 dark:border-slate-800">
                                                 {/* Período de Emissão */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período de Emissão</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_emissao', 'Período de Emissão')}</label>
                                                     <select
                                                         value={tempFilterPeriodoEmissao}
                                                         onChange={(e) => setTempFilterPeriodoEmissao(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todo o Período</option>
-                                                        <option value="this-month">Este Mês</option>
-                                                        <option value="past-30">Últimos 30 Dias</option>
-                                                        <option value="custom">Personalizado...</option>
+                                                        <option value="all">{t('financeiro.filters.all_periods', 'Todo o Período')}</option>
+                                                        <option value="this-month">{t('financeiro.filters.this_month', 'Este Mês')}</option>
+                                                        <option value="past-30">{t('financeiro.filters.past_30', 'Últimos 30 Dias')}</option>
+                                                        <option value="custom">{t('financeiro.filters.custom', 'Personalizado...')}</option>
                                                     </select>
                                                 </div>
 
@@ -649,7 +721,7 @@ export const Cobranca = () => {
                                                 {tempFilterPeriodoEmissao === 'custom' && (
                                                     <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-dashed dark:border-slate-800">
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">DE</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_from', 'DE')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempStartDateEmissao}
@@ -658,7 +730,7 @@ export const Cobranca = () => {
                                                             />
                                                         </div>
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">ATÉ</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_to', 'ATÉ')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempEndDateEmissao}
@@ -671,16 +743,16 @@ export const Cobranca = () => {
 
                                                 {/* Período de Vencimento */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período de Vencimento</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_vencimento', 'Período de Vencimento')}</label>
                                                     <select
                                                         value={tempFilterPeriodoVencimento}
                                                         onChange={(e) => setTempFilterPeriodoVencimento(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todo o Período</option>
-                                                        <option value="this-month">Este Mês</option>
-                                                        <option value="next-30">Próximos 30 Dias</option>
-                                                        <option value="custom">Personalizado...</option>
+                                                        <option value="all">{t('financeiro.filters.all_periods', 'Todo o Período')}</option>
+                                                        <option value="this-month">{t('financeiro.filters.this_month', 'Este Mês')}</option>
+                                                        <option value="next-30">{t('financeiro.filters.next_30', 'Próximos 30 Dias')}</option>
+                                                        <option value="custom">{t('financeiro.filters.custom', 'Personalizado...')}</option>
                                                     </select>
                                                 </div>
 
@@ -688,7 +760,7 @@ export const Cobranca = () => {
                                                 {tempFilterPeriodoVencimento === 'custom' && (
                                                     <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-dashed dark:border-slate-800">
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">DE</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_from', 'DE')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempStartDateVencimento}
@@ -697,7 +769,7 @@ export const Cobranca = () => {
                                                             />
                                                         </div>
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">ATÉ</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_to', 'ATÉ')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempEndDateVencimento}
@@ -710,16 +782,16 @@ export const Cobranca = () => {
 
                                                 {/* Período de Alteração */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período de Alteração</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_alteracao', 'Período de Alteração')}</label>
                                                     <select
                                                         value={tempFilterPeriodoAlteracao}
                                                         onChange={(e) => setTempFilterPeriodoAlteracao(e.target.value)}
                                                         className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                                                     >
-                                                        <option value="all">Todo o Período</option>
-                                                        <option value="this-month">Este Mês</option>
-                                                        <option value="past-30">Últimos 30 Dias</option>
-                                                        <option value="custom">Personalizado...</option>
+                                                        <option value="all">{t('financeiro.filters.all_periods', 'Todo o Período')}</option>
+                                                        <option value="this-month">{t('financeiro.filters.this_month', 'Este Mês')}</option>
+                                                        <option value="past-30">{t('financeiro.filters.past_30', 'Últimos 30 Dias')}</option>
+                                                        <option value="custom">{t('financeiro.filters.custom', 'Personalizado...')}</option>
                                                     </select>
                                                 </div>
 
@@ -727,7 +799,7 @@ export const Cobranca = () => {
                                                 {tempFilterPeriodoAlteracao === 'custom' && (
                                                     <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-dashed dark:border-slate-800">
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">DE</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_from', 'DE')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempStartDateAlteracao}
@@ -736,7 +808,7 @@ export const Cobranca = () => {
                                                             />
                                                         </div>
                                                         <div className="space-y-0.5">
-                                                            <label className="text-[9px] font-semibold text-muted-foreground">ATÉ</label>
+                                                            <label className="text-[9px] font-semibold text-muted-foreground">{t('financeiro.filters.date_to', 'ATÉ')}</label>
                                                             <input
                                                                 type="date"
                                                                 value={tempEndDateAlteracao}
@@ -787,7 +859,7 @@ export const Cobranca = () => {
                                                 }}
                                                 className="text-[11px] font-semibold h-8"
                                             >
-                                                Limpar
+                                                {t('financeiro.filters.btn_clear', 'Limpar')}
                                             </Button>
                                             <Button
                                                 size="sm"
@@ -810,7 +882,7 @@ export const Cobranca = () => {
                                                 }}
                                                 className="text-[11px] font-bold h-8 text-white bg-primary hover:bg-primary/95"
                                             >
-                                                Aplicar Filtros
+                                                {t('financeiro.filters.btn_apply', 'Aplicar Filtros')}
                                             </Button>
                                         </div>
                                     </div>
@@ -837,7 +909,7 @@ export const Cobranca = () => {
                                     }}
                                     className="text-xs text-muted-foreground hover:text-destructive"
                                 >
-                                    Limpar
+                                    {t('financeiro.filters.btn_clear', 'Limpar')}
                                 </Button>
                             )}
                         </div>
@@ -845,7 +917,7 @@ export const Cobranca = () => {
 
                     {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodoFat !== 'all' || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || filterPeriodoAlteracao !== 'all') && (
                         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-dashed dark:border-slate-800">
-                            <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider">Filtros ativos:</span>
+                            <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider">{t('financeiro.filters.active_filters', 'Filtros ativos:')}</span>
                             
                             {/* Empresa Filter */}
                             {filterEmpresa !== 'all' && (
@@ -948,7 +1020,7 @@ export const Cobranca = () => {
                         <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-brand-primary" />
                             <CardTitle className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                {activeTab === 'atraso' ? 'Lista de Devedores em Atraso' : activeTab === 'alerta' ? 'Alertas de Vencimentos Próximos' : 'Carteira Jurídico / Processos'}
+                                {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos')}
                             </CardTitle>
                             <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
                                 {filteredData.length}
@@ -961,19 +1033,19 @@ export const Cobranca = () => {
                                 onClick={() => setActiveTab('atraso')}
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'atraso' ? 'bg-white dark:bg-slate-800 text-destructive shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                Em Atraso ({kpis.atrasoCount})
+                                {t('financeiro.kpis.tab_overdue', 'Em Atraso')} ({kpis.atrasoCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('alerta')}
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'alerta' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                A Vencer ({kpis.alertaCount})
+                                {t('financeiro.kpis.tab_due_soon', 'A Vencer')} ({kpis.alertaCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('judicial')}
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                Jurídico ({kpis.judicialCount})
+                                {t('financeiro.kpis.tab_judicial', 'Jurídico')} ({kpis.judicialCount})
                             </button>
                         </div>
                     </div>
@@ -982,30 +1054,30 @@ export const Cobranca = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Cliente / Doc</TableHead>
-                                <TableHead>Empresa</TableHead>
-                                <TableHead>Banco</TableHead>
-                                <TableHead>Mês Fat.</TableHead>
-                                <TableHead>Emissão</TableHead>
-                                <TableHead>Vencimento</TableHead>
-                                <TableHead className="text-right">Valor</TableHead>
-                                <TableHead className="text-right">Saldo</TableHead>
-                                <TableHead className="text-center">Status</TableHead>
-                                <TableHead className="text-center">Situação</TableHead>
-                                <TableHead className="text-right px-6">Ações de Cobrança</TableHead>
+                                <TableHead>{t('financeiro.table.client_doc', 'Cliente / Doc')}</TableHead>
+                                <TableHead>{t('financeiro.table.company', 'Empresa')}</TableHead>
+                                <TableHead>{t('financeiro.table.bank', 'Banco')}</TableHead>
+                                <TableHead>{t('financeiro.table.billing_month', 'Mês Fat.')}</TableHead>
+                                <TableHead>{t('financeiro.table.issued', 'Emissão')}</TableHead>
+                                <TableHead>{t('financeiro.table.due', 'Vencimento')}</TableHead>
+                                <TableHead className="text-right">{t('financeiro.table.value', 'Valor')}</TableHead>
+                                <TableHead className="text-right">{t('financeiro.table.balance', 'Saldo')}</TableHead>
+                                <TableHead className="text-center">{t('financeiro.table.status', 'Status')}</TableHead>
+                                <TableHead className="text-center">{t('financeiro.table.situation', 'Situação')}</TableHead>
+                                <TableHead className="text-right px-6">{t('financeiro.table.actions', 'Ações de Cobrança')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                                        Carregando dados de cobrança...
+                                        {t('financeiro.table.loading_data', 'Carregando dados...')}
                                     </TableCell>
                                 </TableRow>
                             ) : filteredData.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={11} className="text-center py-8 text-muted-foreground font-medium">
-                                        Excelente! Nenhum título pendente nesta categoria.
+                                        {t('financeiro.table.no_pending_titles', 'Excelente! Nenhum título pendente nesta categoria.')}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -1027,7 +1099,7 @@ export const Cobranca = () => {
                                                 <div className="font-medium">{formatDate(item.Dt_venc)}</div>
                                                 {activeTab === 'atraso' && delayDays > 0 && (
                                                     <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
-                                                        ({delayDays} {delayDays === 1 ? 'dia' : 'dias'} atraso)
+                                                        ({delayDays} {delayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
                                                     </span>
                                                 )}
                                             </TableCell>
@@ -1037,11 +1109,11 @@ export const Cobranca = () => {
                                             </TableCell>
                                             <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                 {item.Status === 'Pago' ? (
-                                                     <Badge variant="default">Pago</Badge>
-                                                 ) : isOverdue(item) ? (
-                                                     <Badge variant="destructive">Vencido</Badge>
+                                                     <Badge variant="default">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                 ) : (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0))) ? (
+                                                     <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
                                                  ) : (
-                                                     <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">A vencer</Badge>
+                                                     <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
                                                  )}
                                             </TableCell>
                                             <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -1049,14 +1121,14 @@ export const Cobranca = () => {
                                                      <TooltipProvider>
                                                          <Tooltip>
                                                              <TooltipTrigger className="cursor-help">
-                                                                 <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold">Parcial</Badge>
+                                                                 <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold">{t('financeiro.status.partial', 'Parcial')}</Badge>
                                                              </TooltipTrigger>
                                                              <TooltipContent className="bg-white dark:bg-slate-900 border shadow-xl p-3 text-slate-800 dark:text-slate-100 text-xs max-w-[250px]">
-                                                                 <p className="font-semibold text-brand-primary border-b pb-1 mb-1.5">Recebimento Parcial:</p>
+                                                                 <p className="font-semibold text-brand-primary border-b pb-1 mb-1.5">{t('financeiro.tooltip.partial_receipt', 'Recebimento Parcial:')}</p>
                                                                  <div className="space-y-1 font-medium">
-                                                                     <div className="flex justify-between"><span>Valor Total:</span><span>{formatCurrency(item.Valot_total)}</span></div>
-                                                                     <div className="flex justify-between text-green-600"><span>Valor Pago:</span><span>{formatCurrency(item.Valot_total - item.Saldo_a_pagar)}</span></div>
-                                                                     <div className="flex justify-between text-destructive"><span>Saldo Restante:</span><span>{formatCurrency(item.Saldo_a_pagar)}</span></div>
+                                                                     <div className="flex justify-between"><span>{t('financeiro.tooltip.total_value', 'Valor Total:')}</span><span>{formatCurrency(item.Valot_total)}</span></div>
+                                                                     <div className="flex justify-between text-green-600"><span>{t('financeiro.tooltip.paid_value', 'Valor Pago:')}</span><span>{formatCurrency(item.Valot_total - item.Saldo_a_pagar)}</span></div>
+                                                                     <div className="flex justify-between text-destructive"><span>{t('financeiro.tooltip.remaining_balance', 'Saldo Restante:')}</span><span>{formatCurrency(item.Saldo_a_pagar)}</span></div>
                                                                  </div>
                                                              </TooltipContent>
                                                          </Tooltip>
@@ -1065,11 +1137,11 @@ export const Cobranca = () => {
                                                      <TooltipProvider>
                                                          <Tooltip>
                                                              <TooltipTrigger className="cursor-help">
-                                                                 <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">Jurídico</Badge>
+                                                                 <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
                                                              </TooltipTrigger>
                                                              <TooltipContent className="bg-white dark:bg-slate-900 border shadow-xl p-3 text-slate-800 dark:text-slate-100 text-xs max-w-[250px]">
-                                                                 <p className="font-semibold text-red-600 border-b pb-1 mb-1.5">Cobrança Jurídica:</p>
-                                                                 <p className="font-medium">Este título foi encaminhado ao departamento jurídico para cobrança judicial.</p>
+                                                                 <p className="font-semibold text-red-600 border-b pb-1 mb-1.5">{t('financeiro.tooltip.judicial_collection', 'Cobrança Jurídica:')}</p>
+                                                                 <p className="font-medium">{t('financeiro.tooltip.judicial_desc', 'Este título foi encaminhado ao departamento jurídico para cobrança judicial.')}</p>
                                                              </TooltipContent>
                                                          </Tooltip>
                                                      </TooltipProvider>
@@ -1083,22 +1155,22 @@ export const Cobranca = () => {
                                                     <Button 
                                                         variant="outline" 
                                                         size="sm" 
-                                                        title="Cobrar via E-mail"
+                                                        title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
                                                         onClick={() => openEmailModal(item)}
                                                         className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
                                                     >
-                                                        <Mail size={14} className="mr-1" /> Cobrar
+                                                        <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
                                                     </Button>
                                                     
                                                     {/* Negociacoes Observacoes */}
                                                     <Button 
                                                         variant="outline" 
                                                         size="sm" 
-                                                        title="Negociações / Histórico"
+                                                        title={t('financeiro.actions.btn_historico', 'Histórico')}
                                                         onClick={() => openObs(item)}
                                                         className="text-slate-600 hover:text-slate-700 hover:bg-slate-100 h-8 text-xs font-semibold"
                                                     >
-                                                        <Clock size={14} className="mr-1" /> Histórico
+                                                        <Clock size={14} className="mr-1" /> {t('financeiro.actions.btn_historico', 'Histórico')}
                                                     </Button>
 
                                                     {/* Enviar ao Juridico */}
@@ -1106,11 +1178,11 @@ export const Cobranca = () => {
                                                         <Button 
                                                             variant="outline" 
                                                             size="sm" 
-                                                            title="Enviar ao Jurídico"
+                                                            title={t('financeiro.actions.btn_juridico', 'Jurídico')}
                                                             onClick={() => handleSendToLegal(item)}
                                                             className="text-red-700 hover:text-red-800 hover:bg-red-50 border-red-200 h-8 text-xs font-semibold"
                                                         >
-                                                            <Scale size={14} className="mr-1" /> Jurídico
+                                                            <Scale size={14} className="mr-1" /> {t('financeiro.actions.btn_juridico', 'Jurídico')}
                                                         </Button>
                                                     )}
 
@@ -1118,7 +1190,7 @@ export const Cobranca = () => {
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
-                                                        title="Liquidar / Receber"
+                                                        title={t('financeiro.actions.btn_receber', 'Receber')}
                                                         onClick={() => openReceber(item)}
                                                         className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
                                                     >
@@ -1137,44 +1209,65 @@ export const Cobranca = () => {
 
             {/* Email Template Modal Dialog */}
             <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
-                <DialogContent className="sm:max-w-xl dark:bg-slate-900 dark:border-slate-800">
+                <DialogContent className="sm:max-w-6xl w-[95vw] max-h-[95vh] overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-blue-600">
                             <Mail className="w-5 h-5" />
-                            Enviar E-mail de Cobrança
+                            {t('financeiro.email_modal.modal_title', 'Enviar E-mail de Cobrança')}
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                            Selecione um modelo de texto pré-pronto, valide o destinatário de faturamento e edite se necessário.
+                            {t('financeiro.email_modal.modal_desc', 'Selecione um modelo de texto pré-pronto, valide o destinatário de faturamento e edite se necessário.')}
                         </DialogDescription>
                     </DialogHeader>
 
                     {selectedTitulo && (
-                        <div className="space-y-4 py-3 text-xs font-medium text-slate-700 dark:text-slate-350">
-                            {/* Templates Selection Tabs */}
-                            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-lg">
-                                <button
-                                    onClick={() => handleTemplateChange('friendly', selectedTitulo)}
-                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'friendly' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Lembrete Amigável
-                                </button>
-                                <button
-                                    onClick={() => handleTemplateChange('overdue', selectedTitulo)}
-                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'overdue' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Aviso de Atraso
-                                </button>
-                                <button
-                                    onClick={() => handleTemplateChange('legal', selectedTitulo)}
-                                    className={`flex-1 py-1.5 text-center rounded-md font-bold transition-all ${emailTemplate === 'legal' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Notificação Pré-Jurídico
-                                </button>
-                            </div>
-
-                            <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 py-3 text-xs font-medium text-slate-700 dark:text-slate-350">
+                            {/* Left Column: Configs */}
+                            <div className="md:col-span-2 space-y-4">
+                                {/* Templates Selection Tabs */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="emailDestinatario" className="text-[10px] text-muted-foreground font-bold uppercase">Destinatário (E-mail de Cobros do Cliente)</Label>
+                                    <Label className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.modal_title', 'Modelo de E-mail')}</Label>
+                                    <div className="flex flex-col gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-950 rounded-lg">
+                                        <button
+                                            onClick={() => handleTemplateChange('friendly', selectedTitulo)}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'friendly' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                        >
+                                            {t('financeiro.email_modal.tab_friendly', 'Lembrete Amigável')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleTemplateChange('overdue', selectedTitulo)}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'overdue' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                        >
+                                            {t('financeiro.email_modal.tab_overdue', 'Aviso de Atraso')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleTemplateChange('legal', selectedTitulo)}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'legal' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                        >
+                                            {t('financeiro.email_modal.tab_legal', 'Notificação Pré-Jurídica')}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Sender Email */}
+                                <div className="space-y-1">
+                                    <Label htmlFor="emailRemetente" className="text-[10px] text-muted-foreground font-bold uppercase flex justify-between">
+                                        <span>{t('financeiro.email_modal.label_sender', 'Remetente (Empresa: {{empresa}})', { empresa: selectedTitulo.Empresa })}</span>
+                                        <span className="text-[9px] text-brand-primary lowercase font-normal italic">{t('financeiro.email_modal.sender_config_tip', 'Configurado em Cadastros > Empresas')}</span>
+                                    </Label>
+                                    <Input
+                                        id="emailRemetente"
+                                        type="email"
+                                        value={emailRemetente}
+                                        onChange={e => setEmailRemetente(e.target.value)}
+                                        placeholder="financeiro@empresa.com"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                {/* Recipient Email */}
+                                <div className="space-y-1">
+                                    <Label htmlFor="emailDestinatario" className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.label_recipient', 'Destinatário (E-mail de Cobros do Cliente)')}</Label>
                                     <Input
                                         id="emailDestinatario"
                                         type="email"
@@ -1184,8 +1277,10 @@ export const Cobranca = () => {
                                         className="h-9 text-xs"
                                     />
                                 </div>
+
+                                {/* Subject */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="emailSubject" className="text-[10px] text-muted-foreground font-bold uppercase">Assunto</Label>
+                                    <Label htmlFor="emailSubject" className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.label_subject', 'Assunto')}</Label>
                                     <Input
                                         id="emailSubject"
                                         type="text"
@@ -1194,30 +1289,83 @@ export const Cobranca = () => {
                                         className="h-9 text-xs font-semibold"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="emailBody" className="text-[10px] text-muted-foreground font-bold uppercase">Mensagem de Cobrança</Label>
-                                    <textarea
-                                        id="emailBody"
-                                        rows={8}
-                                        value={emailBody}
-                                        onChange={e => setEmailBody(e.target.value)}
-                                        className="w-full border rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 bg-background resize-none font-sans"
-                                    />
+
+                                {/* Attachment Section */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.label_attachment', 'Anexar Documento')}</Label>
+                                    <div className="flex flex-col gap-2">
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    const base64String = (reader.result as string).split(',')[1];
+                                                    setEmailAttachment({
+                                                        name: file.name,
+                                                        contentType: file.type || 'application/octet-stream',
+                                                        contentBytes: base64String
+                                                    });
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }}
+                                            className="hidden"
+                                        />
+                                        {!emailAttachment ? (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full h-9 flex items-center justify-center gap-2 border-dashed border-slate-350 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-650"
+                                            >
+                                                <FileUp className="w-4 h-4 text-slate-500" />
+                                                <span>{t('financeiro.email_modal.btn_add_attachment', 'Selecionar Arquivo...')}</span>
+                                            </Button>
+                                        ) : (
+                                            <div className="flex items-center justify-between p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50">
+                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-semibold truncate">
+                                                    <Paperclip className="w-3.5 h-3.5 flex-none" />
+                                                    <span className="truncate text-[11px]">{emailAttachment.name}</span>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setEmailAttachment(null);
+                                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                                    }}
+                                                    className="w-6 h-6 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Right Column: Editor */}
+                            <div className="md:col-span-3 space-y-2 flex flex-col h-full min-h-[480px]">
+                                <Label className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.label_message', 'Mensagem de Cobrança')}</Label>
+                                <RichTextEditor value={emailBody} onChange={setEmailBody} />
                             </div>
                         </div>
                     )}
 
                     <DialogFooter className="border-t dark:border-slate-800 pt-3">
                         <Button variant="outline" onClick={() => setIsEmailOpen(false)} disabled={isSendingEmail}>
-                            Cancelar
+                            {t('financeiro.email_modal.btn_cancel', 'Cancelar')}
                         </Button>
                         <Button 
                             onClick={handleSendEmail} 
                             disabled={isSendingEmail || !emailDestinatario}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
                         >
-                            {isSendingEmail ? 'Enviando...' : 'Enviar e Registrar no Histórico'}
+                            {isSendingEmail ? t('financeiro.email_modal.btn_sending', 'Enviando...') : t('financeiro.email_modal.btn_send', 'Enviar e Registrar no Histórico')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

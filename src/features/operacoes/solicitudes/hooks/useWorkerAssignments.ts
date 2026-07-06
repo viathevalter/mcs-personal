@@ -14,6 +14,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
         queryFn: async () => {
             if (!filters.empresa_id) return [];
 
+            console.log('--- DEBUG: useWorkerAssignments ---', filters);
             let query = supabase
                 .schema('core_personal')
                 .from('worker_assignments')
@@ -39,6 +40,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
             }
 
             const { data: assignments, error } = await query.order('start_date', { ascending: false });
+            console.log('--- DEBUG RESULT ---', { count: assignments?.length, error });
             if (error) throw error;
             if (!assignments || assignments.length === 0) return [];
 

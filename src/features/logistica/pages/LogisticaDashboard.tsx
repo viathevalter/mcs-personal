@@ -48,10 +48,24 @@ export function LogisticaDashboard() {
     const camasRes = await client.from('camas').select('*');
     const alocacoesRes = await client.from('alocacoes').select('*');
 
+    let solicitudesData: any[] = [];
+    try {
+      const operacoesClient = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+      const { data } = await operacoesClient
+        .from('solicitudes_operativas')
+        .select('*')
+        .in('tipo', ['order_extension', 'order_postponement', 'solicitud_madre'])
+        .order('created_at', { ascending: false });
+      solicitudesData = data || [];
+    } catch (err) {
+      console.error("Failed to fetch solicitudes in logistics", err);
+    }
+
     return {
       alojamentos: (alojamentosRes.data || []) as Alojamento[],
       camas: ((camasRes.data && !camasRes.error) ? camasRes.data : ((await supabase.from('camas').select('*')).data || [])) as Cama[],
       alocacoes: ((alocacoesRes.data && !alocacoesRes.error) ? alocacoesRes.data : ((await supabase.from('alocacoes').select('*')).data || [])) as Alocacao[],
+      solicitudes: solicitudesData
     };
   };
 
@@ -104,6 +118,16 @@ export function LogisticaDashboard() {
       cost
     })).sort((a, b) => b.cost - a.cost);
   }, [data, daysArray]);
+
+  const recentAlerts = useMemo(() => {
+    if (!data?.solicitudes) return [];
+    return data.solicitudes.filter((s: any) => s.tipo === 'order_postponement' || s.tipo === 'order_extension');
+  }, [data]);
+
+  const motherSolicitudes = useMemo(() => {
+    if (!data?.solicitudes) return [];
+    return data.solicitudes.filter((s: any) => s.tipo === 'solicitud_madre');
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -300,6 +324,77 @@ export function LogisticaDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Torre de Controle Panel: Alerts & Mother Solicitudes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 border rounded-xl p-5 shadow-sm">
+        
+        {/* Column 1: Date Change Alerts */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-2">
+            <Calendar className="h-5 w-5 text-amber-500" />
+            <h3 className="font-bold text-slate-800">Alertas de Cronograma</h3>
+          </div>
+          
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+            {recentAlerts.length > 0 ? (
+              recentAlerts.map((alert) => (
+                <div key={alert.id} className="p-3 bg-white border rounded-lg shadow-xs flex flex-col gap-1 border-l-4 border-l-amber-500">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-xs font-bold text-slate-800">{alert.title}</span>
+                    <span className="text-[9px] text-slate-400 whitespace-nowrap">
+                      {new Date(alert.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">{alert.description}</p>
+                </div>
+              ))
+            ) : (
+              <div className="text-center p-6 text-slate-400 bg-white rounded-lg border border-dashed">
+                Nenhum adiamento ou prorrogação de prazo recente.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Column 2: Mother Solicitudes (Active Projects) */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-2">
+            <Building2 className="h-5 w-5 text-indigo-500" />
+            <h3 className="font-bold text-slate-800">Solicitações Operativas (Mãe)</h3>
+          </div>
+
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+            {motherSolicitudes.length > 0 ? (
+              motherSolicitudes.map((sol) => (
+                <div key={sol.id} className="p-3 bg-white border rounded-lg shadow-xs flex flex-col gap-1 border-l-4 border-l-indigo-500">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-xs font-bold text-slate-800">{sol.title}</span>
+                    <span className="text-[9px] text-slate-400 whitespace-nowrap">
+                      Prazo: {sol.due_date ? new Date(sol.due_date).toLocaleDateString() : 'Sem prazo'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">{sol.description}</p>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                      sol.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600' :
+                      sol.status === 'in_progress' ? 'bg-amber-500/10 text-amber-600' :
+                      'bg-slate-500/10 text-slate-650'
+                    }`}>
+                      {sol.status === 'completed' ? 'Concluída' :
+                       sol.status === 'in_progress' ? 'Em Progresso' : 'Pendente'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center p-6 text-slate-400 bg-white rounded-lg border border-dashed">
+                Nenhuma solicitação mãe de mobilização ativa.
+              </div>
+            )}
           </div>
         </div>
 

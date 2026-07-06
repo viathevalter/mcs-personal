@@ -80,7 +80,7 @@ export function DocumentsPage() {
     const [selectedClienteFilter, setSelectedClienteFilter] = useState('all');
     const [selectedPlatformFilter, setSelectedPlatformFilter] = useState('all');
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'configs' | 'alerts'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'gallery' | 'validation' | 'changes' | 'configs' | 'alerts'>('gallery');
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -88,6 +88,8 @@ export function DocumentsPage() {
     const [configs, setConfigs] = useState<ComplianceConfig[]>([]);
     const [statuses, setStatuses] = useState<WorkerComplianceStatus[]>([]);
     const [alertsList, setAlertsList] = useState<any[]>([]);
+    const [changeFeed, setChangeFeed] = useState<any[]>([]);
+    const [recentDateChanges, setRecentDateChanges] = useState<any[]>([]);
 
     // Clients & Sites for dropdowns
     const [clientsList, setClientsList] = useState<any[]>([]);
@@ -305,6 +307,20 @@ export function DocumentsPage() {
             }));
 
             setStatuses(statusesWithRelations);
+
+            // Fetch date changes for alerts on project cards
+            try {
+                const operacoesClient = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+                const { data: dateChangesData } = await operacoesClient
+                    .from('solicitudes_operativas')
+                    .select('id, client_id, client_site_id, tipo, status, title, due_date, updated_at')
+                    .in('tipo', ['order_extension', 'order_postponement'])
+                    .eq('status', 'completed')
+                    .eq('empresa_id', selectedEmpresaId);
+                setRecentDateChanges(dateChangesData || []);
+            } catch (err) {
+                console.error("Failed to fetch recent date changes", err);
+            }
         } catch (err) {
             console.error('Error fetching compliance statuses:', err);
             toast.error('Erro ao carregar cockpits de conformidade.');
@@ -364,13 +380,36 @@ export function DocumentsPage() {
         }
     };
 
+    const fetchChangeFeed = async () => {
+        if (!selectedEmpresaId) return;
+        try {
+            setLoading(true);
+            const client = (supabase as any).schema ? (supabase as any).schema('core_common') : supabase;
+            const { data, error } = await client
+                .from('notifications')
+                .select('*')
+                .eq('empresa_id', selectedEmpresaId)
+                .eq('type', 'date_change')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setChangeFeed(data || []);
+        } catch (err) {
+            console.error('Error fetching date change notifications:', err);
+            toast.error('Erro ao carregar feed de alterações.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (selectedEmpresaId) {
             fetchClients();
             fetchWorkers();
-            if (activeTab === 'dashboard') fetchStatuses();
+            if (activeTab === 'gallery' || activeTab === 'validation') fetchStatuses();
             if (activeTab === 'configs') fetchConfigs();
             if (activeTab === 'alerts') fetchAlerts();
+            if (activeTab === 'changes') fetchChangeFeed();
         }
     }, [selectedEmpresaId, activeTab]);
 
@@ -658,9 +697,10 @@ Equipo de Conformidad y CAE.`;
                         <Button 
                             variant="outline" 
                             onClick={() => {
-                                if (activeTab === 'dashboard') fetchStatuses();
+                                if (activeTab === 'gallery' || activeTab === 'validation') fetchStatuses();
                                 if (activeTab === 'configs') fetchConfigs();
                                 if (activeTab === 'alerts') fetchAlerts();
+                                if (activeTab === 'changes') fetchChangeFeed();
                             }}
                             className="text-slate-600 dark:text-slate-300"
                         >
@@ -670,7 +710,7 @@ Equipo de Conformidad y CAE.`;
                 </div>
 
                 {/* KPIs */}
-                {activeTab === 'dashboard' && (
+                {(activeTab === 'gallery' || activeTab === 'validation') && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <Card className="bg-white dark:bg-slate-900 shadow-sm border-l-4 border-l-slate-400">
                             <CardContent className="p-4 flex items-center justify-between">
@@ -713,20 +753,22 @@ Equipo de Conformidad y CAE.`;
 
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="w-full">
-                    <TabsList className="grid w-full md:w-[600px] grid-cols-3 bg-slate-100 dark:bg-slate-800">
-                        <TabsTrigger value="dashboard">Conformidade Geral</TabsTrigger>
+                    <TabsList className="grid w-full md:w-[900px] grid-cols-5 bg-slate-100 dark:bg-slate-800">
+                        <TabsTrigger value="gallery">Galeria de Projetos</TabsTrigger>
+                        <TabsTrigger value="validation">Fila de Validação</TabsTrigger>
+                        <TabsTrigger value="changes">Feed de Alterações</TabsTrigger>
                         <TabsTrigger value="configs">Plataformas & Requisitos</TabsTrigger>
                         <TabsTrigger value="alerts">Alertas de Vencimento</TabsTrigger>
                     </TabsList>
 
-                    {/* Tab 1: Compliance Dashboard */}
-                    <TabsContent value="dashboard" className="pt-4">
+                    {/* Tab 1: Project Gallery */}
+                    <TabsContent value="gallery" className="pt-4">
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800/60">
                             <div className="relative flex-1 min-w-[200px] max-w-sm">
                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     type="text"
-                                    placeholder="Buscar trabalhador ou cliente..."
+                                    placeholder="Buscar por cliente ou obra..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
@@ -795,60 +837,104 @@ Equipo de Conformidad y CAE.`;
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {groupedProjects.map((proj) => (
-                                                    <Card key={`${proj.client_id}_${proj.client_site_id}`} className="bg-white dark:bg-slate-900 border border-slate-202 dark:border-slate-800 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-750 transition-all flex flex-col justify-between overflow-hidden">
-                                                        <CardHeader className="pb-3">
-                                                            <div className="flex justify-between items-start gap-1">
-                                                                <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 font-semibold px-2 py-0.5 max-w-[120px] truncate">
-                                                                    {proj.platform_name}
-                                                                </Badge>
-                                                                <Badge className={
-                                                                    proj.pending_workers === 0 ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                                    proj.apto_workers === 0 ? 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/10 border-rose-500/20' :
-                                                                    'bg-amber-500/10 text-amber-600 hover:bg-amber-500/10 border-amber-500/20'
-                                                                }>
-                                                                    {proj.pending_workers === 0 ? 'Conformidade OK' : `${proj.pending_workers} pendente(s)`}
-                                                                </Badge>
+                                                {groupedProjects.map((proj) => {
+                                                    const percentApto = proj.total_workers > 0 ? Math.round((proj.apto_workers / proj.total_workers) * 100) : 0;
+                                                    return (
+                                                        <Card key={`${proj.client_id}_${proj.client_site_id}`} className="bg-white dark:bg-slate-900 border border-slate-202 dark:border-slate-800 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-750 transition-all flex flex-col justify-between overflow-hidden">
+                                                            <CardHeader className="pb-3">
+                                                                <div className="flex justify-between items-start gap-1">
+                                                                    <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 font-semibold px-2 py-0.5 max-w-[120px] truncate">
+                                                                        {proj.platform_name}
+                                                                    </Badge>
+                                                                    <Badge className={
+                                                                        proj.pending_workers === 0 ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                                        proj.apto_workers === 0 ? 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/10 border-rose-500/20' :
+                                                                        'bg-amber-500/10 text-amber-600 hover:bg-amber-500/10 border-amber-500/20'
+                                                                    }>
+                                                                        {proj.pending_workers === 0 ? 'Conformidade OK' : `${proj.pending_workers} pendente(s)`}
+                                                                    </Badge>
+                                                                </div>
+                                                                <CardTitle className="text-base font-bold text-slate-900 dark:text-white mt-3 truncate" title={proj.client_name}>
+                                                                        {proj.client_name}
+                                                                </CardTitle>
+                                                                <CardDescription className="text-xs text-muted-foreground mt-0.5 truncate" title={proj.site_name}>
+                                                                    Obra: <span className="font-semibold">{proj.site_name}</span>
+                                                                </CardDescription>
+                                                            </CardHeader>
+                                                            <CardContent className="pb-4 pt-0 space-y-3">
+                                                                <div className="grid grid-cols-3 gap-2 border-y border-dashed border-slate-100 dark:border-slate-800/80 py-3 my-1 text-center">
+                                                                    <div>
+                                                                        <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Total</p>
+                                                                        <p className="text-lg font-extrabold text-slate-750 dark:text-slate-350">{proj.total_workers}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider">Aptos</p>
+                                                                        <p className="text-lg font-extrabold text-emerald-600">{proj.apto_workers}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[9px] text-rose-600 font-bold uppercase tracking-wider">Pendentes</p>
+                                                                        <p className="text-lg font-extrabold text-rose-650">{proj.pending_workers}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Mobilization Progress Bar */}
+                                                                <div className="space-y-1 mt-2">
+                                                                    <div className="flex justify-between text-[10px] text-slate-500 font-semibold">
+                                                                        <span>Progresso de Mobilização</span>
+                                                                        <span>{percentApto}%</span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                        <div 
+                                                                            className={`h-full transition-all duration-300 ${percentApto === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                                                                            style={{ width: `${percentApto}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Date Change Warning Badges */}
+                                                                {(() => {
+                                                                    const projectChanges = recentDateChanges.filter(c => 
+                                                                        c.client_id === proj.client_id && c.client_site_id === proj.client_site_id
+                                                                    );
+                                                                    if (projectChanges.length === 0) return null;
+
+                                                                    return (
+                                                                        <div className="flex flex-wrap gap-1 mt-2">
+                                                                            {projectChanges.map(change => (
+                                                                                <Badge 
+                                                                                    key={change.id} 
+                                                                                    variant="secondary" 
+                                                                                    className={`text-[9px] font-bold py-0.5 px-1.5 flex items-center gap-1 ${
+                                                                                        change.tipo === 'order_postponement' 
+                                                                                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' 
+                                                                                            : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
+                                                                                    }`}
+                                                                                >
+                                                                                    <Calendar size={10} />
+                                                                                    {change.tipo === 'order_postponement' ? 'Início Adiado' : 'Prazo Prorrogado'}
+                                                                                </Badge>
+                                                                            ))}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </CardContent>
+                                                            <div className="px-4 pb-4 pt-0 mt-auto">
+                                                                <Button 
+                                                                    className="w-full bg-slate-900 hover:bg-slate-805 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold h-9 flex items-center justify-center gap-1.5"
+                                                                    onClick={() => setSelectedProject({
+                                                                        client_id: proj.client_id,
+                                                                        client_site_id: proj.client_site_id,
+                                                                        client_name: proj.client_name,
+                                                                        site_name: proj.site_name
+                                                                    })}
+                                                                >
+                                                                    Gerenciar Trabalhadores
+                                                                    <ChevronRight className="h-4 w-4" />
+                                                                </Button>
                                                             </div>
-                                                            <CardTitle className="text-base font-bold text-slate-900 dark:text-white mt-3 truncate" title={proj.client_name}>
-                                                                    {proj.client_name}
-                                                            </CardTitle>
-                                                            <CardDescription className="text-xs text-muted-foreground mt-0.5 truncate" title={proj.site_name}>
-                                                                Obra: <span className="font-semibold">{proj.site_name}</span>
-                                                            </CardDescription>
-                                                        </CardHeader>
-                                                        <CardContent className="pb-4 pt-0">
-                                                            <div className="grid grid-cols-3 gap-2 border-y border-dashed border-slate-100 dark:border-slate-800/80 py-3 my-1 text-center">
-                                                                <div>
-                                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Total</p>
-                                                                    <p className="text-lg font-extrabold text-slate-750 dark:text-slate-350">{proj.total_workers}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider">Aptos</p>
-                                                                    <p className="text-lg font-extrabold text-emerald-600">{proj.apto_workers}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[9px] text-rose-600 font-bold uppercase tracking-wider">Pendentes</p>
-                                                                    <p className="text-lg font-extrabold text-rose-650">{proj.pending_workers}</p>
-                                                                </div>
-                                                            </div>
-                                                        </CardContent>
-                                                        <div className="px-4 pb-4 pt-0 mt-auto">
-                                                            <Button 
-                                                                className="w-full bg-slate-900 hover:bg-slate-805 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold h-9 flex items-center justify-center gap-1.5"
-                                                                onClick={() => setSelectedProject({
-                                                                    client_id: proj.client_id,
-                                                                    client_site_id: proj.client_site_id,
-                                                                    client_name: proj.client_name,
-                                                                    site_name: proj.site_name
-                                                                })}
-                                                            >
-                                                                Gerenciar Trabalhadores
-                                                                <ChevronRight className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </Card>
-                                                ))}
+                                                        </Card>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -909,8 +995,8 @@ Equipo de Conformidad y CAE.`;
                                                             </TableCell>
                                                             <TableCell>
                                                                 <Badge className={
-                                                                    st.overall_status === 'approved' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                                    st.overall_status === 'rejected' ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/10 border-rose-500/20' :
+                                                                    st.overall_status === 'approved' ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                                    st.overall_status === 'rejected' ? 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/10 border-rose-500/20' :
                                                                     st.overall_status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
                                                                     'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20'
                                                                 }>
@@ -940,6 +1026,209 @@ Equipo de Conformidad y CAE.`;
                                 )}
                             </>
                         )}
+                    </TabsContent>
+
+                    {/* Tab 2: Validation Queue */}
+                    <TabsContent value="validation" className="pt-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800/60">
+                            <div className="relative flex-1 min-w-[200px] max-w-sm">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="text"
+                                    placeholder="Buscar trabalhador por nome, código ou NISS..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                />
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-slate-500">Empresa:</span>
+                                    <select
+                                        value={selectedEmpresaFilter}
+                                        onChange={(e) => setSelectedEmpresaFilter(e.target.value)}
+                                        className="h-9 text-xs rounded-md border border-slate-205 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1 text-slate-700 dark:text-slate-200 outline-none"
+                                    >
+                                        <option value="all">Todas as Empresas</option>
+                                        {empresasList.map(emp => (
+                                            <option key={emp} value={emp}>{emp}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-slate-500">Cliente:</span>
+                                    <select
+                                        value={selectedClienteFilter}
+                                        onChange={(e) => setSelectedClienteFilter(e.target.value)}
+                                        className="h-9 text-xs rounded-md border border-slate-205 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1 text-slate-700 dark:text-slate-200 outline-none max-w-[200px]"
+                                    >
+                                        <option value="all">Todos os Clientes</option>
+                                        {activeClientsList.map(cli => (
+                                            <option key={cli.id} value={cli.id}>{cli.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-slate-500">Plataforma:</span>
+                                    <select
+                                        value={selectedPlatformFilter}
+                                        onChange={(e) => setSelectedPlatformFilter(e.target.value)}
+                                        className="h-9 text-xs rounded-md border border-slate-205 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1 text-slate-700 dark:text-slate-200 outline-none"
+                                    >
+                                        <option value="all">Todas</option>
+                                        <option value="email">E-mail / Direto</option>
+                                        {platformsList.map(plt => (
+                                            <option key={plt} value={plt}>{plt}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {loading ? (
+                            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 bg-white dark:bg-slate-900 border rounded-lg border-slate-200 dark:border-slate-800">
+                                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                <span>Carregando fila de validação documental...</span>
+                            </div>
+                        ) : filteredStatuses.length === 0 ? (
+                            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 bg-white dark:bg-slate-900 border rounded-lg border-slate-200 dark:border-slate-800">
+                                <Building2 className="h-10 w-10 text-slate-400" />
+                                <span>Nenhum trabalhador pendente de conformidade.</span>
+                            </div>
+                        ) : (
+                            <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm max-h-[600px] overflow-y-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-slate-50 dark:bg-slate-800/50 font-bold">
+                                            <TableHead>Trabalhador</TableHead>
+                                            <TableHead>Cliente / Obra</TableHead>
+                                            <TableHead>Empresa</TableHead>
+                                            <TableHead>Plataforma</TableHead>
+                                            <TableHead>Status Geral</TableHead>
+                                            <TableHead>Acesso Obra</TableHead>
+                                            <TableHead className="text-right">Ações</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredStatuses.map((st) => {
+                                            const clientConfig = configs.find(c => c.client_id === st.client_id && (c.client_site_id === st.client_site_id || c.client_site_id === null));
+                                            const platformName = clientConfig?.uses_platform ? (clientConfig.platform_name || 'Plataforma') : 'E-mail / Direto';
+
+                                            return (
+                                                <TableRow key={st.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                    <TableCell>
+                                                        <div className="font-semibold text-slate-800 dark:text-slate-200">{st.worker?.nome}</div>
+                                                        <div className="text-xs text-muted-foreground">{st.worker?.cod_colab || 'Sem Cód.'}</div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="font-semibold text-slate-850 dark:text-slate-200">
+                                                            {st.client?.trade_name || st.client?.legal_name}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={st.site?.name}>{st.site?.name}</div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className="text-xs font-semibold text-slate-650 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                                            {st.worker?.contratante || '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className="font-semibold">
+                                                            {platformName}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge className={
+                                                            st.overall_status === 'approved' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
+                                                            st.overall_status === 'rejected' ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/10 border-rose-500/20' :
+                                                            st.overall_status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
+                                                            'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20'
+                                                        }>
+                                                            {st.overall_status === 'approved' ? 'Aprovado' :
+                                                             st.overall_status === 'rejected' ? 'Rejeitado' :
+                                                             st.overall_status === 'submitted' ? 'Enviado Validação' : 'Documentação Pendente'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`h-2.5 w-2.5 rounded-full ${st.is_apto ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                            <span className="text-xs font-semibold">{st.is_apto ? 'Apto Obra' : 'Acesso Bloqueado'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button size="sm" variant="ghost" className="gap-1 text-indigo-650 hover:text-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-slate-800 font-bold text-xs" onClick={() => handleOpenDetail(st)}>
+                                                            Verificar Docs
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    {/* Tab 3: Change Feed */}
+                    <TabsContent value="changes" className="pt-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4 max-h-[600px] overflow-y-auto">
+                            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-indigo-500" />
+                                Alertas de Alteração de Prazo (Torre de Controle)
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                Monitore os cronogramas que foram reagendados (adiados/prorrogados) para replanejar o upload de documentos e a data de aptidão.
+                            </p>
+
+                            {loading ? (
+                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                                    <span>Carregando feed de alterações...</span>
+                                </div>
+                            ) : changeFeed.length === 0 ? (
+                                <div className="p-12 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2 border border-dashed rounded-lg">
+                                    <Calendar className="h-10 w-10 text-slate-350" />
+                                    <span>Nenhum alerta de alteração de prazo encontrado.</span>
+                                </div>
+                            ) : (
+                                <div className="relative border-l border-slate-200 dark:border-slate-800 ml-3.5 pl-6 space-y-6 py-2">
+                                    {changeFeed.map((change) => (
+                                        <div key={change.id} className="relative">
+                                            <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white dark:bg-slate-900 border-2 border-indigo-500 ring-4 ring-white dark:ring-slate-900">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                                            </span>
+                                            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 rounded-lg p-4 shadow-sm max-w-2xl">
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                                        {change.title}
+                                                    </h4>
+                                                    <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">
+                                                        {new Date(change.created_at).toLocaleDateString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                                    {change.message}
+                                                </p>
+                                                {change.link_url && (
+                                                    <Button 
+                                                        variant="link" 
+                                                        size="sm" 
+                                                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-semibold p-0 h-auto mt-2 flex items-center gap-1"
+                                                        onClick={() => navigate(change.link_url)}
+                                                    >
+                                                        Ver Detalhes do Pedido
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </TabsContent>
 
                     {/* Tab 2: Client Configs */}

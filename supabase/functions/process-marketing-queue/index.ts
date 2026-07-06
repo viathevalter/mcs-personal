@@ -1,0 +1,265 @@
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders() });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    console.log("Iniciando processamento da fila de e-mail marketing...");
+
+    // 1. Ativar campanhas agendadas que já deveriam estar enviando
+    const { data: scheduledCampaigns, error: errScheduled } = await supabase
+      .from("marketing_campaigns")
+      .select("id")
+      .eq("status", "scheduled")
+      .lte("scheduled_at", new Date().toISOString());
+
+    if (errScheduled) throw errScheduled;
+
+    if (scheduledCampaigns && scheduledCampaigns.length > 0) {
+      const ids = scheduledCampaigns.map((c) => c.id);
+      await supabase
+        .from("marketing_campaigns")
+        .update({ status: "sending", updated_at: new Date().toISOString() })
+        .in("id", ids);
+      console.log(`Ativadas ${ids.length} campanhas agendadas.`);
+    }
+
+    // 2. Buscar campanhas que estão ativas ('sending')
+    const { data: activeCampaigns, error: errActive } = await supabase
+      .from("marketing_campaigns")
+      .select("id")
+      .eq("status", "sending");
+
+    if (errActive) throw errActive;
+
+    if (!activeCampaigns || activeCampaigns.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Nenhuma campanha ativa no momento." }),
+        { headers: corsHeaders(), status: 200 }
+      );
+    }
+
+    const activeCampaignIds = activeCampaigns.map((c) => c.id);
+
+    // 3. Buscar até 5 e-mails pendentes na fila dessas campanhas (Throttling / Batch de 5 por minuto)
+    const { data: queueItems, error: errQueue } = await supabase
+      .from("marketing_campaign_queue")
+      .select(`
+        id,
+        campaign_id,
+        lead_id,
+        marketing_campaigns (
+          empresa_id,
+          title,
+          template_id,
+          marketing_templates (
+            subject,
+            html_content
+          ),
+          core_common_empresas:empresa_id (
+            trade_name,
+            proposal_sender_email
+          )
+        ),
+        core_comercial_leads:lead_id (
+          name,
+          email,
+          company_name,
+          phone
+        )
+      `)
+      .eq("status", "pending")
+      .in("campaign_id", activeCampaignIds)
+      .limit(5);
+
+    if (errQueue) throw errQueue;
+
+    if (!queueItems || queueItems.length === 0) {
+      // Se não houver itens pendentes para campanhas marcadas como 'sending',
+      // podemos finalizá-las mudando o status para 'completed'
+      for (const campaignId of activeCampaignIds) {
+        const { count, error: errCount } = await supabase
+          .from("marketing_campaign_queue")
+          .select("*", { count: "exact", head: true })
+          .eq("campaign_id", campaignId)
+          .eq("status", "pending");
+
+        if (!errCount && count === 0) {
+          await supabase
+            .from("marketing_campaigns")
+            .update({ status: "completed", updated_at: new Date().toISOString() })
+            .eq("id", campaignId);
+          console.log(`Campanha ${campaignId} marcada como concluída.`);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Nenhum e-mail pendente na fila." }),
+        { headers: corsHeaders(), status: 200 }
+      );
+    }
+
+    console.log(`Processando ${queueItems.length} e-mails da fila...`);
+
+    for (const item of queueItems) {
+      const campaign = item.marketing_campaigns;
+      const template = campaign?.marketing_templates;
+      const company = campaign?.core_common_empresas;
+      const lead = item.core_comercial_leads;
+
+      if (!lead || !template || !company) {
+        await supabase
+          .from("marketing_campaign_queue")
+          .update({
+            status: "failed",
+            error_message: "Dados incompletos (Lead, Template ou Empresa ausente).",
+          })
+          .eq("id", item.id);
+        continue;
+      }
+
+      // Substituição de placeholders dinâmicos
+      const rawHtml = template.html_content;
+      const rawSubject = template.subject;
+
+      const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs-personal.vercel.app";
+      const formatVars = (text: string) => {
+        return text
+          .replace(/\{\{\s*name\s*\}\}/g, lead.name || "")
+          .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
+          .replace(/\{\{\s*email\s*\}\}/g, lead.email || "")
+          .replace(/\{\{\s*phone\s*\}\}/g, lead.phone || "")
+          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}`);
+      };
+
+      const htmlBody = formatVars(rawHtml);
+      const emailSubject = formatVars(rawSubject);
+      
+      const senderEmail = company.proposal_sender_email || "comercial@mastercorp.pt";
+      const senderName = company.trade_name || "Mastercorp";
+      const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
+
+      try {
+        if (!resendApiKey) {
+          // Modo Simulação (caso não haja API Key configurada em Dev)
+          console.log(`[SIMULAÇÃO] Enviando e-mail de campanha:
+            De: ${fromHeader}
+            Para: ${lead.email}
+            Assunto: ${emailSubject}
+          `);
+          
+          await supabase
+            .from("marketing_campaign_queue")
+            .update({
+              status: "sent",
+              sent_at: new Date().toISOString(),
+            })
+            .eq("id", item.id);
+            
+          // Atualizar o estágio do lead para 'E-mail Enviado' se ele estiver no estágio padrão
+          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
+
+        } else {
+          // Envio real via API do Resend
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${resendApiKey}`,
+            },
+            body: JSON.stringify({
+              from: fromHeader,
+              to: [lead.email],
+              subject: emailSubject,
+              html: htmlBody,
+              tags: [
+                { name: "campaign_id", value: item.campaign_id },
+                { name: "queue_id", value: item.id },
+                { name: "lead_id", value: item.lead_id }
+              ]
+            }),
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Erro na API do Resend: ${errText}`);
+          }
+
+          const resData = await res.json();
+          console.log(`E-mail enviado para ${lead.email} via Resend. ID: ${resData.id}`);
+
+          await supabase
+            .from("marketing_campaign_queue")
+            .update({
+              status: "sent",
+              sent_at: new Date().toISOString(),
+            })
+            .eq("id", item.id);
+
+          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
+        }
+      } catch (err: any) {
+        console.error(`Falha ao processar item da fila ${item.id}:`, err.message);
+        await supabase
+          .from("marketing_campaign_queue")
+          .update({
+            status: "failed",
+            error_message: err.message,
+          })
+          .eq("id", item.id);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: `${queueItems.length} itens processados.` }),
+      { headers: corsHeaders(), status: 200 }
+    );
+
+  } catch (err: any) {
+    console.error("Erro geral na Edge Function process-marketing-queue:", err.message);
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { headers: corsHeaders(), status: 500 }
+    );
+  }
+});
+
+// Helper para mover o lead para a coluna 'E-mail Enviado' se ele estiver no estágio inicial
+async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string) {
+  try {
+    // Buscar o ID do estágio 'E-mail Enviado' daquela empresa
+    const { data: stageData } = await supabase
+      .from("kanban_stages")
+      .select("id")
+      .eq("empresa_id", empresaId)
+      .eq("name", "E-mail Enviado")
+      .single();
+
+    if (stageData) {
+      await supabase
+        .from("leads")
+        .update({ stage_id: stageData.id, updated_at: new Date().toISOString() })
+        .eq("email", leadEmail)
+        .eq("empresa_id", empresaId);
+    }
+  } catch (e: any) {
+    console.error("Erro ao mover lead para estágio 'E-mail Enviado':", e.message);
+  }
+}

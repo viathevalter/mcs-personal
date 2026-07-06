@@ -8,6 +8,7 @@ import { fetchBancos, saveRecebimento, updateContaReceber, saveObservacao } from
 import type { EnrichedTitulo, Banco } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { useTranslation } from 'react-i18next';
 
 interface ReceberCobroModalProps {
     titulo: EnrichedTitulo;
@@ -17,6 +18,7 @@ interface ReceberCobroModalProps {
 }
 
 export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, isOpen, onClose, onSuccess }) => {
+    const { t } = useTranslation();
     const [bancos, setBancos] = useState<Banco[]>([]);
     const [isLoadingBancos, setIsLoadingBancos] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -51,7 +53,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             }
         } catch (error) {
             console.error('Error fetching bancos:', error);
-            toast.error('Erro ao carregar bancos.');
+            toast.error(t('financeiro.modals.err_bank_fetch', 'Erro ao carregar bancos.'));
         } finally {
             setIsLoadingBancos(false);
         }
@@ -60,17 +62,17 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
     const handleSave = async () => {
         const valor = parseFloat(valorRecebido);
         if (isNaN(valor) || valor <= 0) {
-            toast.error('O valor recebido deve ser maior que zero.');
+            toast.error(t('financeiro.modals.err_val_zero', 'O valor recebido deve ser maior que zero.'));
             return;
         }
 
         if (valor > titulo.Saldo_a_pagar) {
-            toast.error('O valor não pode ser maior que o Saldo a Pagar.');
+            toast.error(t('financeiro.modals.err_val_balance', 'O valor não pode ser maior que o Saldo a Pagar.'));
             return;
         }
 
         if (!bancoId && bancos.length > 0) {
-            toast.error('Por favor, selecione um banco de destino.');
+            toast.error(t('financeiro.modals.err_select_bank', 'Por favor, selecione um banco de destino.'));
             return;
         }
 
@@ -113,12 +115,12 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             };
             await saveObservacao(autoObs);
 
-            toast.success('Recebimento salvo com sucesso!');
+            toast.success(t('financeiro.modals.msg_receipt_saved', 'Recebimento salvo com sucesso!'));
             onSuccess();
             onClose();
         } catch (error) {
             console.error('Error in handleSave:', error);
-            toast.error('Ocorreu um erro ao processar o recebimento.');
+            toast.error(t('financeiro.modals.err_receipt_process', 'Ocorreu um erro ao processar o recebimento.'));
         } finally {
             setIsSaving(false);
         }
@@ -135,7 +137,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         <div className="bg-white/20 p-2 rounded-full">
                             <DollarSign className="w-5 h-5 text-white" />
                         </div>
-                        <h2 className="text-xl font-semibold tracking-tight">Receber Cobros</h2>
+                        <h2 className="text-xl font-semibold tracking-tight">{t('financeiro.modals.receber_title_plural', 'Receber Cobros')}</h2>
                     </div>
                     <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
                         <X size={20} />
@@ -146,18 +148,18 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                 <div className="p-6 overflow-y-auto">
                     <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100 flex justify-between items-center">
                         <div>
-                            <p className="text-sm text-gray-500 font-medium">Cliente</p>
-                            <p className="text-lg font-semibold text-gray-900">{titulo.clienteInfo?.NombreComercial || titulo.Cliente || 'Cliente Desconhecido'}</p>
+                            <p className="text-sm text-gray-500 font-medium">{t('financeiro.modals.client', 'Cliente')}</p>
+                            <p className="text-lg font-semibold text-gray-900">{titulo.clienteInfo?.NombreComercial || titulo.Cliente || t('financeiro.modals.unknown_client', 'Cliente Desconhecido')}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-sm text-gray-500 font-medium">Saldo a Pagar Atual</p>
+                            <p className="text-sm text-gray-500 font-medium">{t('financeiro.modals.current_balance', 'Saldo a Pagar Atual')}</p>
                             <p className="text-xl font-bold text-brand-primary">€ {titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                         <div className="space-y-2">
-                            <Label htmlFor="forma_pagamento">Forma de pago</Label>
+                            <Label htmlFor="forma_pagamento">{t('financeiro.modals.payment_method', 'Forma de Pago')}</Label>
                             <Select value={formaPagamento} onValueChange={setFormaPagamento}>
                                 <SelectTrigger>
                                     <SelectValue />
@@ -171,7 +173,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Integral / Parcial</Label>
+                            <Label>{t('financeiro.modals.payment_type', 'Integral / Parcial')}</Label>
                             <div className="flex space-x-4 pt-2">
                                 <label className="flex items-center space-x-2 cursor-pointer">
                                     <input 
@@ -185,7 +187,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                                         }}
                                         className="w-4 h-4 text-brand-primary"
                                     />
-                                    <span>Integral</span>
+                                    <span>{t('financeiro.modals.payment_type_integral', 'Integral')}</span>
                                 </label>
                                 <label className="flex items-center space-x-2 cursor-pointer">
                                     <input 
@@ -196,13 +198,13 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                                         onChange={() => setTipoRecebimento('Parcial')}
                                         className="w-4 h-4 text-brand-primary"
                                     />
-                                    <span>Parcial</span>
+                                    <span>{t('financeiro.modals.payment_type_partial', 'Parcial')}</span>
                                 </label>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="data_recebimento">Fecha de recepción</Label>
+                            <Label htmlFor="data_recebimento">{t('financeiro.modals.payment_date', 'Fecha de Recepción')}</Label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <Calendar className="h-4 w-4 text-gray-400" />
@@ -218,10 +220,10 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="banco">Banco de Destino</Label>
+                            <Label htmlFor="banco">{t('financeiro.modals.destination_bank', 'Banco de Destino')}</Label>
                             <Select value={bancoId} onValueChange={setBancoId} disabled={isLoadingBancos}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder={isLoadingBancos ? "Carregando..." : "Selecione o Banco"} />
+                                    <SelectValue placeholder={isLoadingBancos ? t('financeiro.table.loading_data', 'Carregando...') : t('financeiro.modals.select_bank_placeholder', 'Selecione o Banco')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {bancos.map(b => (
@@ -232,7 +234,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="valor_total">Valor do Recebimento</Label>
+                            <Label htmlFor="valor_total">{t('financeiro.modals.received_value', 'Valor do Recebimento')}</Label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <span className="text-gray-500 font-medium">€</span>
@@ -255,7 +257,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                 {/* Footer */}
                 <div className="bg-gray-50 border-t p-4 rounded-b-xl flex justify-end space-x-3">
                     <Button variant="outline" onClick={onClose} disabled={isSaving}>
-                        Cancelar
+                        {t('financeiro.modals.btn_cancel', 'Cancelar')}
                     </Button>
                     <Button 
                         onClick={handleSave} 
@@ -263,7 +265,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[140px]"
                     >
                         {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        Guardar recibo
+                        {t('financeiro.modals.btn_save_receipt', 'Guardar recibo')}
                     </Button>
                 </div>
             </div>

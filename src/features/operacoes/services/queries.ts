@@ -377,22 +377,25 @@ export const fetchPedidos = async (filters: Filters): Promise<Pedido[]> => {
   // Extract unique client IDs (these are sp_id in the clientes table)
   const clientIds = Array.from(new Set(pedidos.map((p: any) => p.id_cliente).filter((id: any) => id != null)));
 
-  // Fetch client names manually
-  let clientMap: Record<string, string> = {};
+  // Fetch client names and contact info manually
+  let clientMap: Record<string, { nome: string; email: string; phone: string }> = {};
 
   if (clientIds.length > 0) {
     const { data: clientes, error: clienteError } = await supabase!
       .from('clientes')
-      .select('sp_id, nombre_comercial')
+      .select('sp_id, nombre_comercial, email, movil, telefono')
       .in('sp_id', clientIds);
 
     if (!clienteError && clientes) {
       clientes.forEach((c: any) => {
-        // Map sp_id -> nombre_comercial
-        clientMap[String(c.sp_id)] = c.nombre_comercial;
+        clientMap[String(c.sp_id)] = {
+          nome: c.nombre_comercial || 'Sem nome',
+          email: c.email || '',
+          phone: c.movil || c.telefono || ''
+        };
       });
     } else if (clienteError) {
-      console.error('Error fetching client names:', clienteError);
+      console.error('Error fetching client names and contacts:', clienteError);
     }
   }
 
@@ -417,18 +420,23 @@ export const fetchPedidos = async (filters: Filters): Promise<Pedido[]> => {
     }
   }
 
-  return pedidos.map((p: any) => ({
-    id: p.id,
-    CodPedido: p.cod_pedido || `PED-${p.id}`,
-    // Map using id_cliente (which matches sp_id)
-    Cliente: clientMap[String(p.id_cliente)] || p.cliente_nombre_snapshot || `Cliente ${p.id_cliente}`,
-    Comercial: parseSharePointDisplay(p.comercial_responsable),
-    Empresa: '',
-    DataEmissao: p.fecha_emision,
-    DataInicio: p.fecha_inicio_pedido,
-    Status: parseSharePointDisplay(p.status_pedido) || 'Ativo',
-    TrabalhadoresSolicitados: quantityMap[p.cod_pedido] || 0
-  }));
+  return pedidos.map((p: any) => {
+    const clientInfo = clientMap[String(p.id_cliente)];
+    return {
+      id: p.id,
+      CodPedido: p.cod_pedido || `PED-${p.id}`,
+      Cliente: clientInfo ? clientInfo.nome : (p.cliente_nombre_snapshot || `Cliente ${p.id_cliente}`),
+      ClienteEmail: clientInfo ? clientInfo.email : '',
+      ClientePhone: clientInfo ? clientInfo.phone : '',
+      Comercial: parseSharePointDisplay(p.comercial_responsable),
+      Empresa: '',
+      DataEmissao: p.fecha_emision,
+      DataInicio: p.fecha_inicio_pedido,
+      DataFim: p.fecha_fin_pedido,
+      Status: parseSharePointDisplay(p.status_pedido) || 'Ativo',
+      TrabalhadoresSolicitados: quantityMap[p.cod_pedido] || 0
+    };
+  });
 };
 
 export const fetchPedidoDetails = async (pedidoId: number) => {

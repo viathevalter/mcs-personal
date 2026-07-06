@@ -42,8 +42,8 @@ export const Sidebar: React.FC = () => {
           </div>
           {isSidebarOpen && (
             <div className="min-w-0">
-              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">Financeiro</h1>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Módulo Financeiro</p>
+              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">{t('financeiro.sidebar.title', 'Financeiro')}</h1>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">{t('financeiro.sidebar.subtitle', 'Módulo Financeiro')}</p>
             </div>
           )}
         </div>
@@ -57,27 +57,34 @@ export const Sidebar: React.FC = () => {
 
       <div className="px-3 mb-2">
         <button 
-          onClick={() => navigate('/hub')}
+          onClick={() => {
+            Object.keys(sessionStorage).forEach(key => {
+              if (key.startsWith('cobros_') || key.startsWith('cobranca_')) {
+                sessionStorage.removeItem(key);
+              }
+            });
+            navigate('/hub');
+          }}
           className="w-full flex items-center gap-2 justify-center py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700"
         >
           <ArrowLeft size={16} />
-          {isSidebarOpen && "Voltar para o Hub"}
+          {isSidebarOpen && t('financeiro.sidebar.back_to_hub', 'Voltar para o Hub')}
         </button>
       </div>
 
       <div className="flex-1 px-3 py-2">
-        <SectionLabel label="Gestão Financeira" />
+        <SectionLabel label={t('financeiro.sidebar.section_management', 'Gestão Financeira')} />
         <div className="space-y-1">
-          <NavItem to="/financeiro/dashboard" icon={LayoutDashboard} label="Painel Diretoria" />
-          <NavItem to="/financeiro/titulos" icon={FileText} label="Ordens de Pagamento" />
-          <NavItem to="/financeiro/pagos" icon={FileText} label="Pagos / Contas a Pagar" />
-          <NavItem to="/financeiro/cobros" icon={FileText} label="Cobros / Recebimentos" />
-          <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label="Cobrança / Inadimplência" />
-          <NavItem to="/financeiro/analises" icon={PieChart} label="Análises" />
+          <NavItem to="/financeiro/dashboard" icon={LayoutDashboard} label={t('financeiro.sidebar.dashboard', 'Painel Diretoria')} />
+          <NavItem to="/financeiro/titulos" icon={FileText} label={t('financeiro.sidebar.payment_orders', 'Ordens de Pagamento')} />
+          <NavItem to="/financeiro/pagos" icon={FileText} label={t('financeiro.sidebar.accounts_payable', 'Pagos / Contas a Pagar')} />
+          <NavItem to="/financeiro/cobros" icon={FileText} label={t('financeiro.menu_cobros') || "Cobros / Recebimentos"} />
+          <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label={t('financeiro.menu_cobranca') || "Cobrança / Inadimplência"} />
+          <NavItem to="/financeiro/analises" icon={PieChart} label={t('financeiro.sidebar.analytics', 'Análises')} />
         </div>
-        <SectionLabel label="Administração" />
+        <SectionLabel label={t('financeiro.sidebar.section_admin', 'Administração')} />
         <div className="space-y-1">
-          <NavItem to="/financeiro/settings" icon={SettingsIcon} label="Configurações" />
+          <NavItem to="/financeiro/settings" icon={SettingsIcon} label={t('financeiro.sidebar.settings', 'Configurações')} />
         </div>
       </div>
     </aside>

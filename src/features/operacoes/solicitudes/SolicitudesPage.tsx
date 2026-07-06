@@ -54,6 +54,15 @@ export function SolicitudesPage() {
                 <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=offboarding')} className="cursor-pointer">
                   Nova Baja
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_postponement')} className="cursor-pointer">
+                  Novo Adiamento de Início
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_extension')} className="cursor-pointer">
+                  Nova Prorrogação de Obra
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_termination')} className="cursor-pointer">
+                  Nova Finalização de Obra
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" onClick={() => refetch()}>
@@ -75,6 +84,8 @@ export function SolicitudesPage() {
               <TabsTrigger value="replacement" className="px-4 py-1.5 text-sm font-medium rounded-md">Substituições (Reemplazo)</TabsTrigger>
               <TabsTrigger value="technical_test" className="px-4 py-1.5 text-sm font-medium rounded-md">Pruebas (Testes Técnicos)</TabsTrigger>
               <TabsTrigger value="offboarding" className="px-4 py-1.5 text-sm font-medium rounded-md">Bajas (Desligamentos)</TabsTrigger>
+              <TabsTrigger value="order_extension" className="px-4 py-1.5 text-sm font-medium rounded-md">Prorrogações</TabsTrigger>
+              <TabsTrigger value="order_termination" className="px-4 py-1.5 text-sm font-medium rounded-md">Finalizações</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>

@@ -94,8 +94,10 @@ const migrationsToRun = [
   '20260703141500_fix_rpc_allocation_pedido_id.sql',
   '20260703142000_fix_rpc_allocation_job_function_id.sql',
   '20260703142200_fix_rpc_allocation_operational_status.sql',
-  '20260703142500_fix_rpc_allocation_check_constraint.sql',
-  '20260704103000_create_core_operacoes_views.sql'
+  '20260704103000_create_core_operacoes_views.sql',
+  '20260705093500_add_cobranca_email_to_empresas.sql',
+  '20260705120000_order_extension_and_termination.sql',
+  '20260705130000_order_postponement_and_notifications.sql'
 ];
 
 async function run() {
