@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 
 import { CountrySelector, RegionSelector } from '../../locations/components/LocationSelectors';
+import { useRegions } from '../../locations/hooks/useLocations';
 import type { Client, CreateClientDTO } from '../types';
 import { createClientSchema } from '../types';
 import { useMutateClient } from '../hooks/useClients';
@@ -65,6 +66,17 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
   });
 
   const selectedCountry = useWatch({ control: form.control, name: 'country_id' }) as string | null | undefined;
+  const selectedRegion = useWatch({ control: form.control, name: 'region_id' }) as string | null | undefined;
+  const { data: regions = [] } = useRegions(selectedCountry || undefined);
+
+  useEffect(() => {
+    if (selectedRegion && regions.length > 0) {
+      const matchedRegion = regions.find(r => r.id === selectedRegion);
+      if (matchedRegion) {
+        form.setValue('province', matchedRegion.name);
+      }
+    }
+  }, [selectedRegion, regions, form]);
 
   useEffect(() => {
     if (client) {
@@ -352,7 +364,7 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
                 name="region_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Região</FormLabel>
+                    <FormLabel>Região / Província</FormLabel>
                     <FormControl>
                       <RegionSelector 
                         countryId={selectedCountry}
