@@ -1,12 +1,14 @@
 import { z } from 'zod';
 
+export const uuidSchema = z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, 'Invalid UUID');
+
 export const jobFunctionStatusSchema = z.enum(['active', 'inactive', 'archived']);
 export const jobFunctionRiskLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
 
 // Schema base vindo do DB
 export const jobFunctionSchema = z.object({
-  id: z.string().uuid().optional(), // opcional na criação
-  empresa_id: z.string().uuid().optional(), // injetado pelo backend/contexto
+  id: uuidSchema.optional(), // opcional na criação
+  empresa_id: uuidSchema.optional(), // injetado pelo backend/contexto
   legacy_id: z.string().nullable().optional(),
   code: z.string().min(1, 'Código é obrigatório').max(50, 'Código muito longo'),
   name: z.string().min(3, 'Nome muito curto').max(150, 'Nome muito longo'),
@@ -16,8 +18,8 @@ export const jobFunctionSchema = z.object({
   status: jobFunctionStatusSchema.default('active'),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
-  created_by: z.string().uuid().nullable().optional(),
-  updated_by: z.string().uuid().nullable().optional(),
+  created_by: uuidSchema.nullable().optional(),
+  updated_by: uuidSchema.nullable().optional(),
 });
 
 export type JobFunction = z.infer<typeof jobFunctionSchema>;
@@ -45,9 +47,9 @@ export const questionTypeSchema = z.enum([
 ]);
 
 export const jobFunctionQuestionSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresa_id: z.string().uuid().optional(),
-  job_function_id: z.string().uuid(),
+  id: uuidSchema.optional(),
+  empresa_id: uuidSchema.optional(),
+  job_function_id: uuidSchema,
   question_text: z.string().min(3, 'Pergunta muito curta').max(500, 'Pergunta muito longa'),
   question_type: questionTypeSchema,
   is_required: z.boolean().default(true),
@@ -60,20 +62,10 @@ export const jobFunctionQuestionSchema = z.object({
 
 export type JobFunctionQuestion = z.infer<typeof jobFunctionQuestionSchema>;
 
-export const createJobFunctionQuestionSchema = jobFunctionQuestionSchema.omit({
-  id: true,
-  empresa_id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type CreateJobFunctionQuestionDTO = z.infer<typeof createJobFunctionQuestionSchema>;
-export type UpdateJobFunctionQuestionDTO = Partial<CreateJobFunctionQuestionDTO>;
-
 // --- EPIS (Fase 4) ---
 export const epiSchema = z.object({
-  id: z.string().uuid(),
-  empresa_id: z.string().uuid(),
+  id: uuidSchema,
+  empresa_id: uuidSchema,
   code: z.string().nullable(),
   name: z.string(),
   description: z.string().nullable(),
@@ -86,10 +78,10 @@ export const epiSchema = z.object({
 export type Epi = z.infer<typeof epiSchema>;
 
 export const jobFunctionEpiSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresa_id: z.string().uuid().optional(),
-  job_function_id: z.string().uuid(),
-  epi_id: z.string().uuid(),
+  id: uuidSchema.optional(),
+  empresa_id: uuidSchema.optional(),
+  job_function_id: uuidSchema,
+  epi_id: uuidSchema,
   quantity: z.number().int().min(1).default(1),
   renewal_period_days: z.number().int().nullable().optional(),
   is_required: z.boolean().default(true),
@@ -114,11 +106,11 @@ export type UpdateJobFunctionEpiDTO = Partial<CreateJobFunctionEpiDTO>;
 
 // --- TARIFAS E CUSTOS (Fase 5) ---
 export const jobFunctionRateRefSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresa_id: z.string().uuid().optional(),
-  job_function_id: z.string().uuid(),
-  country_id: z.string().uuid().nullable().optional(),
-  region_id: z.string().uuid().nullable().optional(),
+  id: uuidSchema.optional(),
+  empresa_id: uuidSchema.optional(),
+  job_function_id: uuidSchema,
+  country_id: uuidSchema.nullable().optional(),
+  region_id: uuidSchema.nullable().optional(),
   currency_code: z.string().length(3).default('EUR'),
   base_cost_hour: z.number().min(0),
   minimum_sell_rate_hour: z.number().min(0).default(0),
@@ -147,3 +139,4 @@ export interface JobFunctionFilters {
   status?: z.infer<typeof jobFunctionStatusSchema> | 'all';
   riskLevel?: z.infer<typeof jobFunctionRiskLevelSchema> | 'all';
 }
+
