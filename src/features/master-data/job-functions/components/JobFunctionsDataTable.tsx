@@ -26,10 +26,6 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
   const [sortField, setSortField] = useState<'code' | 'name' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Paginação local simples para esta fase
-  const [page, setPage] = useState(0);
-  const pageSize = 10;
-
   const handleSort = (field: 'code' | 'name') => {
     if (sortField === field) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -47,8 +43,6 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
     if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
-
-  const paginatedData = sortedData.slice(page * pageSize, (page + 1) * pageSize);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -75,12 +69,12 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
 
   return (
     <div className="space-y-4">
-      <div className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-thin">
+      <div className="border rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-auto max-h-[calc(100vh-220px)] scrollbar-thin">
           <Table className="relative">
-            <TableHeader className="bg-slate-50 border-b sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
+            <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b sticky top-0 z-20 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.1)]">
               <TableRow>
-                <TableHead className="cursor-pointer hover:text-slate-800 transition-colors select-none" onClick={() => handleSort('code')}>
+                <TableHead className="sticky left-0 top-0 bg-slate-50 dark:bg-slate-900 z-30 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200 transition-colors select-none border-r border-slate-200 dark:border-slate-800" onClick={() => handleSort('code')}>
                   <div className="flex items-center gap-1">
                     Código
                     <ArrowUpDown className={`h-3.5 w-3.5 transition-all ${sortField === 'code' ? 'text-orange-500 scale-110' : 'text-slate-400 opacity-55'}`} />
@@ -99,20 +93,20 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y">
-              {paginatedData.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Nenhuma função encontrada.
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedData.map((job) => (
+                sortedData.map((job) => (
                   <TableRow 
                     key={job.id} 
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors duration-150 active:bg-slate-100"
+                    className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/80 cursor-pointer transition-colors duration-150 active:bg-slate-100 dark:active:bg-slate-800"
                     onClick={() => navigate(`/master-data/job-functions/${job.id}`)}
                   >
-                    <TableCell className="font-medium">{job.code}</TableCell>
+                    <TableCell className="sticky left-0 bg-white dark:bg-slate-950 group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/80 group-active:bg-slate-100 dark:group-active:bg-slate-700 transition-colors z-10 font-medium border-r border-slate-200 dark:border-slate-800">{job.code}</TableCell>
                     <TableCell>
                       <div>{job.name}</div>
                       <div className="text-xs text-muted-foreground truncate max-w-[200px]">
@@ -156,30 +150,6 @@ export function JobFunctionsDataTable({ data, onArchive }: JobFunctionsDataTable
           </Table>
         </div>
       </div>
-
-      {data.length > pageSize && (
-        <div className="flex items-center justify-end space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >
-            Anterior
-          </Button>
-          <div className="text-sm text-muted-foreground">
-            Página {page + 1} de {Math.ceil(data.length / pageSize)}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.min(Math.ceil(data.length / pageSize) - 1, p + 1))}
-            disabled={page >= Math.ceil(data.length / pageSize) - 1}
-          >
-            Próxima
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
