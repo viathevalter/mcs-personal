@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useRole } from '@/app/providers/RoleProvider';
+import { useMyMemberships } from '@/shared/hooks/useMyMemberships';
 import { 
     Users, 
     Briefcase, 
@@ -125,6 +126,7 @@ const MODULES: ModuleDef[] = [
 export function GlobalHubPage() {
     const { user } = useAuth();
     const { role: userRole } = useRole();
+    const { data: membershipsData } = useMyMemberships();
     const navigate = useNavigate();
 
     const handleLogout = async () => {
@@ -137,7 +139,23 @@ export function GlobalHubPage() {
         if (!userRole) return false;
         if (userRole === 'super_admin') return true; // super_admin tem acesso global
         if (allowedRoles.includes('all')) return true;
-        return allowedRoles.includes(userRole);
+        
+        // Permite acesso direto se a role do app coincidir
+        if (allowedRoles.includes(userRole)) return true;
+
+        // Obtém as roles associadas aos vínculos de empresas ativas do usuário
+        const userMembershipRoles = membershipsData?.memberships?.map(m => m.role) || [];
+
+        // Mapeia roles globais do App para roles equivalentes nas filiais
+        const mappedRoles = [...userMembershipRoles];
+        if (userRole === 'admin_rh') {
+            mappedRoles.push('rh');
+        }
+        if (userRole === 'operador') {
+            mappedRoles.push('operacoes');
+        }
+
+        return allowedRoles.some(r => mappedRoles.includes(r));
     };
 
     const handleModuleClick = async (module: ModuleDef) => {

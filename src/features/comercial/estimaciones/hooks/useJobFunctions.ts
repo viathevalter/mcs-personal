@@ -15,6 +15,7 @@ export function useJobFunctions() {
         .from('job_functions')
         .select('*')
         .eq('status', 'active')
+        .eq('empresa_id', selectedEmpresaId)
         .order('name');
 
       if (error) throw error;
@@ -36,6 +37,7 @@ export function useAllJobFunctionRates() {
         .schema('core_comercial')
         .from('job_function_rate_refs')
         .select('*')
+        .eq('empresa_id', selectedEmpresaId)
         .neq('status', 'archived');
 
       if (error) throw error;
@@ -57,6 +59,7 @@ export function useAllJobFunctionEpis() {
         .schema('core_logistica')
         .from('job_function_epis')
         .select('*, epi:epis(*)')
+        .eq('empresa_id', selectedEmpresaId)
         .neq('status', 'archived');
 
       if (error) throw error;
