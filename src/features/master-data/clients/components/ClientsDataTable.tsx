@@ -21,6 +21,7 @@ export function ClientsDataTable() {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentTermFilter, setPaymentTermFilter] = useState<string>('all');
   const [sitesFilter, setSitesFilter] = useState<string>('all');
+  const [countryFilter, setCountryFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<'codigo' | 'trade_name' | 'legal_name' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
@@ -51,6 +52,11 @@ export function ClientsDataTable() {
       if (!clientIdsWithSites.has(c.id)) return false;
     } else if (sitesFilter === 'without') {
       if (clientIdsWithSites.has(c.id)) return false;
+    }
+
+    // 4. Country Filter
+    if (countryFilter !== 'all') {
+      if (c.country_id !== countryFilter) return false;
     }
 
     return true;
@@ -126,6 +132,23 @@ export function ClientsDataTable() {
                 <SelectItem value="all">Todas as Obras</SelectItem>
                 <SelectItem value="with">Com Obra Cadastrada</SelectItem>
                 <SelectItem value="without">Sem Obra Cadastrada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Country Filter */}
+          <div className="w-full sm:w-48">
+            <Select value={countryFilter} onValueChange={setCountryFilter}>
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500">
+                <SelectValue placeholder="Países" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Países</SelectItem>
+                {countries.map((country) => (
+                  <SelectItem key={country.id} value={country.id}>
+                    {country.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
