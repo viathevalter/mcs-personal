@@ -154,11 +154,12 @@ export function MasterDataDashboard() {
                 )}
                 
                 {functions.length > 0 && (
-                    <div className="font-medium text-slate-700 flex items-center gap-2">
-                      <span className="flex h-2 w-2 rounded-full bg-slate-300"></span>
+                  <div className="text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-md flex flex-col gap-2">
+                    <div className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700"></span>
                       {t('masterData.dashboard.profiles_audit', { defaultValue: 'Auditoria de Perfis' })}
                     </div>
-                    <div className="text-slate-600 text-xs">
+                    <div className="text-slate-600 dark:text-slate-400 text-xs">
                       {t('masterData.dashboard.inspect_message', { defaultValue: 'Revise os perfis profissionais periodicamente para garantir que as Tarifas de Venda e EPIs obrigatórios estão atualizados.' })}
                     </div>
                   </div>
