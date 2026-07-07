@@ -189,6 +189,8 @@ export function ValidationScreen({
                 .schema('core_comercial')
                 .from('job_functions')
                 .select('id, name')
+                .eq('empresa_id', empresaId)
+                .eq('status', 'active')
                 .order('name');
             
             if (jfErr) throw jfErr;
