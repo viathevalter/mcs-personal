@@ -4,10 +4,15 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { CreateJobFunctionRateRefDTO, UpdateJobFunctionRateRefDTO } from '../types';
 
 export function useJobFunctionRates(jobFunctionId: string) {
+  const { selectedEmpresaId } = useEmpresa();
+
   return useQuery({
-    queryKey: ['jobFunctionRates', jobFunctionId],
-    queryFn: () => jobFunctionRatesApi.getRates(jobFunctionId),
-    enabled: !!jobFunctionId,
+    queryKey: ['jobFunctionRates', jobFunctionId, selectedEmpresaId],
+    queryFn: () => {
+      if (!selectedEmpresaId) return Promise.resolve([]);
+      return jobFunctionRatesApi.getRates(selectedEmpresaId, jobFunctionId);
+    },
+    enabled: !!jobFunctionId && !!selectedEmpresaId,
   });
 }
 

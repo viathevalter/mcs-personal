@@ -2,14 +2,16 @@ import { supabase } from '@/shared/supabase/client';
 import type { CreateJobFunctionRateRefDTO, JobFunctionRateRef, UpdateJobFunctionRateRefDTO } from '../types';
 
 export const jobFunctionRatesApi = {
-  async getRates(jobFunctionId: string): Promise<JobFunctionRateRef[]> {
+  async getRates(empresaId: string, jobFunctionId: string): Promise<JobFunctionRateRef[]> {
     if (!jobFunctionId) throw new Error('ID da função não fornecido');
+    if (!empresaId) return [];
 
     const { data, error } = await supabase
       .schema('core_comercial')
       .from('job_function_rate_refs')
       .select('*')
       .eq('job_function_id', jobFunctionId)
+      .eq('empresa_id', empresaId)
       .neq('status', 'archived')
       .order('created_at', { ascending: true });
 
