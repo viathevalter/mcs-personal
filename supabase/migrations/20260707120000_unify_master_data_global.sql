@@ -288,9 +288,16 @@ BEGIN
             UPDATE core_personal.worker_ibans SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
             UPDATE core_personal.worker_ledger_entries SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
             UPDATE core_personal.worker_status_history SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
-            UPDATE public.chat_conversations SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
-            UPDATE public.chat_scheduled_messages SET target_worker_id = master_worker_id WHERE target_worker_id = duplicate_worker.id;
-            UPDATE public.worker_discounts SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
+            
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'chat_conversations') THEN
+                EXECUTE 'UPDATE public.chat_conversations SET worker_id = $1 WHERE worker_id = $2' USING master_worker_id, duplicate_worker.id;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'chat_scheduled_messages') THEN
+                EXECUTE 'UPDATE public.chat_scheduled_messages SET target_worker_id = $1 WHERE target_worker_id = $2' USING master_worker_id, duplicate_worker.id;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'worker_discounts') THEN
+                EXECUTE 'UPDATE public.worker_discounts SET worker_id = $1 WHERE worker_id = $2' USING master_worker_id, duplicate_worker.id;
+            END IF;
             UPDATE core_finance.horas_trabalhadas SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
             UPDATE core_personal.extracao_horas_imagens SET worker_id = master_worker_id WHERE worker_id = duplicate_worker.id;
 
