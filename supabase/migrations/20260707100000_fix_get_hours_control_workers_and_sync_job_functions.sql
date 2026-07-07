@@ -51,13 +51,14 @@ BEGIN
     LEFT JOIN valid_allocations va ON va.cod_colab = w.cod_colab
     WHERE w.empresa_id = p_empresa_id
       AND (
+         (w.status_trabajador NOT ILIKE 'Inativo' AND w.status_trabajador NOT ILIKE 'Desligado' AND w.status_trabajador NOT ILIKE 'Pendente Baixa' AND w.status_trabajador NOT ILIKE 'Baja')
+         OR
+         (w.data_baixa IS NOT NULL AND w.data_baixa >= v_start_date)
+      )
+      AND (
          (va.cod_colab IS NOT NULL) 
          OR 
          (w.status_trabajador ILIKE 'Ativo' OR w.status_trabajador ILIKE 'Activo')
-         OR
-         (w.status_trabajador ILIKE 'Inativo' AND w.data_baixa >= v_start_date)
-         OR
-         (w.status_trabajador ILIKE 'Desligado' AND w.data_baixa >= v_start_date)
       )
   ),
   filtered AS (

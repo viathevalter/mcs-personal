@@ -147,7 +147,7 @@ export async function getHorasPendentesFaturamento(
       .select('id, name, days');
     const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
 
-    // 4. Ensure all unique clients of the active workers exist in core_common.clients
+    // 4. Ensure all unique clients of the active workers exist in core_common.clients for this company
     const clientsList = [...(clientsData || [])];
     const uniqueClientNames = Array.from(new Set(activeWorkers.map(w => w.cliente_nombre).filter(Boolean)));
 
@@ -163,6 +163,7 @@ export async function getHorasPendentesFaturamento(
 
     for (const name of uniqueClientNames) {
       const exists = clientsList.some(c => {
+        if (c.empresa_id !== empresaId) return false;
         const normC = normalizeName(c.trade_name);
         const normN = normalizeName(name);
         return normC === normN || (normC.length > 3 && normN.includes(normC)) || (normN.length > 3 && normC.includes(normN));
@@ -248,8 +249,9 @@ export async function getHorasPendentesFaturamento(
     // Filter hours to only keep those belonging to the company's workers
     const hoursList = horasTrabalhadasList.filter(h => belongsToCompany(h.worker_id));
 
-    // 6. Filter clients to only keep relevant ones for active workers and actual hours
+    // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company)
     const relevantClients = clientsList.filter(client => {
+      if (client.empresa_id !== empresaId) return false;
       const clientNameLower = client.trade_name?.trim().toLowerCase();
       const hasWorkers = activeWorkers.some(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
       const hasHours = hoursList.some(h => h.client_id === client.id);
