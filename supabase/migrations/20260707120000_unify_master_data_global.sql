@@ -329,11 +329,15 @@ DROP POLICY IF EXISTS "Leitura de contatos de clientes por empresa" ON core_comm
 DROP POLICY IF EXISTS "Edicao de funcoes" ON core_comercial.job_functions;
 DROP POLICY IF EXISTS "Insercao de funcoes" ON core_comercial.job_functions;
 DROP POLICY IF EXISTS "Leitura global de funcoes" ON core_comercial.job_functions;
+DROP POLICY IF EXISTS "Escrita de funcoes" ON core_comercial.job_functions;
+DROP POLICY IF EXISTS "Escrita funcoes por empresa" ON core_comercial.job_functions;
 
 -- Drop old policies on core_logistica.epis
 DROP POLICY IF EXISTS "Edicao de epis" ON core_logistica.epis;
 DROP POLICY IF EXISTS "Insercao de epis" ON core_logistica.epis;
 DROP POLICY IF EXISTS "Leitura global de epis" ON core_logistica.epis;
+DROP POLICY IF EXISTS "Escrita de epis" ON core_logistica.epis;
+DROP POLICY IF EXISTS "Escrita epis por empresa" ON core_logistica.epis;
 
 -- Drop old policies on core_personal.workers
 DROP POLICY IF EXISTS "Admin can delete workers" ON core_personal.workers;
