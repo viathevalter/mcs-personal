@@ -3,6 +3,21 @@ import { mapSupabaseError } from '@/shared/api/supabaseError';
 import { getHoursControlWorkers } from '@/features/workers/api/workersApi';
 import { createClient } from '@supabase/supabase-js';
 
+// Helper to query Supabase tables in small batches to prevent URL/HTTP gateway size limits (e.g. 414 Request-URI Too Large)
+async function fetchInChunks<T>(
+  ids: string[],
+  chunkSize: number,
+  fetchFn: (chunk: string[]) => Promise<T[]>
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const chunkResults = await fetchFn(chunk);
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 const supabaseUrl = (import.meta.env?.VITE_SUPABASE_URL || '') as string;
 const supabaseAnonKey = (import.meta.env?.VITE_SUPABASE_ANON_KEY || '') as string;
 
@@ -259,15 +274,18 @@ export async function getHorasPendentesFaturamento(
     });
     const relevantClientIds = relevantClients.map(c => c.id);
 
-    // 7. Fetch client sites only for relevant clients to avoid header overflow
+    // 7. Fetch client sites only for relevant clients in batches to avoid header/URL size limit errors
     let clientSites: any[] = [];
     if (relevantClientIds.length > 0) {
-      const { data: csData } = await supabase
-        .schema('core_common')
-        .from('client_sites')
-        .select('id, name')
-        .in('client_id', relevantClientIds);
-      clientSites = csData || [];
+      clientSites = await fetchInChunks(relevantClientIds, 30, async (chunk) => {
+        const { data: csData, error: csError } = await supabase
+          .schema('core_common')
+          .from('client_sites')
+          .select('id, name')
+          .in('client_id', chunk);
+        if (csError) throw mapSupabaseError(csError);
+        return csData || [];
+      });
     }
     const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
 
