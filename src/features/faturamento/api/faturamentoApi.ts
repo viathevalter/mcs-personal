@@ -193,18 +193,6 @@ export async function getHorasPendentesFaturamento(
     if (clientsList.length === 0) return [];
     const clientIds = clientsList.map(c => c.id);
 
-    // Fetch all client sites for mapping names
-    let clientSites: any[] = [];
-    if (clientIds.length > 0) {
-      const { data: csData } = await supabase
-        .schema('core_common')
-        .from('client_sites')
-        .select('id, name')
-        .in('client_id', clientIds);
-      clientSites = csData || [];
-    }
-    const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
-
     // 4. Fetch validation status of sheet records (worker_hours)
     // We filter only by period to avoid HTTP Header Overflow errors with large arrays of worker IDs (e.g., 600+)
     const { data: whData, error: whError } = await supabase
@@ -222,11 +210,11 @@ export async function getHorasPendentesFaturamento(
     const startDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-01`;
     const endDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${new Date(periodYear, periodMonth, 0).getDate()}`;
 
+    // Note: We do not filter by clientIds here because that list has 2000+ IDs and would exceed URL size limits
     const { data: horasTrabalhadas, error: htError } = await supabase
       .schema('core_finance')
       .from('horas_trabalhadas')
       .select('*')
-      .in('client_id', clientIds)
       .gte('data_trabalho', startDateStr)
       .lte('data_trabalho', endDateStr);
 
@@ -260,7 +248,28 @@ export async function getHorasPendentesFaturamento(
     // Filter hours to only keep those belonging to the company's workers
     const hoursList = horasTrabalhadasList.filter(h => belongsToCompany(h.worker_id));
 
-    // 6. Fetch existing faturas
+    // 6. Filter clients to only keep relevant ones for active workers and actual hours
+    const relevantClients = clientsList.filter(client => {
+      const clientNameLower = client.trade_name?.trim().toLowerCase();
+      const hasWorkers = activeWorkers.some(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
+      const hasHours = hoursList.some(h => h.client_id === client.id);
+      return hasWorkers || hasHours;
+    });
+    const relevantClientIds = relevantClients.map(c => c.id);
+
+    // 7. Fetch client sites only for relevant clients to avoid header overflow
+    let clientSites: any[] = [];
+    if (relevantClientIds.length > 0) {
+      const { data: csData } = await supabase
+        .schema('core_common')
+        .from('client_sites')
+        .select('id, name')
+        .in('client_id', relevantClientIds);
+      clientSites = csData || [];
+    }
+    const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
+
+    // 8. Fetch existing faturas
     const faturaIds = Array.from(new Set(hoursList.map(h => h.fatura_id).filter(Boolean)));
     let faturasList: any[] = [];
     if (faturaIds.length > 0) {
@@ -273,7 +282,7 @@ export async function getHorasPendentesFaturamento(
     }
     const faturasMap = new Map(faturasList.map(f => [f.id, f]));
 
-    // 7. Fetch job functions for profile names
+    // 9. Fetch job functions for profile names
     const funcaoIds = Array.from(new Set(hoursList.map(h => h.funcao_id).filter(Boolean)));
     const workerFuncaoIds = activeWorkers.map(w => w.funcao_id).filter(Boolean);
     const allFuncaoIds = Array.from(new Set([...funcaoIds, ...workerFuncaoIds]));
@@ -289,10 +298,10 @@ export async function getHorasPendentesFaturamento(
     }
     const jobFunctionsMap = new Map(jobFunctions.map(j => [j.id, j.name]));
 
-    // 8. Construct summarizing list
+    // 10. Construct summarizing list
     const clientSummaries: ClientBillingSummary[] = [];
 
-    for (const client of clientsList) {
+    for (const client of relevantClients) {
       // Find workers assigned to this client (case-insensitive trade_name match)
       const clientNameLower = client.trade_name?.trim().toLowerCase();
       const clientWorkers = activeWorkers.filter(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
