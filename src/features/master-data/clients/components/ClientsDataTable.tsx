@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useClients, useMutateClient } from '../hooks/useClients';
+import { useClients } from '../hooks/useClients';
 import { usePaymentTerms } from '../hooks/usePaymentTerms';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { useCountries } from '../../locations/hooks/useLocations';
@@ -10,14 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
 import { Search, Building2, Edit, Filter, ArrowUpDown } from 'lucide-react';
 import type { Client } from '../types';
 
 export function ClientsDataTable() {
   const { t } = useTranslation();
-  const { updateClient } = useMutateClient();
   const { data: clients = [], isLoading } = useClients();
   const { data: paymentTerms = [] } = usePaymentTerms();
   const { data: allSites = [] } = useClientSites();
@@ -26,8 +23,8 @@ export function ClientsDataTable() {
   const getViesBadge = (client: Client) => {
     if (!client.vies_applicable) {
       return (
-        <Badge variant="secondary" className="bg-slate-100 text-slate-650 dark:bg-slate-800 dark:text-slate-400 text-[10px] font-semibold">
-          {t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}
+        <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+          {t('masterData.clientes.vies_not_applicable', { defaultValue: 'VIES não aplicável' })}
         </Badge>
       );
     }
@@ -36,32 +33,32 @@ export function ClientsDataTable() {
     switch (viesStatus) {
       case 'valid':
         return (
-          <Badge className="bg-emerald-105 text-emerald-800 hover:bg-emerald-105 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold">
-            {t('masterData.clientes.vies_valid', { defaultValue: 'Válido' })}
+          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-200/50">
+            {t('masterData.clientes.vies_valid', { defaultValue: 'VIES Válido' })}
           </Badge>
         );
       case 'invalid':
         return (
-          <Badge className="bg-rose-105 text-rose-800 hover:bg-rose-105 dark:bg-rose-950/40 dark:text-rose-450 text-[10px] font-semibold">
-            {t('masterData.clientes.vies_invalid', { defaultValue: 'Inválido' })}
+          <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+            {t('masterData.clientes.vies_invalid', { defaultValue: 'Não validado no VIES' })}
           </Badge>
         );
       case 'stale':
         return (
-          <Badge className="bg-orange-105 text-orange-850 hover:bg-orange-105 dark:bg-orange-950/40 dark:text-orange-450 text-[10px] font-semibold">
-            {t('masterData.clientes.vies_stale', { defaultValue: 'Desatualizado' })}
+          <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+            {t('masterData.clientes.vies_stale', { defaultValue: 'Consulta desatualizada' })}
           </Badge>
         );
       case 'not_checked':
         return (
-          <Badge className="bg-slate-100 text-slate-650 hover:bg-slate-150 dark:bg-slate-850 dark:text-slate-350 text-[10px] font-semibold">
-            {t('masterData.clientes.vies_not_checked', { defaultValue: 'Pendente' })}
+          <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+            {t('masterData.clientes.vies_not_checked', { defaultValue: 'Nunca consultado' })}
           </Badge>
         );
       default:
         return (
-          <Badge className="bg-amber-105 text-amber-800 hover:bg-amber-105 dark:bg-amber-950/40 dark:text-amber-450 text-[10px] font-semibold">
-            {t('masterData.clientes.vies_error', { defaultValue: 'Erro' })}
+          <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+            {t('masterData.clientes.vies_error', { defaultValue: 'Erro na consulta' })}
           </Badge>
         );
     }
@@ -273,54 +270,12 @@ export function ClientsDataTable() {
                           {!client.email && !client.phone && <span>--</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={!!client.vies_applicable}
-                            onCheckedChange={async (checked) => {
-                              try {
-                                await updateClient({
-                                  id: client.id!,
-                                  payload: {
-                                    vies_applicable: checked,
-                                    ...(checked ? {} : {
-                                      vies_status: 'not_applicable',
-                                      vies_valid: false
-                                    })
-                                  }
-                                });
-                                toast.success(checked ? 'VIES ativado para o cliente!' : 'VIES desativado para o cliente!');
-                              } catch (err: any) {
-                                toast.error('Erro ao atualizar VIES: ' + err.message);
-                              }
-                            }}
-                            className="scale-90"
-                          />
-                          {getViesBadge(client)}
-                        </div>
+                      <td className="px-4 py-3">
+                        {getViesBadge(client)}
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const newStatus = client.status === 'active' ? 'inactive' : 'active';
-                              await updateClient({
-                                id: client.id!,
-                                payload: {
-                                  status: newStatus
-                                }
-                              });
-                              toast.success(newStatus === 'active' ? 'Cliente ativado com sucesso!' : 'Cliente desativado com sucesso!');
-                            } catch (err: any) {
-                              toast.error('Erro ao atualizar status: ' + err.message);
-                            }
-                          }}
-                          className="focus:outline-none transition-transform hover:scale-105 active:scale-95 text-left"
-                          title="Clique para alternar o status do cliente"
-                        >
-                          {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-200/80 cursor-pointer">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
-                          {client.status === 'inactive' && <Badge variant="secondary" className="dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-700 cursor-pointer">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
-                        </button>
+                      <td className="px-4 py-3">
+                        {client.status === 'active' && <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100">{t('masterData.status.active_masc', { defaultValue: 'Ativo' })}</Badge>}
+                        {client.status === 'inactive' && <Badge variant="secondary" className="dark:bg-slate-800 dark:text-slate-300">{t('masterData.status.inactive_masc', { defaultValue: 'Inativo' })}</Badge>}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
