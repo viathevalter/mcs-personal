@@ -318,6 +318,8 @@ DROP POLICY IF EXISTS "Edicao de clientes" ON core_common.clients;
 DROP POLICY IF EXISTS "Insercao de clientes" ON core_common.clients;
 DROP POLICY IF EXISTS "Leitura global de clientes" ON core_common.clients;
 DROP POLICY IF EXISTS "Permitir leitura pública de clients vinculados a estimaciones " ON core_common.clients;
+DROP POLICY IF EXISTS "Escrita de clientes" ON core_common.clients;
+DROP POLICY IF EXISTS "Escrita clientes por empresa" ON core_common.clients;
 
 -- Drop old policies on core_common.client_contacts
 DROP POLICY IF EXISTS "Escrita de contatos de clientes por empresa" ON core_common.client_contacts;
