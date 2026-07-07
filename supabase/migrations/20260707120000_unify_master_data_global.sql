@@ -353,6 +353,20 @@ DROP POLICY IF EXISTS "Enable SELECT for authenticated users" ON core_personal.w
 -- =========================================================================
 -- F. STRUCTURAL TABLE CLEANUPS (REMOVE SCOPING COLUMNS)
 -- =========================================================================
+-- Drop dependent indexes and constraints first
+DROP INDEX IF EXISTS core_common.idx_clients_empresa;
+ALTER TABLE core_common.clients DROP CONSTRAINT IF EXISTS uq_clients_codigo_empresa;
+
+DROP INDEX IF EXISTS core_comercial.idx_job_functions_empresa;
+ALTER TABLE core_comercial.job_functions DROP CONSTRAINT IF EXISTS uq_job_functions_code_empresa;
+
+DROP INDEX IF EXISTS core_logistica.idx_epis_empresa;
+ALTER TABLE core_logistica.epis DROP CONSTRAINT IF EXISTS uq_epis_code_active;
+
+DROP INDEX IF EXISTS core_personal.ix_workers_empresa;
+ALTER TABLE core_personal.workers DROP CONSTRAINT IF EXISTS workers_empresa_id_cod_colab_key;
+
+-- Now drop columns
 ALTER TABLE core_common.clients DROP COLUMN IF EXISTS empresa_id;
 ALTER TABLE core_common.clients DROP COLUMN IF EXISTS payment_term_id;
 ALTER TABLE core_common.clients DROP COLUMN IF EXISTS status;
