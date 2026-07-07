@@ -59,7 +59,9 @@ export function CountriesPage() {
   }) : [];
 
   const handleEditClick = (country: any) => {
-    const currentLodging = lodgingRates.find((r: any) => r.country_id === country.id);
+    const currentLodging = lodgingRates.find(
+      (r: any) => r.country_id === country.id && !r.region_id && !r.start_date && !r.end_date
+    );
     const currentTax = taxParams.find((t: any) => t.country_id === country.id);
 
     setEditingId(country.id);
@@ -152,7 +154,9 @@ export function CountriesPage() {
               ) : (
                 sortedCountries.map((country) => {
                   const isEditing = editingId === country.id;
-                  const lodging = lodgingRates.find((r: any) => r.country_id === country.id);
+                  const lodging = lodgingRates.find(
+                    (r: any) => r.country_id === country.id && !r.region_id && !r.start_date && !r.end_date
+                  );
                   const tax = taxParams.find((t: any) => t.country_id === country.id);
 
                   return (
