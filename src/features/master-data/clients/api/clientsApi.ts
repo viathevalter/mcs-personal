@@ -8,52 +8,128 @@ export const clientsApi = {
     const { data, error } = await supabase
       .schema('core_common')
       .from('clients')
-      .select('*, payment_term:payment_term_id ( id, name, days )')
-      .eq('empresa_id', empresaId)
-      .neq('status', 'archived')
+      .select(`
+        *,
+        client_company_settings (
+          empresa_id,
+          payment_term_id,
+          status,
+          credit_limit,
+          payment_term:payment_term_id ( id, name, days )
+        )
+      `)
       .order('trade_name', { ascending: true });
 
     if (error) throw error;
-    return data as Client[];
+
+    // Process and map settings for the selected company
+    return (data || []).map((client: any) => {
+      const settings = client.client_company_settings?.find(
+        (s: any) => s.empresa_id === empresaId
+      );
+      return {
+        ...client,
+        payment_term_id: settings?.payment_term_id || null,
+        payment_term: settings?.payment_term || null,
+        status: settings?.status || 'active',
+        credit_limit: settings?.credit_limit !== undefined ? Number(settings.credit_limit) : null,
+      };
+    }) as Client[];
   },
 
   async createClient(empresaId: string, payload: CreateClientDTO): Promise<Client> {
     if (!empresaId) throw new Error('Empresa não selecionada');
 
-    const { data, error } = await supabase
+    const {
+      payment_term_id,
+      status,
+      credit_limit,
+      ...globalPayload
+    } = payload as any;
+
+    const { data: clientData, error: clientError } = await supabase
       .schema('core_common')
       .from('clients')
       .insert({
-        ...payload,
-        empresa_id: empresaId,
-        vies_applicable: true,
+        ...globalPayload,
+        vies_applicable: globalPayload.vies_applicable ?? true,
       })
       .select()
       .single();
 
-    if (error) throw error;
-    return data as Client;
-  },
+    if (clientError) throw clientError;
 
-  async updateClient(id: string, payload: UpdateClientDTO): Promise<Client> {
-    const { data, error } = await supabase
+    const { error: settingsError } = await supabase
       .schema('core_common')
-      .from('clients')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
+      .from('client_company_settings')
+      .insert({
+        client_id: clientData.id,
+        empresa_id: empresaId,
+        payment_term_id: payment_term_id || null,
+        status: status || 'active',
+        credit_limit: credit_limit || 0,
+      });
 
-    if (error) throw error;
-    return data as Client;
+    if (settingsError) throw settingsError;
+
+    const clients = await this.getClients(empresaId);
+    const created = clients.find(c => c.id === clientData.id);
+    if (!created) throw new Error('Erro ao carregar cliente criado');
+    return created;
   },
 
-  async archiveClient(id: string): Promise<void> {
+  async updateClient(empresaId: string, id: string, payload: UpdateClientDTO): Promise<Client> {
+    if (!empresaId) throw new Error('Empresa não selecionada');
+
+    const {
+      payment_term_id,
+      status,
+      credit_limit,
+      ...globalPayload
+    } = payload as any;
+
+    if (Object.keys(globalPayload).length > 0) {
+      const { error: clientError } = await supabase
+        .schema('core_common')
+        .from('clients')
+        .update(globalPayload)
+        .eq('id', id);
+
+      if (clientError) throw clientError;
+    }
+
+    const settingsUpdate: any = {};
+    if (payment_term_id !== undefined) settingsUpdate.payment_term_id = payment_term_id;
+    if (status !== undefined) settingsUpdate.status = status;
+    if (credit_limit !== undefined) settingsUpdate.credit_limit = credit_limit;
+
+    if (Object.keys(settingsUpdate).length > 0) {
+      const { error: settingsError } = await supabase
+        .schema('core_common')
+        .from('client_company_settings')
+        .upsert({
+          client_id: id,
+          empresa_id: empresaId,
+          ...settingsUpdate,
+        });
+
+      if (settingsError) throw settingsError;
+    }
+
+    const clients = await this.getClients(empresaId);
+    const updated = clients.find(c => c.id === id);
+    if (!updated) throw new Error('Erro ao carregar cliente atualizado');
+    return updated;
+  },
+
+  async archiveClient(empresaId: string, id: string): Promise<void> {
+    if (!empresaId) throw new Error('Empresa não selecionada');
     const { error } = await supabase
       .schema('core_common')
-      .from('clients')
+      .from('client_company_settings')
       .update({ status: 'archived' })
-      .eq('id', id);
+      .eq('client_id', id)
+      .eq('empresa_id', empresaId);
 
     if (error) throw error;
   },

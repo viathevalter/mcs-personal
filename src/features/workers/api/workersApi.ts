@@ -207,7 +207,7 @@ export async function getWorker(id: string): Promise<Worker | null> {
     return data as Worker;
 }
 
-export async function upsertWorker(payload: Partial<Worker> & { empresa_id: string }): Promise<Worker> {
+export async function upsertWorker(payload: Partial<Worker>): Promise<Worker> {
     const { data, error } = await supabase
         .schema('core_personal').from('workers')
         .upsert(payload)
@@ -318,9 +318,7 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
         status_seguridad: newStatusSeguridad
     };
 
-    if (companyId) {
-        workerUpdates.empresa_id = companyId;
-    }
+    // No empresa_id on global workers table
 
     const { error: workerError } = await supabase
         .schema('core_personal')
@@ -398,7 +396,6 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
                 .maybeSingle();
             if (empresa?.id) {
                 companyId = empresa.id;
-                workerUpdates.empresa_id = companyId;
             }
         }
 

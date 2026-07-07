@@ -87,16 +87,11 @@ export function EpiSheet({ open, onOpenChange, epi }: EpiSheetProps) {
 
   const onSubmit = async (data: CreateEpiDTO) => {
     try {
-      if (!selectedEmpresaId) {
-        toast.error('Empresa não selecionada');
-        return;
-      }
-
       if (isEditing && epi.id) {
         await updateEpi({ id: epi.id, payload: data });
         toast.success('EPI atualizado com sucesso!');
       } else {
-        await createEpi({ ...data, empresa_id: selectedEmpresaId });
+        await createEpi(data);
         toast.success('EPI cadastrado com sucesso!');
       }
       onOpenChange(false);

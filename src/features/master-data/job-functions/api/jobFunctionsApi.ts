@@ -6,15 +6,11 @@ export const jobFunctionsApi = {
    * Busca as funções filtrando sempre pela empresa selecionada (segurança extra,
    * embora o RLS também garanta).
    */
-  async getJobFunctions(empresaId: string): Promise<JobFunction[]> {
-    if (!empresaId) throw new Error('Empresa não selecionada');
-
+  async getJobFunctions(empresaId?: string): Promise<JobFunction[]> {
     const { data, error } = await supabase
       .schema('core_comercial')
       .from('job_functions')
       .select('*')
-      .eq('empresa_id', empresaId)
-      // .neq('status', 'archived') // Opcional: podemos trazer todas e filtrar no client para KPIs
       .order('name', { ascending: true });
 
     if (error) throw error;
@@ -34,15 +30,10 @@ export const jobFunctionsApi = {
   },
 
   async createJobFunction(empresaId: string, payload: CreateJobFunctionDTO): Promise<JobFunction> {
-    if (!empresaId) throw new Error('Empresa não selecionada');
-
     const { data, error } = await supabase
       .schema('core_comercial')
       .from('job_functions')
-      .insert({
-        ...payload,
-        empresa_id: empresaId,
-      })
+      .insert(payload)
       .select()
       .single();
 

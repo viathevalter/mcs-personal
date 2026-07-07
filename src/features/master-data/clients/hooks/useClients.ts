@@ -32,7 +32,8 @@ export function useMutateClient() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateClientDTO }) => {
-      return clientsApi.updateClient(id, payload);
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+      return clientsApi.updateClient(selectedEmpresaId, id, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
@@ -40,7 +41,10 @@ export function useMutateClient() {
   });
 
   const archiveMutation = useMutation({
-    mutationFn: (id: string) => clientsApi.archiveClient(id),
+    mutationFn: (id: string) => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+      return clientsApi.archiveClient(selectedEmpresaId, id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
     },

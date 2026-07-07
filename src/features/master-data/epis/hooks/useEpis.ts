@@ -21,7 +21,7 @@ export function useMutateEpi() {
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: (payload: CreateEpiDTO & { empresa_id: string }) => episApi.createEpi(payload),
+    mutationFn: (payload: CreateEpiDTO) => episApi.createEpi(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['epis'] }),
   });
 
