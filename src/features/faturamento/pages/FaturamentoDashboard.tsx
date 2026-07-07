@@ -21,8 +21,8 @@ export function FaturamentoDashboard() {
             <DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">€ 45.231,89</div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">+20.1% em relação ao mês anterior</p>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">€ 0,00</div>
+            <p className="text-xs text-muted-foreground font-medium">0% em relação ao mês anterior</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -31,7 +31,7 @@ export function FaturamentoDashboard() {
             <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">35</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">0</div>
             <p className="text-xs text-muted-foreground">Aguardando aprovação</p>
           </CardContent>
         </Card>
@@ -41,8 +41,8 @@ export function FaturamentoDashboard() {
             <BarChart className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">1.234h</div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">+19% em relação ao mês anterior</p>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">0h</div>
+            <p className="text-xs text-muted-foreground font-medium">0% em relação ao mês anterior</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -51,7 +51,7 @@ export function FaturamentoDashboard() {
             <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">12</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">0</div>
             <p className="text-xs text-muted-foreground">Neste ciclo de faturamento</p>
           </CardContent>
         </Card>
@@ -76,27 +76,9 @@ export function FaturamentoDashboard() {
             <CardDescription>Clientes com maior volume de horas</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: 'Construtora XYZ', hours: '450h', value: '€ 12.500' },
-                { name: 'Engenharia ABC', hours: '320h', value: '€ 8.900' },
-                { name: 'Empreiteira Silva', hours: '210h', value: '€ 5.800' },
-                { name: 'Grupo Omega', hours: '150h', value: '€ 4.200' },
-                { name: 'Obras & Cia', hours: '104h', value: '€ 2.900' },
-              ].map((client, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">
-                      {client.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{client.name}</p>
-                      <p className="text-xs text-muted-foreground">{client.hours}</p>
-                    </div>
-                  </div>
-                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{client.value}</div>
-                </div>
-              ))}
+            <div className="flex flex-col items-center justify-center h-[240px] text-muted-foreground border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+              <Users className="h-8 w-8 mb-2 opacity-40" />
+              <p className="text-sm">Nenhum cliente faturado no período</p>
             </div>
           </CardContent>
         </Card>
