@@ -76,10 +76,6 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         .from('workers')
         .select('id, nome, nif, dni, email, movil, funcion, cod_colab, status_trabajador, camiseta, pantalones, licencia_conducir');
         
-      if (selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
-        queryBuilder = queryBuilder.eq('empresa_id', selectedEmpresaId);
-      }
-      
       const { data, error } = await queryBuilder.or('status_trabajador.is.null,status_trabajador.not.in.(Ativo,Activo,ATIVO,ACTIVO)');
       if (error) throw error;
       return data || [];
