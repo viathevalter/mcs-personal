@@ -401,21 +401,6 @@ export const Cobranca = () => {
         return itemDate >= new Date(now.setHours(0,0,0,0)) && itemDate <= next7Days;
     };
 
-    // KPIs Calculations
-    const kpis = {
-        atrasoVal: data.filter(i => isOverdue(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        atrasoCount: data.filter(i => isOverdue(i)).length,
-
-        alertaVal: data.filter(i => isDueSoon(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        alertaCount: data.filter(i => isDueSoon(i)).length,
-
-        judicialVal: data.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        judicialCount: data.filter(i => i.Status === 'Judicial').length,
-
-        totalVal: data.filter(i => i.Status !== 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        totalCount: data.filter(i => i.Status !== 'Pago').length,
-    };
-
     const formatDateInput = (dateStr: string) => {
         if (!dateStr) return '';
         const [year, month, day] = dateStr.split('-');
@@ -444,12 +429,7 @@ export const Cobranca = () => {
     const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
 
     // Filters and tabs
-    const filteredData = data.filter(item => {
-        // Tab filter
-        if (activeTab === 'atraso' && !isOverdue(item)) return false;
-        if (activeTab === 'alerta' && !isDueSoon(item)) return false;
-        if (activeTab === 'judicial' && item.Status !== 'Judicial') return false;
-
+    const kpiData = data.filter(item => {
         // Search search
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = 
@@ -529,6 +509,29 @@ export const Cobranca = () => {
             }
         }
 
+        return true;
+    });
+
+    // KPIs Calculations
+    const kpis = {
+        atrasoVal: kpiData.filter(i => isOverdue(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        atrasoCount: kpiData.filter(i => isOverdue(i)).length,
+
+        alertaVal: kpiData.filter(i => isDueSoon(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        alertaCount: kpiData.filter(i => isDueSoon(i)).length,
+
+        judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        judicialCount: kpiData.filter(i => i.Status === 'Judicial').length,
+
+        totalVal: kpiData.filter(i => i.Status !== 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        totalCount: kpiData.filter(i => i.Status !== 'Pago').length,
+    };
+
+    const filteredData = kpiData.filter(item => {
+        // Tab filter
+        if (activeTab === 'atraso' && !isOverdue(item)) return false;
+        if (activeTab === 'alerta' && !isDueSoon(item)) return false;
+        if (activeTab === 'judicial' && item.Status !== 'Judicial') return false;
         return true;
     });
 
