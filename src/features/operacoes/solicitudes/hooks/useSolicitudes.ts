@@ -119,6 +119,19 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
       const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
       const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
 
+      // Fetch date change events from timeline to identify postponements/extensions
+      let dateChangesList: any[] = [];
+      const solicitudIds = solicitudes.map(s => s.id);
+      if (solicitudIds.length > 0) {
+        const { data: dcData } = await supabase
+          .schema('core_operacoes')
+          .from('solicitud_timeline')
+          .select('solicitud_id, title')
+          .in('solicitud_id', solicitudIds)
+          .in('title', ['Início Adiado', 'Prazo Prorrogado']);
+        if (dcData) dateChangesList = dcData;
+      }
+
       return solicitudes.map(s => {
         const p = s.pedido_id ? pedidosMap.get(s.pedido_id) : null;
         const ev: any = (s.source_entity_type === 'estimacion_version' && !s.pedido_id)
@@ -147,12 +160,17 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
           status_pedido: 'Estimado'
         } : undefined);
 
+        const has_postponement = dateChangesList.some(dc => dc.solicitud_id === s.id && dc.title === 'Início Adiado');
+        const has_extension = dateChangesList.some(dc => dc.solicitud_id === s.id && dc.title === 'Prazo Prorrogado');
+
         return {
           ...s,
           client: resolvedClient,
           client_site: resolvedSite,
           pedido: resolvedPedido,
-          empresa: resolvedEmpresa
+          empresa: resolvedEmpresa,
+          has_postponement,
+          has_extension
         };
       }) as SolicitudDetail[];
     },

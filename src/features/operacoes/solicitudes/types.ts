@@ -6,7 +6,7 @@ export interface SolicitudOperativa {
   target_assignment_id?: string;
   source_entity_id?: string;
   source_module: string;
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement';
   title: string;
   description?: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -95,6 +95,8 @@ export interface SolicitudDetail extends SolicitudOperativa {
     legal_name?: string;
     trade_name?: string;
   };
+  has_postponement?: boolean;
+  has_extension?: boolean;
 }
 
 export interface SolicitudTareaDetail extends SolicitudTarea {

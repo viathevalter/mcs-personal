@@ -183,12 +183,26 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
                   </div>
                 </TableCell>
                 <TableCell className="text-slate-700 dark:text-slate-350 font-medium">
-                  {solicitud.pedido?.fecha_inicio_pedido 
-                    ? format(new Date(solicitud.pedido.fecha_inicio_pedido), 'dd/MM/yyyy') 
-                    : 'N/A'}
+                  {(solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm">
+                        📅 {format(new Date(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido!), 'dd/MM/yyyy')}
+                      </span>
+                      <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider">Início Adiado</span>
+                    </div>
+                  ) : solicitud.pedido?.fecha_inicio_pedido ? (
+                    format(new Date(solicitud.pedido.fecha_inicio_pedido), 'dd/MM/yyyy')
+                  ) : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  {solicitud.pedido?.fecha_fin_pedido ? (
+                  {(solicitud.tipo === 'order_extension' || solicitud.has_extension) && (solicitud.due_date || solicitud.pedido?.fecha_fin_pedido) ? (
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-955/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50 w-max flex items-center gap-1 shadow-sm">
+                        📅 {format(new Date(solicitud.due_date || solicitud.pedido!.fecha_fin_pedido!), 'dd/MM/yyyy')}
+                      </span>
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">Prazo Prorrogado</span>
+                    </div>
+                  ) : solicitud.pedido?.fecha_fin_pedido ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-mono font-medium text-slate-700 dark:text-slate-350">
                         {format(new Date(solicitud.pedido.fecha_fin_pedido), 'dd/MM/yyyy')}

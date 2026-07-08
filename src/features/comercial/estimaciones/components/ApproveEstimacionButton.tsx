@@ -54,6 +54,57 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   const [step, setStep] = useState(1);
   const { aprovarEstimacion } = useEstimacionMutations();
 
+  // Helper date functions
+  const getDayOfWeekName = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr + 'T00:00:00');
+      if (isNaN(date.getTime())) return '';
+      const dayName = date.toLocaleDateString('pt-BR', { weekday: 'long' });
+      return dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const formatDateToLocalString = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getOriginalDuration = () => {
+    if (!estimacion.expected_start_date || !estimacion.expected_end_date) return 0;
+    const start = parseLocalDate(estimacion.expected_start_date);
+    const end = parseLocalDate(estimacion.expected_end_date);
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+  };
+
+  // Custom date selection states
+  const [newStartDate, setNewStartDate] = useState('');
+  const [newEndDate, setNewEndDate] = useState('');
+
+  const handleStartDateChange = (val: string) => {
+    setNewStartDate(val);
+    if (!val) {
+      setNewEndDate('');
+      return;
+    }
+    const start = parseLocalDate(val);
+    const duration = getOriginalDuration() || 30;
+    const end = new Date(start.getTime() + duration * 24 * 3600 * 1000);
+    setNewEndDate(formatDateToLocalString(end));
+  };
+
+  const isMonday = newStartDate ? parseLocalDate(newStartDate).getDay() === 1 : false;
+
   // Wizard state data
   const [items, setItems] = useState<any[]>([]);
   const [epis, setEpis] = useState<any[]>([]);
@@ -86,6 +137,16 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
       try {
         setLoadingData(true);
         setStep(1);
+
+        // Prepopulate dates: Today + 10 days default
+        const today = new Date();
+        const defaultSuggest = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 10);
+        const formattedSuggest = formatDateToLocalString(defaultSuggest);
+        setNewStartDate(formattedSuggest);
+
+        const duration = getOriginalDuration() || 30;
+        const suggestEnd = new Date(defaultSuggest.getTime() + duration * 24 * 3600 * 1000);
+        setNewEndDate(formatDateToLocalString(suggestEnd));
 
         // 1. Fetch current version items
         const { data: itemsData, error: itemsErr } = await supabase
@@ -204,14 +265,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         return `<li>${name}: ${item.quantity} ${vagasText}</li>`;
       }).join('');
 
-      const expectedStartStr = estimacion.expected_start_date 
-        ? new Date(estimacion.expected_start_date).toLocaleDateString(
+      const expectedStartStr = newStartDate 
+        ? parseLocalDate(newStartDate).toLocaleDateString(
             lang === 'pt' ? 'pt-PT' : lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-US' : lang === 'it' ? 'it-IT' : 'fr-FR'
           )
         : null;
 
-      const expectedEndStr = estimacion.expected_end_date 
-        ? new Date(estimacion.expected_end_date).toLocaleDateString(
+      const expectedEndStr = newEndDate 
+        ? parseLocalDate(newEndDate).toLocaleDateString(
             lang === 'pt' ? 'pt-PT' : lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-US' : lang === 'it' ? 'it-IT' : 'fr-FR'
           )
         : null;
@@ -318,7 +379,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
       setEmailBody(bodyHtml.trim());
     }
-  }, [items, estimacion]);
+  }, [items, estimacion, newStartDate, newEndDate]);
 
   // Calculate duration string
   const getDurationString = () => {
@@ -421,7 +482,11 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
       });
 
       // 2. Run aprovar_estimacion RPC
-      const approvedResult = await aprovarEstimacion.mutateAsync(estimacion.id);
+      const approvedResult = await aprovarEstimacion.mutateAsync({
+        estimacionId: estimacion.id,
+        expectedStartDate: newStartDate,
+        expectedEndDate: newEndDate
+      });
       
       const pedidoId = approvedResult?.pedido_id;
       if (!pedidoId) {
@@ -532,6 +597,83 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                   <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border text-sm text-slate-600 dark:text-slate-400">
                     <p className="font-semibold text-slate-800 dark:text-slate-200">Mobilização de Vagas</p>
                     <p className="mt-1 text-xs">Responda às questões técnicas abaixo para orientar a equipa de RH e Recrutamento na contratação dos perfis adequados.</p>
+                  </div>
+
+                  {/* CUSTOM ORDER DATES SELECTION */}
+                  <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+                    <div className="flex items-center space-x-2 border-b pb-2">
+                      <span className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-lg">
+                        <Check className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">Definir Datas do Pedido</h4>
+                        <p className="text-[11px] text-muted-foreground">O início do trabalho atrasou? Ajuste a data de início prevista do pedido abaixo.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                      <div className="space-y-1.5 p-3 rounded-lg bg-amber-50/40 dark:bg-amber-955/10 border border-amber-200 dark:border-amber-900/50 shadow-sm">
+                        <Label htmlFor="new-start-date" className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1">
+                          📅 Data de Início Prevista (Sugestão: 10 dias)
+                        </Label>
+                        <Input 
+                          id="new-start-date"
+                          type="date"
+                          value={newStartDate}
+                          onChange={(e) => handleStartDateChange(e.target.value)}
+                          className={isMonday 
+                            ? "border-red-500 focus-visible:ring-red-500 bg-white dark:bg-slate-950 font-semibold" 
+                            : "border-amber-300 dark:border-amber-900/60 focus-visible:ring-amber-500 bg-white dark:bg-slate-950 font-semibold text-slate-900 dark:text-slate-100"}
+                        />
+                        {newStartDate && (
+                          <div className="flex items-center justify-between text-[10px] font-semibold pt-0.5">
+                            <span className="text-amber-700 dark:text-amber-400 bg-amber-100/60 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">
+                              Semana: {getDayOfWeekName(newStartDate)}
+                            </span>
+                            {estimacion.expected_start_date && (
+                              <span className="text-slate-400 dark:text-slate-500 font-normal">
+                                Original: {new Date(estimacion.expected_start_date + 'T00:00:00').toLocaleDateString('pt-PT')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1.5 p-3 rounded-lg bg-emerald-50/30 dark:bg-emerald-955/5 border border-emerald-150/40 dark:border-emerald-900/30 shadow-sm">
+                        <Label htmlFor="new-end-date" className="text-xs font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                          🏁 Data de Fim Calculada (Mesmo período)
+                        </Label>
+                        <Input 
+                          id="new-end-date"
+                          type="date"
+                          value={newEndDate}
+                          disabled
+                          className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 border-slate-200 dark:border-slate-800 cursor-not-allowed font-medium"
+                        />
+                        {newEndDate && (
+                          <div className="flex items-center justify-between text-[10px] font-semibold pt-0.5">
+                            <span className="text-emerald-700 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
+                              Semana: {getDayOfWeekName(newEndDate)}
+                            </span>
+                            {estimacion.expected_end_date && (
+                              <span className="text-slate-400 dark:text-slate-500 font-normal">
+                                Original: {new Date(estimacion.expected_end_date + 'T00:00:00').toLocaleDateString('pt-PT')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {isMonday && (
+                      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-3 rounded-lg flex items-start space-x-2 text-red-600 dark:text-red-400">
+                        <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold">Início em Segunda-feira Não Permitido</p>
+                          <p className="text-[11px] mt-0.5">Por regras operacionais, nenhum pedido pode iniciar em uma segunda-feira. Por favor, ajuste a data para terça-feira ou outro dia da semana.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {questions.length === 0 ? (
@@ -692,13 +834,13 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                             <div>
                               <span className="font-semibold text-slate-500">Fecha Inicio:</span>
                               <p className="font-medium text-slate-850 dark:text-slate-100">
-                                {estimacion.expected_start_date ? new Date(estimacion.expected_start_date).toLocaleDateString('pt-PT') : 'N/A'}
+                                {newStartDate ? parseLocalDate(newStartDate).toLocaleDateString('pt-PT') : 'N/A'}
                               </p>
                             </div>
                             <div>
                               <span className="font-semibold text-slate-500">Fecha Fin:</span>
                               <p className="font-medium text-slate-850 dark:text-slate-100">
-                                {estimacion.expected_end_date ? new Date(estimacion.expected_end_date).toLocaleDateString('pt-PT') : 'N/A'}
+                                {newEndDate ? parseLocalDate(newEndDate).toLocaleDateString('pt-PT') : 'N/A'}
                               </p>
                             </div>
                             <div className="col-span-2">
@@ -959,6 +1101,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                   <Button 
                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold" 
                     onClick={handleNext}
+                    disabled={isMonday}
                   >
                     Próximo <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Button>

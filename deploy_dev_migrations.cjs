@@ -93,7 +93,9 @@ const migrationsToRun = [
   '20260701171000_add_crm_fields_to_leads.sql',
   '20260705093500_add_cobranca_email_to_empresas.sql',
   '20260705120000_order_extension_and_termination.sql',
-  '20260705130000_order_postponement_and_notifications.sql'
+  '20260705130000_order_postponement_and_notifications.sql',
+  '20260708130000_update_pedidos_on_solicitud_completion.sql',
+  '20260708140000_auto_complete_date_change_solicitudes.sql'
 ];
 
 async function run() {

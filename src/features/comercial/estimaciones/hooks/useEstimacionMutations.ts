@@ -9,14 +9,21 @@ export function useEstimacionMutations() {
   const { selectedEmpresaId } = useEmpresa();
 
   const aprovarEstimacion = useMutation({
-    mutationFn: async (estimacionId: string) => {
+    mutationFn: async (params: string | { estimacionId: string; expectedStartDate?: string | null; expectedEndDate?: string | null }) => {
+      const estimacionId = typeof params === 'string' ? params : params.estimacionId;
+      const expectedStartDate = typeof params === 'string' ? null : params.expectedStartDate;
+      const expectedEndDate = typeof params === 'string' ? null : params.expectedEndDate;
+
       const { data, error } = await supabase.schema('core_comercial').rpc('aprovar_estimacion', {
         p_estimacion_id: estimacionId,
+        p_expected_start_date: expectedStartDate || null,
+        p_expected_end_date: expectedEndDate || null,
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any, estimacionId) => {
+    onSuccess: (data: any, params) => {
+      const estimacionId = typeof params === 'string' ? params : params.estimacionId;
       toast.success('Estimación Aprovada e Convertida!', { 
         description: `Pedido ${data?.pedido_codigo || ''} gerado com sucesso.` 
       });

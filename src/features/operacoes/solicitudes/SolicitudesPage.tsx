@@ -41,7 +41,7 @@ export function SolicitudesPage() {
                   Nova Operação <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=replacement')} className="cursor-pointer">
                   Novo Reemplazo
                 </DropdownMenuItem>

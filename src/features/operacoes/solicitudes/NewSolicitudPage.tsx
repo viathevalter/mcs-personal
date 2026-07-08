@@ -15,7 +15,10 @@ import { supabase } from '@/shared/supabase/client';
 import { usePedidos } from '../pedidos/hooks/usePedidos';
 import { useAuth } from '../contexts/AuthContext';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 export function NewSolicitudPage() {
+    const queryClient = useQueryClient();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const initialType = searchParams.get('tipo') || 'replacement';
@@ -38,7 +41,7 @@ export function NewSolicitudPage() {
     const [selectedPedidoId, setSelectedPedidoId] = useState<string>(initialPedidoId);
     const { data: pedidosData } = usePedidos();
     const pedidos = pedidosData?.pedidos || [];
-    const [parentSolicitud, setParentSolicitud] = useState<{ codigo: string; title: string } | null>(null);
+    const [parentSolicitud, setParentSolicitud] = useState<{ id: string; codigo: string; title: string } | null>(null);
     
     // Solicitud Form State
     const [actionType, setActionType] = useState<string>(initialType);
@@ -68,7 +71,7 @@ export function NewSolicitudPage() {
     const [requiresHousing, setRequiresHousing] = useState<boolean>(false);
     const [housingStartDate, setHousingStartDate] = useState<string>('');
     const [housingEndDate, setHousingEndDate] = useState<string>('');
-    const [requiresReplacement, setRequiresReplacement] = useState<boolean>(true);
+    const [requiresReplacement, setRequiresReplacement] = useState<boolean>(false);
 
     const { data: assignments = [] } = useWorkerAssignments({
         empresa_id: selectedEmpresaId,
@@ -183,7 +186,7 @@ export function NewSolicitudPage() {
             supabase
                 .schema('core_operacoes')
                 .from('solicitudes_operativas')
-                .select('codigo, title')
+                .select('id, codigo, title')
                 .eq('pedido_id', selectedPedidoId)
                 .eq('tipo', 'new_order')
                 .maybeSingle()
@@ -404,7 +407,119 @@ export function NewSolicitudPage() {
         };
 
         try {
-            const newSolicitudId = await createSolicitudWithTargets.mutateAsync(payload);
+            let targetSolicitudId = '';
+            
+            if ((actionType === 'order_postponement' || actionType === 'order_extension' || actionType === 'order_termination') && parentSolicitud) {
+                targetSolicitudId = parentSolicitud.id;
+                
+                // 1. Update the existing mother solicitude due_date and make sure it has the correct properties
+                const { error: updErr } = await supabase
+                    .schema('core_operacoes')
+                    .from('solicitudes_operativas')
+                    .update({
+                        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', parentSolicitud.id);
+                if (updErr) throw updErr;
+
+                // 2. Update the Pedido dates and status
+                if (actionType === 'order_postponement') {
+                    const { error: pedErr } = await supabase
+                        .schema('core_comercial')
+                        .from('pedidos')
+                        .update({
+                            expected_start_date: dueDate,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', selectedPedidoId);
+                    if (pedErr) throw pedErr;
+                } else if (actionType === 'order_extension') {
+                    const { error: pedErr } = await supabase
+                        .schema('core_comercial')
+                        .from('pedidos')
+                        .update({
+                            expected_end_date: dueDate,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', selectedPedidoId);
+                    if (pedErr) throw pedErr;
+                } else if (actionType === 'order_termination') {
+                    const { error: pedErr } = await supabase
+                        .schema('core_comercial')
+                        .from('pedidos')
+                        .update({
+                            expected_end_date: dueDate ? dueDate : null,
+                            commercial_status: 'completed',
+                            operational_status: 'completed',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', selectedPedidoId);
+                    if (pedErr) throw pedErr;
+                }
+
+                // 3. Insert a timeline event for the existing mother solicitude
+                const { error: timelineErr } = await supabase
+                    .schema('core_operacoes')
+                    .from('solicitud_timeline')
+                    .insert({
+                        empresa_id: selectedEmpresaId!,
+                        solicitud_id: parentSolicitud.id,
+                        event_type: 'other',
+                        title: actionType === 'order_postponement' ? 'Início Adiado' :
+                               actionType === 'order_extension' ? 'Prazo Prorrogado' : 'Pedido Finalizado',
+                        description: reason || `Alteração realizada: ${title}`,
+                        created_by: user?.id
+                    });
+                if (timelineErr) throw timelineErr;
+                
+                // 4. Create notification records
+                const depCodes = ['RH', 'DOCUMENTACION', 'LOGISTICA', 'COMERCIAL'];
+                const { data: deps } = await supabase
+                    .schema('core_common')
+                    .from('departments')
+                    .select('id, code')
+                    .eq('empresa_id', selectedEmpresaId!)
+                    .in('code', depCodes);
+                    
+                if (deps && deps.length > 0) {
+                    const msg = actionType === 'order_postponement' 
+                        ? `O Pedido ${parentSolicitud.codigo} teve o início adiado pelo cliente. Novas datas operacionais foram aplicadas.`
+                        : actionType === 'order_extension'
+                        ? `O Pedido ${parentSolicitud.codigo} teve o prazo estendido. Novas datas operacionais foram aplicadas.`
+                        : `O Pedido ${parentSolicitud.codigo} foi finalizado/encerrado. As alocações foram concluídas.`;
+                        
+                    const notifTitle = actionType === 'order_postponement'
+                        ? `Início Adiado - Pedido ${parentSolicitud.codigo}`
+                        : actionType === 'order_extension'
+                        ? `Prazo Prorrogado - Pedido ${parentSolicitud.codigo}`
+                        : `Pedido Finalizado - ${parentSolicitud.codigo}`;
+                        
+                    const notifType = actionType === 'order_postponement' ? 'date_change' : actionType === 'order_extension' ? 'date_change' : 'status_change';
+                    const notifLevel = actionType === 'order_postponement' ? 'warning' : 'info';
+                    const link = `/operacoes/pedidos/${selectedPedidoId}`;
+                    
+                    const notifsToInsert = deps.map(d => ({
+                        empresa_id: selectedEmpresaId!,
+                        department_id: d.id,
+                        title: notifTitle,
+                        message: msg,
+                        type: notifType,
+                        level: notifLevel,
+                        link: link,
+                        is_read: false
+                    }));
+                    
+                    await supabase
+                        .schema('core_common')
+                        .from('notifications')
+                        .insert(notifsToInsert);
+                }
+
+            } else {
+                const newId = await createSolicitudWithTargets.mutateAsync(payload);
+                targetSolicitudId = newId;
+            }
 
             // Send notification emails for the operational action if selected
             try {
@@ -426,7 +541,7 @@ export function NewSolicitudPage() {
                                 to_emails: toEmails,
                                 email_subject: emailSubject,
                                 email_body: emailBody,
-                                solicitud_id: newSolicitudId,
+                                solicitud_id: targetSolicitudId,
                                 sender_email: user?.email
                             }
                         });
@@ -436,9 +551,11 @@ export function NewSolicitudPage() {
                 console.error("Failed to send operational notification email", emailErr);
             }
 
-            navigate(`/operacoes/solicitudes/${newSolicitudId}`);
+            await queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
+            await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+            navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
         } catch (error) {
-            console.error("Failed to create solicitud", error);
+            console.error("Failed to process request", error);
         }
     };
 
@@ -521,27 +638,49 @@ export function NewSolicitudPage() {
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    <div>
+                                                    <div className="col-span-1">
                                                         <span className="text-slate-450 dark:text-slate-500 block">Cliente:</span>
                                                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                                                             {p.client?.trade_name || p.client?.legal_name || 'N/A'}
                                                         </span>
                                                     </div>
-                                                    <div>
+                                                    <div className="col-span-1">
                                                         <span className="text-slate-450 dark:text-slate-500 block">Obra / Local:</span>
                                                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                                                             {p.client_site?.name || 'N/A'}
                                                         </span>
                                                     </div>
-                                                    <div>
-                                                        <span className="text-slate-450 dark:text-slate-500 block">Data de Início Original:</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                    
+                                                    <div className={`p-2 rounded-lg border col-span-1 transition-all ${
+                                                        actionType === 'order_postponement'
+                                                            ? 'bg-amber-50 dark:bg-amber-955/30 border-amber-200 dark:border-amber-900/40 shadow-sm scale-[1.01]'
+                                                            : 'border-slate-100 dark:border-slate-800'
+                                                    }`}>
+                                                        <span className={`block text-[10px] uppercase tracking-wider font-bold ${
+                                                            actionType === 'order_postponement' ? 'text-amber-800 dark:text-amber-400' : 'text-slate-450 dark:text-slate-500'
+                                                        }`}>
+                                                            Data de Início Original:
+                                                        </span>
+                                                        <span className={`font-extrabold text-sm ${
+                                                            actionType === 'order_postponement' ? 'text-amber-900 dark:text-amber-300' : 'text-slate-750 dark:text-slate-300'
+                                                        }`}>
                                                             {p.expected_start_date ? new Date(p.expected_start_date).toLocaleDateString('pt-PT') : 'Não informada'}
                                                         </span>
                                                     </div>
-                                                    <div>
-                                                        <span className="text-slate-450 dark:text-slate-500 block">Data de Fim Prevista:</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                    
+                                                    <div className={`p-2 rounded-lg border col-span-1 transition-all ${
+                                                        actionType === 'order_extension'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-955/30 border-emerald-250 dark:border-emerald-900/40 shadow-sm scale-[1.01]'
+                                                            : 'border-slate-100 dark:border-slate-800'
+                                                    }`}>
+                                                        <span className={`block text-[10px] uppercase tracking-wider font-bold ${
+                                                            actionType === 'order_extension' ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-450 dark:text-slate-500'
+                                                        }`}>
+                                                            Data de Fim Prevista:
+                                                        </span>
+                                                        <span className={`font-extrabold text-sm ${
+                                                            actionType === 'order_extension' ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-750 dark:text-slate-300'
+                                                        }`}>
                                                             {p.expected_end_date ? new Date(p.expected_end_date).toLocaleDateString('pt-PT') : 'Não informada'}
                                                         </span>
                                                     </div>
@@ -696,7 +835,7 @@ export function NewSolicitudPage() {
                             </div>
 
                             {actionType === 'offboarding' && (
-                                <div className="flex items-center space-x-2 pt-1 pb-2">
+                                <div className="p-3.5 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 flex items-start space-x-2.5 shadow-sm pt-1 pb-2">
                                     <input 
                                         type="checkbox"
                                         id="requiresReplacement"
@@ -705,11 +844,16 @@ export function NewSolicitudPage() {
                                             setRequiresReplacement(e.target.checked);
                                             if (!e.target.checked) setDueDate('');
                                         }}
-                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        className="h-4.5 w-4.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-0.5"
                                     />
-                                    <label htmlFor="requiresReplacement" className="text-sm font-semibold text-slate-705 dark:text-slate-300 cursor-pointer">
-                                        Repor vaga com nova contratação?
-                                    </label>
+                                    <div className="flex flex-col space-y-0.5">
+                                        <label htmlFor="requiresReplacement" className="text-sm font-bold text-blue-900 dark:text-blue-300 cursor-pointer">
+                                            Repor vaga com nova contratação?
+                                        </label>
+                                        <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
+                                            Selecione se desejar que o RH abra automaticamente uma nova vaga de contratação para substituir este trabalhador.
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
@@ -726,8 +870,88 @@ export function NewSolicitudPage() {
                                         type="date"
                                         value={dueDate} 
                                         onChange={e => setDueDate(e.target.value)}
-                                        className="h-10 text-sm"
+                                        className={`h-10 text-sm transition-all duration-250 ${
+                                            actionType === 'order_postponement' ? 'border-amber-300 dark:border-amber-900/60 focus-visible:ring-amber-500 bg-amber-50/5 dark:bg-amber-955/5 shadow-inner' :
+                                            actionType === 'order_extension' ? 'border-emerald-300 dark:border-emerald-900/60 focus-visible:ring-emerald-500 bg-emerald-50/5 dark:bg-emerald-955/5 shadow-inner' : ''
+                                        }`}
                                     />
+                                    {dueDate && (() => {
+                                        const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                                        if (!p) return null;
+                                        
+                                        const originalDateStr = actionType === 'order_postponement' ? p.expected_start_date : 
+                                                               actionType === 'order_extension' ? p.expected_end_date : null;
+                                                               
+                                        if (!originalDateStr) return null;
+                                        
+                                        const originalDate = new Date(originalDateStr);
+                                        originalDate.setHours(0,0,0,0);
+                                        
+                                        const newDate = new Date(dueDate);
+                                        newDate.setHours(0,0,0,0);
+                                        
+                                        const diffTime = newDate.getTime() - originalDate.getTime();
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        
+                                        if (isNaN(diffDays)) return null;
+                                        
+                                        if (actionType === 'order_postponement') {
+                                            if (diffDays > 0) {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-955/20 border border-amber-250 dark:border-amber-900/40 rounded-lg text-xs text-amber-800 dark:text-amber-400 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
+                                                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                                        <span>
+                                                            O início da obra será adiado em <strong className="underline decoration-2 decoration-amber-500">{diffDays} dia(s)</strong> (de {new Date(originalDateStr).toLocaleDateString('pt-PT')} para {new Date(dueDate).toLocaleDateString('pt-PT')}).
+                                                        </span>
+                                                    </div>
+                                                );
+                                            } else if (diffDays < 0) {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-rose-50 dark:bg-rose-955/20 border border-rose-250 dark:border-rose-900/40 rounded-lg text-xs text-rose-800 dark:text-rose-450 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
+                                                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+                                                        <span>
+                                                            Atenção: A nova data de início é <strong>{Math.abs(diffDays)} dia(s) anterior</strong> à data original.
+                                                        </span>
+                                                    </div>
+                                                );
+                                            } else {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-600 dark:text-slate-400 font-medium flex items-center gap-2 animate-fade-in">
+                                                        <AlertCircle className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                        <span>A nova data é igual à data original.</span>
+                                                    </div>
+                                                );
+                                            }
+                                        } else if (actionType === 'order_extension') {
+                                            if (diffDays > 0) {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-emerald-50 dark:bg-emerald-955/20 border border-emerald-250 dark:border-emerald-900/40 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
+                                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                                                        <span>
+                                                            A obra será estendida por mais <strong className="underline decoration-2 decoration-emerald-500">{diffDays} dia(s)</strong> (de {new Date(originalDateStr).toLocaleDateString('pt-PT')} para {new Date(dueDate).toLocaleDateString('pt-PT')}).
+                                                        </span>
+                                                    </div>
+                                                );
+                                            } else if (diffDays < 0) {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-rose-50 dark:bg-rose-955/20 border border-rose-250 dark:border-rose-900/40 rounded-lg text-xs text-rose-800 dark:text-rose-450 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
+                                                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+                                                        <span>
+                                                            Atenção: A nova data de término é <strong>{Math.abs(diffDays)} dia(s) anterior</strong> ao prazo original.
+                                                        </span>
+                                                    </div>
+                                                );
+                                            } else {
+                                                return (
+                                                    <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-600 dark:text-slate-400 font-medium flex items-center gap-2 animate-fade-in">
+                                                        <AlertCircle className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                        <span>A nova data é igual à data original.</span>
+                                                    </div>
+                                                );
+                                            }
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             )}
 
