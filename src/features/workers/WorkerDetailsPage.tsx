@@ -19,12 +19,14 @@ import { DiscountsTab } from './components/tabs/DiscountsTab';
 import { BankTabProfile } from './components/BankTabProfile';
 import { useTranslation } from 'react-i18next';
 import { useRole } from '@/app/providers/RoleProvider';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 export function WorkerDetailsPage() {
     const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { role: globalRole } = useRole();
+    const { selectedEmpresaId } = useEmpresa();
 
     const { data: worker, isLoading, isError, error } = useWorkerById(id);
     const downloadMutation = useDocumentDownload();
@@ -171,23 +173,23 @@ export function WorkerDetailsPage() {
                 </TabsContent>
 
                 <TabsContent value="benefits">
-                    <BenefitsTab workerId={worker.id} empresaId={worker.empresa_id} />
+                    <BenefitsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} />
                 </TabsContent>
-
+ 
                 <TabsContent value="discounts">
-                    <DiscountsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={false} />
+                    <DiscountsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} isEmbedded={false} />
                 </TabsContent>
-
+ 
                 <TabsContent value="bank_accounts">
-                    <BankTabProfile workerId={worker.id} empresaId={worker.empresa_id} />
+                    <BankTabProfile workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} />
                 </TabsContent>
-
+ 
                 <TabsContent value="ledger">
-                    <LedgerTab workerId={worker.id} empresaId={worker.empresa_id} />
+                    <LedgerTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} />
                 </TabsContent>
-
+ 
                 <TabsContent value="documents">
-                    <DocumentsTab workerId={worker.id} empresaId={worker.empresa_id} />
+                    <DocumentsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} />
                 </TabsContent>
             </Tabs>
         </div>

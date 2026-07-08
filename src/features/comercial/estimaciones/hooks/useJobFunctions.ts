@@ -15,7 +15,6 @@ export function useJobFunctions() {
         .from('job_functions')
         .select('*')
         .eq('status', 'active')
-        .eq('empresa_id', selectedEmpresaId)
         .order('name');
 
       if (error) throw error;

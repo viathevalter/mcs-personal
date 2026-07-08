@@ -132,7 +132,7 @@ export function ValidationScreen({
             const { data: allClients, error: clientErr } = await supabase
                 .schema('core_common')
                 .from('clients')
-                .select('id, legal_name, trade_name, empresa_id');
+                .select('id, legal_name, trade_name');
 
             if (clientErr) throw clientErr;
 
@@ -161,23 +161,35 @@ export function ValidationScreen({
             });
 
             if (!matched) {
-                console.log(`Auto-creating client in ValidationScreen: ${clienteNome}`);
                 const { data: newClient, error: insertError } = await supabase
                     .schema('core_common')
                     .from('clients')
                     .insert({
-                        empresa_id: empresaId,
                         trade_name: clienteNome,
-                        legal_name: clienteNome,
-                        status: 'active'
+                        legal_name: clienteNome
                     })
-                    .select('id, trade_name, empresa_id')
+                    .select('id, trade_name')
                     .single();
 
                 if (insertError) {
                     console.error("Erro ao auto-criar cliente no ValidationScreen:", insertError);
                     throw insertError;
                 }
+
+                const { error: settingsError } = await supabase
+                    .schema('core_common')
+                    .from('client_company_settings')
+                    .insert({
+                        client_id: newClient.id,
+                        empresa_id: empresaId,
+                        status: 'active'
+                    });
+
+                if (settingsError) {
+                    console.error("Erro ao auto-criar configurações de cliente no ValidationScreen:", settingsError);
+                    throw settingsError;
+                }
+
                 matched = newClient;
             }
 
@@ -189,7 +201,6 @@ export function ValidationScreen({
                 .schema('core_comercial')
                 .from('job_functions')
                 .select('id, name')
-                .eq('empresa_id', empresaId)
                 .eq('status', 'active')
                 .order('name');
             

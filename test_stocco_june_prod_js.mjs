@@ -1,0 +1,189 @@
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+
+const envFile = fs.readFileSync('.env.production.local', 'utf8');
+const urlMatch = envFile.match(/VITE_SUPABASE_URL="([^"]+)"/);
+const keyMatch = envFile.match(/VITE_SUPABASE_ANON_KEY="([^"]+)"/);
+const supabaseUrl = urlMatch ? urlMatch[1] : '';
+const supabaseKey = keyMatch ? keyMatch[1] : '';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Define fetchInChunks helper
+async function fetchInChunks(ids, chunkSize, fetchFn) {
+  const results = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const chunkResults = await fetchFn(chunk);
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
+async function testJune() {
+  const empresaId = '441f1f5d-aed3-40e3-8c77-7b1217757251'; // Stocco
+  const periodYear = 2026;
+  const periodMonth = 6; // Junho
+
+  try {
+    // 1. Fetch active company name
+    const { data: empresaData, error: empError } = await supabase
+      .schema('core_common')
+      .from('empresas')
+      .select('nome')
+      .eq('id', empresaId)
+      .single();
+    if (empError) {
+      console.error("Empresa query failed:", empError);
+      throw empError;
+    }
+    console.log("Company:", empresaData?.nome);
+
+    // 2. Fetch active workers for the period
+    const { data: activeWorkers, error: rpcError } = await supabase
+      .schema('core_personal')
+      .rpc('get_hours_control_workers', {
+        p_empresa_id: empresaId,
+        p_period_year: periodYear,
+        p_period_month: periodMonth,
+        p_contratante: null,
+        p_cliente_nombre: null
+      });
+
+    if (rpcError) {
+      console.error("RPC Error:", rpcError);
+      throw rpcError;
+    }
+    console.log(`Active workers: ${activeWorkers?.length}`);
+
+    // 3. Fetch all clients globally
+    const { data: clientsData, error: clientsError } = await supabase
+      .schema('core_common')
+      .from('clients')
+      .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id');
+
+    if (clientsError) {
+      console.error("Clients query error:", clientsError);
+      throw clientsError;
+    }
+    console.log(`Total clients fetched: ${clientsData?.length}`);
+
+    // Fetch all payment terms metadata
+    const { data: ptData, error: ptError } = await supabase
+      .schema('core_common')
+      .from('payment_terms')
+      .select('id, name, days');
+    if (ptError) {
+      console.error("payment_terms query error:", ptError);
+      throw ptError;
+    }
+    const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
+
+    // 4. Match unique clients
+    const clientsList = [...(clientsData || [])];
+    const uniqueClientNames = Array.from(new Set(activeWorkers.map(w => w.cliente_nombre).filter(Boolean)));
+    console.log(`Unique client names from workers:`, uniqueClientNames.length);
+
+    // 5. Fetch validation status of sheet records (worker_hours)
+    const { data: whData, error: whError } = await supabase
+      .schema('core_personal')
+      .from('worker_hours')
+      .select('worker_id, status, observacoes')
+      .eq('period_year', periodYear)
+      .eq('period_month', periodMonth);
+
+    if (whError) {
+      console.error("worker_hours error:", whError);
+      throw whError;
+    }
+    const workerHoursList = whData || [];
+    console.log(`worker_hours list: ${workerHoursList.length}`);
+
+    // 5. Fetch validated hours in core_finance.horas_trabalhadas for the period
+    const startDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-01`;
+    const endDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${new Date(periodYear, periodMonth, 0).getDate()}`;
+
+    const { data: horasTrabalhadas, error: htError } = await supabase
+      .schema('core_finance')
+      .from('horas_trabalhadas')
+      .select('*')
+      .gte('data_trabalho', startDateStr)
+      .lte('data_trabalho', endDateStr);
+
+    if (htError) {
+      console.error("horas_trabalhadas error:", htError);
+      throw htError;
+    }
+    const horasTrabalhadasList = horasTrabalhadas || [];
+    console.log(`horasTrabalhadasList count: ${horasTrabalhadasList.length}`);
+
+    // Fetch unknown workers (workers with hours but not in activeWorkers)
+    const unknownWorkerIds = Array.from(new Set(
+      horasTrabalhadasList
+        .map(h => h.worker_id)
+        .filter(id => id && !activeWorkers.some(w => w.id === id))
+    ));
+
+    let unknownWorkers = [];
+    if (unknownWorkerIds.length > 0) {
+      const { data: uwData, error: uwError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, empresa_id, status_trabajador, data_baixa, funcion, cod_colab')
+        .in('id', unknownWorkerIds);
+      if (uwError) {
+        console.error("workers query error:", uwError);
+        throw uwError;
+      }
+      unknownWorkers = uwData || [];
+    }
+    const unknownWorkersMap = new Map(unknownWorkers.map(w => [w.id, w]));
+
+    const belongsToCompany = (wId) => {
+      if (activeWorkers.some(w => w.id === wId)) return true;
+      const uw = unknownWorkersMap.get(wId);
+      return uw ? uw.empresa_id === empresaId : false;
+    };
+
+    // Filter hours to only keep those belonging to the company's workers
+    const hoursList = horasTrabalhadasList.filter(h => belongsToCompany(h.worker_id));
+    console.log(`hoursList count: ${hoursList.length}`);
+
+    // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company)
+    const relevantClients = clientsList.filter(client => {
+      if (client.empresa_id !== empresaId) return false;
+      const clientNameLower = client.trade_name?.trim().toLowerCase();
+      const hasWorkers = activeWorkers.some(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
+      const hasHours = hoursList.some(h => h.client_id === client.id);
+      return hasWorkers || hasHours;
+    });
+    console.log(`relevantClients count: ${relevantClients.length}`);
+
+    const relevantClientIds = relevantClients.map(c => c.id);
+
+    // 7. Fetch client sites only for relevant clients in batches to avoid header/URL size limit errors
+    let clientSites = [];
+    if (relevantClientIds.length > 0) {
+      clientSites = await fetchInChunks(relevantClientIds, 30, async (chunk) => {
+        const { data: csData, error: csError } = await supabase
+          .schema('core_common')
+          .from('client_sites')
+          .select('id, name')
+          .in('client_id', chunk);
+        if (csError) {
+          console.error("client_sites error:", csError);
+          throw csError;
+        }
+        return csData || [];
+      });
+    }
+    console.log(`clientSites count: ${clientSites.length}`);
+
+    console.log("Successfully completed Production JS simulation for Stocco June!");
+
+  } catch (e) {
+    console.error("Crash during Production Stocco June simulation:", e);
+  }
+}
+
+testJune();

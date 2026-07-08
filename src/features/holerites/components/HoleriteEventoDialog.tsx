@@ -39,6 +39,7 @@ import type { HoleriteEvento, EventoTipo, EventoCategoria } from '@/shared/types
 import { useAddHoleriteEvento } from '../hooks/useAddHoleriteEvento';
 import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
 import { useDiscountCategories, useBenefitCategories } from '@/features/settings/hooks/useCategories';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 const formSchema = z.object({
     tipo: z.enum(['provento', 'desconto']),
@@ -58,13 +59,14 @@ interface LançamentosSheetProps {
 
 export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais, trigger }: LançamentosSheetProps) {
     const { i18n } = useTranslation();
+    const { selectedEmpresaId } = useEmpresa();
     const currentLocale = i18n.language.startsWith('pt') ? pt : es;
     const [open, setOpen] = useState(false);
 
     const { mutate: addEvento, isPending: isAdding } = useAddHoleriteEvento();
     const { mutate: deleteEvento, isPending: isDeleting } = useDeleteHoleriteEvento();
-    const { data: discountCategories = [] } = useDiscountCategories(worker.empresa_id);
-    const { data: benefitCategories = [] } = useBenefitCategories(worker.empresa_id);
+    const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || worker.empresa_id);
+    const { data: benefitCategories = [] } = useBenefitCategories(selectedEmpresaId || worker.empresa_id);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema) as any,
@@ -81,7 +83,7 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
     const onSubmit = (values: FormValues) => {
         addEvento({
             trabalhador_id: worker.id,
-            empresa_id: worker.empresa_id,
+            empresa_id: selectedEmpresaId || worker.empresa_id || '',
             mes_referencia: mesReferencia,
             tipo: values.tipo as EventoTipo,
             categoria: values.categoria as EventoCategoria,

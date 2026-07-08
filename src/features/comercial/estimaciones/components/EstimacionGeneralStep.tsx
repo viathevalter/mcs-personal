@@ -177,7 +177,8 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
                   contact_email: selectedClient?.email || '',
                   ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {}),
                   ...(mappedLanguage ? { document_language: mappedLanguage } : {}),
-                  ...(defaultTerm ? { payment_terms: defaultTerm.name } : {})
+                  payment_term_id: defaultTerm ? defaultTerm.id : '',
+                  payment_terms: defaultTerm ? defaultTerm.name : ''
                 });
               }}
             >
@@ -210,7 +211,8 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
                   lead_id: val, 
                   contact_name: selectedLead?.name || '',
                   contact_email: selectedLead?.email || '',
-                  ...(defaultTerm ? { payment_terms: defaultTerm.name } : {})
+                  payment_term_id: defaultTerm ? defaultTerm.id : '',
+                  payment_terms: defaultTerm ? defaultTerm.name : ''
                 });
               }}
             >
@@ -306,25 +308,27 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         <div className="space-y-2">
           <Label htmlFor="payment_terms">{t('comercial.stepGeneral.paymentTerms')}</Label>
           <Select 
-            value={data.payment_terms} 
-            onValueChange={(val) => onChange({ payment_terms: val })}
+            value={data.payment_term_id || ''} 
+            onValueChange={(val) => {
+              const selectedTerm = paymentTerms.find(pt => pt.id === val);
+              onChange({ 
+                payment_term_id: val === 'none' || val === '' ? '' : val,
+                payment_terms: selectedTerm ? selectedTerm.name : ''
+              });
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder={t('comercial.stepGeneral.select')} />
             </SelectTrigger>
             <SelectContent>
               {paymentTerms.map((term) => (
-                <SelectItem key={term.id} value={term.name}>
+                <SelectItem key={term.id} value={term.id}>
                   {term.name}
                 </SelectItem>
               ))}
               {paymentTerms.length === 0 && (
                 <>
-                  <SelectItem value="15 dias">15 Dias</SelectItem>
-                  <SelectItem value="30 dias">30 Dias</SelectItem>
-                  <SelectItem value="45 dias">45 Dias</SelectItem>
-                  <SelectItem value="60 dias">60 Dias</SelectItem>
-                  <SelectItem value="Pronto Pagamento">Pronto Pagamento</SelectItem>
+                  <SelectItem value="none">Carregando prazos de pagamento...</SelectItem>
                 </>
               )}
             </SelectContent>

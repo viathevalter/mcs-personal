@@ -71,8 +71,8 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
         const file = event.target.files?.[0];
         if (!file || !worker) return;
 
-        // Use the worker's parent company for the storage path
-        const empresaIdToUse = worker.empresa_id;
+        // Use the passed empresaId or worker's parent company
+        const empresaIdToUse = empresaId || worker.empresa_id || '';
 
         try {
             await attachDocument({

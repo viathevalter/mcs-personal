@@ -57,7 +57,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
     const { data: worker, error: fetchError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('status_trabajador, status_seguridad, cod_colab, empresa_id, nif, niss, dni, nie')
+        .select('status_trabajador, status_seguridad, cod_colab, nif, niss, dni, nie, contracts(empresa_id)')
         .eq('id', workerId)
         .single();
 
@@ -201,7 +201,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
         } else {
             await supabase.schema('core_personal').from('worker_hours').insert({ 
                 worker_id: workerId, 
-                empresa_id: worker.empresa_id,
+                empresa_id: (worker as any).contracts?.[0]?.empresa_id || null,
                 period_year: periodYear,
                 period_month: periodMonth,
                 status: 'pendente',

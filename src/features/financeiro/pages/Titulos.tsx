@@ -261,7 +261,7 @@ export const Titulos = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-6 space-y-6 max-w-7xl mx-auto bg-slate-50/30">
+        <div className="h-full flex flex-col p-6 space-y-6 max-w-7xl mx-auto bg-transparent">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>
@@ -275,7 +275,7 @@ export const Titulos = () => {
 
                 {/* KPIs Row */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
-                    <Card className="rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Ordens</CardTitle>
                         </CardHeader>
@@ -283,7 +283,7 @@ export const Titulos = () => {
                             <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{kpis.count}</div>
                         </CardContent>
                     </Card>
-                    <Card className="rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total</CardTitle>
                         </CardHeader>
@@ -291,7 +291,7 @@ export const Titulos = () => {
                             <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCompactCurrency(kpis.totalValue)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-slate-400 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-slate-400 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rascunho</CardTitle>
                         </CardHeader>
@@ -299,7 +299,7 @@ export const Titulos = () => {
                             <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{formatCompactCurrency(kpis.rascunho)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aguardando Aprovação</CardTitle>
                         </CardHeader>
@@ -307,7 +307,7 @@ export const Titulos = () => {
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCompactCurrency(kpis.aguardando)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pago</CardTitle>
                         </CardHeader>
@@ -317,7 +317,7 @@ export const Titulos = () => {
                     </Card>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 shadow-sm mt-4">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mt-4">
                     <div className="relative flex-1 w-full md:max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
@@ -332,7 +332,7 @@ export const Titulos = () => {
                         <Button
                             variant="outline"
                             onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                            className="flex items-center gap-2 border-slate-200 hover:bg-slate-50 rounded-xl py-2 px-4 text-slate-600"
+                            className="flex items-center gap-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl py-2 px-4 text-slate-650 dark:text-slate-350"
                         >
                             <Filter size={16} /> Status {selectedStatuses.length > 0 && `(${selectedStatuses.length})`}
                         </Button>
@@ -359,7 +359,7 @@ export const Titulos = () => {
                 </div>
             </div>
 
-            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 shadow-sm bg-white dark:bg-slate-950 rounded-2xl">
+            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 rounded-2xl">
                 <CardContent className="p-0 overflow-auto flex-1">
                     <Table>
                         <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">

@@ -151,9 +151,26 @@ export async function getHorasPendentesFaturamento(
     const { data: clientsData, error: clientsError } = await supabase
       .schema('core_common')
       .from('clients')
-      .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id');
+      .select(`
+        id, trade_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+        client_company_settings (
+          empresa_id,
+          payment_term_id,
+          status
+        )
+      `);
 
     if (clientsError) throw mapSupabaseError(clientsError);
+
+    const mappedClientsData = (clientsData || []).map((c: any) => {
+      const settings = c.client_company_settings?.find((s: any) => s.empresa_id === empresaId);
+      return {
+        ...c,
+        empresa_id: settings?.empresa_id || null,
+        payment_term_id: settings?.payment_term_id || null,
+        status: settings?.status || 'active'
+      };
+    });
 
     // Fetch all payment terms metadata
     const { data: ptData } = await supabase
@@ -163,7 +180,7 @@ export async function getHorasPendentesFaturamento(
     const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
 
     // 4. Ensure all unique clients of the active workers exist in core_common.clients for this company
-    const clientsList = [...(clientsData || [])];
+    const clientsList = [...mappedClientsData];
     const uniqueClientNames = Array.from(new Set(activeWorkers.map(w => w.cliente_nombre).filter(Boolean)));
 
     const normalizeName = (n?: string | null) => {
@@ -189,19 +206,35 @@ export async function getHorasPendentesFaturamento(
           .schema('core_common')
           .from('clients')
           .insert({
-            empresa_id: empresaId,
             trade_name: name,
             legal_name: name,
-            status: 'active',
             vies_applicable: true
           })
-          .select('id, trade_name, empresa_id, codigo, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
+          .select('id, trade_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
           .single();
 
         if (insertError) {
           console.error(`Error auto-creating client ${name}:`, insertError);
         } else if (newClient) {
-          clientsList.push(newClient);
+          const { error: settingsError } = await supabase
+            .schema('core_common')
+            .from('client_company_settings')
+            .insert({
+              client_id: newClient.id,
+              empresa_id: empresaId,
+              status: 'active'
+            });
+
+          if (settingsError) {
+             console.error(`Error auto-creating client settings for ${name}:`, settingsError);
+          }
+
+          clientsList.push({
+            ...newClient,
+            empresa_id: empresaId,
+            status: 'active',
+            payment_term_id: null
+          });
         }
       }
     }
@@ -249,9 +282,12 @@ export async function getHorasPendentesFaturamento(
       const { data: uwData } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, empresa_id, status_trabajador, data_baixa, funcion, cod_colab')
+        .select('id, nome, status_trabajador, data_baixa, funcion, cod_colab, contracts(empresa_id)')
         .in('id', unknownWorkerIds);
-      unknownWorkers = uwData || [];
+      unknownWorkers = (uwData || []).map((w: any) => ({
+        ...w,
+        empresa_id: w.contracts?.find((c: any) => c.empresa_id === empresaId)?.empresa_id || null
+      }));
     }
     const unknownWorkersMap = new Map(unknownWorkers.map(w => [w.id, w]));
 

@@ -75,7 +75,7 @@ export function useEstimacionMutations() {
       toast.success('Proposta comercial enviada!', {
         description: data.email_sent
           ? 'Link de assinatura enviado com sucesso para o cliente.'
-          : 'Proposta gerada! No entanto, o e-mail não pôde ser disparado (verifique sua chave Resend).'
+          : `Proposta gerada! No entanto, o e-mail não pôde ser disparado via Microsoft Outlook (${data.email_error || 'verifique as credenciais da empresa'}).`
       });
       queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, estimacionId] });
     },

@@ -70,21 +70,21 @@ export const CategoriaSettings = () => {
     };
 
     return (
-        <div className="bg-white shadow rounded-lg p-6 mt-6">
+        <div className="bg-white dark:bg-slate-900/50 border dark:border-slate-800 shadow rounded-lg p-6 mt-6">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium text-gray-900">Categorias de Receitas/Despesas</h2>
+                <h2 className="text-lg font-medium text-gray-900 dark:text-slate-100">Categorias de Receitas/Despesas</h2>
                 <Button onClick={() => setEditingCat({ tipo: 'Receita', ativo: true })} size="sm" className="gap-2">
                     <Plus size={16} /> Nova Categoria
                 </Button>
             </div>
             
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                 Gerencie as categorias contábeis e fiscais para classificar os recebimentos (DRE, Fluxo de Caixa).
             </p>
 
             {editingCat && (
-                <form onSubmit={handleSave} className="bg-gray-50 p-4 rounded-lg border mb-6 space-y-4">
-                    <h3 className="font-medium text-gray-900">{editingCat.id ? 'Editar Categoria' : 'Nova Categoria'}</h3>
+                <form onSubmit={handleSave} className="bg-gray-50 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-850 mb-6 space-y-4">
+                    <h3 className="font-medium text-gray-900 dark:text-slate-100">{editingCat.id ? 'Editar Categoria' : 'Nova Categoria'}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="nome">Nome da Categoria</Label>
@@ -149,33 +149,33 @@ export const CategoriaSettings = () => {
                 </form>
             )}
 
-            <div className="border rounded-md">
+            <div className="border dark:border-slate-800 rounded-md">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Cód. SNC</TableHead>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Cat. DRE</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                        <TableRow className="dark:border-slate-800">
+                            <TableHead className="dark:text-slate-400">Cód. SNC</TableHead>
+                            <TableHead className="dark:text-slate-400">Nome</TableHead>
+                            <TableHead className="dark:text-slate-400">Tipo</TableHead>
+                            <TableHead className="dark:text-slate-400">Cat. DRE</TableHead>
+                            <TableHead className="text-right dark:text-slate-400">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Carregando...</TableCell>
+                            <TableRow className="dark:border-slate-800">
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Carregando...</TableCell>
                             </TableRow>
                         ) : categorias.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                            <TableRow className="dark:border-slate-800">
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                                     Nenhuma categoria cadastrada. Crie a primeira acima.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             categorias.map(cat => (
-                                <TableRow key={cat.id}>
+                                <TableRow key={cat.id} className="dark:border-slate-800">
                                     <TableCell className="text-muted-foreground font-mono">{cat.cod_snc || '-'}</TableCell>
-                                    <TableCell className="font-medium">{cat.nome}</TableCell>
+                                    <TableCell className="font-medium dark:text-slate-200">{cat.nome}</TableCell>
                                     <TableCell>
                                         <Badge variant={cat.tipo === 'Despesa' ? 'destructive' : cat.tipo === 'Resultado' ? 'outline' : 'default'} className={cat.tipo === 'Receita' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}>
                                             {cat.tipo}
@@ -186,7 +186,7 @@ export const CategoriaSettings = () => {
                                         <Button variant="ghost" size="icon" onClick={() => setEditingCat(cat)}>
                                             <Edit2 size={16} />
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(cat.id)}>
+                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => handleDelete(cat.id)}>
                                             <Trash2 size={16} />
                                         </Button>
                                     </TableCell>

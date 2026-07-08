@@ -98,9 +98,9 @@ export const BancoSettings: React.FC = () => {
             </div>
 
             {isFormOpen && (
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
+                <div className="bg-white dark:bg-slate-950 p-6 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
                     <div className="flex justify-between items-center mb-4">
-                        <h4 className="font-medium text-brand-dark">
+                        <h4 className="font-medium text-brand-dark dark:text-slate-100">
                             {editingBanco.id ? 'Editar Banco' : 'Novo Banco'}
                         </h4>
                         <Button variant="ghost" size="icon" onClick={() => { setIsFormOpen(false); setEditingBanco({ ativo: true }); }}>
@@ -189,41 +189,41 @@ export const BancoSettings: React.FC = () => {
                 </div>
             )}
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-slate-900/50 rounded-lg border border-gray-200 dark:border-slate-800 overflow-hidden shadow-sm">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Empresa</TableHead>
-                            <TableHead>Banco</TableHead>
-                            <TableHead>Agência / Conta</TableHead>
-                            <TableHead>IBAN</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                        <TableRow className="dark:border-slate-800">
+                            <TableHead className="dark:text-slate-400">Empresa</TableHead>
+                            <TableHead className="dark:text-slate-400">Banco</TableHead>
+                            <TableHead className="dark:text-slate-400">Agência / Conta</TableHead>
+                            <TableHead className="dark:text-slate-400">IBAN</TableHead>
+                            <TableHead className="dark:text-slate-400">Status</TableHead>
+                            <TableHead className="text-right dark:text-slate-400">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
-                            <TableRow>
+                            <TableRow className="dark:border-slate-800">
                                 <TableCell colSpan={6} className="text-center py-8">
                                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-primary mb-2" />
                                     <span className="text-muted-foreground text-sm">Carregando bancos...</span>
                                 </TableCell>
                             </TableRow>
                         ) : bancos.length === 0 ? (
-                            <TableRow>
+                            <TableRow className="dark:border-slate-800">
                                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                     Nenhuma conta bancária cadastrada. Crie a primeira acima.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             bancos.map(banco => (
-                                <TableRow key={banco.id}>
-                                    <TableCell className="font-medium text-brand-primary">{getEmpresaName(banco.empresa_id)}</TableCell>
-                                    <TableCell className="font-medium">{banco.nome_banco}</TableCell>
+                                <TableRow key={banco.id} className="dark:border-slate-800">
+                                    <TableCell className="font-medium text-brand-primary dark:text-teal-400">{getEmpresaName(banco.empresa_id)}</TableCell>
+                                    <TableCell className="font-medium dark:text-slate-200">{banco.nome_banco}</TableCell>
                                     <TableCell className="text-muted-foreground">{banco.agencia ? `${banco.agencia} / ` : ''}{banco.conta || '-'}</TableCell>
-                                    <TableCell className="font-mono text-xs">{banco.iban || '-'}</TableCell>
+                                    <TableCell className="font-mono text-xs dark:text-slate-300">{banco.iban || '-'}</TableCell>
                                     <TableCell>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${banco.ativo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${banco.ativo ? 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-400'}`}>
                                             {banco.ativo ? 'Ativo' : 'Inativo'}
                                         </span>
                                     </TableCell>

@@ -180,7 +180,7 @@ export function WorkersPage() {
             </div>
             <div className="w-full mb-2 shrink-0">
                 <div className="flex flex-col xl:flex-row gap-3 w-full mb-3 items-start xl:items-center">
-                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 border p-1 rounded-md mb-2 xl:mb-0">
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-900 border dark:border-slate-800 p-1 rounded-md mb-2 xl:mb-0">
                         <Select value={periodMonth.toString()} onValueChange={(v) => updateSearchParams({ periodMonth: v, page: '1' })}>
                             <SelectTrigger className="h-8 border-0 bg-transparent text-sm font-medium w-auto focus:ring-0">
                                 <SelectValue />

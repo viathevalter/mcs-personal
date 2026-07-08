@@ -9,10 +9,10 @@ import { AlertTriangle, TrendingDown, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const AnalysisCard = ({ title, value, footer, colorClass }: any) => (
-    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
-        <h4 className="text-gray-500 text-sm font-medium mb-2">{title}</h4>
+    <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <h4 className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-2">{title}</h4>
         <div className={`text-3xl font-bold ${colorClass}`}>{value}</div>
-        {footer && <div className="mt-2 text-xs text-gray-400">{footer}</div>}
+        {footer && <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">{footer}</div>}
     </div>
 );
 
@@ -23,17 +23,17 @@ export const Analises = () => {
     const { concentration, recurringDebtors, performanceByCompany } = metrics;
 
     return (
-        <div className="h-full overflow-y-auto p-6 space-y-8">
+        <div className="h-full overflow-y-auto p-6 space-y-8 bg-transparent">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Análise de Risco & Performance</h2>
-                    <p className="text-gray-500 text-sm mt-1">Visão aprofundada da carteira filtrada.</p>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Análise de Risco & Performance</h2>
+                    <p className="text-slate-500 dark:text-slate-450 text-sm mt-1">Visão aprofundada da carteira filtrada.</p>
                 </div>
             </div>
 
             {/* Risk Concentration Row */}
             <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
                     <AlertTriangle size={20} className="text-orange-500" />
                     Concentração da Dívida (Vencidos)
                 </h3>
@@ -42,37 +42,41 @@ export const Analises = () => {
                         title="Top 5 Devedores"
                         value={concentration.top5Percent.toFixed(1) + '%'}
                         footer={`Representam ${formatCurrency(concentration.top5Percent * concentration.totalOverdue / 100)} do total vencido`}
-                        colorClass="text-red-600"
+                        colorClass="text-red-600 dark:text-red-400"
                     />
                     <AnalysisCard
                         title="Top 10 Devedores"
                         value={concentration.top10Percent.toFixed(1) + '%'}
                         footer="Acumulado (Top 5 + Próximos 5)"
-                        colorClass="text-orange-600"
+                        colorClass="text-orange-600 dark:text-orange-400"
                     />
                     <AnalysisCard
                         title="Restante da Carteira"
                         value={concentration.restPercent.toFixed(1) + '%'}
                         footer="Carteira pulverizada"
-                        colorClass="text-green-600"
+                        colorClass="text-green-600 dark:text-green-450"
                     />
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Performance by Company */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                        <Building2 size={20} className="text-brand-dark" />
+                <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-lg font-bold text-slate-850 dark:text-slate-200 mb-6 flex items-center gap-2">
+                        <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
                         Performance por Empresa (Período/Seleção)
                     </h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={performanceByCompany} layout="vertical" margin={{ left: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={100} style={{ fontSize: '11px', fontWeight: 600 }} />
-                                <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                                <YAxis dataKey="name" type="category" width={100} style={{ fontSize: '11px', fontWeight: 600, fill: 'currentColor' }} />
+                                <Tooltip 
+                                    formatter={(val: number) => formatCurrency(val)}
+                                    contentStyle={{ background: 'rgba(15, 23, 42, 0.9)', border: '1px solid var(--border)', borderRadius: '12px' }}
+                                    labelStyle={{ color: '#fff', fontWeight: 'bold' }}
+                                />
                                 <Legend />
                                 <Bar dataKey="recebido" name="Recebido" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={20} />
                                 <Bar dataKey="vencido" name="Vencido (Saldo)" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20} />
@@ -82,39 +86,39 @@ export const Analises = () => {
                 </div>
 
                 {/* Top 5 List Detail */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <h3 className="text-lg font-bold text-gray-800 mb-6">Top 5 Maiores Devedores</h3>
+                <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-lg font-bold text-slate-850 dark:text-slate-200 mb-6">Top 5 Maiores Devedores</h3>
                     <div className="space-y-4">
                         {concentration.top5Clients.map((client, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100/50 dark:border-slate-800/60">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">
+                                    <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-950/45 text-red-650 dark:text-red-400 flex items-center justify-center font-bold text-sm">
                                         {idx + 1}
                                     </div>
-                                    <span className="font-medium text-gray-800 text-sm truncate max-w-[180px]" title={client.name}>
+                                    <span className="font-semibold text-slate-700 dark:text-slate-300 text-sm truncate max-w-[180px]" title={client.name}>
                                         {client.name}
                                     </span>
                                 </div>
-                                <div className="font-bold text-gray-900">{formatCurrency(client.value)}</div>
+                                <div className="font-extrabold text-slate-800 dark:text-slate-100">{formatCurrency(client.value)}</div>
                             </div>
                         ))}
-                        {concentration.top5Clients.length === 0 && <div className="text-center text-gray-400 py-10">Sem dados.</div>}
+                        {concentration.top5Clients.length === 0 && <div className="text-center text-slate-400 dark:text-slate-500 py-10">Sem dados.</div>}
                     </div>
                 </div>
             </div>
 
             {/* Recurring Debtors Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <TrendingDown size={20} className="text-gray-600" />
+            <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-850 dark:text-slate-200 flex items-center gap-2">
+                        <TrendingDown size={20} className="text-slate-650 dark:text-slate-450" />
                         Ranking de Inadimplência (Detalhado)
                     </h3>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Ordenado por Saldo</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-md border dark:border-slate-800">Ordenado por Saldo</span>
                 </div>
                 <div className="overflow-x-auto max-h-96">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10">
+                        <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-medium sticky top-0 z-10 border-b dark:border-slate-800">
                             <tr>
                                 <th className="px-6 py-3">Empresa</th>
                                 <th className="px-6 py-3">Cliente</th>
@@ -124,30 +128,29 @@ export const Analises = () => {
                                 <th className="px-6 py-3"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                             {recurringDebtors.map((item, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-500 text-xs uppercase tracking-wide">{item.empresa}</td>
-                                    <td className="px-6 py-4 font-medium text-gray-900">{item.name}</td>
+                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                    <td className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-450 text-xs uppercase tracking-wide">{item.empresa}</td>
+                                    <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-200">{item.name}</td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className="px-2 py-1 bg-gray-100 rounded text-xs font-semibold">{item.count}</span>
+                                        <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold">{item.count}</span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className={`font-semibold ${item.avgDelay > 90 ? 'text-red-600' : item.avgDelay > 30 ? 'text-orange-600' : 'text-green-600'
+                                        <span className={`font-bold ${item.avgDelay > 90 ? 'text-red-650 dark:text-red-400' : item.avgDelay > 30 ? 'text-orange-655 dark:text-orange-400' : 'text-green-650 dark:text-green-450'
                                             }`}>
                                             {item.avgDelay} dias
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right font-bold text-gray-900">{formatCurrency(item.balance)}</td>
+                                    <td className="px-6 py-4 text-right font-extrabold text-slate-850 dark:text-slate-100">{formatCurrency(item.balance)}</td>
                                     <td className="px-6 py-4 text-right">
-                                        {/* Could link to filtered detail list */}
-                                        <Link to={`/titulos?cliente=${encodeURIComponent(item.name)}`} className="text-brand-action hover:underline text-xs">Ver Títulos</Link>
+                                        <Link to={`/titulos?cliente=${encodeURIComponent(item.name)}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold">Ver Títulos</Link>
                                     </td>
                                 </tr>
                             ))}
                             {recurringDebtors.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-8 text-gray-400">Nenhum cliente inadimplente no filtro atual.</td>
+                                    <td colSpan={6} className="text-center py-8 text-slate-400 dark:text-slate-500">Nenhum cliente inadimplente no filtro atual.</td>
                                 </tr>
                             )}
                         </tbody>

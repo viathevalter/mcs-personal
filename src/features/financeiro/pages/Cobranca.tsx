@@ -567,7 +567,7 @@ export const Cobranca = () => {
                 {/* KPI Premium Row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'atraso' ? 'border-l-destructive bg-destructive/5' : 'border-l-slate-400 bg-slate-50/50'}`}
+                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'atraso' ? 'border-l-destructive bg-destructive/5 dark:bg-destructive/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
                         onClick={() => setActiveTab('atraso')}
                     >
                         <CardHeader className="pb-2">
@@ -580,7 +580,7 @@ export const Cobranca = () => {
                     </Card>
 
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'alerta' ? 'border-l-amber-500 bg-amber-50/10' : 'border-l-slate-400 bg-slate-50/50'}`}
+                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'alerta' ? 'border-l-amber-500 bg-amber-50/10 dark:bg-amber-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
                         onClick={() => setActiveTab('alerta')}
                     >
                         <CardHeader className="pb-2">
@@ -593,7 +593,7 @@ export const Cobranca = () => {
                     </Card>
 
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'judicial' ? 'border-l-red-800 bg-red-900/5' : 'border-l-slate-400 bg-slate-50/50'}`}
+                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'judicial' ? 'border-l-red-800 bg-red-900/5 dark:bg-red-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
                         onClick={() => setActiveTab('judicial')}
                     >
                         <CardHeader className="pb-2">
@@ -605,12 +605,12 @@ export const Cobranca = () => {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-l-4 border-l-slate-600 bg-slate-100/50">
+                    <Card className="border-l-4 border-l-slate-600 bg-slate-100/50 dark:bg-slate-900/30">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{t('financeiro.kpis.title_total', 'Total Sob Cobrança')}</CardTitle>
+                            <CardTitle className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('financeiro.kpis.title_total', 'Total Sob Cobrança')}</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-extrabold text-slate-800">{formatCurrency(kpis.totalVal)}</div>
+                            <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">{formatCurrency(kpis.totalVal)}</div>
                             <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
                         </CardContent>
                     </Card>

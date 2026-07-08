@@ -45,6 +45,7 @@ export interface Estimacion {
   expected_end_date?: string;
   validity_date?: string;
   payment_terms?: string;
+  payment_term_id?: string;
   general_notes?: string;
   document_language?: 'pt' | 'es' | 'en' | 'it' | 'fr';
   status: 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';

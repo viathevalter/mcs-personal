@@ -230,7 +230,12 @@ export function DocumentsPage() {
     // Fetch lists
     const fetchClients = async () => {
         if (!selectedEmpresaId) return;
-        const { data } = await supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('empresa_id', selectedEmpresaId).eq('status', 'active');
+        const { data } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, legal_name, trade_name, client_company_settings!inner(empresa_id, status)')
+            .eq('client_company_settings.empresa_id', selectedEmpresaId)
+            .eq('client_company_settings.status', 'active');
         setClientsList(data || []);
     };
 
@@ -245,7 +250,12 @@ export function DocumentsPage() {
 
     const fetchWorkers = async () => {
         if (!selectedEmpresaId) return;
-        const { data } = await supabase.schema('core_personal').from('workers').select('id, nome, cod_colab').eq('empresa_id', selectedEmpresaId).eq('status', 'active');
+        const { data } = await supabase.schema('core_personal').rpc('search_workers', {
+            p_empresa_id: selectedEmpresaId,
+            p_status_trabajador_filter: ['ativos'],
+            p_page: 1,
+            p_page_size: 1000
+        });
         setWorkersList(data || []);
     };
 

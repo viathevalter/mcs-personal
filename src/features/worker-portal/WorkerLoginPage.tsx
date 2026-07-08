@@ -48,7 +48,7 @@ export function WorkerLoginPage() {
             // @ts-ignore - Supabase types might mark schema as protected depending on the generatord version
             const query = supabase.schema('core_personal').from('workers');
             const { data, error } = await query
-                .select('id, empresa_id, cod_colab, nome, pasaporte, status_trabajador')
+                .select('id, cod_colab, nome, pasaporte, status_trabajador, contracts(empresa_id)')
                 .ilike('pasaporte', `${formData.pasaporte.trim()}%`);
 
             if (error || !data || data.length === 0) {
@@ -68,7 +68,8 @@ export function WorkerLoginPage() {
                 .replace(/[\u0300-\u036f]/g, "")
                 .replace(/\s+/g, " ");
 
-            const validProfiles = data.filter(d => {
+            const validProfiles: any[] = [];
+            data?.forEach(d => {
                 const dbPassport = (d.pasaporte || '').trim().toLowerCase();
                 const dbName = (d.nome || '')
                     .trim()
@@ -77,10 +78,30 @@ export function WorkerLoginPage() {
                     .replace(/[\u0300-\u036f]/g, "")
                     .replace(/\s+/g, " ");
 
-                // We check if the database name INCLUDES the input name (or exact match)
-                // This helps if they omit a middle name or reverse the order potentially
-                // But let's require it to at least contain the typed string
-                return dbPassport === normalizedPassportInput && dbName.includes(normalizedNameInput);
+                if (dbPassport === normalizedPassportInput && dbName.includes(normalizedNameInput)) {
+                    const contracts = (d as any).contracts || [];
+                    if (contracts.length > 0) {
+                        contracts.forEach((c: any) => {
+                            validProfiles.push({
+                                id: d.id,
+                                cod_colab: d.cod_colab,
+                                nome: d.nome,
+                                pasaporte: d.pasaporte,
+                                status_trabajador: d.status_trabajador,
+                                empresa_id: c.empresa_id
+                            });
+                        });
+                    } else {
+                        validProfiles.push({
+                            id: d.id,
+                            cod_colab: d.cod_colab,
+                            nome: d.nome,
+                            pasaporte: d.pasaporte,
+                            status_trabajador: d.status_trabajador,
+                            empresa_id: null
+                        });
+                    }
+                }
             });
 
             if (validProfiles.length === 0) {

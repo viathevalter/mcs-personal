@@ -37,6 +37,7 @@ import { Loader2, Edit2, Wallet, FileText, BadgeDollarSign } from 'lucide-react'
 import type { Worker } from '@/shared/types/corePersonal';
 import { useUpdateWorker } from '../hooks/useUpdateWorker';
 import { useTranslation } from 'react-i18next';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { toast } from 'sonner';
 import { BenefitsTab, type BenefitsTabRef } from './BenefitsTab';
 import { BankTab, type BankTabRef } from './BankTab';
@@ -67,6 +68,7 @@ interface EditWorkerDialogProps {
 
 export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { t } = useTranslation();
+    const { selectedEmpresaId } = useEmpresa();
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("basico");
     const benefitsTabRef = useRef<BenefitsTabRef>(null);
@@ -439,12 +441,12 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
 
                             <TabsContent value="beneficios" className="space-y-4 mt-0">
                                 <div className="space-y-4">
-                                    <BenefitsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={true} ref={benefitsTabRef} />
+                                    <BenefitsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} isEmbedded={true} ref={benefitsTabRef} />
                                 </div>
                             </TabsContent>
 
                             <TabsContent value="descontos" className="space-y-4 mt-0">
-                                <DiscountsTab workerId={worker.id} empresaId={worker.empresa_id} isEmbedded={false} />
+                                <DiscountsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} isEmbedded={false} />
                             </TabsContent>
                         </Tabs>
 

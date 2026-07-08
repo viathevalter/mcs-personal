@@ -18,15 +18,11 @@ export const jobFunctionEpisApi = {
     return data as JobFunctionEpi[];
   },
 
-  // Busca o catálogo geral de EPIs disponíveis
   async getEpis(empresaId: string): Promise<Epi[]> {
-    if (!empresaId) throw new Error('Empresa não selecionada');
-
     const { data, error } = await supabase
       .schema('core_logistica')
       .from('epis')
       .select('*')
-      .eq('empresa_id', empresaId)
       .eq('status', 'active')
       .order('name', { ascending: true });
 

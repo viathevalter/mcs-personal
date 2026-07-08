@@ -311,7 +311,7 @@ export const Pagos = () => {
     });
 
     return (
-        <div className="h-full flex flex-col p-6 space-y-6 max-w-7xl mx-auto bg-slate-50/30">
+        <div className="h-full flex flex-col p-6 space-y-6 max-w-7xl mx-auto bg-transparent">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>
@@ -332,7 +332,7 @@ export const Pagos = () => {
 
                 {/* KPIs Row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">A Pagar Pendente</CardTitle>
                         </CardHeader>
@@ -340,7 +340,7 @@ export const Pagos = () => {
                             <div className="text-2xl font-black text-blue-650 dark:text-blue-400">{formatCurrency(kpis.pendente)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pago Acumulado</CardTitle>
                         </CardHeader>
@@ -348,7 +348,7 @@ export const Pagos = () => {
                             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(kpis.pago)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-red-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-red-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Vencido</CardTitle>
                         </CardHeader>
@@ -356,7 +356,7 @@ export const Pagos = () => {
                             <div className="text-2xl font-black text-red-650 dark:text-red-400">{formatCurrency(kpis.vencido)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-amber-500 rounded-2xl border-slate-100 shadow-sm bg-white dark:bg-slate-950">
+                    <Card className="border-l-4 border-l-amber-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vencendo Hoje</CardTitle>
                         </CardHeader>
@@ -367,7 +367,7 @@ export const Pagos = () => {
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-900 shadow-sm mt-4">
+                <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mt-4">
                     <div className="relative flex-1 w-full md:max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
@@ -400,12 +400,12 @@ export const Pagos = () => {
                             ))}
                         </select>
                         <div className="relative">
-                            <Button variant="outline" onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)} className="flex items-center gap-2 border-slate-200 hover:bg-slate-50 rounded-xl py-2 px-3 text-xs text-slate-600">
+                            <Button variant="outline" onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)} className="flex items-center gap-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl py-2 px-3 text-xs text-slate-600">
                                 <Filter size={14} /> Status {selectedStatuses.length > 0 && `(${selectedStatuses.length})`}
                             </Button>
                             {isStatusDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 p-2">
-                                    <div className="flex justify-between items-center px-2 py-1.5 mb-1.5 border-b border-slate-100">
+                                    <div className="flex justify-between items-center px-2 py-1.5 mb-1.5 border-b border-slate-100 dark:border-slate-800">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</span>
                                         {selectedStatuses.length > 0 && <button onClick={clearStatusFilter} className="text-[10px] text-red-600 font-bold">Limpar</button>}
                                     </div>
@@ -425,7 +425,7 @@ export const Pagos = () => {
             </div>
 
             {/* Grid Card */}
-            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 shadow-sm bg-white dark:bg-slate-950 rounded-2xl mt-4">
+            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 rounded-2xl mt-4">
                 <CardContent className="p-0 overflow-auto flex-1">
                     <Table>
                         <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">

@@ -89,7 +89,7 @@ export const TitleDetail = () => {
 
     return (
         <Tooltip.Provider delayDuration={200}>
-            <div className="h-full overflow-y-auto p-6 bg-slate-50/30">
+            <div className="h-full overflow-y-auto p-6 bg-transparent">
                 <div className="max-w-7xl mx-auto space-y-6">
                     <Link to="/financeiro/titulos" className="flex items-center text-slate-500 hover:text-slate-700 transition-colors mb-4 w-fit text-sm font-semibold">
                         <ChevronLeft size={16} className="mr-1" /> Voltar para Ordens de Pagamento
@@ -102,7 +102,7 @@ export const TitleDetail = () => {
                         <div className="lg:col-span-2 space-y-6">
                             
                             {/* Card de Cabeçalho */}
-                            <Card className="rounded-3xl border-slate-100 shadow-sm bg-white dark:bg-slate-950 p-6 md:p-8">
+                            <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 p-6 md:p-8">
                                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
                                     <div>
                                         <div className="flex items-center gap-3 flex-wrap">
@@ -123,7 +123,7 @@ export const TitleDetail = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 border-t border-slate-100 pt-6 text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 border-t border-slate-100 dark:border-slate-800 pt-6 text-sm">
                                     <div>
                                         <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Vencimento</span>
                                         <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(title.data_vencimento)}</span>
@@ -140,8 +140,8 @@ export const TitleDetail = () => {
                             </Card>
 
                             {/* Card de Itens */}
-                            <Card className="rounded-3xl border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
-                                <CardHeader className="border-b border-slate-100 dark:border-slate-850 pb-4 px-6">
+                            <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">
+                                <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4 px-6">
                                     <CardTitle className="text-sm font-extrabold text-slate-800 dark:text-slate-250 uppercase tracking-wider">Parcelas e Itens da Ordem</CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-0 overflow-auto">
@@ -158,7 +158,7 @@ export const TitleDetail = () => {
                                         </TableHeader>
                                         <TableBody>
                                             {title.itens && title.itens.length > 0 ? title.itens.map((item) => (
-                                                <TableRow key={item.id} className="border-b border-slate-100 dark:border-slate-850">
+                                                <TableRow key={item.id} className="border-b border-slate-100 dark:border-slate-800">
                                                     <TableCell className="px-6 font-semibold text-slate-700 dark:text-slate-400">{item.cod_orden_pago_item}</TableCell>
                                                     <TableCell className="font-medium text-slate-800 dark:text-slate-200">{item.categoria_orden}</TableCell>
                                                     <TableCell className="text-slate-600 dark:text-slate-400">{item.centro_custo || 'Administrativo'}</TableCell>
@@ -182,7 +182,7 @@ export const TitleDetail = () => {
 
                             {/* Card de Anexos */}
                             {title.anexos && (
-                                <Card className="rounded-3xl border-slate-100 shadow-sm bg-white dark:bg-slate-950 p-6">
+                                <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 p-6">
                                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250 uppercase tracking-wider mb-4">Anexos e Documentação</h3>
                                     <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 w-fit">
                                         <Link2 className="text-blue-600" size={18} />
@@ -198,7 +198,7 @@ export const TitleDetail = () => {
                         <div className="space-y-6">
                             
                             {/* Ações Rápidas */}
-                            <Card className="rounded-3xl border-slate-100 shadow-sm bg-white dark:bg-slate-950 p-6">
+                            <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 p-6">
                                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250 uppercase tracking-wider mb-4">Ações Disponíveis</h3>
                                 
                                 <div className="space-y-3">
@@ -271,16 +271,16 @@ export const TitleDetail = () => {
                             </Card>
 
                             {/* Timeline de Movimentações */}
-                            <Card className="rounded-3xl border-slate-100 shadow-sm bg-white dark:bg-slate-950 p-6 flex flex-col">
+                            <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 p-6 flex flex-col">
                                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250 uppercase tracking-wider mb-6">Histórico de Movimentações</h3>
                                 
-                                <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-slate-900">
+                                <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-slate-800">
                                     {title.movimentos && title.movimentos.length > 0 ? title.movimentos.map((mov: any) => (
                                         <div key={mov.id} className="flex gap-4 relative">
                                             <div className="w-[24px] h-[24px] rounded-full bg-blue-50 dark:bg-slate-900 border-2 border-blue-600 flex items-center justify-center flex-shrink-0 z-10">
                                                 <div className="w-[6px] h-[6px] rounded-full bg-blue-600"></div>
                                             </div>
-                                            <div className="space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-900 flex-1">
+                                            <div className="space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex-1">
                                                 <div className="flex justify-between items-center flex-wrap gap-1">
                                                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{mov.tipo_mov}</span>
                                                     <span className="text-[10px] text-slate-400 font-semibold">{formatDate(mov.criado_em)}</span>

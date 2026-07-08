@@ -1,20 +1,22 @@
-const { Client } = require('pg');
-const devConnectionString = 'postgresql://postgres:Stkrt%40Dev2026@db.pyahcgorkvwfwmlzspnv.supabase.co:5432/postgres';
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '.env.local' });
 
-async function run() {
-    const client = new Client({ connectionString: devConnectionString });
-    try {
-        await client.connect();
-        
-        console.log("Finding job functions...");
-        const res = await client.query('SELECT id, name FROM core_comercial.job_functions LIMIT 5;');
-        console.log(res.rows);
-        
-    } catch (err) {
-        console.error("Error:", err);
-    } finally {
-        await client.end();
-    }
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+async function checkJobFunctions() {
+  const { data, error } = await supabase
+    .schema('core_comercial')
+    .from('job_functions')
+    .select('*');
+    
+  if (error) {
+    console.error(error);
+  } else {
+    console.log("Job functions inside core_comercial.job_functions:", data);
+  }
 }
 
-run();
+checkJobFunctions();

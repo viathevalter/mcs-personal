@@ -344,13 +344,15 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   const [newSellRate, setNewSellRate] = useState(0);
   const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>('local');
 
-  // Atualizar taxas globais com a província quando carregar
+  // Atualizar taxas globais com a província ou diária padrão do país quando carregar
   useEffect(() => {
     if (province) {
       if (globalLodgingRate === null) setGlobalLodgingRate(Number(province.valor_dia));
       if (globalEpiRate === null) setGlobalEpiRate(Number(province.coste_envio));
+    } else if (defaultLodgingRate > 0) {
+      if (globalLodgingRate === null) setGlobalLodgingRate(defaultLodgingRate);
     }
-  }, [province]);
+  }, [province, defaultLodgingRate, globalLodgingRate]);
 
   const handleGlobalBrokerChange = (checked: boolean) => {
     setGlobalBroker(checked);
@@ -366,7 +368,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     const newItems = data.items.map((item: any) => ({
       ...item,
       includes_accommodation: checked,
-      custom_lodging_rate: checked ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null
+      custom_lodging_rate: checked ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : defaultLodgingRate)) : null
     }));
     const result = recalculateTotals(newItems, globalBroker, province);
     onChange(result);
@@ -763,7 +765,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       rateToUse = jfRates.find((r: any) => r.country_id === null || !r.country_id);
     }
 
-    const lodgingRate = globalAlojamento ? (globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null;
+    const lodgingRate = globalAlojamento ? (globalLodgingRate ?? (province ? Number(province.valor_dia) : defaultLodgingRate)) : null;
     const epiRate = globalEpi ? (globalEpiRate ?? (province ? Number(province.coste_envio) : 10)) : null;
     const transportRate = globalTransport ? globalTransportRate : null;
 
@@ -1307,7 +1309,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                                 checked={item.includes_accommodation}
                                 onCheckedChange={(c) => updateItem(idx, { 
                                   includes_accommodation: !!c, 
-                                  custom_lodging_rate: c ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : 0)) : null 
+                                  custom_lodging_rate: c ? (item.custom_lodging_rate ?? globalLodgingRate ?? (province ? Number(province.valor_dia) : defaultLodgingRate)) : null 
                                 })}
                                 className="h-3.5 w-3.5 border-slate-300 dark:border-slate-700 data-[state=checked]:bg-blue-600"
                               />
