@@ -509,7 +509,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                         <div className="p-4 text-center text-sm text-slate-500">Carregando trabalhadores...</div>
                       ) : workersError ? (
                         <div className="p-4 text-center text-sm text-red-500 bg-rose-50 dark:bg-rose-950/20">
-                          Erro ao carregar: {workersError instanceof Error ? workersError.message : 'Erro no banco.'}
+                          Erro ao carregar: {workersError ? ((workersError as any).message || JSON.stringify(workersError)) : 'Erro no banco.'}
                         </div>
                       ) : filteredWorkers.length === 0 ? (
                         <div className="p-4 text-center text-sm text-slate-500">Nenhum trabalhador inativo encontrado.</div>
