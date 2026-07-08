@@ -172,7 +172,7 @@ export const AssignmentsPage: React.FC = () => {
 
                     {/* Empresa */}
                     <td className="px-6 py-4 text-xs font-semibold text-slate-700 dark:text-slate-350">
-                      {assignment.worker?.contratante || '-'}
+                      {assignment.empresa?.nome || '-'}
                     </td>
 
                     {/* Pedido */}

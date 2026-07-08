@@ -48,8 +48,9 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
             const pedidoIds = [...new Set(assignments.map(a => a.pedido_id).filter(Boolean))];
             const clientIds = [...new Set(assignments.map(a => a.client_id).filter(Boolean))];
             const siteIds = [...new Set(assignments.map(a => a.client_site_id).filter(Boolean))];
+            const empresaIds = [...new Set(assignments.map(a => a.empresa_id).filter(Boolean))];
 
-            const [pedidosRes, clientsRes, sitesRes] = await Promise.all([
+            const [pedidosRes, clientsRes, sitesRes, empresasRes] = await Promise.all([
                 pedidoIds.length > 0 
                   ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
                   : Promise.resolve({ data: [] }),
@@ -58,18 +59,23 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                   : Promise.resolve({ data: [] }),
                 siteIds.length > 0
                   ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
+                  : Promise.resolve({ data: [] }),
+                empresaIds.length > 0
+                  ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
                   : Promise.resolve({ data: [] })
             ]);
 
             const pedidosMap = new Map(pedidosRes.data?.map(p => [p.id, p]) || []);
             const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
             const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
+            const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
 
             return assignments.map(a => ({
                 ...a,
                 pedido: pedidosMap.get(a.pedido_id) || null,
                 client: clientsMap.get(a.client_id) || null,
                 client_site: sitesMap.get(a.client_site_id) || null,
+                empresa: empresasMap.get(a.empresa_id) || null,
             }));
         },
         enabled: !!filters.empresa_id,
