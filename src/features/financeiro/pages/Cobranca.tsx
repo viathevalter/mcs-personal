@@ -12,6 +12,7 @@ import { ObservacoesModal } from '../components/ObservacoesModal';
 import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
 import { CobroFormSheet } from '../components/CobroFormSheet';
 import { RichTextEditor } from '../components/RichTextEditor';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -27,9 +28,30 @@ export const Cobranca = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     // Advanced Filtering States
-    const [filterEmpresa, setFilterEmpresa] = useState(() => sessionStorage.getItem('cobranca_filterEmpresa') || 'all');
-    const [filterBanco, setFilterBanco] = useState(() => sessionStorage.getItem('cobranca_filterBanco') || 'all');
-    const [filterPeriodoFat, setFilterPeriodoFat] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoFat') || 'all');
+    const [filterEmpresas, setFilterEmpresas] = useState<string[]>(() => {
+        try {
+            const val = sessionStorage.getItem('cobranca_filterEmpresas');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [filterBancos, setFilterBancos] = useState<string[]>(() => {
+        try {
+            const val = sessionStorage.getItem('cobranca_filterBancos');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [filterPeriodosFat, setFilterPeriodosFat] = useState<string[]>(() => {
+        try {
+            const val = sessionStorage.getItem('cobranca_filterPeriodosFat');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
     const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoEmissao') || 'all');
     const [startDateEmissao, setStartDateEmissao] = useState(() => sessionStorage.getItem('cobranca_startDateEmissao') || '');
     const [endDateEmissao, setEndDateEmissao] = useState(() => sessionStorage.getItem('cobranca_endDateEmissao') || '');
@@ -41,9 +63,9 @@ export const Cobranca = () => {
     const [endDateAlteracao, setEndDateAlteracao] = useState(() => sessionStorage.getItem('cobranca_endDateAlteracao') || '');
 
     // Temporary/Draft states for Popover Form
-    const [tempFilterEmpresa, setTempFilterEmpresa] = useState(filterEmpresa);
-    const [tempFilterBanco, setTempFilterBanco] = useState(filterBanco);
-    const [tempFilterPeriodoFat, setTempFilterPeriodoFat] = useState(filterPeriodoFat);
+    const [tempFilterEmpresas, setTempFilterEmpresas] = useState<string[]>(filterEmpresas);
+    const [tempFilterBancos, setTempFilterBancos] = useState<string[]>(filterBancos);
+    const [tempFilterPeriodosFat, setTempFilterPeriodosFat] = useState<string[]>(filterPeriodosFat);
     const [tempFilterPeriodoEmissao, setTempFilterPeriodoEmissao] = useState(filterPeriodoEmissao);
     const [tempStartDateEmissao, setTempStartDateEmissao] = useState(startDateEmissao);
     const [tempEndDateEmissao, setTempEndDateEmissao] = useState(endDateEmissao);
@@ -99,16 +121,16 @@ export const Cobranca = () => {
     }, [searchTerm]);
 
     useEffect(() => {
-        sessionStorage.setItem('cobranca_filterEmpresa', filterEmpresa);
-    }, [filterEmpresa]);
+        sessionStorage.setItem('cobranca_filterEmpresas', JSON.stringify(filterEmpresas));
+    }, [filterEmpresas]);
 
     useEffect(() => {
-        sessionStorage.setItem('cobranca_filterBanco', filterBanco);
-    }, [filterBanco]);
+        sessionStorage.setItem('cobranca_filterBancos', JSON.stringify(filterBancos));
+    }, [filterBancos]);
 
     useEffect(() => {
-        sessionStorage.setItem('cobranca_filterPeriodoFat', filterPeriodoFat);
-    }, [filterPeriodoFat]);
+        sessionStorage.setItem('cobranca_filterPeriodosFat', JSON.stringify(filterPeriodosFat));
+    }, [filterPeriodosFat]);
 
     useEffect(() => {
         sessionStorage.setItem('cobranca_filterPeriodoEmissao', filterPeriodoEmissao);
@@ -153,9 +175,9 @@ export const Cobranca = () => {
     // Sync temp states with active states when popover opens
     useEffect(() => {
         if (showFilters) {
-            setTempFilterEmpresa(filterEmpresa);
-            setTempFilterBanco(filterBanco);
-            setTempFilterPeriodoFat(filterPeriodoFat);
+            setTempFilterEmpresas(filterEmpresas);
+            setTempFilterBancos(filterBancos);
+            setTempFilterPeriodosFat(filterPeriodosFat);
             setTempFilterPeriodoEmissao(filterPeriodoEmissao);
             setTempStartDateEmissao(startDateEmissao);
             setTempEndDateEmissao(endDateEmissao);
@@ -438,13 +460,13 @@ export const Cobranca = () => {
         if (!matchesSearch) return false;
 
         // Empresa filter
-        if (filterEmpresa !== 'all' && item.Empresa !== filterEmpresa) return false;
+        if (filterEmpresas.length > 0 && !filterEmpresas.includes(item.Empresa)) return false;
 
         // Banco filter
-        if (filterBanco !== 'all' && item.Banco !== filterBanco) return false;
+        if (filterBancos.length > 0 && !filterBancos.includes(item.Banco)) return false;
 
         // Periodo Fat filter
-        if (filterPeriodoFat !== 'all' && item.periodo_fat !== filterPeriodoFat) return false;
+        if (filterPeriodosFat.length > 0 && !filterPeriodosFat.includes(item.periodo_fat)) return false;
 
         // Periodo Emissao filter
         if (filterPeriodoEmissao !== 'all') {
@@ -536,9 +558,9 @@ export const Cobranca = () => {
     });
 
     const activeFiltersCount = [
-        filterEmpresa !== 'all',
-        filterBanco !== 'all',
-        filterPeriodoFat !== 'all',
+        filterEmpresas.length > 0,
+        filterBancos.length > 0,
+        filterPeriodosFat.length > 0,
         filterPeriodoEmissao !== 'all',
         filterPeriodoVencimento !== 'all',
         filterPeriodoAlteracao !== 'all'
@@ -660,46 +682,34 @@ export const Cobranca = () => {
                                                 {/* Empresa Filter */}
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.empresa', 'Empresa')}</label>
-                                                    <select
-                                                        value={tempFilterEmpresa}
-                                                        onChange={(e) => setTempFilterEmpresa(e.target.value)}
-                                                        className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                    >
-                                                        <option value="all">{t('financeiro.filters.all_companies', 'Todas as Empresas')}</option>
-                                                        {uniqueEmpresas.map(emp => (
-                                                            <option key={emp} value={emp}>{emp}</option>
-                                                        ))}
-                                                    </select>
+                                                    <MultiSelect
+                                                        options={uniqueEmpresas.map(emp => ({ value: emp, label: emp }))}
+                                                        selected={tempFilterEmpresas}
+                                                        onChange={setTempFilterEmpresas}
+                                                        placeholder={t('financeiro.filters.all_companies', 'Todas as Empresas')}
+                                                    />
                                                 </div>
 
                                                 {/* Banco Filter */}
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.banco', 'Banco')}</label>
-                                                    <select
-                                                        value={tempFilterBanco}
-                                                        onChange={(e) => setTempFilterBanco(e.target.value)}
-                                                        className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                    >
-                                                        <option value="all">{t('financeiro.filters.all_banks', 'Todos os Bancos')}</option>
-                                                        {uniqueBancos.map(b => (
-                                                            <option key={b} value={b}>{b}</option>
-                                                        ))}
-                                                    </select>
+                                                    <MultiSelect
+                                                        options={uniqueBancos.map(b => ({ value: b, label: b }))}
+                                                        selected={tempFilterBancos}
+                                                        onChange={setTempFilterBancos}
+                                                        placeholder={t('financeiro.filters.all_banks', 'Todos os Bancos')}
+                                                    />
                                                 </div>
 
                                                 {/* Mês de Faturamento */}
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_fat', 'Mês de Faturamento')}</label>
-                                                    <select
-                                                        value={tempFilterPeriodoFat}
-                                                        onChange={(e) => setTempFilterPeriodoFat(e.target.value)}
-                                                        className="w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                    >
-                                                        <option value="all">{t('financeiro.filters.all_months', 'Todos os Meses')}</option>
-                                                        {uniquePeriodosFat.map(pf => (
-                                                            <option key={pf} value={pf}>{pf}</option>
-                                                        ))}
-                                                    </select>
+                                                    <MultiSelect
+                                                        options={uniquePeriodosFat.map(pf => ({ value: pf, label: pf }))}
+                                                        selected={tempFilterPeriodosFat}
+                                                        onChange={setTempFilterPeriodosFat}
+                                                        placeholder={t('financeiro.filters.all_months', 'Todos os Meses')}
+                                                    />
                                                 </div>
                                             </div>
 
@@ -831,9 +841,9 @@ export const Cobranca = () => {
                                                 size="sm"
                                                 onClick={() => {
                                                     // Clear temporary
-                                                    setTempFilterEmpresa('all');
-                                                    setTempFilterBanco('all');
-                                                    setTempFilterPeriodoFat('all');
+                                                    setTempFilterEmpresas([]);
+                                                    setTempFilterBancos([]);
+                                                    setTempFilterPeriodosFat([]);
                                                     setTempFilterPeriodoEmissao('all');
                                                     setTempStartDateEmissao('');
                                                     setTempEndDateEmissao('');
@@ -845,9 +855,9 @@ export const Cobranca = () => {
                                                     setTempEndDateAlteracao('');
 
                                                     // Clear active
-                                                    setFilterEmpresa('all');
-                                                    setFilterBanco('all');
-                                                    setFilterPeriodoFat('all');
+                                                    setFilterEmpresas([]);
+                                                    setFilterBancos([]);
+                                                    setFilterPeriodosFat([]);
                                                     setFilterPeriodoEmissao('all');
                                                     setStartDateEmissao('');
                                                     setEndDateEmissao('');
@@ -868,9 +878,9 @@ export const Cobranca = () => {
                                                 size="sm"
                                                 onClick={() => {
                                                     // Apply filters
-                                                    setFilterEmpresa(tempFilterEmpresa);
-                                                    setFilterBanco(tempFilterBanco);
-                                                    setFilterPeriodoFat(tempFilterPeriodoFat);
+                                                    setFilterEmpresas(tempFilterEmpresas);
+                                                    setFilterBancos(tempFilterBancos);
+                                                    setFilterPeriodosFat(tempFilterPeriodosFat);
                                                     setFilterPeriodoEmissao(tempFilterPeriodoEmissao);
                                                     setStartDateEmissao(tempStartDateEmissao);
                                                     setEndDateEmissao(tempEndDateEmissao);
@@ -892,13 +902,13 @@ export const Cobranca = () => {
                                 )}
                             </div>
 
-                            {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodoFat !== 'all' || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || filterPeriodoAlteracao !== 'all' || searchTerm !== '') && (
+                            {(filterEmpresas.length > 0 || filterBancos.length > 0 || filterPeriodosFat.length > 0 || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || filterPeriodoAlteracao !== 'all' || searchTerm !== '') && (
                                 <Button 
                                     variant="ghost" 
                                     onClick={() => {
-                                        setFilterEmpresa('all');
-                                        setFilterBanco('all');
-                                        setFilterPeriodoFat('all');
+                                        setFilterEmpresas([]);
+                                        setFilterBancos([]);
+                                        setFilterPeriodosFat([]);
                                         setFilterPeriodoEmissao('all');
                                         setStartDateEmissao('');
                                         setEndDateEmissao('');
@@ -918,16 +928,16 @@ export const Cobranca = () => {
                         </div>
                     </div>
 
-                    {(filterEmpresa !== 'all' || filterBanco !== 'all' || filterPeriodoFat !== 'all' || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || filterPeriodoAlteracao !== 'all') && (
+                    {(filterEmpresas.length > 0 || filterBancos.length > 0 || filterPeriodosFat.length > 0 || filterPeriodoEmissao !== 'all' || filterPeriodoVencimento !== 'all' || filterPeriodoAlteracao !== 'all') && (
                         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-dashed dark:border-slate-800">
                             <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider">{t('financeiro.filters.active_filters', 'Filtros ativos:')}</span>
                             
                             {/* Empresa Filter */}
-                            {filterEmpresa !== 'all' && (
+                            {filterEmpresas.length > 0 && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Empresa: {filterEmpresa}</span>
+                                    <span>Empresa: {filterEmpresas.join(', ')}</span>
                                     <button 
-                                        onClick={() => setFilterEmpresa('all')} 
+                                        onClick={() => setFilterEmpresas([])} 
                                         className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                     >
                                         <X size={10} />
@@ -936,11 +946,11 @@ export const Cobranca = () => {
                             )}
 
                             {/* Banco Filter */}
-                            {filterBanco !== 'all' && (
+                            {filterBancos.length > 0 && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Banco: {filterBanco}</span>
+                                    <span>Banco: {filterBancos.join(', ')}</span>
                                     <button 
-                                        onClick={() => setFilterBanco('all')} 
+                                        onClick={() => setFilterBancos([])} 
                                         className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                     >
                                         <X size={10} />
@@ -949,11 +959,11 @@ export const Cobranca = () => {
                             )}
 
                             {/* Periodo Fat Filter */}
-                            {filterPeriodoFat !== 'all' && (
+                            {filterPeriodosFat.length > 0 && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Fat: {filterPeriodoFat}</span>
+                                    <span>Fat: {filterPeriodosFat.join(', ')}</span>
                                     <button 
-                                        onClick={() => setFilterPeriodoFat('all')} 
+                                        onClick={() => setFilterPeriodosFat([])} 
                                         className="p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                     >
                                         <X size={10} />
