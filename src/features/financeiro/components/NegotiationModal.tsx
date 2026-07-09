@@ -40,6 +40,21 @@ export const NegotiationModal = ({
         (t.Cliente && t.Cliente.trim().toLowerCase() === (titulo.Cliente || '').trim().toLowerCase())
     );
 
+    const isOverdue = (item: EnrichedTitulo) => {
+        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado') return false;
+        return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
+    };
+
+    const paidTitles = clientTitles.filter(t => t.Status === 'Pago');
+    const overdueTitles = clientTitles.filter(t => isOverdue(t));
+    const dueSoonTitles = clientTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado' && !isOverdue(t));
+
+    const totalPaidSum = paidTitles.reduce((acc, curr) => acc + (curr.Valot_total || 0), 0);
+    const totalOverdueSum = overdueTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
+    const totalDueSoonSum = dueSoonTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
+
+    const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid'>('overdue');
+
     // Checked titles for negotiation (default to the clicked title if not paid)
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
@@ -47,6 +62,15 @@ export const NegotiationModal = ({
         if (isOpen && titulo) {
             const initialIds = titulo.Status !== 'Pago' && titulo.Status !== 'Negociado' ? [titulo.id] : [];
             setCheckedIds(initialIds);
+            
+            // Set active tab based on selected title status
+            if (titulo.Status === 'Pago') {
+                setActiveTab('paid');
+            } else if (isOverdue(titulo)) {
+                setActiveTab('overdue');
+            } else {
+                setActiveTab('due_soon');
+            }
         }
     }, [isOpen, titulo]);
 
@@ -112,11 +136,7 @@ export const NegotiationModal = ({
 
     const installmentPreview = getInstallmentPreview();
 
-    // Check if title is overdue
-    const isOverdue = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado') return false;
-        return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
-    };
+
 
     // Prepare warning email
     const handlePrepareEmail = () => {
@@ -246,7 +266,7 @@ export const NegotiationModal = ({
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden flex-1 my-3">
                     {/* Left Column: Títulos & Histórico */}
                     <div className="lg:col-span-7 flex flex-col min-h-0 border dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/20">
-                        <div className="p-4 border-b dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center">
+                        <div className="p-4 border-b dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center flex-none">
                             <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">{t('financeiro.negotiation.history_title', 'Histórico de Faturas do Cliente')}</h3>
                             <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-650 bg-indigo-50 font-bold dark:bg-indigo-950/30 dark:text-indigo-350 dark:border-indigo-850">
                                 {clientName}
@@ -254,7 +274,7 @@ export const NegotiationModal = ({
                         </div>
 
                         {/* Contacts Summary */}
-                        <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs flex-none">
                             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                                 <Phone size={14} className="text-indigo-500" />
                                 <span className="font-bold">{t('financeiro.negotiation.phone', 'Telefone:')}</span>
@@ -267,77 +287,131 @@ export const NegotiationModal = ({
                             </div>
                         </div>
 
-                        <ScrollArea className="flex-1 p-4">
-                            <div className="space-y-2">
-                                {clientTitles.map((cTitle) => {
-                                    const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
-                                    const isPaid = cTitle.Status === 'Pago';
-                                    const isNeg = cTitle.Status === 'Negociado';
-                                    const isJud = cTitle.Status === 'Judicial';
-                                    const selectDisabled = isPaid || isNeg;
+                        {/* Status KPIs Row */}
+                        <div className="grid grid-cols-3 gap-3 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
+                            {/* Overdue KPI */}
+                            <div 
+                                onClick={() => setActiveTab('overdue')}
+                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                    activeTab === 'overdue' 
+                                        ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-sm' 
+                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div className="text-[9px] uppercase font-bold tracking-wider text-red-650 dark:text-red-400">{t('financeiro.status.overdue', 'Vencidos')}</div>
+                                <div className="text-sm font-black text-red-700 dark:text-red-450 mt-0.5">{formatCurrency(totalOverdueSum)}</div>
+                                <div className="text-[9px] text-muted-foreground mt-0.5">{overdueTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                            </div>
 
-                                    return (
-                                        <div 
-                                            key={cTitle.id} 
-                                            className={`p-3 rounded-lg border flex items-center justify-between text-xs transition-all ${
-                                                checkedIds.includes(cTitle.id)
-                                                    ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-900 dark:bg-indigo-950/20'
-                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
-                                                {!selectDisabled && (
-                                                    <Checkbox 
-                                                        checked={checkedIds.includes(cTitle.id)} 
-                                                        onCheckedChange={(checked) => {
-                                                            if (checked) {
-                                                                setCheckedIds([...checkedIds, cTitle.id]);
-                                                            } else {
-                                                                setCheckedIds(checkedIds.filter(id => id !== cTitle.id));
-                                                            }
-                                                        }}
-                                                    />
-                                                )}
-                                                <div className="min-w-0">
-                                                    <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                                        <span className="truncate max-w-[140px]">{cTitle.Num_doc}</span>
-                                                        <span className="text-[10px] text-muted-foreground font-mono">({cTitle.Empresa})</span>
+                            {/* Due Soon KPI */}
+                            <div 
+                                onClick={() => setActiveTab('due_soon')}
+                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                    activeTab === 'due_soon' 
+                                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-sm' 
+                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div className="text-[9px] uppercase font-bold tracking-wider text-blue-650 dark:text-blue-400">{t('financeiro.status.due_soon', 'A vencer')}</div>
+                                <div className="text-sm font-black text-blue-700 dark:text-blue-450 mt-0.5">{formatCurrency(totalDueSoonSum)}</div>
+                                <div className="text-[9px] text-muted-foreground mt-0.5">{dueSoonTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                            </div>
+
+                            {/* Paid KPI */}
+                            <div 
+                                onClick={() => setActiveTab('paid')}
+                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                    activeTab === 'paid' 
+                                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm' 
+                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div className="text-[9px] uppercase font-bold tracking-wider text-emerald-650 dark:text-emerald-450">{t('financeiro.status.paid', 'Pagos')}</div>
+                                <div className="text-sm font-black text-emerald-700 dark:text-emerald-500 mt-0.5">{formatCurrency(totalPaidSum)}</div>
+                                <div className="text-[9px] text-muted-foreground mt-0.5">{paidTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                            </div>
+                        </div>
+
+                        <ScrollArea className="flex-1 p-4">
+                            {displayedTitles.length === 0 ? (
+                                <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
+                                    <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
+                                    <p className="text-xs font-semibold">{t('financeiro.negotiation.no_titles_in_category', 'Nenhuma fatura encontrada nesta categoria.')}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {displayedTitles.map((cTitle) => {
+                                        const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
+                                        const isPaid = cTitle.Status === 'Pago';
+                                        const isNeg = cTitle.Status === 'Negociado';
+                                        const isJud = cTitle.Status === 'Judicial';
+                                        const selectDisabled = isPaid || isNeg;
+
+                                        return (
+                                            <div 
+                                                key={cTitle.id} 
+                                                className={`p-3 rounded-lg border flex items-center justify-between text-xs transition-all ${
+                                                    checkedIds.includes(cTitle.id)
+                                                        ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-900 dark:bg-indigo-950/20'
+                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                                                    {!selectDisabled && (
+                                                        <Checkbox 
+                                                            checked={checkedIds.includes(cTitle.id)} 
+                                                            onCheckedChange={(checked) => {
+                                                                if (checked) {
+                                                                    setCheckedIds([...checkedIds, cTitle.id]);
+                                                                } else {
+                                                                    setCheckedIds(checkedIds.filter(id => id !== cTitle.id));
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                                            <span className="truncate max-w-[140px]">{cTitle.Num_doc}</span>
+                                                            <span className="text-[10px] text-muted-foreground font-mono">({cTitle.Empresa})</span>
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                                            <Calendar size={10} />
+                                                            <span>Venc: {cTitle.Dt_venc ? new Date(cTitle.Dt_venc).toLocaleDateString('pt-PT') : 'N/A'}</span>
+                                                            {delay > 0 && !isPaid && !isNeg && (
+                                                                <span className="text-destructive font-semibold">({delay}d atraso)</span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                                                        <Calendar size={10} />
-                                                        <span>Venc: {cTitle.Dt_venc ? new Date(cTitle.Dt_venc).toLocaleDateString('pt-PT') : 'N/A'}</span>
-                                                        {delay > 0 && !isPaid && !isNeg && (
-                                                            <span className="text-destructive font-semibold">({delay}d atraso)</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-4">
+                                                    <div className="text-right">
+                                                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                                                            {formatCurrency(isPaid ? cTitle.Valot_total : cTitle.Saldo_a_pagar)}
+                                                        </div>
+                                                        {!isPaid && cTitle.Valot_total !== cTitle.Saldo_a_pagar && (
+                                                            <div className="text-[9px] text-muted-foreground line-through">{formatCurrency(cTitle.Valot_total)}</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="w-20 text-center">
+                                                        {isPaid ? (
+                                                            <Badge variant="default" className="text-[9px] py-0">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                        ) : isJud ? (
+                                                            <Badge variant="outline" className="border-red-650 text-red-650 bg-red-50 text-[9px] py-0">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
+                                                        ) : isNeg ? (
+                                                            <Badge variant="outline" className="border-indigo-650 text-indigo-650 bg-indigo-50 text-[9px] py-0">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                                        ) : isOverdue(cTitle) ? (
+                                                            <Badge variant="destructive" className="text-[9px] py-0">{t('financeiro.status.overdue', 'Vencido')}</Badge>
+                                                        ) : (
+                                                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] py-0">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <div className="flex items-center gap-4">
-                                                <div className="text-right">
-                                                    <div className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(cTitle.Saldo_a_pagar)}</div>
-                                                    {cTitle.Valot_total !== cTitle.Saldo_a_pagar && (
-                                                        <div className="text-[9px] text-muted-foreground line-through">{formatCurrency(cTitle.Valot_total)}</div>
-                                                    )}
-                                                </div>
-                                                <div className="w-20 text-center">
-                                                    {isPaid ? (
-                                                        <Badge variant="default" className="text-[9px] py-0">{t('financeiro.status.paid', 'Pago')}</Badge>
-                                                    ) : isJud ? (
-                                                        <Badge variant="outline" className="border-red-650 text-red-650 bg-red-50 text-[9px] py-0">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
-                                                    ) : isNeg ? (
-                                                        <Badge variant="outline" className="border-indigo-650 text-indigo-650 bg-indigo-50 text-[9px] py-0">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
-                                                    ) : isOverdue(cTitle) ? (
-                                                        <Badge variant="destructive" className="text-[9px] py-0">{t('financeiro.status.overdue', 'Vencido')}</Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] py-0">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </ScrollArea>
                     </div>
 
