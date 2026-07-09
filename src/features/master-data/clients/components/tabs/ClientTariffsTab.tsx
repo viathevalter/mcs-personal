@@ -57,6 +57,18 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
   // Local state for selected tariffs to allow editing before saving
   const [selectedTariffs, setSelectedTariffs] = useState<{ job_function_id: string; valor_tarifa: number }[]>([]);
 
+  // Multi-select checkbox states
+  const [selectedAvailableIds, setSelectedAvailableIds] = useState<Set<string>>(new Set());
+  const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
+  const [bulkRateAvailable, setBulkRateAvailable] = useState('20.00');
+  const [bulkRateActive, setBulkRateActive] = useState('');
+
+  // Clear checkbox selection when switching sites
+  useEffect(() => {
+    setSelectedAvailableIds(new Set());
+    setSelectedActiveIds(new Set());
+  }, [selectedSiteId]);
+
   // Filter sites for this client
   const sites = useMemo(() => {
     return clientSites.filter(s => s.client_id === clientId && s.status === 'active');
@@ -89,12 +101,74 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [jobFunctions, selectedTariffsMap, searchAvailable]);
 
+  // Available functions selection handlers
+  const handleToggleAvailable = (id: string) => {
+    setSelectedAvailableIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const isAllAvailableSelected = availableFunctions.length > 0 && selectedAvailableIds.size === availableFunctions.length;
+  const handleSelectAllAvailable = () => {
+    if (isAllAvailableSelected) {
+      setSelectedAvailableIds(new Set());
+    } else {
+      setSelectedAvailableIds(new Set(availableFunctions.map(f => f.id)));
+    }
+  };
+
+  // Active tariffs selection handlers
+  const handleToggleActive = (id: string) => {
+    setSelectedActiveIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const isAllActiveSelected = selectedTariffs.length > 0 && selectedActiveIds.size === selectedTariffs.length;
+  const handleSelectAllActive = () => {
+    if (isAllActiveSelected) {
+      setSelectedActiveIds(new Set());
+    } else {
+      setSelectedActiveIds(new Set(selectedTariffs.map(t => t.job_function_id)));
+    }
+  };
+
   // Handle adding function to selected list
   const handleAddFunction = (jfId: string) => {
     setSelectedTariffs(prev => [
       ...prev,
       { job_function_id: jfId, valor_tarifa: 20.00 } // Default fallback rate
     ]);
+  };
+
+  // Bulk add available functions
+  const handleBulkAddAvailable = () => {
+    const rate = parseFloat(bulkRateAvailable) || 20.00;
+    const toAdd = Array.from(selectedAvailableIds).map(id => ({
+      job_function_id: id,
+      valor_tarifa: rate
+    }));
+
+    setSelectedTariffs(prev => {
+      const existingIds = new Set(prev.map(t => t.job_function_id));
+      const filteredToAdd = toAdd.filter(t => !existingIds.has(t.job_function_id));
+      return [...prev, ...filteredToAdd];
+    });
+
+    setSelectedAvailableIds(new Set());
+    toast.success(`${toAdd.length} funções adicionadas localmente!`);
   };
 
   // Handle rate change
@@ -105,11 +179,27 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
     );
   };
 
+  // Bulk update active tariffs locally
+  const handleBulkUpdateActive = () => {
+    if (!bulkRateActive || isNaN(parseFloat(bulkRateActive))) {
+      toast.error('Informe um valor de tarifa válido');
+      return;
+    }
+    const rate = parseFloat(bulkRateActive);
+    setSelectedTariffs(prev =>
+      prev.map(t =>
+        selectedActiveIds.has(t.job_function_id) ? { ...t, valor_tarifa: rate } : t
+      )
+    );
+    setSelectedActiveIds(new Set());
+    setBulkRateActive('');
+    toast.success('Tarifa aplicada localmente às funções selecionadas!');
+  };
+
   // Handle removing function
   const handleRemoveFunction = async (jfId: string) => {
     const siteIdFilter = selectedSiteId === 'global' ? null : selectedSiteId;
     
-    // If it exists in activeTariffs, call delete API
     const existsInDb = activeTariffs.some(
       t => t.job_function_id === jfId && t.client_site_id === siteIdFilter
     );
@@ -124,8 +214,33 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
       }
     }
 
-    // Update local state
     setSelectedTariffs(prev => prev.filter(t => t.job_function_id !== jfId));
+  };
+
+  // Bulk delete active tariffs
+  const handleBulkDeleteActive = async () => {
+    const siteIdFilter = selectedSiteId === 'global' ? null : selectedSiteId;
+    const idsToDelete = Array.from(selectedActiveIds);
+
+    const dbIdsToDelete = idsToDelete.filter(id =>
+      activeTariffs.some(t => t.job_function_id === id && t.client_site_id === siteIdFilter)
+    );
+
+    if (dbIdsToDelete.length > 0) {
+      try {
+        const promises = dbIdsToDelete.map(id =>
+          deleteTariff({ clientSiteId: siteIdFilter, jobFunctionId: id })
+        );
+        await Promise.all(promises);
+      } catch (err: any) {
+        toast.error(err.message || 'Erro ao remover tarifas do banco de dados');
+        return;
+      }
+    }
+
+    setSelectedTariffs(prev => prev.filter(t => !selectedActiveIds.has(t.job_function_id)));
+    setSelectedActiveIds(new Set());
+    toast.success('Funções selecionadas removidas com sucesso!');
   };
 
   // Save all tariffs for this site
@@ -233,7 +348,17 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
           {/* Coluna Esquerda: Funções Disponíveis */}
           <div className="border rounded-xl p-5 bg-slate-50/40 dark:bg-slate-900/10 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider">Funções Disponíveis</h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={isAllAvailableSelected}
+                  onChange={handleSelectAllAvailable}
+                  className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                />
+                <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider cursor-pointer select-none" onClick={handleSelectAllAvailable}>
+                  Selecionar Todos
+                </h3>
+              </div>
               <Badge variant="outline" className="font-mono text-xs">{availableFunctions.length} restantes</Badge>
             </div>
 
@@ -247,16 +372,54 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
               />
             </div>
 
-            <div className="h-[380px] overflow-y-auto pr-1 space-y-3">
+            {/* Bulk Action Bar for Available Functions */}
+            {selectedAvailableIds.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-orange-50/60 border border-orange-100 rounded-lg dark:bg-orange-950/10 dark:border-orange-900/30">
+                <span className="text-xs font-semibold text-orange-800 dark:text-orange-400">
+                  {selectedAvailableIds.size} selecionadas
+                </span>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-xs text-slate-500">Tarifa:</span>
+                  <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24">
+                    <span className="text-xs text-slate-400">€</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.50"
+                      value={bulkRateAvailable}
+                      onChange={e => setBulkRateAvailable(e.target.value)}
+                      className="border-0 shadow-none h-7 pl-1 pr-2 text-right focus-visible:ring-0 text-xs font-bold"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleBulkAddAvailable}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3"
+                  >
+                    Adicionar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="h-[320px] overflow-y-auto pr-1 space-y-3">
               {availableFunctions.length === 0 ? (
-                <div className="text-center text-xs text-muted-foreground pt-12">Nenhuma função encontrada.</div>
+                <div className="text-center text-xs text-muted-foreground pt-12">Nenhuma função disponível para adicionar neste local.</div>
               ) : (
                 availableFunctions.map(jf => (
                   <Card key={jf.id} className="border border-slate-100 hover:border-orange-500/30 hover:shadow-sm transition-all duration-200">
                     <CardContent className="p-3 flex justify-between items-center gap-3">
-                      <div>
-                        <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{jf.name}</div>
-                        <div className="text-xs text-slate-400">Código: {jf.cod_func || 'N/A'}</div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedAvailableIds.has(jf.id)}
+                          onChange={() => handleToggleAvailable(jf.id)}
+                          className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{jf.name}</div>
+                          <div className="text-xs text-slate-400">Código: {jf.cod_func || 'N/A'}</div>
+                        </div>
                       </div>
                       <Button
                         size="icon"
@@ -276,11 +439,61 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
           {/* Coluna Direita: Funções Selecionadas com Inputs */}
           <div className="border border-orange-500/20 rounded-xl p-5 bg-white dark:bg-slate-950 space-y-4 relative">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-sm text-orange-600 uppercase tracking-wider">Funções Selecionadas</h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={isAllActiveSelected}
+                  onChange={handleSelectAllActive}
+                  className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                />
+                <h3 className="font-bold text-sm text-orange-600 uppercase tracking-wider cursor-pointer select-none" onClick={handleSelectAllActive}>
+                  Selecionar Todos
+                </h3>
+              </div>
               <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-400">{selectedTariffs.length} ativas</Badge>
             </div>
 
-            <div className="h-[432px] overflow-y-auto pr-1 space-y-3">
+            {/* Bulk Action Bar for Active Tariffs */}
+            {selectedActiveIds.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-orange-50/60 border border-orange-100 rounded-lg dark:bg-orange-950/10 dark:border-orange-900/30">
+                <span className="text-xs font-semibold text-orange-800 dark:text-orange-400">
+                  {selectedActiveIds.size} selecionadas
+                </span>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-xs text-slate-500">Definir:</span>
+                  <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24">
+                    <span className="text-xs text-slate-400">€</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.50"
+                      value={bulkRateActive}
+                      placeholder="Tarifa..."
+                      onChange={e => setBulkRateActive(e.target.value)}
+                      className="border-0 shadow-none h-7 pl-1 pr-2 text-right focus-visible:ring-0 text-xs font-bold"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleBulkUpdateActive}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3"
+                  >
+                    Aplicar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleBulkDeleteActive}
+                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 font-semibold text-xs h-7 px-2 gap-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="h-[372px] overflow-y-auto pr-1 space-y-3">
               {selectedTariffs.length === 0 ? (
                 <div className="text-center text-xs text-muted-foreground pt-16">
                   Nenhuma função configurada para este local.<br/>
@@ -291,9 +504,17 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
                   const jf = jobFunctions.find(j => j.id === t.job_function_id);
                   return (
                     <div key={t.job_function_id} className="flex items-center justify-between border rounded-lg p-3 bg-slate-50/50 hover:bg-slate-50 transition-all dark:bg-slate-900/30">
-                      <div className="space-y-0.5 shrink-0 max-w-[240px] md:max-w-[320px]">
-                        <div className="font-semibold text-sm truncate text-slate-800 dark:text-slate-200">{jf?.name || 'Função Desconhecida'}</div>
-                        <div className="text-xs text-slate-400 font-mono font-semibold">Cód: {jf?.cod_func || 'N/A'}</div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedActiveIds.has(t.job_function_id)}
+                          onChange={() => handleToggleActive(t.job_function_id)}
+                          className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                        />
+                        <div className="space-y-0.5 shrink-0 max-w-[200px] md:max-w-[280px]">
+                          <div className="font-semibold text-sm truncate text-slate-800 dark:text-slate-200">{jf?.name || 'Função Desconhecida'}</div>
+                          <div className="text-xs text-slate-400 font-mono font-semibold">Cód: {jf?.cod_func || 'N/A'}</div>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3">
