@@ -65,13 +65,17 @@ export function WorkerLoginPage() {
             const cleanDocument = (doc: string) => doc.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
             const normalizedPassportInput = cleanDocument(formData.pasaporte);
 
-            // Normalize name: remove extra spaces, accents, and convert to lowercase
-            const normalizedNameInput = formData.nome
-                .trim()
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/\s+/g, " ");
+            // Normalize name: remove extra spaces, accents, hidden chars and convert to lowercase
+            const cleanName = (name: string) => {
+                return name
+                    .trim()
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^\x20-\x7E]/g, "")
+                    .replace(/\s+/g, " ");
+            };
+            const normalizedNameInput = cleanName(formData.nome);
 
             const validProfiles: any[] = [];
             data?.forEach(d => {
@@ -86,12 +90,7 @@ export function WorkerLoginPage() {
                     dbNie === normalizedPassportInput ||
                     dbNif === normalizedPassportInput;
 
-                const dbName = (d.nome || '')
-                    .trim()
-                    .toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/\s+/g, " ");
+                const dbName = cleanName(d.nome || '');
 
                 if (hasMatchingDocument && (dbName.includes(normalizedNameInput) || normalizedNameInput.includes(dbName))) {
                     const contracts = (d as any).contracts || [];
