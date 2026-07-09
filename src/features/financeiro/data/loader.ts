@@ -291,6 +291,7 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
       valot_total: data.Valot_total?.toString() || null,
       saldo_a_pagar: data.Saldo_a_pagar?.toString() || null,
       status: data.Status || 'A vencer',
+      integral_parcial: data.Integral_parcial || 'Integral',
       categoria_id: data.categoria_id || null,
       departamento_id: data.departamento_id || null,
       obra_id: data.obra_id || null,

@@ -78,7 +78,7 @@ export const Cobranca = () => {
     const [tempEndDateAlteracao, setTempEndDateAlteracao] = useState(endDateAlteracao);
 
     const [showFilters, setShowFilters] = useState(false);
-    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'judicial'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'judicial' | 'negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
 
     // Modals
     const [isReceberOpen, setIsReceberOpen] = useState(false);
@@ -551,6 +551,10 @@ export const Cobranca = () => {
         judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         judicialCount: kpiData.filter(i => i.Status === 'Judicial').length,
 
+        negociadoVal: kpiData.filter(i => i.Status === 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        negociadoCount: kpiData.filter(i => i.Status === 'Negociado').length,
+        negociadoClientsCount: new Set(kpiData.filter(i => i.Status === 'Negociado').map(i => i.CodCliente || i.Cliente)).size,
+
         totalVal: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         totalCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').length,
     };
@@ -560,6 +564,7 @@ export const Cobranca = () => {
         if (activeTab === 'atraso' && !isOverdue(item)) return false;
         if (activeTab === 'alerta' && !isDueSoon(item)) return false;
         if (activeTab === 'judicial' && item.Status !== 'Judicial') return false;
+        if (activeTab === 'negociado' && item.Status !== 'Negociado') return false;
         return true;
     });
 
@@ -686,7 +691,7 @@ export const Cobranca = () => {
                 </div>
 
                 {/* KPI Premium Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
                     <Card 
                         className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'atraso' ? 'border-l-destructive bg-destructive/5 dark:bg-destructive/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
                         onClick={() => setActiveTab('atraso')}
@@ -723,6 +728,21 @@ export const Cobranca = () => {
                         <CardContent>
                             <div className="text-3xl font-extrabold text-red-800">{formatCurrency(kpis.judicialVal)}</div>
                             <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos ativos')}</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card 
+                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'negociado' ? 'border-l-indigo-650 bg-indigo-50/10 dark:bg-indigo-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        onClick={() => setActiveTab('negociado')}
+                    >
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-wider">{t('financeiro.kpis.title_negotiated', 'Negociados')}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-extrabold text-indigo-650 dark:text-indigo-400">{formatCurrency(kpis.negociadoVal)}</div>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium">
+                                {kpis.negociadoCount} {kpis.negociadoCount === 1 ? t('financeiro.kpis.title_singular', 'fatura') : t('financeiro.kpis.titles_plural', 'faturas')} ({kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? t('financeiro.kpis.client_singular', 'cliente') : t('financeiro.kpis.clients_plural', 'clientes')})
+                            </p>
                         </CardContent>
                     </Card>
 
@@ -1129,7 +1149,7 @@ export const Cobranca = () => {
                         <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-brand-primary" />
                             <CardTitle className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos')}
+                                {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : activeTab === 'judicial' ? t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos') : t('financeiro.table.negotiated_portfolio', 'Carteira de Acordos / Negociados')}
                             </CardTitle>
                             <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
                                 {filteredData.length}
@@ -1155,6 +1175,12 @@ export const Cobranca = () => {
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_judicial', 'Jurídico')} ({kpis.judicialCount})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('negociado')}
+                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'negociado' ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {t('financeiro.kpis.tab_negotiated', 'Negociados')} ({kpis.negociadoCount})
                             </button>
                         </div>
                     </div>
@@ -1206,7 +1232,7 @@ export const Cobranca = () => {
                                             <TableCell>{formatDate(item.Data_emissao)}</TableCell>
                                             <TableCell>
                                                 <div className="font-medium">{formatDate(item.Dt_venc)}</div>
-                                                {activeTab === 'atraso' && delayDays > 0 && (
+                                                {(activeTab === 'atraso' || activeTab === 'negociado') && delayDays > 0 && (
                                                     <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
                                                         ({delayDays} {delayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
                                                     </span>
@@ -1219,7 +1245,7 @@ export const Cobranca = () => {
                                             <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                 {item.Status === 'Pago' ? (
                                                      <Badge variant="default">{t('financeiro.status.paid', 'Pago')}</Badge>
-                                                 ) : (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0))) ? (
+                                                 ) : (item.Status === 'Negociado' || (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0)))) ? (
                                                      <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
                                                  ) : (
                                                      <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
@@ -1254,6 +1280,8 @@ export const Cobranca = () => {
                                                              </TooltipContent>
                                                          </Tooltip>
                                                      </TooltipProvider>
+                                                 ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
+                                                     <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
                                                  ) : (
                                                      <span className="text-muted-foreground">-</span>
                                                  )}

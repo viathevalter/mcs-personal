@@ -226,6 +226,7 @@ export const NegotiationModal = ({
                         Valot_total: inst.value,
                         Saldo_a_pagar: inst.value,
                         Status: 'A vencer',
+                        Integral_parcial: 'Negociado',
                         categoria_id: firstDoc.categoria_id || null,
                         departamento_id: firstDoc.departamento_id || null,
                         obra_id: firstDoc.obra_id || null,

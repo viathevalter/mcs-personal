@@ -442,7 +442,8 @@ export const Cobros = () => {
     };
 
     const getOverdueStatus = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Negociado') return false;
+        if (item.Status === 'Pago') return false;
+        if (item.Status === 'Negociado') return true;
         return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
     };
 
@@ -1268,7 +1269,7 @@ export const Cobros = () => {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger className="cursor-help">
-                                                            <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
+                                                            <Badge variant="outline" className="border-red-600 text-red-650 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
                                                         </TooltipTrigger>
                                                         <TooltipContent className="bg-white dark:bg-slate-900 border shadow-xl p-3 text-slate-800 dark:text-slate-100 text-xs max-w-[250px]">
                                                             <p className="font-semibold text-red-600 border-b pb-1 mb-1.5">{t('financeiro.tooltip.judicial_collection', 'Cobrança Jurídica:')}</p>
@@ -1276,6 +1277,8 @@ export const Cobros = () => {
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
+                                            ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
+                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
                                             )}
