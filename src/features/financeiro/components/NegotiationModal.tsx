@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText } from 'lucide-react';
+import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake } from 'lucide-react';
 import { updateContaReceber, createContaReceber, saveObservacao } from '../data/loader';
 import { formatCurrency, formatDate } from '../lib/utils';
 import type { EnrichedTitulo } from '../types';
