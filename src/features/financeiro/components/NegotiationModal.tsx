@@ -71,12 +71,48 @@ export const NegotiationModal = ({
             } else {
                 setActiveTab('due_soon');
             }
+
+            // Reset discount inputs
+            setDiscount(0);
+            setInputPercent('0');
+            setInputValue('0');
         }
     }, [isOpen, titulo]);
 
     // Negotiation options states
     const [classification, setClassification] = useState<'friendly' | 'legal'>('friendly');
     const [discount, setDiscount] = useState<number>(0);
+    const [inputPercent, setInputPercent] = useState<string>('0');
+    const [inputValue, setInputValue] = useState<string>('0');
+
+    // Recalculate discount value when selected titles change
+    useEffect(() => {
+        const pct = parseFloat(inputPercent) || 0;
+        const amt = originalTotal * (pct / 100);
+        setInputValue(amt === 0 ? '0' : amt.toFixed(2));
+    }, [originalTotal]);
+
+    const handlePercentInputChange = (val: string) => {
+        setInputPercent(val);
+        const pct = Math.min(100, Math.max(0, parseFloat(val) || 0));
+        setDiscount(pct);
+        const amt = originalTotal * (pct / 100);
+        setInputValue(amt === 0 ? '' : amt.toFixed(2));
+    };
+
+    const handleValueInputChange = (val: string) => {
+        setInputValue(val);
+        const amt = Math.min(originalTotal, Math.max(0, parseFloat(val) || 0));
+        if (originalTotal > 0) {
+            const pct = (amt / originalTotal) * 100;
+            setDiscount(pct);
+            setInputPercent(pct === 0 ? '' : pct.toFixed(2));
+        } else {
+            setDiscount(0);
+            setInputPercent('0');
+        }
+    };
+
     const [paymentType, setPaymentType] = useState<'single' | 'installments'>('single');
     
     // Date formats (yyyy-MM-dd)
@@ -450,23 +486,44 @@ export const NegotiationModal = ({
 
                         {classification === 'friendly' ? (
                             <>
-                                {/* Discount Input */}
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-muted-foreground uppercase flex justify-between">
-                                        <span>{t('financeiro.negotiation.discount_label', 'Conceder Desconto (%)')}</span>
-                                        {discount > 0 && <span className="text-green-600 font-bold">-{formatCurrency(discountAmount)}</span>}
-                                    </Label>
-                                    <div className="relative">
-                                        <Percent size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
-                                        <Input 
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            value={discount === 0 ? '' : discount}
-                                            onChange={(e) => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
-                                            placeholder="Ex: 10%"
-                                            className="pl-8 text-xs font-semibold"
-                                        />
+                                {/* Discount Inputs Grid */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            {t('financeiro.negotiation.discount_percent', 'Desconto (%)')}
+                                        </Label>
+                                        <div className="relative">
+                                            <Percent size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
+                                            <Input 
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.01"
+                                                value={inputPercent === '0' ? '' : inputPercent}
+                                                onChange={(e) => handlePercentInputChange(e.target.value)}
+                                                placeholder="Ex: 10%"
+                                                className="pl-8 text-xs font-semibold"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            {t('financeiro.negotiation.discount_value', 'Desconto (Valor €)')}
+                                        </Label>
+                                        <div className="relative">
+                                            <span className="absolute left-2.5 top-2 text-xs font-bold text-muted-foreground">€</span>
+                                            <Input 
+                                                type="number"
+                                                min="0"
+                                                max={originalTotal}
+                                                step="0.01"
+                                                value={inputValue === '0' ? '' : inputValue}
+                                                onChange={(e) => handleValueInputChange(e.target.value)}
+                                                placeholder="Ex: 500"
+                                                className="pl-6 text-xs font-semibold"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
