@@ -13,6 +13,7 @@ import type { EnrichedTitulo } from '../types';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
+import { BurofaxPreviewModal } from './BurofaxPreviewModal';
 
 export interface NegotiationModalProps {
     isOpen: boolean;
@@ -54,6 +55,7 @@ export const NegotiationModal = ({
     const totalOverdueSum = overdueTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
     const totalDueSoonSum = dueSoonTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
 
+    const [isBurofaxOpen, setIsBurofaxOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid' | 'simulations'>('overdue');
 
     // Checked titles for negotiation (default to the clicked title if not paid)
@@ -385,13 +387,13 @@ export const NegotiationModal = ({
 
                 // Log history on each original title
                 const obsDesc = classification === 'legal'
-                    ? `Título encaminhado para cobrança jurídica/judicial via assessoria de advocacia.`
+                    ? `Título encaminhado para o departamento Jurídico (Monitorio). Gerado e impresso o requerimento formal de pagamento (Burofax / MASC) em conformidade com a Ley 3/2004 de combate à inadimplência comercial em Espanha.`
                     : `Título quitado/retirado por acordo de negociação amigável. Integrado no parcelamento global de títulos.`;
 
                 await saveObservacao({
                     conta_receber_id: tItem.id,
                     usuario: currentUser,
-                    tipo: classification === 'legal' ? 'Acordo Judicial' : 'Acordo Amigável',
+                    tipo: classification === 'legal' ? 'Acordo Judicial (MASC)' : 'Acordo Amigável',
                     descricao: obsDesc,
                     data: new Date().toISOString()
                 });
@@ -426,8 +428,12 @@ export const NegotiationModal = ({
                 }
             }
 
-            toast.success(t('financeiro.negotiation.success_saved', 'Acordo de negociação concluído e registrado com sucesso!'));
+            toast.success(classification === 'legal'
+                ? t('financeiro.negotiation.success_saved_legal', 'Acordo Judicial registrado e Burofax emitido!')
+                : t('financeiro.negotiation.success_saved', 'Acordo de negociação concluído e registrado com sucesso!')
+            );
             onRefresh();
+            setIsBurofaxOpen(false);
             onClose();
         } catch (err: any) {
             console.error(err);
@@ -447,8 +453,9 @@ export const NegotiationModal = ({
                 : [];
 
     return (
-        <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-            <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-6 dark:bg-slate-900 dark:border-slate-800">
+        <>
+            <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
+                <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-6 dark:bg-slate-900 dark:border-slate-800">
                 <DialogHeader className="flex-none">
                     <div className="flex items-center gap-2 text-indigo-650 dark:text-indigo-400">
                         <Handshake size={24} />
@@ -919,7 +926,7 @@ export const NegotiationModal = ({
                         <Clock size={14} /> {isSavingSimulation ? 'Salvando...' : t('financeiro.negotiation.btn_save_simulation', 'Salvar Simulação')}
                     </Button>
                     <Button 
-                        onClick={handleSaveAgreement} 
+                        onClick={classification === 'legal' ? () => setIsBurofaxOpen(true) : handleSaveAgreement} 
                         disabled={isSaving || selectedTitles.length === 0}
                         className={`text-xs gap-1.5 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : 'bg-primary text-white hover:bg-primary/95'}`}
                     >
@@ -927,7 +934,7 @@ export const NegotiationModal = ({
                             t('financeiro.negotiation.btn_saving', 'Processando...')
                         ) : classification === 'legal' ? (
                             <>
-                                <Scale size={14} /> {t('financeiro.negotiation.btn_confirm_legal', 'Confirmar Judicial')}
+                                <Scale size={14} /> {t('financeiro.negotiation.btn_confirm_legal', 'Confirmar e Gerar Burofax')}
                             </>
                         ) : (
                             <>
@@ -938,5 +945,17 @@ export const NegotiationModal = ({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        {isBurofaxOpen && (
+            <BurofaxPreviewModal
+                isOpen={isBurofaxOpen}
+                onClose={() => setIsBurofaxOpen(false)}
+                selectedTitles={selectedTitles}
+                originalTotal={originalTotal}
+                onConfirmLegal={handleSaveAgreement}
+                isConfirming={isSaving}
+            />
+        )}
+        </>
     );
 };
