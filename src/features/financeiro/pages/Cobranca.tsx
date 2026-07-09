@@ -223,8 +223,9 @@ export const Cobranca = () => {
             }));
 
             setData(enrichedWithObs);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error("Error loading data:", err);
+            toast.error("Erro ao carregar dados: " + (err.message || String(err)));
         } finally {
             setIsLoading(false);
         }
