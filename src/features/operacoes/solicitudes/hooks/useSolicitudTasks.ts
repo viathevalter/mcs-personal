@@ -23,11 +23,17 @@ export function useSolicitudTasks(solicitudId: string | undefined) {
         .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('Supabase error in useSolicitudTasks:', error);
-        throw error;
-      }
-      return data as SolicitudTareaDetail[];
+      const parentTaskIds = [...new Set((data || []).map((t: any) => t.blocked_by_task_id).filter(Boolean))];
+      const { data: parentTasks } = parentTaskIds.length > 0
+        ? await supabase.schema('core_operacoes').from('solicitud_tareas').select('id, title').in('id', parentTaskIds)
+        : { data: [] };
+      const parentTasksMap = new Map(parentTasks?.map(pt => [pt.id, pt]) || []);
+
+      const mapped = (data || []).map((t: any) => ({
+        ...t,
+        blocked_by_task: t.blocked_by_task_id ? parentTasksMap.get(t.blocked_by_task_id) || null : null
+      }));
+      return mapped as SolicitudTareaDetail[];
     },
     enabled: !!selectedEmpresaId && !!solicitudId,
   });

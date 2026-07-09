@@ -726,14 +726,24 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
     // 1. Resolve fatura IDs belonging to the company if empresaId is provided
     let faturaIdsFiltered: string[] = [];
     if (empresaId) {
-      // Get all workers of this company
-      const { data: companyWorkers } = await supabase
+      // Get workers from contracts
+      const { data: contractsData } = await supabase
         .schema('core_personal')
-        .from('workers')
-        .select('id')
+        .from('contracts')
+        .select('worker_id')
         .eq('empresa_id', empresaId);
-      
-      const workerIds = (companyWorkers || []).map(w => w.id).filter(Boolean);
+
+      // Get workers from assignments
+      const { data: assignmentsData } = await supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select('worker_id')
+        .eq('empresa_id', empresaId);
+
+      const workerIds = Array.from(new Set([
+        ...(contractsData || []).map(c => c.worker_id),
+        ...(assignmentsData || []).map(a => a.worker_id)
+      ])).filter(Boolean) as string[];
       if (workerIds.length === 0) return [];
 
       // Get all unique fatura_ids referenced in horas_trabalhadas for these workers

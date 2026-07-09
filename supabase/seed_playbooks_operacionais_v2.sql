@@ -105,11 +105,10 @@ BEGIN
     VALUES
         (v_empresa_id, v_pb_new_order, v_dep_comercial, 'NO_COM_01', 'Validar condições finais do pedido', 10, true, false, 1, 'active'),
         (v_empresa_id, v_pb_new_order, v_dep_rh,        'NO_RH_01',  'Selecionar trabalhadores para as vagas', 20, true, true,  3, 'active'),
-        (v_empresa_id, v_pb_new_order, v_dep_doc,       'NO_DOC_01', 'Preparar documentação de contratação', 30, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_new_order, v_dep_cont,      'NO_CON_01', 'Emitir contratos dos trabalhadores',   40, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_new_order, v_dep_log,       'NO_LOG_01', 'Preparar alojamento/transporte/EPIs',  50, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_new_order, v_dep_fin,       'NO_FIN_01', 'Registrar previsão de faturamento',    60, true, false, 1, 'active'),
-        (v_empresa_id, v_pb_new_order, v_dep_op,        'NO_OPE_01', 'Confirmar início na obra',             70, true, false, 1, 'active')
+        (v_empresa_id, v_pb_new_order, v_dep_doc,       'NO_DOC_01', 'Preparar documentação e emitir contratos', 30, true, true,  2, 'active'),
+        (v_empresa_id, v_pb_new_order, v_dep_log,       'NO_LOG_01', 'Preparar alojamento/transporte/EPIs',  40, true, true,  2, 'active'),
+        (v_empresa_id, v_pb_new_order, v_dep_fin,       'NO_FIN_01', 'Registrar previsão de faturamento',    50, true, false, 1, 'active'),
+        (v_empresa_id, v_pb_new_order, v_dep_op,        'NO_OPE_01', 'Confirmar início na obra',             60, true, false, 1, 'active')
     ON CONFLICT (playbook_id, code) DO UPDATE SET 
         title = EXCLUDED.title, department_id = EXCLUDED.department_id, sort_order = EXCLUDED.sort_order,
         priority = EXCLUDED.priority, default_due_days = EXCLUDED.default_due_days, required = EXCLUDED.required,
@@ -146,11 +145,10 @@ BEGIN
     VALUES
         (v_empresa_id, v_pb_replacement, v_dep_comercial, 'REP_COM_01', 'Registrar motivo e comunicar cliente',      10, true, false, 1, 'active'),
         (v_empresa_id, v_pb_replacement, v_dep_rh,        'REP_RH_01',  'Selecionar trabalhador substituto',         20, true, true,  3, 'active'),
-        (v_empresa_id, v_pb_replacement, v_dep_doc,       'REP_DOC_01', 'Preparar ajuste documental',                30, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_replacement, v_dep_cont,      'REP_CON_01', 'Emitir contrato/aditivo do substituto',     40, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_replacement, v_dep_log,       'REP_LOG_01', 'Ajustar alojamento/transporte/EPIs',        50, true, true,  2, 'active'),
-        (v_empresa_id, v_pb_replacement, v_dep_op,        'REP_OPE_01', 'Confirmar troca na obra',                   60, true, true,  1, 'active'),
-        (v_empresa_id, v_pb_replacement, v_dep_rh,        'REP_RH_02',  'Encerrar assignment antigo e criar novo',   70, true, false, 1, 'active')
+        (v_empresa_id, v_pb_replacement, v_dep_doc,       'REP_DOC_01', 'Preparar documentação e emitir contrato do substituto', 30, true, true,  2, 'active'),
+        (v_empresa_id, v_pb_replacement, v_dep_log,       'REP_LOG_01', 'Ajustar alojamento/transporte/EPIs',        40, true, true,  2, 'active'),
+        (v_empresa_id, v_pb_replacement, v_dep_op,        'REP_OPE_01', 'Confirmar troca na obra',                   50, true, true,  1, 'active'),
+        (v_empresa_id, v_pb_replacement, v_dep_rh,        'REP_RH_02',  'Encerrar assignment antigo e criar novo',   60, true, false, 1, 'active')
     ON CONFLICT (playbook_id, code) DO UPDATE SET 
         title = EXCLUDED.title, department_id = EXCLUDED.department_id, sort_order = EXCLUDED.sort_order,
         priority = EXCLUDED.priority, default_due_days = EXCLUDED.default_due_days, required = EXCLUDED.required,
@@ -210,7 +208,7 @@ BEGIN
 
     -- 5.1. NEW ORDER
     UPDATE core_operacoes.playbook_steps s SET depends_on_step_id = p.id FROM core_operacoes.playbook_steps p
-    WHERE s.playbook_id = v_pb_new_order AND s.code IN ('NO_DOC_01', 'NO_CON_01', 'NO_LOG_01', 'NO_OPE_01') AND p.playbook_id = v_pb_new_order AND p.code = 'NO_RH_01';
+    WHERE s.playbook_id = v_pb_new_order AND s.code IN ('NO_DOC_01', 'NO_LOG_01', 'NO_OPE_01') AND p.playbook_id = v_pb_new_order AND p.code = 'NO_RH_01';
 
     -- 5.2. TECHNICAL TEST
     UPDATE core_operacoes.playbook_steps s SET depends_on_step_id = p.id FROM core_operacoes.playbook_steps p
@@ -237,7 +235,7 @@ BEGIN
 
     -- 5.4. REPLACEMENT
     UPDATE core_operacoes.playbook_steps s SET depends_on_step_id = p.id FROM core_operacoes.playbook_steps p
-    WHERE s.playbook_id = v_pb_replacement AND s.code IN ('REP_DOC_01', 'REP_CON_01', 'REP_LOG_01', 'REP_OPE_01') AND p.playbook_id = v_pb_replacement AND p.code = 'REP_RH_01';
+    WHERE s.playbook_id = v_pb_replacement AND s.code IN ('REP_DOC_01', 'REP_LOG_01', 'REP_OPE_01') AND p.playbook_id = v_pb_replacement AND p.code = 'REP_RH_01';
 
     UPDATE core_operacoes.playbook_steps s SET depends_on_step_id = p.id FROM core_operacoes.playbook_steps p
     WHERE s.playbook_id = v_pb_replacement AND s.code = 'REP_RH_02' AND p.playbook_id = v_pb_replacement AND p.code = 'REP_OPE_01';

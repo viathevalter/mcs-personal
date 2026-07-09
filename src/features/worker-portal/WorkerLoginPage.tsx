@@ -44,12 +44,16 @@ export function WorkerLoginPage() {
         try {
             setLoading(true);
 
-            // Search in the database for the worker by passport first
-            // @ts-ignore - Supabase types might mark schema as protected depending on the generatord version
+            // Search in the database for the worker by passport, DNI, NIE or NIF using clean alphanumeric prefix
+            const docInputClean = formData.pasaporte.trim().replace(/[^a-zA-Z0-9]/g, '');
+            const docPrefix = docInputClean.substring(0, Math.min(docInputClean.length, 5));
+            const docFilter = `${docPrefix}%`;
+
+            // @ts-ignore - Supabase types might mark schema as protected depending on the generator version
             const query = supabase.schema('core_personal').from('workers');
             const { data, error } = await query
-                .select('id, cod_colab, nome, pasaporte, status_trabajador, contracts(empresa_id)')
-                .ilike('pasaporte', `${formData.pasaporte.trim()}%`);
+                .select('id, cod_colab, nome, pasaporte, dni, nie, nif, status_trabajador, contracts(empresa_id)')
+                .or(`pasaporte.ilike.${docFilter},dni.ilike.${docFilter},nie.ilike.${docFilter},nif.ilike.${docFilter}`);
 
             if (error || !data || data.length === 0) {
                 console.error('Login error:', error);
@@ -57,8 +61,9 @@ export function WorkerLoginPage() {
                 return;
             }
 
-            // Verify locally that the trimmed passport exactly matches, ignoring case
-            const normalizedPassportInput = formData.pasaporte.trim().toLowerCase();
+            // Verify locally using cleaned alphanumeric strings to avoid formatting differences
+            const cleanDocument = (doc: string) => doc.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const normalizedPassportInput = cleanDocument(formData.pasaporte);
 
             // Normalize name: remove extra spaces, accents, and convert to lowercase
             const normalizedNameInput = formData.nome
@@ -70,7 +75,17 @@ export function WorkerLoginPage() {
 
             const validProfiles: any[] = [];
             data?.forEach(d => {
-                const dbPassport = (d.pasaporte || '').trim().toLowerCase();
+                const dbPassport = cleanDocument(d.pasaporte || '');
+                const dbDni = cleanDocument(d.dni || '');
+                const dbNie = cleanDocument(d.nie || '');
+                const dbNif = cleanDocument(d.nif || '');
+
+                const hasMatchingDocument = 
+                    dbPassport === normalizedPassportInput ||
+                    dbDni === normalizedPassportInput ||
+                    dbNie === normalizedPassportInput ||
+                    dbNif === normalizedPassportInput;
+
                 const dbName = (d.nome || '')
                     .trim()
                     .toLowerCase()
@@ -78,7 +93,7 @@ export function WorkerLoginPage() {
                     .replace(/[\u0300-\u036f]/g, "")
                     .replace(/\s+/g, " ");
 
-                if (dbPassport === normalizedPassportInput && dbName.includes(normalizedNameInput)) {
+                if (hasMatchingDocument && (dbName.includes(normalizedNameInput) || normalizedNameInput.includes(dbName))) {
                     const contracts = (d as any).contracts || [];
                     if (contracts.length > 0) {
                         contracts.forEach((c: any) => {
@@ -86,7 +101,7 @@ export function WorkerLoginPage() {
                                 id: d.id,
                                 cod_colab: d.cod_colab,
                                 nome: d.nome,
-                                pasaporte: d.pasaporte,
+                                pasaporte: d.pasaporte || d.dni || d.nie || d.nif,
                                 status_trabajador: d.status_trabajador,
                                 empresa_id: c.empresa_id
                             });
@@ -96,7 +111,7 @@ export function WorkerLoginPage() {
                             id: d.id,
                             cod_colab: d.cod_colab,
                             nome: d.nome,
-                            pasaporte: d.pasaporte,
+                            pasaporte: d.pasaporte || d.dni || d.nie || d.nif,
                             status_trabajador: d.status_trabajador,
                             empresa_id: null
                         });
@@ -164,6 +179,8 @@ export function WorkerLoginPage() {
                                     value={formData.nome}
                                     onChange={handleChange}
                                     required
+                                    autoComplete="name"
+                                    autoCapitalize="words"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -176,6 +193,10 @@ export function WorkerLoginPage() {
                                     value={formData.pasaporte}
                                     onChange={handleChange}
                                     required
+                                    autoComplete="off"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
                                 />
                             </div>
                         </CardContent>

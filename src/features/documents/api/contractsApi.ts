@@ -116,6 +116,7 @@ export interface GenerateContractPayload {
     assignment_id?: string;
     contratante: string;
     contract_type: string;
+    empresa_id?: string;
 }
 
 export interface GenerateContractResponse {

@@ -56,25 +56,31 @@ export function useDepartmentTasks(departmentCodes: string[]) {
       const tasks = (data || []) as any[];
       const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id).filter(Boolean))];
       const clientIds = [...new Set(tasks.map(t => t.solicitud?.client_id).filter(Boolean))];
-
-      const [empresasRes, clientsRes] = await Promise.all([
+      const parentTaskIds = [...new Set(tasks.map(t => t.blocked_by_task_id).filter(Boolean))];
+      const [empresasRes, clientsRes, parentTasksRes] = await Promise.all([
         empresaIds.length > 0
           ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
           : Promise.resolve({ data: [] }),
         clientIds.length > 0
           ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
+          : Promise.resolve({ data: [] }),
+        parentTaskIds.length > 0
+          ? supabase.schema('core_operacoes').from('solicitud_tareas').select('id, title').in('id', parentTaskIds)
           : Promise.resolve({ data: [] })
       ]);
 
       const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
       const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
+      const parentTasksMap = new Map(parentTasksRes.data?.map(pt => [pt.id, pt]) || []);
 
       const mappedTasks = tasks.map(t => {
-        if (!t.solicitud) return t;
+        const parentTask = t.blocked_by_task_id ? parentTasksMap.get(t.blocked_by_task_id) : null;
+        if (!t.solicitud) return { ...t, blocked_by_task: parentTask || null };
         const emp = empresasMap.get(t.solicitud.empresa_id);
         const cli = clientsMap.get(t.solicitud.client_id);
         return {
           ...t,
+          blocked_by_task: parentTask || null,
           solicitud: {
             ...t.solicitud,
             empresa: emp ? { id: emp.id, name: emp.nome } : null,

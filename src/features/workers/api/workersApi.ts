@@ -204,7 +204,30 @@ export async function getWorker(id: string): Promise<Worker | null> {
         throw mapSupabaseError(error);
     }
 
-    return data as Worker;
+    // Resolve empresa_id from contracts or assignments
+    const { data: contractData } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .select('empresa_id')
+        .eq('worker_id', id)
+        .limit(1);
+
+    let empresaId = contractData?.[0]?.empresa_id || null;
+
+    if (!empresaId) {
+        const { data: assignmentData } = await supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .select('empresa_id')
+            .eq('worker_id', id)
+            .limit(1);
+        empresaId = assignmentData?.[0]?.empresa_id || null;
+    }
+
+    return {
+        ...(data as Worker),
+        empresa_id: empresaId
+    };
 }
 
 export async function upsertWorker(payload: Partial<Worker>): Promise<Worker> {

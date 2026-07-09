@@ -22,13 +22,40 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { worker_id, assignment_id, contratante, contract_type } = await req.json();
+    let { worker_id, assignment_id, contratante, contract_type, empresa_id } = await req.json();
 
     if (!worker_id || !contratante || !contract_type) {
       return new Response(
         JSON.stringify({ error: "Parâmetros worker_id, contratante e contract_type são obrigatórios." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Resolve empresa_id
+    if (!empresa_id) {
+      if (assignment_id) {
+        const { data: wa } = await supabase
+          .schema("core_personal")
+          .from("worker_assignments")
+          .select("empresa_id")
+          .eq("id", assignment_id)
+          .maybeSingle();
+        if (wa) empresa_id = wa.empresa_id;
+      }
+      
+      if (!empresa_id) {
+        // Fallback mapping based on contratante name
+        const upperContr = contratante.toUpperCase();
+        if (upperContr.includes("STOCCO")) {
+          empresa_id = "441f1f5d-aed3-40e3-8c77-7b1217757251";
+        } else if (upperContr.includes("WISEOWE")) {
+          empresa_id = "dae64d51-2181-4510-b14f-e63d2f111a8e";
+        } else if (upperContr.includes("LUMINOUS")) {
+          empresa_id = "847796c4-b253-4e53-9e6b-34a127ec7d85";
+        } else if (upperContr.includes("TRIANGULO") || upperContr.includes("TRI - TRIANGULO")) {
+          empresa_id = "a798620a-358a-4c6c-9db2-3a507c583cac";
+        }
+      }
     }
 
     // 1. Buscar informações do trabalhador
@@ -342,7 +369,7 @@ serve(async (req) => {
 
     // Inserir registro na tabela de contratos
     const contractPayload = {
-      empresa_id: worker.empresa_id,
+      empresa_id: empresa_id || worker.empresa_id,
       worker_id: worker.id,
       assignment_id: assignment_id || null,
       contratante,

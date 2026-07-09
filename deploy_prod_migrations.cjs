@@ -99,7 +99,12 @@ const migrationsToRun = [
   '20260705120000_order_extension_and_termination.sql',
   '20260705130000_order_postponement_and_notifications.sql',
   '20260708130000_update_pedidos_on_solicitud_completion.sql',
-  '20260708140000_auto_complete_date_change_solicitudes.sql'
+  '20260708140000_auto_complete_date_change_solicitudes.sql',
+  '20260708150000_update_aprovar_estimacion_dates.sql',
+  '20260708160000_unify_sequential_codes.sql',
+  '20260708170000_fix_alocar_trabalhador_rpc_for_global_workers.sql',
+  '20260709160000_fix_get_global_movement_history.sql',
+  '20260709170000_fix_salary_report_workers_empresa_id.sql'
 ];
 
 async function run() {

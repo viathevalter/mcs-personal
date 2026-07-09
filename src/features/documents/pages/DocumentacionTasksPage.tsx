@@ -644,6 +644,7 @@ Equipo de Contratación`;
                 worker_id: selectedWorkerId,
                 contratante: selectedContratante,
                 contract_type: selectedContractType,
+                empresa_id: selectedEmpresaId || undefined,
             });
 
             setGenerationSuccess({
