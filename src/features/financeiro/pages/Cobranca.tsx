@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -566,6 +566,87 @@ export const Cobranca = () => {
         filterPeriodoAlteracao !== 'all'
     ].filter(Boolean).length;
 
+    // Sorting States
+    const [sortField, setSortField] = useState<string>(() => sessionStorage.getItem('cobranca_sortField') || 'Dt_venc');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => (sessionStorage.getItem('cobranca_sortDirection') as 'asc' | 'desc') || 'desc');
+
+    useEffect(() => {
+        sessionStorage.setItem('cobranca_sortField', sortField);
+    }, [sortField]);
+
+    useEffect(() => {
+        sessionStorage.setItem('cobranca_sortDirection', sortDirection);
+    }, [sortDirection]);
+
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    const sortedData = [...filteredData].sort((a, b) => {
+        let valA: any = a[sortField as keyof EnrichedTitulo];
+        let valB: any = b[sortField as keyof EnrichedTitulo];
+
+        // Special handling for calculated properties
+        if (sortField === 'Saldo_a_pagar') {
+            valA = a.Saldo_a_pagar;
+            valB = b.Saldo_a_pagar;
+        }
+
+        // Keep null/undefined at the bottom
+        if (valA === undefined || valA === null) return sortDirection === 'asc' ? 1 : -1;
+        if (valB === undefined || valB === null) return sortDirection === 'asc' ? -1 : 1;
+
+        // String collation
+        if (typeof valA === 'string' && typeof valB === 'string') {
+            return sortDirection === 'asc' 
+                ? valA.localeCompare(valB) 
+                : valB.localeCompare(valA);
+        }
+
+        // Date sorting for fields containing dates (both strings and objects)
+        if (sortField === 'Dt_venc' || sortField === 'Data_emissao') {
+            const timeA = new Date(valA).getTime();
+            const timeB = new Date(valB).getTime();
+            // Handle invalid dates
+            const isAValid = !isNaN(timeA);
+            const isBValid = !isNaN(timeB);
+            if (!isAValid && !isBValid) return 0;
+            if (!isAValid) return sortDirection === 'asc' ? 1 : -1;
+            if (!isBValid) return sortDirection === 'asc' ? -1 : 1;
+            return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+        }
+
+        // Numeric or default fallback
+        return sortDirection === 'asc'
+            ? (valA < valB ? -1 : valA > valB ? 1 : 0)
+            : (valA > valB ? -1 : valA < valB ? 1 : 0);
+    });
+
+    const renderSortHeader = (label: string, field: string, textAlignment: string = 'text-left') => {
+        const isCurrent = sortField === field;
+        return (
+            <div 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    handleSort(field);
+                }}
+                className={`flex items-center gap-1.5 cursor-pointer hover:text-slate-900 dark:hover:text-slate-100 select-none ${textAlignment === 'text-right' ? 'justify-end' : textAlignment === 'text-center' ? 'justify-center' : ''}`}
+            >
+                <span>{label}</span>
+                {isCurrent ? (
+                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-primary shrink-0 animate-in fade-in zoom-in-75 duration-200" /> : <ArrowDown size={12} className="text-primary shrink-0 animate-in fade-in zoom-in-75 duration-200" />
+                ) : (
+                    <ArrowUpDown size={12} className="text-muted-foreground/40 hover:text-muted-foreground/80 shrink-0 transition-colors" />
+                )}
+            </div>
+        );
+    };
+
     const openReceber = (titulo: EnrichedTitulo) => {
         setSelectedTitulo(titulo);
         setIsReceberOpen(true);
@@ -1067,15 +1148,15 @@ export const Cobranca = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>{t('financeiro.table.client_doc', 'Cliente / Doc')}</TableHead>
-                                <TableHead>{t('financeiro.table.company', 'Empresa')}</TableHead>
-                                <TableHead>{t('financeiro.table.bank', 'Banco')}</TableHead>
-                                <TableHead>{t('financeiro.table.billing_month', 'Mês Fat.')}</TableHead>
-                                <TableHead>{t('financeiro.table.issued', 'Emissão')}</TableHead>
-                                <TableHead>{t('financeiro.table.due', 'Vencimento')}</TableHead>
-                                <TableHead className="text-right">{t('financeiro.table.value', 'Valor')}</TableHead>
-                                <TableHead className="text-right">{t('financeiro.table.balance', 'Saldo')}</TableHead>
-                                <TableHead className="text-center">{t('financeiro.table.status', 'Status')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.client_doc', 'Cliente / Doc'), 'Cliente')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.company', 'Empresa'), 'Empresa')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.bank', 'Banco'), 'Banco')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.billing_month', 'Mês Fat.'), 'periodo_fat')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.issued', 'Emissão'), 'Data_emissao')}</TableHead>
+                                <TableHead>{renderSortHeader(t('financeiro.table.due', 'Vencimento'), 'Dt_venc')}</TableHead>
+                                <TableHead className="text-right">{renderSortHeader(t('financeiro.table.value', 'Valor'), 'Valot_total', 'text-right')}</TableHead>
+                                <TableHead className="text-right">{renderSortHeader(t('financeiro.table.balance', 'Saldo'), 'Saldo_a_pagar', 'text-right')}</TableHead>
+                                <TableHead className="text-center">{renderSortHeader(t('financeiro.table.status', 'Status'), 'Status', 'text-center')}</TableHead>
                                 <TableHead className="text-center">{t('financeiro.table.situation', 'Situação')}</TableHead>
                                 <TableHead className="text-right px-6">{t('financeiro.table.actions', 'Ações de Cobrança')}</TableHead>
                             </TableRow>
@@ -1087,14 +1168,14 @@ export const Cobranca = () => {
                                         {t('financeiro.table.loading_data', 'Carregando dados...')}
                                     </TableCell>
                                 </TableRow>
-                            ) : filteredData.length === 0 ? (
+                            ) : sortedData.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={11} className="text-center py-8 text-muted-foreground font-medium">
                                         {t('financeiro.table.no_pending_titles', 'Excelente! Nenhum título pendente nesta categoria.')}
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredData.map((item) => {
+                                sortedData.map((item) => {
                                     const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                     return (
                                         <TableRow key={item.id} className="group hover:bg-slate-50/50 cursor-pointer transition-colors duration-150" onClick={() => openZoom(item)}>
