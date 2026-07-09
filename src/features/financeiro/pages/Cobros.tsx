@@ -403,6 +403,32 @@ export const Cobros = () => {
         setIsDetailOpen(true);
     };
 
+    const getAlteracaoDate = (item: EnrichedTitulo): Date | null => {
+        const dates: Date[] = [];
+        if (item.Modificado) dates.push(new Date(item.Modificado));
+        if (item.Creado) dates.push(new Date(item.Creado));
+        if (item.lastObsDate) dates.push(new Date(item.lastObsDate));
+        if (item.pagamentos_reais && item.pagamentos_reais.length > 0) {
+            item.pagamentos_reais.forEach((p: any) => {
+                if (p.data_recebimento) {
+                    dates.push(new Date(p.data_recebimento));
+                }
+            });
+        }
+        if (dates.length === 0) return null;
+        return new Date(Math.max(...dates.map(d => d.getTime())));
+    };
+
+    const getOverdueStatus = (item: EnrichedTitulo) => {
+        if (item.Status === 'Pago') return false;
+        return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
+    };
+
+    const getUniqueClientsCount = (items: EnrichedTitulo[]) => {
+        const clients = items.map(i => i.Cliente || i.Cliente_id).filter(Boolean);
+        return new Set(clients).size;
+    };
+
     const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
     const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean)));
     const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
@@ -490,32 +516,6 @@ export const Cobros = () => {
 
         return true;
     });
-
-    const getAlteracaoDate = (item: EnrichedTitulo): Date | null => {
-        const dates: Date[] = [];
-        if (item.Modificado) dates.push(new Date(item.Modificado));
-        if (item.Creado) dates.push(new Date(item.Creado));
-        if (item.lastObsDate) dates.push(new Date(item.lastObsDate));
-        if (item.pagamentos_reais && item.pagamentos_reais.length > 0) {
-            item.pagamentos_reais.forEach((p: any) => {
-                if (p.data_recebimento) {
-                    dates.push(new Date(p.data_recebimento));
-                }
-            });
-        }
-        if (dates.length === 0) return null;
-        return new Date(Math.max(...dates.map(d => d.getTime())));
-    };
-
-    const getOverdueStatus = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago') return false;
-        return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
-    };
-
-    const getUniqueClientsCount = (items: EnrichedTitulo[]) => {
-        const clients = items.map(i => i.Cliente || i.Cliente_id).filter(Boolean);
-        return new Set(clients).size;
-    };
 
     const kpis = {
         total: kpiData.reduce((acc, item) => acc + (item.Valot_total || 0), 0),
