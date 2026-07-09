@@ -39,10 +39,10 @@ export const BurofaxPreviewModal = ({
             const delay = t.Dt_venc ? Math.floor((new Date().getTime() - new Date(t.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
             return `
                 <tr>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: left;">${t.Num_doc}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: left;">${new Date(t.Dt_venc).toLocaleDateString('es-ES')}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${delay} días</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${t.Saldo ? t.Saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'} €</td>
+                    <td style="padding: 5px 8px; border: 1px solid #ddd; text-align: left;">${t.Num_doc}</td>
+                    <td style="padding: 5px 8px; border: 1px solid #ddd; text-align: left;">${new Date(t.Dt_venc).toLocaleDateString('es-ES')}</td>
+                    <td style="padding: 5px 8px; border: 1px solid #ddd; text-align: right;">${delay} días</td>
+                    <td style="padding: 5px 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${t.Saldo ? t.Saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'} €</td>
                 </tr>
             `;
         }).join('');
@@ -56,55 +56,58 @@ export const BurofaxPreviewModal = ({
                     <style>
                         body {
                             font-family: Arial, sans-serif;
-                            font-size: 13px;
-                            line-height: 1.6;
+                            font-size: 11px;
+                            line-height: 1.4;
                             color: #333;
-                            margin: 45px;
+                            margin: 25px 35px;
+                        }
+                        p {
+                            margin: 0 0 10px 0;
                         }
                         .header {
-                            margin-bottom: 40px;
+                            margin-bottom: 20px;
                         }
                         .company-info {
                             font-weight: bold;
-                            margin-bottom: 20px;
-                            font-size: 12px;
+                            margin-bottom: 10px;
+                            font-size: 11px;
                         }
                         .debtor-info {
                             float: right;
                             border: 1px solid #ccc;
-                            padding: 15px;
-                            width: 300px;
+                            padding: 10px 15px;
+                            width: 280px;
                             background-color: #fafafa;
-                            margin-bottom: 30px;
-                            font-size: 12px;
+                            margin-bottom: 15px;
+                            font-size: 11px;
                         }
                         .clear {
                             clear: both;
                         }
                         .title {
                             text-align: center;
-                            font-size: 15px;
+                            font-size: 12.5px;
                             font-weight: bold;
-                            margin-top: 30px;
-                            margin-bottom: 30px;
+                            margin-top: 15px;
+                            margin-bottom: 15px;
                             text-decoration: underline;
                         }
                         .table {
                             width: 100%;
                             border-collapse: collapse;
-                            margin: 20px 0;
-                            font-size: 12px;
+                            margin: 10px 0;
+                            font-size: 11px;
                         }
                         .total-row {
                             font-weight: bold;
                             background-color: #f2f2f2;
                         }
                         .footer {
-                            margin-top: 50px;
-                            font-size: 12px;
+                            margin-top: 25px;
+                            font-size: 11px;
                         }
                         @media print {
-                            body { margin: 20px; }
+                            body { margin: 15px 25px; }
                         }
                     </style>
                 </head>
@@ -124,7 +127,7 @@ export const BurofaxPreviewModal = ({
                         <div class="clear"></div>
                     </div>
 
-                    <div style="margin-bottom: 20px;">
+                    <div style="margin-bottom: 15px;">
                         <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-ES')}
                     </div>
 
@@ -137,17 +140,17 @@ export const BurofaxPreviewModal = ({
                     <table class="table">
                         <thead>
                             <tr style="background-color: #f2f2f2;">
-                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Nº Factura</th>
-                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Vencimiento</th>
-                                <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Retraso</th>
-                                <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Importe</th>
+                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: left;">Nº Factura</th>
+                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: left;">Vencimiento</th>
+                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">Retraso</th>
+                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">Importe</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${tableRows}
                             <tr class="total-row">
-                                <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">TOTAL DEUDA RECLAMADA:</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formattedTotal} €</td>
+                                <td colspan="3" style="padding: 5px 8px; border: 1px solid #ddd; text-align: right;">TOTAL DEUDA RECLAMADA:</td>
+                                <td style="padding: 5px 8px; border: 1px solid #ddd; text-align: right;">${formattedTotal} €</td>
                             </tr>
                         </tbody>
                     </table>
