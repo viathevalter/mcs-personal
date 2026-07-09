@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from 'react-i18next';
+import { CobrancaConfigModal } from '../components/CobrancaConfigModal';
 
 export const Cobranca = () => {
     const { t } = useTranslation();
@@ -116,6 +117,8 @@ export const Cobranca = () => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [currentUser, setCurrentUser] = useState('Usuário Desconhecido');
     const [empresas, setEmpresas] = useState<{ id: string; nome: string; billing_email?: string | null; cobranca_email?: string | null; email?: string | null }[]>([]);
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const [globalConfigEmail, setGlobalConfigEmail] = useState('cobranca@kotrik.com');
 
     useEffect(() => {
         loadData();
@@ -125,6 +128,22 @@ export const Cobranca = () => {
             setEmpresas(data);
         };
         loadEmpresas();
+
+        const loadGlobalConfig = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('cobranca_configuracoes')
+                    .select('email_remetente')
+                    .limit(1)
+                    .single();
+                if (data && data.email_remetente) {
+                    setGlobalConfigEmail(data.email_remetente);
+                }
+            } catch (err) {
+                console.error('Error fetching global billing email:', err);
+            }
+        };
+        loadGlobalConfig();
     }, []);
 
     // Save states to sessionStorage
@@ -425,7 +444,7 @@ export const Cobranca = () => {
             });
         }
 
-        const senderEmail = matchedEmp?.cobranca_email || matchedEmp?.billing_email || matchedEmp?.email || 'financeiro@kotrik.com';
+        const senderEmail = globalConfigEmail || matchedEmp?.cobranca_email || matchedEmp?.billing_email || matchedEmp?.email || 'financeiro@kotrik.com';
         setEmailRemetente(senderEmail);
         setEmailAttachment(null);
 
@@ -824,6 +843,15 @@ export const Cobranca = () => {
                         </h2>
                         <p className="text-muted-foreground mt-1">{t('financeiro.subtitle_cobranca', 'Monitore clientes inadimplentes, emita lembretes e encaminhe títulos para cobrança jurídica.')}</p>
                     </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsConfigOpen(true)}
+                        className="text-xs gap-1.5 font-bold border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/40"
+                    >
+                        <Settings className="w-4 h-4 text-slate-500" />
+                        {t('financeiro.config.btn_config', 'Configurações')}
+                    </Button>
                 </div>
 
                 {/* KPI Premium Row */}
@@ -1735,6 +1763,12 @@ export const Cobranca = () => {
                     onOpenEmail={openEmailModal}
                 />
             )}
+
+            <CobrancaConfigModal
+                isOpen={isConfigOpen}
+                onClose={() => setIsConfigOpen(false)}
+                onSave={(newEmail) => setGlobalConfigEmail(newEmail)}
+            />
         </div>
     );
 };
