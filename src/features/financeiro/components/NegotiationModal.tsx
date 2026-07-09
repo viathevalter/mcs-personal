@@ -77,14 +77,20 @@ export const NegotiationModal = ({
     const discountedTotal = Math.max(0, originalTotal - discountAmount);
 
     const loadSimulations = async () => {
-        if (!titulo || !titulo.CodCliente) return;
+        if (!titulo) return;
         setIsLoadingSimulations(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('cobranca_simulacoes')
-                .select('*')
-                .eq('cod_cliente', titulo.CodCliente)
-                .order('creado_em', { ascending: false });
+                .select('*');
+
+            if (titulo.CodCliente) {
+                query = query.or(`cod_cliente.eq."${titulo.CodCliente}",cliente_nome.ilike."${titulo.Cliente}"`);
+            } else {
+                query = query.ilike('cliente_nome', titulo.Cliente || '');
+            }
+
+            const { data, error } = await query.order('creado_em', { ascending: false });
 
             if (error) throw error;
             setSimulations(data || []);
