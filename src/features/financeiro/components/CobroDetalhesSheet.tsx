@@ -205,7 +205,7 @@ export function CobroDetalhesSheet({
         }
     };
 
-    const isOverdue = titulo.Status !== 'Pago' && titulo.Dt_venc && new Date(titulo.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
+    const isOverdue = titulo.Status !== 'Pago' && titulo.Status !== 'Judicial' && titulo.Status !== 'Negociado' && titulo.Dt_venc && new Date(titulo.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
 
     return (
         <Sheet open={isOpen} onOpenChange={(val) => !val && onClose()}>
@@ -218,8 +218,8 @@ export function CobroDetalhesSheet({
                             <p className="text-xs text-muted-foreground font-mono font-semibold">{titulo.Num_doc}</p>
                         </div>
                         <div className="flex gap-1">
-                            <Badge variant={titulo.Status === 'Pago' ? 'default' : isOverdue ? 'destructive' : 'secondary'} className="font-bold">
-                                {titulo.Status === 'Pago' ? t('financeiro.status.paid', 'Pago') : isOverdue ? t('financeiro.status.overdue', 'Vencido') : t('financeiro.status.due_soon', 'A vencer')}
+                            <Badge variant={titulo.Status === 'Pago' ? 'default' : titulo.Status === 'Negociado' ? 'outline' : isOverdue ? 'destructive' : 'secondary'} className="font-bold">
+                                {titulo.Status === 'Pago' ? t('financeiro.status.paid', 'Pago') : titulo.Status === 'Negociado' ? t('financeiro.status.negotiated', 'Negociado') : isOverdue ? t('financeiro.status.overdue', 'Vencido') : t('financeiro.status.due_soon', 'A vencer')}
                             </Badge>
                             {titulo.Status === 'Parcial' && (
                                 <Badge variant="warning" className="bg-amber-500 text-white font-bold">{t('financeiro.status.partial', 'Parcial')}</Badge>

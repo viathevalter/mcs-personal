@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas } from '../data/loader';
+import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
 import { ObservacoesModal } from '../components/ObservacoesModal';
@@ -13,6 +13,7 @@ import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
 import { CobroFormSheet } from '../components/CobroFormSheet';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { NegotiationModal } from '../components/NegotiationModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -267,7 +268,7 @@ export const Cobranca = () => {
         }
     };
 
-    const openEmailModal = (titulo: EnrichedTitulo) => {
+    const openEmailModal = (titulo: EnrichedTitulo, customSubject?: string, customBody?: string) => {
         setSelectedTitulo(titulo);
         setEmailDestinatario(titulo.clienteInfo?.EmailCobros || titulo.clienteInfo?.EmailCobros || '');
         
@@ -288,7 +289,12 @@ export const Cobranca = () => {
         setEmailRemetente(senderEmail);
         setEmailAttachment(null);
 
-        handleTemplateChange('friendly', titulo);
+        if (customSubject && customBody) {
+            setEmailSubject(customSubject);
+            setEmailBody(customBody);
+        } else {
+            handleTemplateChange('friendly', titulo);
+        }
         setIsEmailOpen(true);
     };
 
@@ -409,12 +415,12 @@ export const Cobranca = () => {
 
     // Helper functions
     const isOverdue = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial') return false;
+        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado') return false;
         return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
     };
 
     const isDueSoon = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial' || isOverdue(item)) return false;
+        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado' || isOverdue(item)) return false;
         if (!item.Dt_venc) return false;
         const now = new Date();
         const next7Days = new Date();
@@ -545,8 +551,8 @@ export const Cobranca = () => {
         judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         judicialCount: kpiData.filter(i => i.Status === 'Judicial').length,
 
-        totalVal: kpiData.filter(i => i.Status !== 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        totalCount: kpiData.filter(i => i.Status !== 'Pago').length,
+        totalVal: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        totalCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').length,
     };
 
     const filteredData = kpiData.filter(item => {
@@ -645,6 +651,15 @@ export const Cobranca = () => {
                 )}
             </div>
         );
+    };
+
+    // Negotiation States
+    const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
+    const [selectedNegotiationTitulo, setSelectedNegotiationTitulo] = useState<EnrichedTitulo | null>(null);
+
+    const openNegotiationModal = (titulo: EnrichedTitulo) => {
+        setSelectedNegotiationTitulo(titulo);
+        setIsNegotiationOpen(true);
     };
 
     const openReceber = (titulo: EnrichedTitulo) => {
@@ -1267,18 +1282,16 @@ export const Cobranca = () => {
                                                         <Clock size={14} className="mr-1" /> {t('financeiro.actions.btn_historico', 'Histórico')}
                                                     </Button>
 
-                                                    {/* Enviar ao Juridico */}
-                                                    {item.Status !== 'Judicial' && (
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            title={t('financeiro.actions.btn_juridico', 'Jurídico')}
-                                                            onClick={() => handleSendToLegal(item)}
-                                                            className="text-red-700 hover:text-red-800 hover:bg-red-50 border-red-200 h-8 text-xs font-semibold"
-                                                        >
-                                                            <Scale size={14} className="mr-1" /> {t('financeiro.actions.btn_juridico', 'Jurídico')}
-                                                        </Button>
-                                                    )}
+                                                    {/* Negociar */}
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        title={t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                        onClick={() => openNegotiationModal(item)}
+                                                        className="text-indigo-600 hover:text-indigo-750 hover:bg-indigo-50 border-indigo-200 h-8 text-xs font-semibold"
+                                                    >
+                                                        <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                    </Button>
 
                                                     {/* Marcar Pago */}
                                                     <Button 
@@ -1499,6 +1512,18 @@ export const Cobranca = () => {
                 onSave={handleSave}
                 initialData={editingCobro}
             />
+
+            {selectedNegotiationTitulo && (
+                <NegotiationModal
+                    isOpen={isNegotiationOpen}
+                    onClose={() => setIsNegotiationOpen(false)}
+                    titulo={selectedNegotiationTitulo}
+                    allTitles={data}
+                    currentUser={currentUser}
+                    onRefresh={loadData}
+                    onOpenEmail={openEmailModal}
+                />
+            )}
         </div>
     );
 };
