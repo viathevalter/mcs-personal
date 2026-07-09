@@ -58,6 +58,18 @@ export const NegotiationModal = ({
     // Checked titles for negotiation (default to the clicked title if not paid)
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
+    // Negotiation options states
+    const [classification, setClassification] = useState<'friendly' | 'legal'>('friendly');
+    const [discount, setDiscount] = useState<number>(0);
+    const [inputPercent, setInputPercent] = useState<string>('0');
+    const [inputValue, setInputValue] = useState<string>('0');
+
+    // Calculations
+    const selectedTitles = clientTitles.filter(t => checkedIds.includes(t.id));
+    const originalTotal = selectedTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
+    const discountAmount = originalTotal * (discount / 100);
+    const discountedTotal = Math.max(0, originalTotal - discountAmount);
+
     useEffect(() => {
         if (isOpen && titulo) {
             const initialIds = titulo.Status !== 'Pago' && titulo.Status !== 'Negociado' ? [titulo.id] : [];
@@ -78,12 +90,6 @@ export const NegotiationModal = ({
             setInputValue('0');
         }
     }, [isOpen, titulo]);
-
-    // Negotiation options states
-    const [classification, setClassification] = useState<'friendly' | 'legal'>('friendly');
-    const [discount, setDiscount] = useState<number>(0);
-    const [inputPercent, setInputPercent] = useState<string>('0');
-    const [inputValue, setInputValue] = useState<string>('0');
 
     // Recalculate discount value when selected titles change
     useEffect(() => {
@@ -132,12 +138,6 @@ export const NegotiationModal = ({
     const [installmentsCount, setInstallmentsCount] = useState<number>(3);
     const [firstInstallmentDate, setFirstInstallmentDate] = useState<string>(getNextMonthStr());
     const [isSaving, setIsSaving] = useState(false);
-
-    // Calculations
-    const selectedTitles = clientTitles.filter(t => checkedIds.includes(t.id));
-    const originalTotal = selectedTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
-    const discountAmount = originalTotal * (discount / 100);
-    const discountedTotal = Math.max(0, originalTotal - discountAmount);
 
     // Installments preview generator
     const getInstallmentPreview = () => {
