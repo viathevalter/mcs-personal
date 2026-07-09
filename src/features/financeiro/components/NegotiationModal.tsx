@@ -6,12 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake } from 'lucide-react';
+import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock } from 'lucide-react';
 import { updateContaReceber, createContaReceber, saveObservacao } from '../data/loader';
 import { formatCurrency, formatDate } from '../lib/utils';
 import type { EnrichedTitulo } from '../types';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { supabase } from '../lib/supabase';
 
 export interface NegotiationModalProps {
     isOpen: boolean;
@@ -53,7 +54,7 @@ export const NegotiationModal = ({
     const totalOverdueSum = overdueTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
     const totalDueSoonSum = dueSoonTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
 
-    const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid'>('overdue');
+    const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid' | 'simulations'>('overdue');
 
     // Checked titles for negotiation (default to the clicked title if not paid)
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
@@ -64,11 +65,80 @@ export const NegotiationModal = ({
     const [inputPercent, setInputPercent] = useState<string>('0');
     const [inputValue, setInputValue] = useState<string>('0');
 
+    // Simulations States
+    const [simulations, setSimulations] = useState<any[]>([]);
+    const [isLoadingSimulations, setIsLoadingSimulations] = useState(false);
+    const [isSavingSimulation, setIsSavingSimulation] = useState(false);
+
     // Calculations
     const selectedTitles = clientTitles.filter(t => checkedIds.includes(t.id));
     const originalTotal = selectedTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
     const discountAmount = originalTotal * (discount / 100);
     const discountedTotal = Math.max(0, originalTotal - discountAmount);
+
+    const loadSimulations = async () => {
+        if (!titulo || !titulo.CodCliente) return;
+        setIsLoadingSimulations(true);
+        try {
+            const { data, error } = await supabase
+                .from('cobranca_simulacoes')
+                .select('*')
+                .eq('cod_cliente', titulo.CodCliente)
+                .order('creado_em', { ascending: false });
+
+            if (error) throw error;
+            setSimulations(data || []);
+        } catch (err) {
+            console.error('Failed to load simulations:', err);
+        } finally {
+            setIsLoadingSimulations(false);
+        }
+    };
+
+    const handleApplySimulation = (sim: any) => {
+        setClassification(sim.classificacao || 'friendly');
+        setDiscount(Number(sim.desconto_percentual) || 0);
+        
+        const pct = Number(sim.desconto_percentual) || 0;
+        setInputPercent(pct === 0 ? '0' : pct.toString());
+        
+        const val = Number(sim.desconto_valor) || 0;
+        setInputValue(val === 0 ? '0' : val.toString());
+
+        setPaymentType(sim.tipo_pagamento || 'single');
+        setInstallmentsCount(Number(sim.parcelas_qtd) || 3);
+        
+        if (sim.vencimento_parcelas && sim.vencimento_parcelas.length > 0) {
+            if (sim.tipo_pagamento === 'single') {
+                setDueDate(sim.vencimento_parcelas[0].dueDate);
+            } else {
+                setFirstInstallmentDate(sim.vencimento_parcelas[0].dueDate);
+            }
+        }
+
+        if (Array.isArray(sim.original_ids)) {
+            setCheckedIds(sim.original_ids);
+        }
+
+        setActiveTab('overdue');
+        toast.success(t('financeiro.negotiation.sim_applied', 'Simulação restaurada com sucesso!'));
+    };
+
+    const handleDeleteSimulation = async (simId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm(t('financeiro.negotiation.confirm_delete_sim', 'Tem certeza de que deseja excluir esta simulação?'))) return;
+        try {
+            const { error } = await supabase
+                .from('cobranca_simulacoes')
+                .delete()
+                .eq('id', simId);
+            if (error) throw error;
+            toast.success(t('financeiro.negotiation.sim_deleted', 'Simulação excluída com sucesso.'));
+            loadSimulations();
+        } catch (err: any) {
+            toast.error(t('financeiro.negotiation.err_delete_sim', 'Erro ao excluir simulação: ') + err.message);
+        }
+    };
 
     useEffect(() => {
         if (isOpen && titulo) {
@@ -88,6 +158,8 @@ export const NegotiationModal = ({
             setDiscount(0);
             setInputPercent('0');
             setInputValue('0');
+
+            loadSimulations();
         }
     }, [isOpen, titulo]);
 
@@ -221,6 +293,60 @@ export const NegotiationModal = ({
         });
     };
 
+    // Save Negotiation Simulation
+    const handleSaveSimulation = async () => {
+        if (selectedTitles.length === 0) {
+            toast.error(t('financeiro.negotiation.err_no_titles_selected', 'Por favor, selecione ao menos um título para a simulação.'));
+            return;
+        }
+
+        setIsSavingSimulation(true);
+        try {
+            const installmentPreview = getInstallmentPreview();
+            
+            const simulationData = {
+                titulo_id: titulo.id?.toString() || '',
+                cod_cliente: titulo.CodCliente || '',
+                cliente_nome: titulo.Cliente || '',
+                original_ids: checkedIds,
+                original_total: originalTotal,
+                desconto_percentual: discount,
+                desconto_valor: discountAmount,
+                valor_acordado: classification === 'friendly' ? discountedTotal : originalTotal,
+                tipo_pagamento: paymentType,
+                parcelas_qtd: paymentType === 'single' ? 1 : installmentsCount,
+                vencimento_parcelas: installmentPreview,
+                classificacao: classification,
+                status: 'Pendente',
+                creado_por: currentUser
+            };
+
+            const { error } = await supabase
+                .from('cobranca_simulacoes')
+                .insert([simulationData]);
+
+            if (error) throw error;
+
+            // Also register an observation on this invoice's history!
+            const obsToSave = {
+                conta_receber_id: titulo.id,
+                usuario: currentUser,
+                tipo: 'Simulação Salva',
+                descricao: `Simulação de acordo salva (${classification === 'friendly' ? 'Amigável' : 'Jurídico'}): Valor acordado de ${formatCurrency(simulationData.valor_acordado)} com ${discount > 0 ? `${discount}% de desconto` : 'sem desconto'}. Pagamento: ${paymentType === 'single' ? 'Parcela Única' : `${installmentsCount}x`}.`,
+                data: new Date().toISOString()
+            };
+            await saveObservacao(obsToSave);
+
+            toast.success(t('financeiro.negotiation.sim_saved_success', 'Simulação de acordo salva com sucesso!'));
+            loadSimulations();
+        } catch (err: any) {
+            console.error('Error saving simulation:', err);
+            toast.error(t('financeiro.negotiation.err_saving_sim', 'Erro ao salvar simulação: ') + (err.message || String(err)));
+        } finally {
+            setIsSavingSimulation(false);
+        }
+    };
+
     // Save Negotiation Agreement
     const handleSaveAgreement = async () => {
         if (selectedTitles.length === 0) {
@@ -297,7 +423,9 @@ export const NegotiationModal = ({
         ? overdueTitles 
         : activeTab === 'due_soon' 
             ? dueSoonTitles 
-            : paidTitles;
+            : activeTab === 'paid'
+                ? paidTitles
+                : [];
 
     return (
         <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
@@ -337,11 +465,11 @@ export const NegotiationModal = ({
                         </div>
 
                         {/* Status KPIs Row */}
-                        <div className="grid grid-cols-3 gap-3 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
+                        <div className="grid grid-cols-4 gap-2.5 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
                             {/* Overdue KPI */}
                             <div 
                                 onClick={() => setActiveTab('overdue')}
-                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
                                     activeTab === 'overdue' 
                                         ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-sm' 
                                         : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
@@ -355,7 +483,7 @@ export const NegotiationModal = ({
                             {/* Due Soon KPI */}
                             <div 
                                 onClick={() => setActiveTab('due_soon')}
-                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
                                     activeTab === 'due_soon' 
                                         ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-sm' 
                                         : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
@@ -369,7 +497,7 @@ export const NegotiationModal = ({
                             {/* Paid KPI */}
                             <div 
                                 onClick={() => setActiveTab('paid')}
-                                className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
                                     activeTab === 'paid' 
                                         ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm' 
                                         : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
@@ -379,10 +507,87 @@ export const NegotiationModal = ({
                                 <div className="text-sm font-black text-emerald-700 dark:text-emerald-500 mt-0.5">{formatCurrency(totalPaidSum)}</div>
                                 <div className="text-[9px] text-muted-foreground mt-0.5">{paidTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
                             </div>
+
+                            {/* Simulations KPI */}
+                            <div 
+                                onClick={() => setActiveTab('simulations')}
+                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                    activeTab === 'simulations' 
+                                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm' 
+                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div className="text-[9px] uppercase font-bold tracking-wider text-indigo-650 dark:text-indigo-400">{t('financeiro.negotiation.tab_simulations', 'Simulações')}</div>
+                                <div className="text-sm font-black text-indigo-750 dark:text-indigo-400 mt-0.5">{simulations.length}</div>
+                                <div className="text-[9px] text-muted-foreground mt-0.5">{t('financeiro.negotiation.saved_drafts', 'salvas')}</div>
+                            </div>
                         </div>
 
                         <ScrollArea className="flex-1 p-4">
-                            {displayedTitles.length === 0 ? (
+                            {activeTab === 'simulations' ? (
+                                <div className="space-y-3">
+                                    {isLoadingSimulations ? (
+                                        <div className="text-center py-6 text-xs text-muted-foreground">
+                                            {t('financeiro.negotiation.loading_sims', 'Carregando simulações...')}
+                                        </div>
+                                    ) : simulations.length === 0 ? (
+                                        <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
+                                            <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
+                                            <p className="text-xs font-semibold">{t('financeiro.negotiation.no_sims_saved', 'Nenhuma simulação salva para este cliente.')}</p>
+                                        </div>
+                                    ) : (
+                                        simulations.map((sim) => {
+                                            const simDate = sim.creado_em ? new Date(sim.creado_em).toLocaleString('pt-PT') : 'N/A';
+                                            return (
+                                                <div 
+                                                    key={sim.id}
+                                                    className="p-3 border dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                                >
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                                                            <Handshake size={14} className="text-indigo-500" />
+                                                            <span>Acordo de {formatCurrency(Number(sim.valor_acordado))}</span>
+                                                            <Badge variant="secondary" className="text-[10px] scale-90">
+                                                                {sim.classificacao === 'friendly' ? 'Amigável' : 'Jurídico'}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground">
+                                                            <span>Salvo em {simDate} por <strong>{sim.creado_por || 'Sistema'}</strong></span>
+                                                        </div>
+                                                        <div className="text-slate-600 dark:text-slate-300 font-semibold space-x-2">
+                                                            <span>Dívida original: {formatCurrency(Number(sim.original_total))}</span>
+                                                            {Number(sim.desconto_percentual) > 0 && (
+                                                                <span className="text-green-600 font-bold">Desconto: {sim.desconto_percentual}% (-{formatCurrency(Number(sim.desconto_valor))})</span>
+                                                            )}
+                                                            <span>• {sim.tipo_pagamento === 'single' ? 'Parcela única' : `${sim.parcelas_qtd} parcelas`}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 shrink-0">
+                                                        <Button 
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleApplySimulation(sim)}
+                                                            className="text-xs h-8 text-indigo-650 hover:text-indigo-700 font-bold border-indigo-200"
+                                                        >
+                                                            Restaurar
+                                                        </Button>
+                                                        <Button 
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            onClick={(e) => handleDeleteSimulation(sim.id, e)}
+                                                            className="text-xs h-8 w-8 text-red-650 hover:text-red-700 hover:bg-red-50"
+                                                        >
+                                                            <X size={14} />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            ) : displayedTitles.length === 0 ? (
                                 <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
                                     <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
                                     <p className="text-xs font-semibold">{t('financeiro.negotiation.no_titles_in_category', 'Nenhuma fatura encontrada nesta categoria.')}</p>
@@ -661,6 +866,14 @@ export const NegotiationModal = ({
                         className="text-xs text-blue-650 hover:text-blue-700 hover:bg-blue-50 border-blue-200 gap-1.5"
                     >
                         <Mail size={14} /> {t('financeiro.negotiation.btn_prepare_email', 'Preparar E-mail')}
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        onClick={handleSaveSimulation}
+                        disabled={isSavingSimulation || selectedTitles.length === 0}
+                        className="text-xs text-indigo-650 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 gap-1.5"
+                    >
+                        <Clock size={14} /> {isSavingSimulation ? 'Salvando...' : t('financeiro.negotiation.btn_save_simulation', 'Salvar Simulação')}
                     </Button>
                     <Button 
                         onClick={handleSaveAgreement} 
