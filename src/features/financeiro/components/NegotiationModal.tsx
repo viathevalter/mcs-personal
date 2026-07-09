@@ -299,6 +299,19 @@ export const NegotiationModal = ({
         });
     };
 
+    const handleSelectAll = () => {
+        const selectableIds = displayedTitles
+            .filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado')
+            .map(t => t.id);
+        const newCheckedIds = Array.from(new Set([...checkedIds, ...selectableIds]));
+        setCheckedIds(newCheckedIds);
+    };
+
+    const handleDeselectAll = () => {
+        const displayedIds = displayedTitles.map(t => t.id);
+        setCheckedIds(checkedIds.filter(id => !displayedIds.includes(id)));
+    };
+
     // Save Negotiation Simulation
     const handleSaveSimulation = async () => {
         if (selectedTitles.length === 0) {
@@ -600,6 +613,30 @@ export const NegotiationModal = ({
                                 </div>
                             ) : (
                                 <div className="space-y-2">
+                                    {(activeTab === 'overdue' || activeTab === 'due_soon') && (
+                                        <div className="flex justify-between items-center pb-2 mb-2 border-b dark:border-slate-800 text-[11px] text-slate-500 font-semibold">
+                                            <span>
+                                                {displayedTitles.filter(t => checkedIds.includes(t.id)).length} de {displayedTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado').length} faturas selecionadas
+                                            </span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSelectAll}
+                                                    className="text-indigo-650 dark:text-indigo-400 hover:underline font-bold transition-all"
+                                                >
+                                                    {t('financeiro.negotiation.select_all', 'Selecionar Todos')}
+                                                </button>
+                                                <span className="text-slate-300 dark:text-slate-700">|</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDeselectAll}
+                                                    className="text-slate-550 dark:text-slate-400 hover:underline font-bold transition-all"
+                                                >
+                                                    {t('financeiro.negotiation.deselect_all', 'Desmarcar Todos')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                     {displayedTitles.map((cTitle) => {
                                         const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                         const isPaid = cTitle.Status === 'Pago';
