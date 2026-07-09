@@ -249,6 +249,11 @@ export const NegotiationModal = ({
     };
 
     const clientName = titulo.Cliente || 'Cliente';
+    const displayedTitles = activeTab === 'overdue' 
+        ? overdueTitles 
+        : activeTab === 'due_soon' 
+            ? dueSoonTitles 
+            : paidTitles;
 
     return (
         <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
