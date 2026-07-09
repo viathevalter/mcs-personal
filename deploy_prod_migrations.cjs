@@ -104,7 +104,8 @@ const migrationsToRun = [
   '20260708160000_unify_sequential_codes.sql',
   '20260708170000_fix_alocar_trabalhador_rpc_for_global_workers.sql',
   '20260709160000_fix_get_global_movement_history.sql',
-  '20260709170000_fix_salary_report_workers_empresa_id.sql'
+  '20260709170000_fix_salary_report_workers_empresa_id.sql',
+  '20260709180000_create_authenticate_worker_rpc.sql'
 ];
 
 async function run() {

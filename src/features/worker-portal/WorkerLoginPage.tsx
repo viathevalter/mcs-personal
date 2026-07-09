@@ -44,16 +44,11 @@ export function WorkerLoginPage() {
         try {
             setLoading(true);
 
-            // Search in the database for the worker by passport, DNI, NIE or NIF using clean alphanumeric prefix
-            const docInputClean = formData.pasaporte.trim().replace(/[^a-zA-Z0-9]/g, '');
-            const docPrefix = docInputClean.substring(0, Math.min(docInputClean.length, 5));
-            const docFilter = `${docPrefix}%`;
-
-            // @ts-ignore - Supabase types might mark schema as protected depending on the generator version
-            const query = supabase.schema('core_personal').from('workers');
-            const { data, error } = await query
-                .select('id, cod_colab, nome, pasaporte, dni, nie, nif, status_trabajador, contracts(empresa_id)')
-                .or(`pasaporte.ilike.${docFilter},dni.ilike.${docFilter},nie.ilike.${docFilter},nif.ilike.${docFilter}`);
+            // Call the SECURITY DEFINER RPC in the public schema to verify credentials securely without exposing RLS
+            const { data, error } = await supabase.rpc('authenticate_worker', {
+                p_nome: formData.nome,
+                p_pasaporte: formData.pasaporte
+            });
 
             if (error || !data || data.length === 0) {
                 console.error('Login error:', error);
@@ -61,67 +56,15 @@ export function WorkerLoginPage() {
                 return;
             }
 
-            // Verify locally using cleaned alphanumeric strings to avoid formatting differences
-            const cleanDocument = (doc: string) => doc.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            const normalizedPassportInput = cleanDocument(formData.pasaporte);
-
-            // Normalize name: remove extra spaces, accents, hidden chars and convert to lowercase
-            const cleanName = (name: string) => {
-                return name
-                    .trim()
-                    .toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/[^\x20-\x7E]/g, "")
-                    .replace(/\s+/g, " ");
-            };
-            const normalizedNameInput = cleanName(formData.nome);
-
-            const validProfiles: any[] = [];
-            data?.forEach(d => {
-                const dbPassport = cleanDocument(d.pasaporte || '');
-                const dbDni = cleanDocument(d.dni || '');
-                const dbNie = cleanDocument(d.nie || '');
-                const dbNif = cleanDocument(d.nif || '');
-
-                const hasMatchingDocument = 
-                    dbPassport === normalizedPassportInput ||
-                    dbDni === normalizedPassportInput ||
-                    dbNie === normalizedPassportInput ||
-                    dbNif === normalizedPassportInput;
-
-                const dbName = cleanName(d.nome || '');
-
-                if (hasMatchingDocument && (dbName.includes(normalizedNameInput) || normalizedNameInput.includes(dbName))) {
-                    const contracts = (d as any).contracts || [];
-                    if (contracts.length > 0) {
-                        contracts.forEach((c: any) => {
-                            validProfiles.push({
-                                id: d.id,
-                                cod_colab: d.cod_colab,
-                                nome: d.nome,
-                                pasaporte: d.pasaporte || d.dni || d.nie || d.nif,
-                                status_trabajador: d.status_trabajador,
-                                empresa_id: c.empresa_id
-                            });
-                        });
-                    } else {
-                        validProfiles.push({
-                            id: d.id,
-                            cod_colab: d.cod_colab,
-                            nome: d.nome,
-                            pasaporte: d.pasaporte || d.dni || d.nie || d.nif,
-                            status_trabajador: d.status_trabajador,
-                            empresa_id: null
-                        });
-                    }
-                }
-            });
-
-            if (validProfiles.length === 0) {
-                toast.error(t('workerPortal.login.error.invalidCredentials'));
-                return;
-            }
+            // Map returned database rows to valid profiles structure
+            const validProfiles = data.map((d: any) => ({
+                id: d.id,
+                cod_colab: d.cod_colab,
+                nome: d.nome,
+                pasaporte: d.pasaporte,
+                status_trabajador: d.status_trabajador,
+                empresa_id: d.empresa_id
+            }));
 
             // Save basic worker info plus ALL matching profiles to localStorage
             const mainProfile = validProfiles[0];
