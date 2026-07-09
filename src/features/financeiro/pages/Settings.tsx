@@ -1,15 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Mail, Send, Loader2, CheckCircle, AlertCircle, Users, Tags, Building2 } from 'lucide-react';
 import { CategoriaSettings } from '../components/CategoriaSettings';
 import { BancoSettings } from '../components/BancoSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 
 export const Settings = () => {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [showForceOption, setShowForceOption] = useState(false);
+
+    const [cobrancaEmail, setCobrancaEmail] = useState('');
+    const [loadingCobranca, setLoadingCobranca] = useState(false);
+    const [savingCobranca, setSavingCobranca] = useState(false);
+    const [cobrancaConfigId, setCobrancaConfigId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadCobrancaConfig = async () => {
+            setLoadingCobranca(true);
+            try {
+                const { data, error } = await supabase
+                    .from('cobranca_configuracoes')
+                    .select('*')
+                    .limit(1)
+                    .single();
+                if (data) {
+                    setCobrancaEmail(data.email_remetente || '');
+                    setCobrancaConfigId(data.id);
+                }
+            } catch (err) {
+                console.error('Error loading billing configuration:', err);
+            } finally {
+                setLoadingCobranca(false);
+            }
+        };
+        loadCobrancaConfig();
+    }, []);
+
+    const handleSaveCobranca = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cobrancaEmail.trim()) {
+            toast.error('Por favor, insira um e-mail de remetente válido.');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cobrancaEmail)) {
+            toast.error('O e-mail inserido é inválido.');
+            return;
+        }
+
+        setSavingCobranca(true);
+        try {
+            if (cobrancaConfigId) {
+                const { error } = await supabase
+                    .from('cobranca_configuracoes')
+                    .update({ 
+                        email_remetente: cobrancaEmail.trim(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', cobrancaConfigId);
+                if (error) throw error;
+            } else {
+                const { data, error } = await supabase
+                    .from('cobranca_configuracoes')
+                    .insert([{ email_remetente: cobrancaEmail.trim() }])
+                    .select()
+                    .single();
+                if (error) throw error;
+                if (data) setCobrancaConfigId(data.id);
+            }
+            toast.success('Configurações de cobrança salvas com sucesso!');
+        } catch (err: any) {
+            console.error('Error saving billing config:', err);
+            toast.error('Erro ao salvar configurações de cobrança: ' + err.message);
+        } finally {
+            setSavingCobranca(false);
+        }
+    };
 
     const handleInvite = async (e?: React.FormEvent, force: boolean = false) => {
         if (e) e.preventDefault();
@@ -79,6 +149,10 @@ export const Settings = () => {
                     <TabsTrigger value="usuarios" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white dark:data-[state=active]:bg-brand-primary dark:text-slate-300">
                         <Users className="w-4 h-4 mr-2" />
                         Usuários
+                    </TabsTrigger>
+                    <TabsTrigger value="cobranca" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white dark:data-[state=active]:bg-brand-primary dark:text-slate-300">
+                        <Mail className="w-4 h-4 mr-2" />
+                        Cobrança
                     </TabsTrigger>
                 </TabsList>
 
@@ -166,6 +240,43 @@ export const Settings = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="cobranca">
+                    <div className="bg-white dark:bg-slate-900/50 border dark:border-slate-800 shadow rounded-lg p-6">
+                        <h2 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-2">Configurações de Cobrança</h2>
+                        <p className="text-xs text-muted-foreground mb-6">Configure as credenciais e parâmetros globais do módulo de Cobrança e Inadimplência.</p>
+
+                        <form onSubmit={handleSaveCobranca} className="max-w-xl space-y-4">
+                            <div className="space-y-1.5">
+                                <label htmlFor="cobranca-email" className="block text-xs font-bold text-gray-700 dark:text-slate-350 uppercase tracking-wider">
+                                    E-mail Global de Remetente (Microsoft Tenant)
+                                </label>
+                                <input
+                                    type="email"
+                                    id="cobranca-email"
+                                    disabled={loadingCobranca || savingCobranca}
+                                    className="focus:ring-brand-action focus:border-brand-action block w-full rounded-md sm:text-sm border-gray-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-205 py-2 px-3"
+                                    placeholder="cobrancas@empresa.com"
+                                    value={cobrancaEmail}
+                                    onChange={(e) => setCobrancaEmail(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1.5 leading-normal">
+                                    Este e-mail será utilizado como o endereço de envio ("Remetente") padrão para todos os e-mails de notificação, lembretes amigáveis, avisos de atraso e propostas de negociação de todas as empresas do portfólio.
+                                </p>
+                            </div>
+
+                            <div className="pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={loadingCobranca || savingCobranca || !cobrancaEmail}
+                                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-brand-primary hover:bg-brand-primary/95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {savingCobranca ? 'Salvando...' : 'Salvar Configurações'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </TabsContent>
             </Tabs>
