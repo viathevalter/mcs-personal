@@ -95,7 +95,18 @@ export const Cobranca = () => {
 
     // Email Modal
     const [isEmailOpen, setIsEmailOpen] = useState(false);
-    const [emailTemplate, setEmailTemplate] = useState<'friendly' | 'overdue' | 'legal'>('friendly');
+    const [emailTemplate, setEmailTemplate] = useState<'friendly' | 'overdue' | 'legal' | 'negotiation'>('friendly');
+    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'fr' | 'it'>('pt');
+    const [negotiationParams, setNegotiationParams] = useState<{
+        selectedTitles: EnrichedTitulo[];
+        originalTotal: number;
+        discount: number;
+        discountedTotal: number;
+        paymentType: 'single' | 'installments';
+        dueDate: string;
+        installmentsCount: number;
+        firstInstallmentDate: string;
+    } | null>(null);
     const [emailDestinatario, setEmailDestinatario] = useState('');
     const [emailRemetente, setEmailRemetente] = useState('');
     const [emailSubject, setEmailSubject] = useState('');
@@ -230,9 +241,13 @@ export const Cobranca = () => {
             setIsLoading(false);
         }
     };
-    // Templates definition
-    const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal', title: EnrichedTitulo) => {
-        setEmailTemplate(template);
+    // Multilingual Email Content Generator
+    const generateAndSetEmailContent = (
+        template: 'friendly' | 'overdue' | 'legal' | 'negotiation',
+        lang: 'pt' | 'es' | 'fr' | 'it',
+        title: EnrichedTitulo,
+        params?: typeof negotiationParams
+    ) => {
         const clientName = title.Cliente || 'Cliente';
         const docNum = title.Num_doc || 'Fatura';
         const docValue = formatCurrency(title.Valot_total);
@@ -242,36 +257,160 @@ export const Cobranca = () => {
             return text.split('\n').map(line => `<p>${line || '<br>'}</p>`).join('');
         };
 
+        let subject = '';
+        let bodyText = '';
+
         if (template === 'friendly') {
-            setEmailSubject(t('financeiro.email_modal.friendly_subject', 'Lembrete de Vencimento: Documento {{docNum}}', { docNum }));
-            setEmailBody(
-                toHtml(t('financeiro.email_modal.friendly_body', 
-                    'Olá, equipe do departamento financeiro da {{clientName}}.\n\nGostaríamos de lembrar amigavelmente que o título {{docNum}} no valor de {{docValue}} vencerá em {{vencDate}}.\n\nPor favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\nAgradecemos a parceria,\nDepartamento Financeiro',
-                    { clientName, docNum, docValue, vencDate }
-                ))
-            );
+            const subjects = {
+                pt: `Lembrete de Vencimento: Documento ${docNum}`,
+                es: `Recordatorio de Vencimiento: Documento ${docNum}`,
+                fr: `Rappel d'échéance : Document ${docNum}`,
+                it: `Promemoria di Scadenza: Documento ${docNum}`
+            };
+            const bodies = {
+                pt: `Olá, equipe do departamento financeiro da ${clientName}.\n\nGostaríamos de lembrar amigavelmente que o título ${docNum} no valor de ${docValue} vencerá em ${vencDate}.\n\nPor favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\nAgradecemos a parceria,\nDepartamento Financeiro`,
+                es: `Hola, equipo del departamento financiero de ${clientName}.\n\nNos gustaría recordar amigablemente que el título ${docNum} por el valor de ${docValue} vencerá el ${vencDate}.\n\nPor favor, confirme si el pago está programado y envíe el comprobante tan pronto como sea posible.\n\nAgradecemos la cooperación,\nDepartamento Financiero`,
+                fr: `Bonjour, l'équipe du département financier de ${clientName}.\n\nNous vous rappelons amicalement que le titre ${docNum} d'un montant de ${docValue} arrivera à échéance le ${vencDate}.\n\nVeuillez confirmer si le paiement est planifié et nous envoyer le justificatif dès que possible.\n\nNous vous remercions pour votre collaboration,\nDépartement Financier`,
+                it: `Buongiorno, team del dipartimento finanziario di ${clientName}.\n\nDesideriamo ricordarvi cortesemente che il titolo ${docNum} del valore di ${docValue} scadrà il ${vencDate}.\n\nVi preghiamo di confermare se il pagamento è programmato e di inviarci la ricevuta il prima possibile.\n\nRingraziando per la collaborazione,\nDipartimento Finanziario`
+            };
+            subject = subjects[lang];
+            bodyText = bodies[lang];
         } else if (template === 'overdue') {
-            setEmailSubject(t('financeiro.email_modal.overdue_subject', 'Aviso de Cobrança - Título em Atraso: {{docNum}}', { docNum }));
-            setEmailBody(
-                toHtml(t('financeiro.email_modal.overdue_body',
-                    'Prezados,\n\nConstatamos em nosso sistema que o título {{docNum}} no valor de {{docValue}}, vencido em {{vencDate}}, ainda não foi liquidado.\n\nSolicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\nAtenciosamente,\nDepartamento de Cobrança',
-                    { docNum, docValue, vencDate }
-                ))
-            );
+            const subjects = {
+                pt: `Aviso de Cobrança - Título em Atraso: ${docNum}`,
+                es: `Aviso de Cobro - Título en Atraso: ${docNum}`,
+                fr: `Avis de Paiement - Titre en Retard : ${docNum}`,
+                it: `Avviso di Pagamento - Titolo in Ritardo: ${docNum}`
+            };
+            const bodies = {
+                pt: `Prezados,\n\nConstatamos em nosso sistema que o título ${docNum} no valor de ${docValue}, vencido em ${vencDate}, ainda não foi liquidado.\n\nSolicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\nAtenciosamente,\nDepartamento de Cobrança`,
+                es: `Estimados,\n\nConstatamos en nuestro sistema que el título ${docNum} por el valor de ${docValue}, vencido el ${vencDate}, aún no ha sido liquidado.\n\nSolicitamos la amabilidad de verificar la situación financeira y realizar el pago. Si ya ha realizado el depósito, por favor ignore este correo y envíenos el comprobante.\n\nAtentamente,\nDepartamento de Cobro`,
+                fr: `Chers clients,\n\nNous constatons dans notre système que le titre ${docNum} d'un montant de ${docValue}, échu le ${vencDate}, n'a pas encore été réglé.\n\nNous vous demandons de bien vouloir vérifier cette situation financière et de procéder au paiement. Si vous avez déjà effectué le virement, veuillez ignorer cet e-mail et nous envoyer le justificatif.\n\nCordialement,\nDépartement de Recouvrement`,
+                it: `Gentili signori,\n\nAbbiamo riscontrato nel nostro sistema che il titolo ${docNum} dell'importo di ${docValue}, scaduto il ${vencDate}, non è ancora stato liquidato.\n\nVi chiediamo cortesemente di verificare la pendenza finanziaria ed effettuare il pagamento. Se avete già provveduto al bonifico, vi preghiamo di ignorare questa e-mail e di inviarci la ricevuta.\n\nCordiali saluti,\nDipartimento di Recupero Crediti`
+            };
+            subject = subjects[lang];
+            bodyText = bodies[lang];
         } else if (template === 'legal') {
-            setEmailSubject(t('financeiro.email_modal.legal_subject', 'NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título {{docNum}}', { docNum }));
-            setEmailBody(
-                toHtml(t('financeiro.email_modal.legal_body',
-                    'Prezada Direção da {{clientName}},\n\nApesar de nossas tentativas anteriores de negociação, o título {{docNum}} no valor de {{docValue}} (vencido desde {{vencDate}}) permanece em aberto.\n\nEsta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\nEvite maiores encargos e processos legais entrando em contato imediatamente.\n\nAtenciosamente,\nDiretoria Financeira',
-                    { clientName, docNum, docValue, vencDate }
-                ))
-            );
+            const subjects = {
+                pt: `NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título ${docNum}`,
+                es: `NOTIFICACIÓN EXTRAJUDICIAL - Cobro Urgente: Título ${docNum}`,
+                fr: `MISE EN DEMEURE - Recouvrement Urgent : Titre ${docNum}`,
+                it: `NOTIFICA STRAGIUDIZIALE - Sollecito Urgente: Titolo ${docNum}`
+            };
+            const bodies = {
+                pt: `Prezada Direção da ${clientName},\n\nApesar de nossas tentativas anteriores de negociação, o título ${docNum} no valor de ${docValue} (vencido desde ${vencDate}) permanece em aberto.\n\nEsta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\nEvite maiores encargos e processos legais entrando em contato imediatamente.\n\nAtenciosamente,\nDiretoria Financeira`,
+                es: `Estimada Dirección de ${clientName},\n\nA pesar de nuestros intentos anteriores de negociación, el título ${docNum} por el valor de ${docValue} (vencido desde el ${vencDate}) permanece pendiente.\n\nEsta notificación sirve como aviso formal de que, si la liquidación del valor no se realiza en un plazo de 48 horas, nos veremos obligados a remitir este asunto a nuestro Departamento Jurídico para iniciar las acciones de cobro judicial correspondientes.\n\nEvite cargos adicionales y procesos legales poniéndose en contacto de inmediato.\n\nAtentamente,\nDirección Financiera`,
+                fr: `Chère Direction de ${clientName},\n\nMalgré nos précédentes tentatives de négociation, le titre ${docNum} d'un montant de ${docValue} (échu depuis le ${vencDate}) demeure impayé.\n\nCette notification constitue une mise en demeure formelle. À défaut de règlement sous 48 heures, nous serons contraints de transmettre ce dossier à notre Département Juridique afin d'engager des poursuites judiciaires.\n\nÉvitez des frais supplémentaires et des procédures judiciaires en nous contactant immédiatement.\n\nCordialement,\nDirection Financière`,
+                it: `Spettabile Direzione di ${clientName},\n\nNonostante i nostri precedenti tentativi di accordo, il titolo ${docNum} del valore di ${docValue} (scaduto dal ${vencDate}) risulta ancora insoluto.\n\nLa presente notifica costituisce sollecito formale: in mancanza di pagamento entro 48 ore, saremo costretti a trasmettere la pratica al nostro Ufficio Legale per l'avvio delle azioni giudiziarie.\n\nEvitate ulteriori spese e procedimenti legali contattandoci immediatamente.\n\nCordiali saluti,\nDirezione Finanziaria`
+            };
+            subject = subjects[lang];
+            bodyText = bodies[lang];
+        } else if (template === 'negotiation' && params) {
+            const subjects = {
+                pt: `Proposta de Acordo e Relação de Títulos Pendentes - ${clientName}`,
+                es: `Propuesta de Acuerdo y Relación de Títulos Pendientes - ${clientName}`,
+                fr: `Proposition d'Accord et Relevé de Titres Impayés - ${clientName}`,
+                it: `Proposta di Accordo e Prospetto dei Titoli Insoluti - ${clientName}`
+            };
+
+            const headers = {
+                pt: `Prezada equipe financeira da ${clientName},\n\nSeguindo nossa política de monitoramento de créditos, listamos abaixo os títulos pendentes em aberto:\n\n`,
+                es: `Estimado equipo financiero de ${clientName},\n\nSiguiendo nuestra política de control de créditos, detallamos a continuación los títulos pendientes de pago:\n\n`,
+                fr: `Chère équipe financière de ${clientName},\n\nConformément à notre politique de suivi des crédits, vous trouverez ci-dessous la liste des titres en attente de règlement :\n\n`,
+                it: `Gentile team finanziario di ${clientName},\n\nIn linea con la nossa politica di monitoraggio dei crediti, elenchiamo di seguito i titoli in sospeso:\n\n`
+            };
+
+            const docListText = params.selectedTitles.map(t => {
+                const docVenc = t.Dt_venc ? new Date(t.Dt_venc).toLocaleDateString('pt-PT') : 'N/A';
+                const docVal = formatCurrency(t.Saldo_a_pagar);
+                const formats = {
+                    pt: `- Doc: ${t.Num_doc} | Vencido em: ${docVenc} | Valor: ${docVal}`,
+                    es: `- Doc: ${t.Num_doc} | Vencido el: ${docVenc} | Importe: ${docVal}`,
+                    fr: `- Doc : ${t.Num_doc} | Échu le : ${docVenc} | Montant : ${docVal}`,
+                    it: `- Doc: ${t.Num_doc} | Scaduto il: ${docVenc} | Importo: ${docVal}`
+                };
+                return formats[lang];
+            }).join('\n');
+
+            const totalLabels = {
+                pt: `Valor total original em atraso: ${formatCurrency(params.originalTotal)}`,
+                es: `Importe total original vencido: ${formatCurrency(params.originalTotal)}`,
+                fr: `Montant total d'origine en retard : ${formatCurrency(params.originalTotal)}`,
+                it: `Valore totale originale in ritardo: ${formatCurrency(params.originalTotal)}`
+            };
+
+            let body = headers[lang] + docListText + '\n\n' + totalLabels[lang] + '\n';
+
+            if (params.discount > 0) {
+                const discountTexts = {
+                    pt: `Com a nossa proposta de negociação activa de ${params.discount}% de desconto, o valor líquido total será de ${formatCurrency(params.discountedTotal)}.`,
+                    es: `Con nuestra propuesta de negociación activa de ${params.discount}% de descuento, el valor neto total será de ${formatCurrency(params.discountedTotal)}.`,
+                    fr: `Avec notre proposition de négociation active de ${params.discount}% de remise, le montant net total sera de ${formatCurrency(params.discountedTotal)}.`,
+                    it: `Con la nostra proposta di accordo attiva del ${params.discount}% de sconto, il valore netto totale sarà di ${formatCurrency(params.discountedTotal)}.`
+                };
+                body += discountTexts[lang] + '\n';
+            }
+
+            if (params.paymentType === 'single') {
+                const singleTexts = {
+                    pt: `Proposta para pagamento integral em parcela única com vencimento em: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
+                    es: `Propuesta para pago integral en cuota única con vencimiento el: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
+                    fr: `Proposition pour un paiement intégral en une seule fois avec échéance le : ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
+                    it: `Proposta di pagamento in un'unica soluzione con scadenza il: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`
+                };
+                body += singleTexts[lang] + '\n\n';
+            } else {
+                const instVal = formatCurrency(params.discountedTotal / params.installmentsCount);
+                const instDate = new Date(params.firstInstallmentDate).toLocaleDateString('pt-PT');
+                const installmentsTexts = {
+                    pt: `Proposta para parcelamento do saldo em ${params.installmentsCount} parcelas de ${instVal} cada, iniciando em ${instDate}.`,
+                    es: `Propuesta para fraccionamiento del saldo en ${params.installmentsCount} plazos de ${instVal} cada uno, comenzando el: ${instDate}.`,
+                    fr: `Proposition de paiement échelonné en ${params.installmentsCount} mensualités de ${instVal} chacune, débutant le : ${instDate}.`,
+                    it: `Proposta per la rateizzazione del saldo in ${params.installmentsCount} rate da ${instVal} ciascuna, a partire dal: ${instDate}.`
+                };
+                body += installmentsTexts[lang] + '\n\n';
+            }
+
+            const footers = {
+                pt: `Ficamos no aguardo da vossa confirmação por este canal para formalizarmos o plano de pagamentos.\n\nAtenciosamente,\nAssessoria de Cobrança`,
+                es: `Quedamos a la espera de su confirmación por esta vía para formalizar el plan de pagos.\n\nAtentamente,\nAsesoría de Cobro`,
+                fr: `Dans l'attente de votre confirmation par ce canal pour officialiser le plan de règlement.\n\nCordialement,\nService de Recouvrement`,
+                it: `In attesa di un vostro riscontro per formalizzare il piano di rientro.\n\nCordiali saluti,\nUfficio Recupero Crediti`
+            };
+
+            body += footers[lang];
+            
+            subject = subjects[lang];
+            bodyText = body;
+        }
+
+        setEmailSubject(subject);
+        setEmailBody(toHtml(bodyText));
+    };
+
+    const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal' | 'negotiation', title: EnrichedTitulo) => {
+        setEmailTemplate(template);
+        generateAndSetEmailContent(template, emailLanguage, title, negotiationParams);
+    };
+
+    const handleLanguageChange = (lang: 'pt' | 'es' | 'fr' | 'it') => {
+        setEmailLanguage(lang);
+        if (selectedTitulo) {
+            generateAndSetEmailContent(emailTemplate, lang, selectedTitulo, negotiationParams);
         }
     };
 
-    const openEmailModal = (titulo: EnrichedTitulo, customSubject?: string, customBody?: string) => {
+    const openEmailModal = (
+        titulo: EnrichedTitulo, 
+        templateKey: 'friendly' | 'overdue' | 'legal' | 'negotiation' = 'friendly',
+        params?: typeof negotiationParams
+    ) => {
         setSelectedTitulo(titulo);
-        setEmailDestinatario(titulo.clienteInfo?.EmailCobros || titulo.clienteInfo?.EmailCobros || '');
+        setEmailTemplate(templateKey);
+        setNegotiationParams(params || null);
+        setEmailLanguage('pt'); // default to Portuguese
+
+        setEmailDestinatario(titulo.clienteInfo?.EmailCobros || '');
         
         // Match company sender email robustly (checking trade_name, nome, codigo, partials)
         const cleanEmpName = (titulo.Empresa || '').trim().toLowerCase();
@@ -290,12 +429,8 @@ export const Cobranca = () => {
         setEmailRemetente(senderEmail);
         setEmailAttachment(null);
 
-        if (customSubject && customBody) {
-            setEmailSubject(customSubject);
-            setEmailBody(customBody);
-        } else {
-            handleTemplateChange('friendly', titulo);
-        }
+        // Generate content dynamically
+        generateAndSetEmailContent(templateKey, 'pt', titulo, params);
         setIsEmailOpen(true);
     };
 
@@ -348,7 +483,7 @@ export const Cobranca = () => {
                 conta_receber_id: selectedTitulo.id,
                 usuario: currentUser,
                 tipo: 'E-mail de Cobrança',
-                descricao: `Enviado e-mail de cobrança (${emailTemplate === 'friendly' ? 'Lembrete Amigável' : emailTemplate === 'overdue' ? 'Aviso de Atraso' : 'Notificação Pré-Jurídica'}) para ${emailDestinatario || 'cliente'} de ${emailRemetente}. Assunto: "${emailSubject}"${attachmentText}`,
+                descricao: `Enviado e-mail de cobrança (${emailTemplate === 'friendly' ? 'Lembrete Amigável' : emailTemplate === 'overdue' ? 'Aviso de Atraso' : emailTemplate === 'legal' ? 'Notificação Pré-Jurídica' : 'Proposta de Negociação'}) para ${emailDestinatario || 'cliente'} de ${emailRemetente}. Assunto: "${emailSubject}"${attachmentText}`,
                 data: new Date().toISOString()
             };
 
@@ -1365,22 +1500,69 @@ export const Cobranca = () => {
                                     <Label className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.modal_title', 'Modelo de E-mail')}</Label>
                                     <div className="flex flex-col gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-950 rounded-lg">
                                         <button
+                                            type="button"
                                             onClick={() => handleTemplateChange('friendly', selectedTitulo)}
-                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'friendly' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'friendly' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             {t('financeiro.email_modal.tab_friendly', 'Lembrete Amigável')}
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => handleTemplateChange('overdue', selectedTitulo)}
-                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'overdue' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'overdue' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             {t('financeiro.email_modal.tab_overdue', 'Aviso de Atraso')}
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => handleTemplateChange('legal', selectedTitulo)}
-                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'legal' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                            className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'legal' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             {t('financeiro.email_modal.tab_legal', 'Notificação Pré-Jurídica')}
+                                        </button>
+                                        {negotiationParams && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTemplateChange('negotiation', selectedTitulo)}
+                                                className={`py-1.5 px-3 text-left rounded-md font-bold transition-all text-xs ${emailTemplate === 'negotiation' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                            >
+                                                {t('financeiro.email_modal.tab_negotiation', 'Proposta de Acordo')}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Language Selection */}
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground font-bold uppercase">{t('financeiro.email_modal.language_label', 'Idioma do E-mail')}</Label>
+                                    <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-lg">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleLanguageChange('pt')}
+                                            className={`py-1 rounded-md font-bold transition-all text-xs text-center flex items-center justify-center gap-1 ${emailLanguage === 'pt' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span>🇵🇹</span> <span>PT</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleLanguageChange('es')}
+                                            className={`py-1 rounded-md font-bold transition-all text-xs text-center flex items-center justify-center gap-1 ${emailLanguage === 'es' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span>🇪🇸</span> <span>ES</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleLanguageChange('fr')}
+                                            className={`py-1 rounded-md font-bold transition-all text-xs text-center flex items-center justify-center gap-1 ${emailLanguage === 'fr' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span>🇫🇷</span> <span>FR</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleLanguageChange('it')}
+                                            className={`py-1 rounded-md font-bold transition-all text-xs text-center flex items-center justify-center gap-1 ${emailLanguage === 'it' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <span>🇮🇹</span> <span>IT</span>
                                         </button>
                                     </div>
                                 </div>

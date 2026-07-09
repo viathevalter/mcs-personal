@@ -20,7 +20,7 @@ export interface NegotiationModalProps {
     allTitles: EnrichedTitulo[];
     currentUser: string;
     onRefresh: () => void;
-    onOpenEmail: (titulo: EnrichedTitulo, customSubject: string, customBody: string) => void;
+    onOpenEmail: (titulo: EnrichedTitulo, templateKey: 'friendly' | 'overdue' | 'legal' | 'negotiation', params?: any) => void;
 }
 
 export const NegotiationModal = ({
@@ -209,9 +209,16 @@ export const NegotiationModal = ({
         body += t('financeiro.negotiation.email_body_footer', 'Ficamos no aguardo da vossa confirmação por este canal para formalizarmos o plano de pagamentos.\n\nAtenciosamente,\nAssessoria de Cobrança');
 
         // Convert newlines to html paragraphs for editor compatibility
-        const bodyHtml = body.split('\n').map(line => `<p>${line || '<br>'}</p>`).join('');
-
-        onOpenEmail(titulo, subject, bodyHtml);
+        onOpenEmail(titulo, 'negotiation', {
+            selectedTitles,
+            originalTotal,
+            discount,
+            discountedTotal,
+            paymentType,
+            dueDate,
+            installmentsCount,
+            firstInstallmentDate
+        });
     };
 
     // Save Negotiation Agreement
