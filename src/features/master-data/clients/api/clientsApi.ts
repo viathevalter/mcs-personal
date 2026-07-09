@@ -280,5 +280,146 @@ export const clientsApi = {
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data as ClientViesCheckLog[];
+  },
+
+  async getClientTariffs(clientId: string): Promise<any[]> {
+    if (!clientId) return [];
+    const { data, error } = await supabase
+      .schema('core_common')
+      .from('client_tariffs')
+      .select('*')
+      .eq('client_id', clientId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveClientTariff(empresaId: string, clientId: string, clientSiteId: string | null, jobFunctionId: string, valorTarifa: number): Promise<void> {
+    if (!empresaId || !clientId || !jobFunctionId) throw new Error('Dados insuficientes para salvar tarifa');
+    
+    const query = supabase
+      .schema('core_common')
+      .from('client_tariffs')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('job_function_id', jobFunctionId);
+
+    if (clientSiteId) {
+      query.eq('client_site_id', clientSiteId);
+    } else {
+      query.is('client_site_id', null);
+    }
+
+    const { data, error: selectError } = await query;
+    if (selectError) throw selectError;
+
+    if (data && data.length > 0) {
+      const { error: updateError } = await supabase
+        .schema('core_common')
+        .from('client_tariffs')
+        .update({
+          valor_tarifa: valorTarifa,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data[0].id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .schema('core_common')
+        .from('client_tariffs')
+        .insert({
+          empresa_id: empresaId,
+          client_id: clientId,
+          client_site_id: clientSiteId || null,
+          job_function_id: jobFunctionId,
+          valor_tarifa: valorTarifa
+        });
+      if (insertError) throw insertError;
+    }
+  },
+
+  async deleteClientTariff(clientId: string, clientSiteId: string | null, jobFunctionId: string): Promise<void> {
+    const query = supabase
+      .schema('core_common')
+      .from('client_tariffs')
+      .delete()
+      .eq('client_id', clientId)
+      .eq('job_function_id', jobFunctionId);
+
+    if (clientSiteId) {
+      query.eq('client_site_id', clientSiteId);
+    } else {
+      query.is('client_site_id', null);
+    }
+
+    const { error } = await query;
+    if (error) throw error;
+  },
+
+  async getClientWorkerTariffs(clientId: string): Promise<any[]> {
+    if (!clientId) return [];
+    const { data, error } = await supabase
+      .schema('core_common')
+      .from('client_worker_tariffs')
+      .select(`
+        *,
+        worker:worker_id ( id, nome, cod_colab, funcion ),
+        site:client_site_id ( id, name )
+      `)
+      .eq('client_id', clientId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveClientWorkerTariff(empresaId: string, clientId: string, clientSiteId: string | null, workerId: string, valorTarifa: number): Promise<void> {
+    if (!empresaId || !clientId || !workerId) throw new Error('Dados insuficientes para salvar exceção');
+
+    const query = supabase
+      .schema('core_common')
+      .from('client_worker_tariffs')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('worker_id', workerId);
+
+    if (clientSiteId) {
+      query.eq('client_site_id', clientSiteId);
+    } else {
+      query.is('client_site_id', null);
+    }
+
+    const { data, error: selectError } = await query;
+    if (selectError) throw selectError;
+
+    if (data && data.length > 0) {
+      const { error: updateError } = await supabase
+        .schema('core_common')
+        .from('client_worker_tariffs')
+        .update({
+          valor_tarifa: valorTarifa,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data[0].id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .schema('core_common')
+        .from('client_worker_tariffs')
+        .insert({
+          empresa_id: empresaId,
+          client_id: clientId,
+          client_site_id: clientSiteId || null,
+          worker_id: workerId,
+          valor_tarifa: valorTarifa
+        });
+      if (insertError) throw insertError;
+    }
+  },
+
+  async deleteClientWorkerTariff(id: string): Promise<void> {
+    const { error } = await supabase
+      .schema('core_common')
+      .from('client_worker_tariffs')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   }
 };

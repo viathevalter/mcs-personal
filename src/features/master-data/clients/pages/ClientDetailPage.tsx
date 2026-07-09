@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Building2, MapPin, Users, Wallet, History, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Users, Wallet, History, ShieldCheck, Percent } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Placeholders for the tabs content
@@ -12,6 +12,7 @@ import { ClientFinanceTab } from '../components/tabs/ClientFinanceTab';
 import { ClientContactsTab } from '../components/tabs/ClientContactsTab';
 import { ClientHistoryTab } from '../components/tabs/ClientHistoryTab';
 import { ClientViesTab } from '../components/tabs/ClientViesTab';
+import { ClientTariffsTab } from '../components/tabs/ClientTariffsTab';
 
 export function ClientDetailPage() {
   const { id } = useParams();
@@ -75,6 +76,10 @@ export function ClientDetailPage() {
             <Wallet className="h-4 w-4" />
             Financeiro / Faturamento
           </TabsTrigger>
+          <TabsTrigger value="tariffs" className="gap-2">
+            <Percent className="h-4 w-4" />
+            Tabela de Tarifas
+          </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
             Histórico
@@ -99,6 +104,10 @@ export function ClientDetailPage() {
 
         <TabsContent value="finance" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
           <ClientFinanceTab client={client} />
+        </TabsContent>
+
+        <TabsContent value="tariffs" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
+          <ClientTariffsTab clientId={client.id!} />
         </TabsContent>
 
         <TabsContent value="history" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
