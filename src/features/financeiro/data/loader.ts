@@ -268,7 +268,19 @@ export async function saveObservacao(obs: Partial<CobrancaObservacao>): Promise<
 
 export async function createContaReceber(data: Partial<ContasReceber>): Promise<{ success: boolean; error?: any }> {
   try {
+    // Query max sp_id to generate next value sequentially and avoid null violation
+    const { data: maxRows } = await supabase
+      .from('contas_receber')
+      .select('sp_id')
+      .order('sp_id', { ascending: false })
+      .limit(1);
+
+    const nextSpId = (maxRows && maxRows.length > 0 && maxRows[0].sp_id)
+      ? Number(maxRows[0].sp_id) + 1
+      : 800000;
+
     const dbData = {
+      sp_id: nextSpId,
       empresa: data.Empresa || null,
       cod_cliente: data.CodCliente || null,
       cliente: data.Cliente || null,
