@@ -357,17 +357,37 @@ export const clientsApi = {
 
   async getClientWorkerTariffs(clientId: string): Promise<any[]> {
     if (!clientId) return [];
-    const { data, error } = await supabase
+    const { data: tariffs, error: tariffsError } = await supabase
       .schema('core_common')
       .from('client_worker_tariffs')
       .select(`
         *,
-        worker:worker_id ( id, nome, cod_colab, funcion ),
         site:client_site_id ( id, name )
       `)
       .eq('client_id', clientId);
-    if (error) throw error;
-    return data || [];
+
+    if (tariffsError) throw tariffsError;
+    if (!tariffs || tariffs.length === 0) return [];
+
+    const workerIds = Array.from(new Set(tariffs.map(t => t.worker_id).filter(Boolean)));
+    let workers: any[] = [];
+
+    if (workerIds.length > 0) {
+      const { data: workersData, error: workersError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, cod_colab, funcion')
+        .in('id', workerIds);
+
+      if (workersError) throw workersError;
+      workers = workersData || [];
+    }
+
+    const workersMap = new Map(workers.map(w => [w.id, w]));
+    return tariffs.map(t => ({
+      ...t,
+      worker: workersMap.get(t.worker_id) || null
+    }));
   },
 
   async saveClientWorkerTariff(empresaId: string, clientId: string, clientSiteId: string | null, workerId: string, valorTarifa: number): Promise<void> {
