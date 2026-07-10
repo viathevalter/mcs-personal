@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useClientSites } from '../../../client-sites/hooks/useClientSites';
 import { useJobFunctions } from '../../../job-functions/hooks/useJobFunctions';
-import { useWorkersForHolerites } from '../../../../holerites/hooks/useWorkersForHolerites';
 import {
   useClientTariffs,
   useClientWorkerTariffs,
@@ -39,7 +39,40 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   // Queries
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions();
-  const { data: workersList = [], isLoading: loadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined);
+  
+  // Lightweight query to fetch active worker profiles for this company (avoiding heavy holerite query)
+  const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
+    queryKey: ['lightweightActiveWorkers', selectedEmpresaId],
+    queryFn: async () => {
+      if (!selectedEmpresaId) return [];
+      
+      // Fetch active contract worker IDs
+      const { data: contracts, error: contractsError } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .select('worker_id')
+        .eq('empresa_id', selectedEmpresaId);
+        
+      if (contractsError) throw contractsError;
+      if (!contracts || contracts.length === 0) return [];
+      
+      const workerIds = Array.from(new Set(contracts.map(c => c.worker_id).filter(Boolean)));
+      
+      // Fetch worker profiles
+      const { data: workers, error: workersError } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, cod_colab, funcion, cliente_nombre')
+        .in('id', workerIds)
+        .or('status_trabajador.ilike.Ativo,status_trabajador.ilike.Activo');
+        
+      if (workersError) throw workersError;
+      return workers || [];
+    },
+    enabled: Boolean(selectedEmpresaId),
+    refetchOnWindowFocus: false,
+  });
+
   const { data: activeTariffs = [], isLoading: loadingTariffs, refetch: refetchTariffs } = useClientTariffs(clientId);
   const { data: workerExceptions = [], isLoading: loadingExceptions, refetch: refetchExceptions } = useClientWorkerTariffs(clientId);
 
