@@ -29,7 +29,7 @@ BEGIN
   base_workers AS (
     SELECT 
       w.id,
-      w.empresa_id,
+      p_empresa_id as empresa_id,
       w.cod_colab,
       w.nome,
       w.email,
@@ -49,16 +49,18 @@ BEGIN
     FROM core_personal.workers w
     LEFT JOIN public.colaboradores c ON c.cod_colab = w.cod_colab
     LEFT JOIN valid_allocations va ON va.cod_colab = w.cod_colab
-    WHERE w.empresa_id = p_empresa_id
-      AND (
-         (w.status_trabajador NOT ILIKE 'Inativo' AND w.status_trabajador NOT ILIKE 'Desligado' AND w.status_trabajador NOT ILIKE 'Pendente Baixa' AND w.status_trabajador NOT ILIKE 'Baja')
-         OR
-         (w.data_baixa IS NOT NULL AND w.data_baixa >= v_start_date)
-      )
+    WHERE (p_empresa_id IS NULL OR EXISTS (
+        SELECT 1 FROM core_personal.contracts cnt 
+        WHERE cnt.worker_id = w.id AND cnt.empresa_id = p_empresa_id
+      ))
       AND (
          (va.cod_colab IS NOT NULL) 
          OR 
          (w.status_trabajador ILIKE 'Ativo' OR w.status_trabajador ILIKE 'Activo')
+         OR
+         (w.status_trabajador ILIKE 'Inativo' AND w.data_baixa >= v_start_date)
+         OR
+         (w.status_trabajador ILIKE 'Desligado' AND w.data_baixa >= v_start_date)
       )
   ),
   filtered AS (
@@ -87,16 +89,15 @@ DECLARE
     v_counter integer;
 BEGIN
     FOR r IN 
-        SELECT DISTINCT w.empresa_id, w.funcion
+        SELECT DISTINCT w.funcion
         FROM core_personal.workers w
         WHERE w.funcion IS NOT NULL AND w.funcion <> ''
     LOOP
-        -- Se não existe função correspondente ativa com o mesmo nome na mesma empresa
+        -- Se não existe função correspondente ativa com o mesmo nome
         IF NOT EXISTS (
             SELECT 1 
             FROM core_comercial.job_functions jf 
-            WHERE jf.empresa_id = r.empresa_id 
-              AND jf.name = r.funcion 
+            WHERE jf.name = r.funcion 
               AND jf.status != 'archived'
         ) THEN
             -- Gera um código limpo a partir do nome
@@ -112,16 +113,15 @@ BEGIN
             WHILE EXISTS (
                 SELECT 1 
                 FROM core_comercial.job_functions jf 
-                WHERE jf.empresa_id = r.empresa_id 
-                  AND jf.code = v_code 
+                WHERE jf.code = v_code 
                   AND jf.status != 'archived'
             ) LOOP
                 v_code := SUBSTRING(v_base_code FROM 1 FOR 35) || '_' || v_counter;
                 v_counter := v_counter + 1;
             END LOOP;
             
-            INSERT INTO core_comercial.job_functions (empresa_id, name, code, status)
-            VALUES (r.empresa_id, r.funcion, v_code, 'active');
+            INSERT INTO core_comercial.job_functions (name, code, status)
+            VALUES (r.funcion, v_code, 'active');
         END IF;
     END LOOP;
 END $$;

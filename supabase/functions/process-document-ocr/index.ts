@@ -230,18 +230,21 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: jsonSchema,
-        temperature: 0.1
+        temperature: 0.1,
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
       }
     };
 
     let response: Response | null = null;
-    const retries = isWorkerDoc ? 2 : 3; // Limite de 3 para evitar timeout de 150s no Supabase
+    const retries = 1; // Apenas 1 tentativa para evitar exceder o limite de 150s do Deno
     let delay = 2000; // Início com 2 segundos
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
         response = await fetch(geminiUrl, {
           method: "POST",
@@ -454,19 +457,20 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
         clientSites = sites || [];
 
         if (clientSites.length === 0 && worker_id) {
-          const { data: workerInfo } = await supabase
+          const { data: contractInfo } = await supabase
             .schema('core_personal')
-            .from('workers')
+            .from('contracts')
             .select('empresa_id')
-            .eq('id', worker_id)
+            .eq('worker_id', worker_id)
+            .limit(1)
             .maybeSingle();
           
-          if (workerInfo?.empresa_id) {
+          if (contractInfo?.empresa_id) {
             const { data: defaultSite } = await supabase
               .schema('core_common')
               .from('client_sites')
               .insert({
-                empresa_id: workerInfo.empresa_id,
+                empresa_id: contractInfo.empresa_id,
                 client_id: client_id,
                 name: 'Taller',
                 status: 'active'
