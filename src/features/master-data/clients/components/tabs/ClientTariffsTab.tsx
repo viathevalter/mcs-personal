@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useClientSites } from '../../../client-sites/hooks/useClientSites';
 import { useJobFunctions } from '../../../job-functions/hooks/useJobFunctions';
@@ -55,13 +56,49 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const [workerSiteId, setWorkerSiteId] = useState('global');
   const [workerRate, setWorkerRate] = useState('');
   const [showOnlyClientWorkers, setShowOnlyClientWorkers] = useState(true);
+  const [allocatedWorkerCodes, setAllocatedWorkerCodes] = useState<string[]>([]);
+
+  // Fetch exact worker allocations for this client from colaborador_por_pedido
+  useEffect(() => {
+    if (client?.trade_name) {
+      supabase
+        .from('colaborador_por_pedido')
+        .select('cod_colab')
+        .eq('cliente_nombre', client.trade_name)
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('Erro ao buscar alocações de trabalhadores:', error);
+            return;
+          }
+          if (data) {
+            const codes = Array.from(new Set(data.map(d => d.cod_colab).filter(Boolean)));
+            setAllocatedWorkerCodes(codes as string[]);
+          }
+        });
+    }
+  }, [client]);
 
   const filteredWorkers = useMemo(() => {
-    if (!showOnlyClientWorkers || !client?.trade_name) return workersList;
-    const clientNameLower = client.trade_name.trim().toLowerCase();
-    const filtered = workersList.filter(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
-    return filtered.length > 0 ? filtered : workersList;
-  }, [workersList, client, showOnlyClientWorkers]);
+    if (!showOnlyClientWorkers) return workersList;
+
+    // 1. Filter by colaborador_por_pedido active allocation codes
+    const filteredByCode = workersList.filter(
+      w => w.cod_colab && allocatedWorkerCodes.includes(w.cod_colab)
+    );
+    if (filteredByCode.length > 0) return filteredByCode;
+
+    // 2. Fallback: filter by w.cliente_nombre string match (general/outdated client name field)
+    if (client?.trade_name) {
+      const clientNameLower = client.trade_name.trim().toLowerCase();
+      const filteredByName = workersList.filter(
+        w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower
+      );
+      if (filteredByName.length > 0) return filteredByName;
+    }
+
+    // 3. Fallback: return everything so dropdown is not empty
+    return workersList;
+  }, [workersList, allocatedWorkerCodes, client, showOnlyClientWorkers]);
 
   useEffect(() => {
     if (selectedWorkerId && !filteredWorkers.some(w => w.id === selectedWorkerId)) {
