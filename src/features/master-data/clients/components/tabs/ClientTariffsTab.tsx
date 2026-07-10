@@ -418,6 +418,29 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
     return <div className="p-8 text-center text-muted-foreground">Carregando dados da tabela de preços...</div>;
   }
 
+  if (!loadingSites && sites.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 border border-dashed rounded-xl bg-amber-50/30 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/30 my-4">
+        <div className="p-3 bg-amber-100 rounded-full dark:bg-amber-900/30">
+          <Building2 className="h-8 w-8 text-amber-600 dark:text-amber-500 animate-pulse" />
+        </div>
+        <div className="max-w-md space-y-1.5">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">
+            Obra / Local Obrigatório
+          </h3>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Este cliente não possui nenhuma Obra ou Local de Operação cadastrado. É obrigatório registrar pelo menos uma Obra antes de configurar as tarifas e exceções de faturamento.
+          </p>
+        </div>
+        <div className="pt-2">
+          <p className="text-xs text-amber-600 dark:text-amber-500 font-semibold">
+            Por favor, acesse a aba "Obras / Locais" acima para cadastrar a primeira obra do cliente.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       
