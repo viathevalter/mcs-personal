@@ -71,7 +71,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       const { data: workers, error: workersError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, cod_colab, funcion, cliente_nombre')
+        .select('id, nome, cod_colab, funcion, cliente')
         .in('id', workerIds)
         .or('status_trabajador.ilike.Ativo,status_trabajador.ilike.Activo');
         
@@ -129,11 +129,11 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
     );
     if (filteredByCode.length > 0) return filteredByCode;
 
-    // 2. Fallback: filter by w.cliente_nombre string match (general/outdated client name field)
+    // 2. Fallback: filter by w.cliente string match (general/outdated client name field)
     if (client?.trade_name) {
       const clientNameLower = client.trade_name.trim().toLowerCase();
       const filteredByName = workersList.filter(
-        w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower
+        w => w.cliente?.trim().toLowerCase() === clientNameLower
       );
       if (filteredByName.length > 0) return filteredByName;
     }
