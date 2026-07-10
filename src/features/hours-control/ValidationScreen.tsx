@@ -294,12 +294,12 @@ export function ValidationScreen({
                 const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                 const dbRec = existingHours?.find(h => h.data_trabalho === dayStr);
 
-                // Apply pre-selection logic for obra if new record and exactly 1 site exists
+                // Apply pre-selection logic for obra: if exactly 1 site exists, always pre-select it
                 let initialObra = '';
-                if (dbRec) {
-                    initialObra = dbRec.obra_id || '';
-                } else if (finalSites.length === 1) {
+                if (finalSites.length === 1) {
                     initialObra = finalSites[0].id;
+                } else if (dbRec) {
+                    initialObra = dbRec.obra_id || '';
                 }
 
                 return {
