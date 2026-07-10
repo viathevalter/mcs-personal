@@ -256,7 +256,7 @@ export function ClientHoursDetail() {
         }
     };
 
-    const handleRejectFile = async (recordId: string, filePath: string) => {
+    const handleRejectFile = async (recordId: string, filePath: string, workerId: string) => {
         if (!confirm(t('clientHoursDetail.messages.confirmReject'))) {
             return;
         }
@@ -272,6 +272,22 @@ export function ClientHoursDetail() {
             if (storageError) {
                 console.error('Error deleting file:', storageError);
                 // Proceed anyway to fix the database state if storage fails
+            }
+
+            // Delete daily hours from core_finance.horas_trabalhadas
+            const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+            
+            const { error: deleteHoursError } = await supabase
+                .schema('core_finance')
+                .from('horas_trabalhadas')
+                .delete()
+                .eq('worker_id', workerId)
+                .gte('data_trabalho', startDateStr)
+                .lte('data_trabalho', endDateStr);
+
+            if (deleteHoursError) {
+                console.error('Error deleting daily hours on reject:', deleteHoursError);
             }
 
             // Update DB Status
@@ -585,7 +601,7 @@ export function ClientHoursDetail() {
                                                             size="sm"
                                                             variant="outline"
                                                             className="h-8 text-red-600 border-red-200 hover:bg-red-50"
-                                                            onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url!)}
+                                                            onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url!, worker.worker_id)}
                                                             disabled={actionLoading === worker.hour_record_id + '-rj'}
                                                             title={t('clientHoursDetail.tooltips.reject')}
                                                         >
