@@ -503,7 +503,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                         />
                         <div>
                           <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{jf.name}</div>
-                          <div className="text-xs text-slate-400">Código: {jf.cod_func || 'N/A'}</div>
+                          <div className="text-xs text-slate-400">Código: {jf.code || 'N/A'}</div>
                         </div>
                       </div>
                       <Button
@@ -598,7 +598,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                         />
                         <div className="space-y-0.5 shrink-0 max-w-[200px] md:max-w-[280px]">
                           <div className="font-semibold text-sm truncate text-slate-800 dark:text-slate-200">{jf?.name || 'Função Desconhecida'}</div>
-                          <div className="text-xs text-slate-400 font-mono font-semibold">Cód: {jf?.cod_func || 'N/A'}</div>
+                          <div className="text-xs text-slate-400 font-mono font-semibold">Cód: {jf?.code || 'N/A'}</div>
                         </div>
                       </div>
 
