@@ -34,24 +34,33 @@ interface ClientTariffsTabProps {
 
 export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const clientId = client.id!;
-  const { selectedEmpresaId, setSelectedEmpresaId, empresas = [] } = useEmpresa();
+  const { selectedEmpresaId, empresas = [] } = useEmpresa();
+  
+  // Local company selection state to prevent global navigation reloads
+  const [activeEmpresaId, setActiveEmpresaId] = useState<string | null>(selectedEmpresaId);
+
+  useEffect(() => {
+    if (selectedEmpresaId) {
+      setActiveEmpresaId(selectedEmpresaId);
+    }
+  }, [selectedEmpresaId]);
 
   // Queries
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
-  const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions();
+  const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(activeEmpresaId);
   
   // Lightweight query to fetch active worker profiles for this company (avoiding heavy holerite query)
   const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
-    queryKey: ['lightweightActiveWorkers', selectedEmpresaId],
+    queryKey: ['lightweightActiveWorkers', activeEmpresaId],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
+      if (!activeEmpresaId) return [];
       
       // Fetch active contract worker IDs
       const { data: contracts, error: contractsError } = await supabase
         .schema('core_personal')
         .from('contracts')
         .select('worker_id')
-        .eq('empresa_id', selectedEmpresaId);
+        .eq('empresa_id', activeEmpresaId);
         
       if (contractsError) throw contractsError;
       if (!contracts || contracts.length === 0) return [];
@@ -69,15 +78,15 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       if (workersError) throw workersError;
       return workers || [];
     },
-    enabled: Boolean(selectedEmpresaId),
+    enabled: Boolean(activeEmpresaId),
     refetchOnWindowFocus: false,
   });
 
   const { data: activeTariffs = [], isLoading: loadingTariffs, refetch: refetchTariffs } = useClientTariffs(clientId);
   const { data: workerExceptions = [], isLoading: loadingExceptions, refetch: refetchExceptions } = useClientWorkerTariffs(clientId);
 
-  // Mutations
-  const { saveTariff, deleteTariff, saveWorkerTariff, deleteWorkerTariff, isSavingTariff } = useMutateClientTariffs(clientId);
+  // Mutations (using activeEmpresaId)
+  const { saveTariff, deleteTariff, saveWorkerTariff, deleteWorkerTariff, isSavingTariff } = useMutateClientTariffs(clientId, activeEmpresaId);
 
   // States
   const [selectedSiteId, setSelectedSiteId] = useState<string>('global'); // 'global' = Sem Obra / General
@@ -183,22 +192,22 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
   // Filter exceptions by selected company
   const filteredWorkerExceptions = useMemo(() => {
-    return workerExceptions.filter(exc => exc.empresa_id === selectedEmpresaId);
-  }, [workerExceptions, selectedEmpresaId]);
+    return workerExceptions.filter(exc => exc.empresa_id === activeEmpresaId);
+  }, [workerExceptions, activeEmpresaId]);
 
-  // Load selected tariffs when activeTariffs, selectedSiteId or selectedEmpresaId changes
+  // Load selected tariffs when activeTariffs, selectedSiteId or activeEmpresaId changes
   useEffect(() => {
     if (activeTariffs) {
       const siteIdFilter = selectedSiteId === 'global' ? null : selectedSiteId;
       const filtered = activeTariffs
-        .filter(t => t.client_site_id === siteIdFilter && t.empresa_id === selectedEmpresaId)
+        .filter(t => t.client_site_id === siteIdFilter && t.empresa_id === activeEmpresaId)
         .map(t => ({
           job_function_id: t.job_function_id,
           valor_tarifa: Number(t.valor_tarifa)
         }));
       setSelectedTariffs(filtered);
     }
-  }, [activeTariffs, selectedSiteId, selectedEmpresaId]);
+  }, [activeTariffs, selectedSiteId, activeEmpresaId]);
 
   // Map Selected Tariffs to Map for easy lookup
   const selectedTariffsMap = useMemo(() => {
@@ -465,7 +474,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <Label htmlFor="tariff_company_select" className="text-xs font-semibold uppercase text-slate-500 shrink-0">Empresa / Faturamento:</Label>
-                <Select value={selectedEmpresaId || ''} onValueChange={setSelectedEmpresaId}>
+                <Select value={activeEmpresaId || ''} onValueChange={setActiveEmpresaId}>
                   <SelectTrigger id="tariff_company_select" className="w-full md:w-[200px] bg-slate-50 border-slate-200 focus:ring-orange-500 font-semibold text-orange-600">
                     <SelectValue placeholder="Selecione a empresa..." />
                   </SelectTrigger>

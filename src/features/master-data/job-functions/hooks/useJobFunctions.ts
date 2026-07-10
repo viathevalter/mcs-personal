@@ -3,15 +3,16 @@ import { jobFunctionsApi } from '../api/jobFunctionsApi';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 
-export function useJobFunctions() {
+export function useJobFunctions(empresaId?: string | null) {
   const { selectedEmpresaId } = useEmpresa();
+  const activeId = empresaId !== undefined ? empresaId : selectedEmpresaId;
 
   return useQuery({
-    queryKey: ['jobFunctions', selectedEmpresaId],
+    queryKey: ['jobFunctions', activeId],
     queryFn: () => {
-      if (!selectedEmpresaId) return Promise.resolve([]);
-      return jobFunctionsApi.getJobFunctions(selectedEmpresaId);
+      if (!activeId) return Promise.resolve([]);
+      return jobFunctionsApi.getJobFunctions(activeId);
     },
-    enabled: !!selectedEmpresaId,
+    enabled: !!activeId,
   });
 }

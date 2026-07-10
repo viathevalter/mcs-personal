@@ -78,14 +78,15 @@ export function useClientWorkerTariffs(clientId: string) {
   });
 }
 
-export function useMutateClientTariffs(clientId: string) {
+export function useMutateClientTariffs(clientId: string, empresaId?: string | null) {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
+  const activeEmpresaId = empresaId !== undefined ? empresaId : selectedEmpresaId;
 
   const saveTariffMutation = useMutation({
     mutationFn: ({ clientSiteId, jobFunctionId, valorTarifa }: { clientSiteId: string | null; jobFunctionId: string; valorTarifa: number }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-      return clientsApi.saveClientTariff(selectedEmpresaId, clientId, clientSiteId, jobFunctionId, valorTarifa);
+      if (!activeEmpresaId) throw new Error('Empresa não selecionada');
+      return clientsApi.saveClientTariff(activeEmpresaId, clientId, clientSiteId, jobFunctionId, valorTarifa);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientTariffs', clientId] });
@@ -103,8 +104,8 @@ export function useMutateClientTariffs(clientId: string) {
 
   const saveWorkerTariffMutation = useMutation({
     mutationFn: ({ clientSiteId, workerId, valorTarifa }: { clientSiteId: string | null; workerId: string; valorTarifa: number }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-      return clientsApi.saveClientWorkerTariff(selectedEmpresaId, clientId, clientSiteId, workerId, valorTarifa);
+      if (!activeEmpresaId) throw new Error('Empresa não selecionada');
+      return clientsApi.saveClientWorkerTariff(activeEmpresaId, clientId, clientSiteId, workerId, valorTarifa);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientWorkerTariffs', clientId] });
