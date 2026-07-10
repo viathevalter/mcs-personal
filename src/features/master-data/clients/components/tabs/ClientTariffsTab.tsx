@@ -163,10 +163,10 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
     setSelectedActiveIds(new Set());
   }, [selectedSiteId]);
 
-  // Filter sites for this client
+  // Filter sites for this client and active company
   const sites = useMemo(() => {
-    return clientSites.filter(s => s.client_id === clientId && s.status === 'active');
-  }, [clientSites, clientId]);
+    return clientSites.filter(s => s.client_id === clientId && s.empresa_id === activeEmpresaId && s.status === 'active');
+  }, [clientSites, clientId, activeEmpresaId]);
 
   // Automatically select the first site if available, otherwise default to 'global'
   useEffect(() => {
