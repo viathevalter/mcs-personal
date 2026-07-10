@@ -60,7 +60,7 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
   // Multi-select checkbox states
   const [selectedAvailableIds, setSelectedAvailableIds] = useState<Set<string>>(new Set());
   const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
-  const [bulkRateAvailable, setBulkRateAvailable] = useState('20.00');
+  const [bulkRateAvailable, setBulkRateAvailable] = useState('27.00');
   const [bulkRateActive, setBulkRateActive] = useState('');
 
   // Clear checkbox selection when switching sites
@@ -149,13 +149,13 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
   const handleAddFunction = (jfId: string) => {
     setSelectedTariffs(prev => [
       ...prev,
-      { job_function_id: jfId, valor_tarifa: 20.00 } // Default fallback rate
+      { job_function_id: jfId, valor_tarifa: 27.00 } // Default fallback rate
     ]);
   };
 
   // Bulk add available functions
   const handleBulkAddAvailable = () => {
-    const rate = parseFloat(bulkRateAvailable) || 20.00;
+    const rate = parseFloat(bulkRateAvailable) || 27.00;
     const toAdd = Array.from(selectedAvailableIds).map(id => ({
       job_function_id: id,
       valor_tarifa: rate

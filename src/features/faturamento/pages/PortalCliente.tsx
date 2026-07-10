@@ -221,7 +221,7 @@ export function PortalCliente() {
           workerName: h.worker?.nombrecompleto || 'Colaborador',
           codColab: h.worker?.codColab || 'N/A',
           perfil: h.worker?.perfil || 'Não Definido',
-          tarifa: h.tarifa_faturada || 20.00,
+          tarifa: h.tarifa_faturada || 27.00,
           totalHoras: 0,
           totalValor: 0,
           horasDiarias: {}
@@ -234,7 +234,7 @@ export function PortalCliente() {
       const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
 
       wObj.totalHoras += hoursVal;
-      wObj.totalValor += hoursVal * (h.tarifa_faturada || 20.00);
+      wObj.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
       
       const dateKey = h.data_trabalho;
       wObj.horasDiarias[dateKey] = {

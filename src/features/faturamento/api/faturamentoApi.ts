@@ -442,7 +442,7 @@ export async function getHorasPendentesFaturamento(
 
         // Find tariff from hours, or default to mock
         const sampleHour = wHours[0];
-        const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 20.00));
+        const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 27.00));
 
         workersSummary.push({
           workerId: w.id,
@@ -487,7 +487,7 @@ export async function getHorasPendentesFaturamento(
           horasDiarias[dateOnly] = h;
         });
 
-        const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 20.00;
+        const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
 
         workersSummary.push({
           workerId: wId,
@@ -1005,7 +1005,7 @@ export async function atualizarHorasDiarias(
         horas_totais: novasHoras,
         status: 'pending_review',
         funcao_id: funcaoId || null,
-        tarifa_faturada: tarifaFaturada || 20.00
+        tarifa_faturada: tarifaFaturada || 27.00
       });
     if (error) throw mapSupabaseError(error);
   }

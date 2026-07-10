@@ -524,7 +524,7 @@ export function ValidationScreen({
         try {
             const selectedJobFunc = jobFunctions.find(jf => jf.id === workerFuncId);
             const targetFuncName = selectedJobFunc ? selectedJobFunc.name : workerFunction;
-            const mockTarifaFaturada = targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 20.00);
+            const mockTarifaFaturada = targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 27.00);
 
             const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
