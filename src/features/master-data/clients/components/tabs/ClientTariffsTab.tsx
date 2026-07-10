@@ -702,8 +702,13 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       <div className="font-semibold text-slate-700 dark:text-slate-300">
-                        {exc.updater?.full_name || exc.creator?.full_name || exc.updater?.email || exc.creator?.email || 'N/A'}
+                        {exc.updater?.email || exc.creator?.email || 'N/A'}
                       </div>
+                      {(exc.updater?.full_name || exc.creator?.full_name) && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                          {exc.updater?.full_name || exc.creator?.full_name}
+                        </div>
+                      )}
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                         {exc.updated_at ? new Date(exc.updated_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (exc.created_at ? new Date(exc.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A')}
                       </div>
