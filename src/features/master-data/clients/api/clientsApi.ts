@@ -383,15 +383,43 @@ export const clientsApi = {
       workers = workersData || [];
     }
 
+    // Fetch user profiles for audit tracking
+    const userIds = Array.from(new Set([
+      ...tariffs.map(t => t.created_by).filter(Boolean),
+      ...tariffs.map(t => t.updated_by).filter(Boolean)
+    ]));
+    let profiles: any[] = [];
+
+    if (userIds.length > 0) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Failed to fetch user profiles for audit:', profilesError);
+      } else {
+        profiles = profilesData || [];
+      }
+    }
+
     const workersMap = new Map(workers.map(w => [w.id, w]));
+    const profilesMap = new Map(profiles.map(p => [p.id, p]));
+
     return tariffs.map(t => ({
       ...t,
-      worker: workersMap.get(t.worker_id) || null
+      worker: workersMap.get(t.worker_id) || null,
+      creator: profilesMap.get(t.created_by) || null,
+      updater: profilesMap.get(t.updated_by) || null
     }));
   },
 
   async saveClientWorkerTariff(empresaId: string, clientId: string, clientSiteId: string | null, workerId: string, valorTarifa: number): Promise<void> {
     if (!empresaId || !clientId || !workerId) throw new Error('Dados insuficientes para salvar exceção');
+
+    // Fetch current user UUID
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || null;
 
     const query = supabase
       .schema('core_common')
@@ -415,7 +443,8 @@ export const clientsApi = {
         .from('client_worker_tariffs')
         .update({
           valor_tarifa: valorTarifa,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          updated_by: userId
         })
         .eq('id', data[0].id);
       if (updateError) throw updateError;
@@ -428,7 +457,9 @@ export const clientsApi = {
           client_id: clientId,
           client_site_id: clientSiteId || null,
           worker_id: workerId,
-          valor_tarifa: valorTarifa
+          valor_tarifa: valorTarifa,
+          created_by: userId,
+          updated_by: userId
         });
       if (insertError) throw insertError;
     }

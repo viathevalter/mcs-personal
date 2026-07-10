@@ -675,15 +675,16 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                 <th className="px-4 py-3 font-medium text-slate-500">Trabalhador</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Função</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Local / Obra</th>
+                <th className="px-4 py-3 font-medium text-slate-500">Autor / Modificação</th>
                 <th className="px-4 py-3 font-medium text-slate-500 text-right">Tarifa Customizada</th>
                 <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {loadingExceptions ? (
-                <tr><td colSpan={5} className="p-4 text-center text-slate-400">Carregando exceções...</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-slate-400">Carregando exceções...</td></tr>
               ) : workerExceptions.length === 0 ? (
-                <tr><td colSpan={5} className="p-6 text-center text-slate-400 text-xs">Nenhuma exceção de tarifa cadastrada para este cliente.</td></tr>
+                <tr><td colSpan={6} className="p-6 text-center text-slate-400 text-xs">Nenhuma exceção de tarifa cadastrada para este cliente.</td></tr>
               ) : (
                 workerExceptions.map(exc => (
                   <tr key={exc.id} className="hover:bg-slate-50/50">
@@ -698,6 +699,14 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                       ) : (
                         <span className="text-slate-400 italic">Todos os locais (Global)</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      <div className="font-semibold text-slate-700 dark:text-slate-300">
+                        {exc.updater?.full_name || exc.creator?.full_name || exc.updater?.email || exc.creator?.email || 'N/A'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {exc.updated_at ? new Date(exc.updated_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (exc.created_at ? new Date(exc.created_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A')}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-orange-600">
                       € {Number(exc.valor_tarifa).toFixed(2)}
