@@ -689,11 +689,11 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
       {/* DIÁLOGO: Adicionar Exceção por Trabalhador */}
       <Dialog open={isWorkerDialogOpen} onOpenChange={setIsWorkerDialogOpen}>
-        <DialogContent className="sm:max-w-[420px] bg-white">
+        <DialogContent className="sm:max-w-[600px] w-[95vw] bg-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-orange-500" />
-              Exceção de Trabalhador
+               Exceção de Trabalhador
             </DialogTitle>
             <DialogDescription>
               Defina um valor de faturamento específico por hora para um trabalhador neste cliente.
@@ -704,7 +704,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
             <div className="space-y-1.5">
               <Label htmlFor="dialog_worker_select">Selecione o Trabalhador</Label>
               <Select value={selectedWorkerId} onValueChange={setSelectedWorkerId}>
-                <SelectTrigger id="dialog_worker_select" className="bg-slate-50">
+                <SelectTrigger id="dialog_worker_select" className="bg-slate-50 w-full overflow-hidden [&>span]:line-clamp-1 [&>span]:text-left">
                   <SelectValue placeholder="Selecione o trabalhador..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
