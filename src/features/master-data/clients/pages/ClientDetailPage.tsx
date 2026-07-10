@@ -107,7 +107,7 @@ export function ClientDetailPage() {
         </TabsContent>
 
         <TabsContent value="tariffs" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">
-          <ClientTariffsTab clientId={client.id!} />
+          <ClientTariffsTab client={client} />
         </TabsContent>
 
         <TabsContent value="history" className="border rounded-md bg-white p-6 dark:bg-slate-900 shadow-sm">

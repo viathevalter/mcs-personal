@@ -28,10 +28,11 @@ import {
 } from 'lucide-react';
 
 interface ClientTariffsTabProps {
-  clientId: string;
+  client: any;
 }
 
-export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
+export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
+  const clientId = client.id!;
   const { selectedEmpresaId } = useEmpresa();
 
   // Queries
@@ -53,6 +54,20 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [workerSiteId, setWorkerSiteId] = useState('global');
   const [workerRate, setWorkerRate] = useState('');
+  const [showOnlyClientWorkers, setShowOnlyClientWorkers] = useState(true);
+
+  const filteredWorkers = useMemo(() => {
+    if (!showOnlyClientWorkers || !client?.trade_name) return workersList;
+    const clientNameLower = client.trade_name.trim().toLowerCase();
+    const filtered = workersList.filter(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
+    return filtered.length > 0 ? filtered : workersList;
+  }, [workersList, client, showOnlyClientWorkers]);
+
+  useEffect(() => {
+    if (selectedWorkerId && !filteredWorkers.some(w => w.id === selectedWorkerId)) {
+      setSelectedWorkerId('');
+    }
+  }, [filteredWorkers, selectedWorkerId]);
 
   // Local state for selected tariffs to allow editing before saving
   const [selectedTariffs, setSelectedTariffs] = useState<{ job_function_id: string; valor_tarifa: number }[]>([]);
@@ -659,7 +674,7 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
                   {loadingWorkers ? (
                     <SelectItem value="loading" disabled>Carregando trabalhadores...</SelectItem>
                   ) : (
-                    workersList.map(w => (
+                    filteredWorkers.map(w => (
                       <SelectItem key={w.id} value={w.id}>
                         {w.nome} ({w.funcion || 'Sem Função'})
                       </SelectItem>
@@ -667,6 +682,19 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
                   )}
                 </SelectContent>
               </Select>
+
+              <div className="flex items-center gap-2 pt-1 pb-1">
+                <input
+                  type="checkbox"
+                  id="only_client_workers"
+                  checked={showOnlyClientWorkers}
+                  onChange={e => setShowOnlyClientWorkers(e.target.checked)}
+                  className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <Label htmlFor="only_client_workers" className="text-[11px] text-slate-500 cursor-pointer select-none font-medium">
+                  Mostrar apenas trabalhadores alocados a este cliente
+                </Label>
+              </div>
             </div>
 
             <div className="space-y-1.5">
