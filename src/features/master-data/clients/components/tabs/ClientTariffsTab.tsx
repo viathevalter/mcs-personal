@@ -34,7 +34,7 @@ interface ClientTariffsTabProps {
 
 export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const clientId = client.id!;
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas = [] } = useEmpresa();
 
   // Queries
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
@@ -181,19 +181,24 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
     }
   }, [isWorkerDialogOpen, sites]);
 
-  // Load selected tariffs when activeTariffs or selectedSiteId changes
+  // Filter exceptions by selected company
+  const filteredWorkerExceptions = useMemo(() => {
+    return workerExceptions.filter(exc => exc.empresa_id === selectedEmpresaId);
+  }, [workerExceptions, selectedEmpresaId]);
+
+  // Load selected tariffs when activeTariffs, selectedSiteId or selectedEmpresaId changes
   useEffect(() => {
     if (activeTariffs) {
       const siteIdFilter = selectedSiteId === 'global' ? null : selectedSiteId;
       const filtered = activeTariffs
-        .filter(t => t.client_site_id === siteIdFilter)
+        .filter(t => t.client_site_id === siteIdFilter && t.empresa_id === selectedEmpresaId)
         .map(t => ({
           job_function_id: t.job_function_id,
           valor_tarifa: Number(t.valor_tarifa)
         }));
       setSelectedTariffs(filtered);
     }
-  }, [activeTariffs, selectedSiteId]);
+  }, [activeTariffs, selectedSiteId, selectedEmpresaId]);
 
   // Map Selected Tariffs to Map for easy lookup
   const selectedTariffsMap = useMemo(() => {
@@ -457,22 +462,38 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
             </p>
           </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <Label htmlFor="tariff_site_select" className="text-xs font-semibold uppercase text-slate-500 shrink-0">Obra / Local:</Label>
-            <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-              <SelectTrigger id="tariff_site_select" className="w-full md:w-[280px] bg-slate-50 border-slate-200 focus:ring-orange-500">
-                <SelectValue placeholder="Selecione o local..." />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.length === 0 && (
-                  <SelectItem value="global">Dados Gerais (Sem Obra)</SelectItem>
-                )}
-                {sites.map(s => (
-                  <SelectItem key={s.id} value={s.id}>Obra: {s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <Label htmlFor="tariff_company_select" className="text-xs font-semibold uppercase text-slate-500 shrink-0">Empresa / Faturamento:</Label>
+                <Select value={selectedEmpresaId || ''} onValueChange={setSelectedEmpresaId}>
+                  <SelectTrigger id="tariff_company_select" className="w-full md:w-[200px] bg-slate-50 border-slate-200 focus:ring-orange-500 font-semibold text-orange-600">
+                    <SelectValue placeholder="Selecione a empresa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {empresas.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id}>{emp.codigo} - {emp.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <Label htmlFor="tariff_site_select" className="text-xs font-semibold uppercase text-slate-500 shrink-0">Obra / Local:</Label>
+                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                  <SelectTrigger id="tariff_site_select" className="w-full md:w-[200px] bg-slate-50 border-slate-200 focus:ring-orange-500">
+                    <SelectValue placeholder="Selecione o local..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.length === 0 && (
+                      <SelectItem value="global">Dados Gerais (Sem Obra)</SelectItem>
+                    )}
+                    {sites.map(s => (
+                      <SelectItem key={s.id} value={s.id}>Obra: {s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
@@ -730,10 +751,10 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
             <tbody className="divide-y">
               {loadingExceptions ? (
                 <tr><td colSpan={6} className="p-4 text-center text-slate-400">Carregando exceções...</td></tr>
-              ) : workerExceptions.length === 0 ? (
+              ) : filteredWorkerExceptions.length === 0 ? (
                 <tr><td colSpan={6} className="p-6 text-center text-slate-400 text-xs">Nenhuma exceção de tarifa cadastrada para este cliente.</td></tr>
               ) : (
-                workerExceptions.map(exc => (
+                filteredWorkerExceptions.map(exc => (
                   <tr key={exc.id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">
                       {exc.worker?.nome || 'Trabalhador Não Informado'}
