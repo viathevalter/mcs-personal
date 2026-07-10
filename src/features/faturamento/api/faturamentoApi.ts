@@ -111,6 +111,7 @@ export interface ClientBillingSummary {
     workerStatus?: string | null;
     dataBaixa?: string | null;
     observacoes?: string | null;
+    isException?: boolean;
     horasDiarias: Record<string, {
       id?: string;
       horas_totais: number;
@@ -354,6 +355,17 @@ export async function getHorasPendentesFaturamento(
     }
     const jobFunctionsMap = new Map(jobFunctions.map(j => [j.id, j.name]));
 
+    // Fetch custom worker exception tariffs for relevant clients
+    let workerExceptions: any[] = [];
+    if (relevantClientIds.length > 0) {
+      const { data: excData } = await supabase
+        .schema('core_common')
+        .from('client_worker_tariffs')
+        .select('client_id, worker_id, client_site_id, valor_tarifa')
+        .in('client_id', relevantClientIds);
+      workerExceptions = excData || [];
+    }
+
     // 10. Construct summarizing list
     const clientSummaries: ClientBillingSummary[] = [];
 
@@ -444,6 +456,14 @@ export async function getHorasPendentesFaturamento(
         const sampleHour = wHours[0];
         const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 27.00));
 
+        // Check if there is an active custom exception configuration for this worker (either specific to the site or global)
+        const hourlyObraId = wHours[0]?.obra_id || null;
+        const hasException = workerExceptions.some(e => 
+          e.client_id === client.id && 
+          e.worker_id === w.id && 
+          (e.client_site_id === hourlyObraId || e.client_site_id === null)
+        );
+
         workersSummary.push({
           workerId: w.id,
           workerName: w.nome || 'Trabalhador Desconhecido',
@@ -457,6 +477,7 @@ export async function getHorasPendentesFaturamento(
           workerStatus: w.status_trabajador || 'Ativo',
           dataBaixa: w.data_baixa || null,
           observacoes,
+          isException: hasException,
           horasDiarias
         });
       }
@@ -489,6 +510,12 @@ export async function getHorasPendentesFaturamento(
 
         const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
 
+        const hasException = workerExceptions.some(e => 
+          e.client_id === client.id && 
+          e.worker_id === wId && 
+          (e.client_site_id === sampleHour.obra_id || e.client_site_id === null)
+        );
+
         workersSummary.push({
           workerId: wId,
           workerName: wName,
@@ -502,6 +529,7 @@ export async function getHorasPendentesFaturamento(
           dataBaixa: wDataBaixa,
           observacoes: null,
           funcaoId: wFuncaoId,
+          isException: hasException,
           horasDiarias
         });
         

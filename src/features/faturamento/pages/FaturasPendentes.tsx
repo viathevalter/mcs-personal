@@ -1542,9 +1542,16 @@ MCS - Gestão Comercial`;
                                   <TableCell className="font-mono text-xs text-slate-500 pl-4 align-top pt-4">{worker.codColab}</TableCell>
                                   <TableCell className="align-top pt-4">
                                     <div className="flex flex-col gap-1.5">
-                                      <span className={`font-semibold ${worker.isValidated ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
-                                        {worker.workerName}
-                                      </span>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`font-semibold ${worker.isValidated ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
+                                          {worker.workerName}
+                                        </span>
+                                        {worker.isException && (
+                                          <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] px-1.5 py-0 h-4.5 font-bold uppercase tracking-wider shrink-0 border-0 shadow-sm rounded-md">
+                                            Exceção
+                                          </Badge>
+                                        )}
+                                      </div>
                                       {/* Exibição do Status do Trabalhador */}
                                       {(() => {
                                         const rawStatus = worker.workerStatus?.toUpperCase() || '';
@@ -1604,7 +1611,9 @@ MCS - Gestão Comercial`;
                                   <TableCell className="text-right font-semibold align-top pt-4">
                                     {worker.isValidated ? (
                                       <div className="flex items-center justify-end gap-1.5 group/tarifa">
-                                        <span>€ {worker.tarifa.toFixed(2)}</span>
+                                        <span className={worker.isException ? "text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200/50" : ""}>
+                                          € {worker.tarifa.toFixed(2)}
+                                        </span>
                                         {!isAlreadyInvoiced && (
                                           <button 
                                             onClick={(e) => {
@@ -2076,9 +2085,20 @@ MCS - Gestão Comercial`;
                               <TableBody>
                                 {filteredWorkers.map(w => (
                                   <TableRow key={w.workerId}>
-                                    <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">{w.workerName}</TableCell>
+                                    <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>{w.workerName}</span>
+                                        {w.isException && (
+                                          <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-1 py-0.5 rounded uppercase tracking-wider">
+                                            Tarifa Especial
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
                                     <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                                    <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                                    <TableCell className={`text-right font-medium ${w.isException ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                                      € {w.tarifa.toFixed(2)}
+                                    </TableCell>
                                     <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
                                 ))}
