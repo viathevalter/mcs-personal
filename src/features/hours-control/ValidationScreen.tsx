@@ -225,12 +225,13 @@ export function ValidationScreen({
                 }
             }
 
-            // 3. Fetch sites
+             // 3. Fetch sites
             const { data: sites, error: sitesErr } = await supabase
                 .schema('core_common')
                 .from('client_sites')
                 .select('id, name')
                 .eq('client_id', cId)
+                .eq('empresa_id', empresaId)
                 .neq('status', 'archived')
                 .order('name');
 
@@ -244,7 +245,7 @@ export function ValidationScreen({
                     .schema('core_common')
                     .from('client_sites')
                     .insert({
-                        empresa_id: matched.empresa_id,
+                        empresa_id: empresaId,
                         client_id: cId,
                         name: 'Taller',
                         status: 'active'
