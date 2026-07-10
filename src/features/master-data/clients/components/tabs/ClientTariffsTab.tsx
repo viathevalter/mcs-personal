@@ -253,7 +253,7 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
         saveTariff({
           clientSiteId: siteIdFilter,
           jobFunctionId: t.job_function_id,
-          valor_tarifa: t.valor_tarifa
+          valorTarifa: t.valor_tarifa
         })
       );
       await Promise.all(promises);
@@ -281,7 +281,7 @@ export function ClientTariffsTab({ clientId }: ClientTariffsTabProps) {
       await saveWorkerTariff({
         clientSiteId: siteIdFilter,
         workerId: selectedWorkerId,
-        valor_tarifa: parseFloat(workerRate)
+        valorTarifa: parseFloat(workerRate)
       });
       toast.success('Exceção cadastrada com sucesso!');
       setIsWorkerDialogOpen(false);
