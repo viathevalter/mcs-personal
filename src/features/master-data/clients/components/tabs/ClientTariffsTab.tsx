@@ -89,6 +89,28 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const [workerSiteId, setWorkerSiteId] = useState('global');
   const [workerRate, setWorkerRate] = useState('');
   const [showOnlyClientWorkers, setShowOnlyClientWorkers] = useState(true);
+
+  // Automatically select the first site if available, otherwise default to 'global'
+  useEffect(() => {
+    if (sites.length > 0) {
+      if (selectedSiteId === 'global' || !sites.some(s => s.id === selectedSiteId)) {
+        setSelectedSiteId(sites[0].id);
+      }
+    } else {
+      setSelectedSiteId('global');
+    }
+  }, [sites, selectedSiteId]);
+
+  // Automatically set workerSiteId when opening the exception dialog
+  useEffect(() => {
+    if (isWorkerDialogOpen) {
+      if (sites.length > 0) {
+        setWorkerSiteId(sites[0].id);
+      } else {
+        setWorkerSiteId('global');
+      }
+    }
+  }, [isWorkerDialogOpen, sites]);
   const [allocatedWorkerCodes, setAllocatedWorkerCodes] = useState<string[]>([]);
 
   // Fetch exact worker allocations for this client from colaborador_por_pedido
@@ -419,7 +441,9 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                 <SelectValue placeholder="Selecione o local..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="global">Dados Gerais (Sem Obra)</SelectItem>
+                {sites.length === 0 && (
+                  <SelectItem value="global">Dados Gerais (Sem Obra)</SelectItem>
+                )}
                 {sites.map(s => (
                   <SelectItem key={s.id} value={s.id}>Obra: {s.name}</SelectItem>
                 ))}
@@ -788,7 +812,9 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                   <SelectValue placeholder="Selecione o local..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="global">Todos os locais (Global)</SelectItem>
+                  {sites.length === 0 && (
+                    <SelectItem value="global">Todos os locais (Global)</SelectItem>
+                  )}
                   {sites.map(s => (
                     <SelectItem key={s.id} value={s.id}>Obra: {s.name}</SelectItem>
                   ))}
