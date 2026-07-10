@@ -12,8 +12,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buffer);
   const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const chunk_size = 0x8000; // 32KB chunks
+  for (let i = 0; i < len; i += chunk_size) {
+    const chunk = bytes.subarray(i, i + chunk_size);
+    binary += String.fromCharCode.apply(null, chunk as any);
   }
   return btoa(binary);
 }
@@ -41,6 +43,8 @@ serve(async (req) => {
     let document_type = "";
     let worker_id = null;
     let client_id = null;
+    let year: number | null = null;
+    let month: number | null = null;
 
     // Detectar se é um Webhook do Storage (tabela objects) ou chamada HTTP direta
     if (body.record && body.record.bucket_id) {
@@ -208,7 +212,7 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
     console.log(`Enviando solicitação OCR para o Gemini 1.5 Flash...`);
 
     // 3. Chamar a API do Google Gemini
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiApiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`;
 
     const geminiPayload = {
       system_instruction: {
@@ -388,8 +392,8 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       return Math.round((diffMin / 60) * 100) / 100;
     }
 
-    let year = body.year;
-    let month = body.month;
+    year = body.year;
+    month = body.month;
     if (!year || !month) {
       try {
         const filename = file_path.split('/').pop() || "";
