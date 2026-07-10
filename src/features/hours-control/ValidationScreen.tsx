@@ -525,7 +525,52 @@ export function ValidationScreen({
         try {
             const selectedJobFunc = jobFunctions.find(jf => jf.id === workerFuncId);
             const targetFuncName = selectedJobFunc ? selectedJobFunc.name : workerFunction;
-            const mockTarifaFaturada = targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+            
+            // Resolve custom and standard tariff rates from database settings
+            const { data: workerExceptions } = await supabase
+                .schema('core_common')
+                .from('client_worker_tariffs')
+                .select('worker_id, client_site_id, valor_tarifa')
+                .eq('client_id', clientId);
+
+            const { data: standardTariffs } = await supabase
+                .schema('core_common')
+                .from('client_tariffs')
+                .select('job_function_id, client_site_id, valor_tarifa')
+                .eq('client_id', clientId);
+
+            const resolveTariff = (wId: string, funcId: string, siteId: string | null): number => {
+                // 1. Try to find a worker exception matching this site
+                const wExcSite = workerExceptions?.find(e => 
+                    e.worker_id === wId && 
+                    e.client_site_id === siteId
+                );
+                if (wExcSite) return Number(wExcSite.valor_tarifa);
+
+                // 2. Try to find a worker exception with global (null) site
+                const wExcGlobal = workerExceptions?.find(e => 
+                    e.worker_id === wId && 
+                    e.client_site_id === null
+                );
+                if (wExcGlobal) return Number(wExcGlobal.valor_tarifa);
+
+                // 3. Try to find a standard function tariff matching this site
+                const stdSite = standardTariffs?.find(t => 
+                    t.job_function_id === funcId && 
+                    t.client_site_id === siteId
+                );
+                if (stdSite) return Number(stdSite.valor_tarifa);
+
+                // 4. Try to find a standard function tariff with global (null) site
+                const stdGlobal = standardTariffs?.find(t => 
+                    t.job_function_id === funcId && 
+                    t.client_site_id === null
+                );
+                if (stdGlobal) return Number(stdGlobal.valor_tarifa);
+
+                // 5. General fallback based on function name matching
+                return targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+            };
 
             const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
@@ -551,6 +596,9 @@ export function ValidationScreen({
                 })
                 .map(r => {
                     const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`;
+                    const siteId = r.obra || null;
+                    const tarifaFaturada = resolveTariff(workerId, workerFuncId, siteId);
+                    
                     return {
                         worker_id: workerId,
                         client_id: clientId,
@@ -560,8 +608,8 @@ export function ValidationScreen({
                         horas_totais: parseFloat(r.totalHoras),
                         status: 'pending_review',
                         funcao_id: workerFuncId,
-                        obra_id: r.obra || null,
-                        tarifa_faturada: mockTarifaFaturada
+                        obra_id: siteId,
+                        tarifa_faturada: tarifaFaturada
                     };
                 });
 
