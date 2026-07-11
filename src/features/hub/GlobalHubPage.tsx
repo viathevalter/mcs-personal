@@ -14,7 +14,8 @@ import {
     MessageCircle,
     Activity,
     LogOut,
-    Lock
+    Lock,
+    Car
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -96,8 +97,8 @@ const MODULES: ModuleDef[] = [
     },
     {
         id: 'cierre_horas',
-        title: 'MCS Cierre de Horas',
-        icon: Clock,
+        title: 'MCS CentralCars',
+        icon: Car,
         path: '/cierre-horas',
         color: 'text-blue-600',
         bgHover: 'hover:bg-blue-50',
@@ -170,6 +171,16 @@ export function GlobalHubPage() {
                 window.open(ssoUrl, '_blank');
             } else {
                 window.open(baseUrl, '_blank');
+            }
+        } else if (module.id === 'cierre_horas') {
+            const { data: { session } } = await supabase.auth.getSession();
+            const baseUrl = import.meta.env.VITE_COCHES_URL || 'https://mcs-coches.vercel.app';
+            
+            if (session) {
+                const ssoUrl = `${baseUrl}?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
+                window.location.href = ssoUrl;
+            } else {
+                window.location.href = baseUrl;
             }
         } else {
             navigate(module.path);
