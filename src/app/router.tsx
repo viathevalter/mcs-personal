@@ -32,6 +32,7 @@ import { RegionsPage } from '../features/master-data/locations/pages/RegionsPage
 import { EpisPage } from '../features/master-data/epis/pages/EpisPage';
 import { PaymentTermsPage } from '../features/master-data/payment-terms/pages/PaymentTermsPage';
 import { ColetaDadosPublicaPage } from '../features/comercial/leads/ColetaDadosPublicaPage';
+import { SolicitarPresupuestoPage } from '../features/comercial/leads/SolicitarPresupuestoPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
@@ -150,6 +151,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/novo-lead',
         element: <ColetaDadosPublicaPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/solicitar-presupuesto',
+        element: <SolicitarPresupuestoPage />,
         errorElement: <RootErrorBoundary />,
     },
     {

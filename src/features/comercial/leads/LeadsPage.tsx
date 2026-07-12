@@ -332,6 +332,22 @@ export function LeadsPage() {
     toast.success('Link de novo lead copiado para a área de transferência!');
   };
 
+  const handleCopyNewBudgetLink = () => {
+    if (!selectedEmpresaId) {
+      toast.error('Selecione uma empresa do grupo primeiro');
+      return;
+    }
+    const url = `${window.location.origin}/public/solicitar-presupuesto?empresa_id=${selectedEmpresaId}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link de nova solicitação de orçamento copiado para a área de transferência!');
+  };
+
+  const handleCopyBudgetLink = (lead: any) => {
+    const url = `${window.location.origin}/public/solicitar-presupuesto?lead_id=${lead.id}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link de solicitação de orçamento deste lead copiado para a área de transferência!');
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -646,6 +662,10 @@ export function LeadsPage() {
             <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
             Link de Cadastro
           </Button>
+          <Button onClick={handleCopyNewBudgetLink} variant="outline" className="border-slate-300 dark:border-slate-800">
+            <Share2 className="mr-2 h-4 w-4 text-orange-500" />
+            Link Solicitação Orçamento
+          </Button>
           <Button onClick={() => setIsImportOpen(true)} variant="outline" className="border-slate-300 dark:border-slate-800">
             <FileSpreadsheet className="mr-2 h-4 w-4 text-yellow-500" />
             Importar Planilha
@@ -821,6 +841,15 @@ export function LeadsPage() {
                               title="Copiar Link de Coleta"
                             >
                               <Link className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCopyBudgetLink(lead)}
+                              className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                              title="Copiar Link Solicitação Orçamento"
+                            >
+                              <Share2 className="h-4 w-4" />
                             </Button>
                           </>
                         )}

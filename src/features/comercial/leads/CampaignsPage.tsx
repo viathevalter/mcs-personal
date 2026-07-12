@@ -1305,12 +1305,14 @@ export function CampaignsPage() {
                   srcDoc={(() => {
                     let html = previewTemplate.html_content;
                     const testFormUrl = `${window.location.origin}/public/novo-lead?empresa_id=${selectedEmpresaId || ''}`;
+                    const testPresupuestoUrl = `${window.location.origin}/public/solicitar-presupuesto?empresa_id=${selectedEmpresaId || ''}`;
                     html = html
                       .replace(/\{\{\s*name\s*\}\}/g, "Cliente Exemplo")
                       .replace(/\{\{\s*company_name\s*\}\}/g, "Empresa Exemplo Ltda")
                       .replace(/\{\{\s*email\s*\}\}/g, "cliente@exemplo.com")
                       .replace(/\{\{\s*phone\s*\}\}/g, "+351 912 345 678")
-                      .replace(/\{\{\s*form_url\s*\}\}/g, testFormUrl);
+                      .replace(/\{\{\s*form_url\s*\}\}/g, testFormUrl)
+                      .replace(/\{\{\s*presupuesto_url\s*\}\}/g, testPresupuestoUrl);
                     return html;
                   })()} 
                   title="Preview" 
