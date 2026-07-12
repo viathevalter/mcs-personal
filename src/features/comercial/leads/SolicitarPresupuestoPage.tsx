@@ -154,14 +154,21 @@ export function SolicitarPresupuestoPage() {
       } else {
         // Create new lead with budget request notes
         // Fetch default Novo stage
-        const { data: stages } = await supabase
-          .schema('core_comercial')
-          .from('kanban_stages')
-          .select('id')
-          .eq('empresa_id', empresaId)
-          .eq('name', 'Novo');
+        let defaultStageId = null;
+        try {
+          const { data: stages, error: stageErr } = await supabase
+            .schema('core_comercial')
+            .from('kanban_stages')
+            .select('id')
+            .eq('empresa_id', empresaId)
+            .eq('name', 'Novo');
 
-        const defaultStageId = stages && stages.length > 0 ? stages[0].id : null;
+          if (!stageErr && stages && stages.length > 0) {
+            defaultStageId = stages[0].id;
+          }
+        } catch (stageErr) {
+          console.warn('Could not fetch default kanban stage for new lead', stageErr);
+        }
 
         const { error } = await supabase
           .schema('core_comercial')
