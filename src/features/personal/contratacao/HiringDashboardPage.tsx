@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { AllocateWorkerDialog } from './components/AllocateWorkerDialog';
+import { CancelAllocationDialog } from './components/CancelAllocationDialog';
 import { Button } from '@/components/ui/button';
 import { 
   Briefcase, 
@@ -25,6 +26,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
+import { toast } from 'sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +48,40 @@ export const HiringDashboardPage: React.FC = () => {
   // Dialog state
   const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Cancel Dialog state
+  const [allocationToCancel, setAllocationToCancel] = useState<{ id: string; workerName: string } | null>(null);
+  const [isCancelPending, setIsCancelPending] = useState(false);
+
+  const handleCancelAllocation = async (reason: string) => {
+    if (!allocationToCancel) return;
+    setIsCancelPending(true);
+    try {
+      const { data, error } = await supabase
+        .schema('core_personal')
+        .rpc('cancelar_alocacao_trabalhador', {
+          payload: {
+            assignment_id: allocationToCancel.id,
+            reason: reason || null
+          }
+        });
+
+      if (error) throw error;
+
+      toast.success('Contratação cancelada e vaga reaberta com sucesso!');
+      setAllocationToCancel(null);
+      
+      // Atualizar dados da tela
+      refetchPedidos();
+      refetchAllocations();
+      refetchReplacementTargets();
+    } catch (err: any) {
+      console.error("Erro ao cancelar alocação:", err);
+      toast.error(err.message || 'Erro ao cancelar a contratação.');
+    } finally {
+      setIsCancelPending(false);
+    }
+  };
 
   const getProfileQuestions = (perguntaRespuesta: any, cargoName: string) => {
     if (!perguntaRespuesta || typeof perguntaRespuesta !== 'object') return [];
@@ -890,12 +926,23 @@ export const HiringDashboardPage: React.FC = () => {
                               </p>
                             </div>
                             <div className="flex flex-col items-end gap-1.5">
-                              <span className={isTerminated 
-                                ? "bg-slate-150 text-slate-650 border border-slate-250 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-                                : "bg-indigo-50 text-indigo-755 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900"
-                              }>
-                                {alloc.job_function_name_snapshot || 'Perfil'}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {!isTerminated && (
+                                  <button
+                                    onClick={() => setAllocationToCancel({ id: alloc.id, workerName: worker.nome || 'Desconhecido' })}
+                                    className="text-xs text-rose-500 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 p-1 rounded transition-colors border border-rose-200 dark:border-rose-900/50"
+                                    title="Cancelar contratação / Desistência"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                )}
+                                <span className={isTerminated 
+                                  ? "bg-slate-150 text-slate-650 border border-slate-250 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                                  : "bg-indigo-50 text-indigo-755 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900"
+                                }>
+                                  {alloc.job_function_name_snapshot || 'Perfil'}
+                                </span>
+                              </div>
                               {isTerminated && (
                                 <span className="bg-slate-200 text-slate-700 border border-slate-350 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 flex items-center gap-1 shrink-0">
                                   Histórico / Substituído
@@ -984,6 +1031,14 @@ export const HiringDashboardPage: React.FC = () => {
           refetchReplacementTargets();
         }} 
         position={selectedPosition} 
+      />
+
+      <CancelAllocationDialog
+        isOpen={!!allocationToCancel}
+        onClose={() => setAllocationToCancel(null)}
+        onConfirm={handleCancelAllocation}
+        workerName={allocationToCancel?.workerName || ''}
+        isPending={isCancelPending}
       />
     </div>
   );
