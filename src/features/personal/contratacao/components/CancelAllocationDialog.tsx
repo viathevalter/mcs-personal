@@ -59,14 +59,15 @@ export const CancelAllocationDialog: React.FC<CancelAllocationDialogProps> = ({
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">
-              Motivo do Cancelamento / Desistência <span className="text-slate-400 dark:text-slate-500 font-normal">(Opcional)</span>
+              Motivo do Cancelamento / Desistência <span className="text-red-500">*</span>
             </label>
             <textarea
               rows={3}
+              required
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 outline-none resize-none text-xs"
-              placeholder="Ex: Trabalhador não aceitou os termos do contrato, desistiu por motivos pessoais, etc..."
+              placeholder="Descreva obrigatoriamente o motivo do cancelamento (ex: não aceitou as condições, desistiu por questões familiares...)"
               disabled={isPending}
             />
           </div>
