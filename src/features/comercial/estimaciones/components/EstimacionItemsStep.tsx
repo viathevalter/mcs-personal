@@ -342,7 +342,24 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   const [newQuantity, setNewQuantity] = useState(1);
   const [newBaseCost, setNewBaseCost] = useState(0);
   const [newSellRate, setNewSellRate] = useState(0);
-  const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>('local');
+  const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>(() => {
+    const pt = countries.find((c: any) => c.iso2 === 'PT');
+    if (pt && data.country_id) {
+      return data.country_id === pt.id ? 'local' : 'destacado';
+    }
+    return 'local';
+  });
+
+  // Atualizar regime de Seg. Social padrão quando o país muda
+  useEffect(() => {
+    if (portugalCountry && data.country_id) {
+      if (data.country_id === portugalCountry.id) {
+        setNewSsRegime('local');
+      } else {
+        setNewSsRegime('destacado');
+      }
+    }
+  }, [data.country_id, portugalCountry]);
 
   // Atualizar taxas globais com a província ou diária padrão do país quando carregar
   useEffect(() => {
