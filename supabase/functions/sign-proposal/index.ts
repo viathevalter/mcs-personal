@@ -29,11 +29,13 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
         }
 
         // 3. Remove white color styling from paragraphs/runs containing signature tags
-        if (content.includes('FIRMA') || content.includes('Signature') || content.includes('signature') || content.includes('firma')) {
+        const lowerContent = content.toLowerCase();
+        if (lowerContent.includes('firma') || lowerContent.includes('signature')) {
           console.log(`[normalizeDocx] Stripping white color styling from signature paragraphs in ${path}`);
           content = content.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paraXml) => {
-            if (paraXml.includes('FIRMA') || paraXml.includes('Signature') || paraXml.includes('signature') || paraXml.includes('firma')) {
-              if (paraXml.includes('w:val="FFFFFF"') || paraXml.includes('w:val="ffffff"')) {
+            const lowerPara = paraXml.toLowerCase();
+            if (lowerPara.includes('firma') || lowerPara.includes('signature')) {
+              if (lowerPara.includes('w:val="ffffff"') || lowerPara.includes('w:themecolor="background1"')) {
                 console.log("[normalizeDocx] Found white color styling in signature paragraph. Removing color tags...");
                 // Remove <w:color .../> tags
                 return paraXml.replace(/<w:color\b[^>]*?\/>/g, '');
