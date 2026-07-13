@@ -28,6 +28,21 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
           content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
         }
 
+        // 3. Remove white color styling from paragraphs/runs containing signature tags
+        if (content.includes('FIRMA') || content.includes('Signature') || content.includes('signature') || content.includes('firma')) {
+          console.log(`[normalizeDocx] Stripping white color styling from signature paragraphs in ${path}`);
+          content = content.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paraXml) => {
+            if (paraXml.includes('FIRMA') || paraXml.includes('Signature') || paraXml.includes('signature') || paraXml.includes('firma')) {
+              if (paraXml.includes('w:val="FFFFFF"') || paraXml.includes('w:val="ffffff"')) {
+                console.log("[normalizeDocx] Found white color styling in signature paragraph. Removing color tags...");
+                // Remove <w:color .../> tags
+                return paraXml.replace(/<w:color\b[^>]*?\/>/g, '');
+              }
+            }
+            return paraXml;
+          });
+        }
+
         if (content !== originalContent) {
           console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);
