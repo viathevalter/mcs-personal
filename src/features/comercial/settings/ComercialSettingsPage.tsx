@@ -53,10 +53,22 @@ export function ComercialSettingsPage() {
   const handleAddEmail = async () => {
     if (!newEmail || !selectedEmpresaId) return;
     
+    // Split input by comma or semicolon
+    const emailList = newEmail
+      .split(/[,;]/)
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (emailList.length === 0) {
+      toast.error('Nenhum e-mail informado.');
+      return;
+    }
+
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail)) {
-      toast.error(t('comercial.settings.invalidEmail', { defaultValue: 'E-mail inválido' }));
+    const invalidEmails = emailList.filter(e => !emailRegex.test(e));
+    if (invalidEmails.length > 0) {
+      toast.error(`E-mail(s) inválido(s): ${invalidEmails.join(', ')}`);
       return;
     }
 
@@ -66,11 +78,16 @@ export function ComercialSettingsPage() {
     }
 
     try {
-      const rows = selectedTypes.map(type => ({
-        empresa_id: selectedEmpresaId,
-        email: newEmail.trim().toLowerCase(),
-        event_type: type
-      }));
+      const rows: any[] = [];
+      emailList.forEach(email => {
+        selectedTypes.forEach(type => {
+          rows.push({
+            empresa_id: selectedEmpresaId,
+            email,
+            event_type: type
+          });
+        });
+      });
 
       const { data, error } = await supabase
         .schema('core_comercial')
@@ -84,7 +101,11 @@ export function ComercialSettingsPage() {
         setNotificationEmails(prev => [...prev, ...data]);
       }
       setNewEmail('');
-      toast.success(t('comercial.settings.emailAdded', { defaultValue: 'E-mail adicionado com sucesso!' }));
+      toast.success(
+        emailList.length === 1 
+          ? t('comercial.settings.emailAdded', { defaultValue: 'E-mail adicionado com sucesso!' })
+          : `${emailList.length} e-mails adicionados com sucesso!`
+      );
     } catch (err: any) {
       console.error('Error adding email:', err);
       toast.error(t('comercial.settings.emailAddError', { defaultValue: 'Erro ao adicionar e-mail' }), { description: err.message });
@@ -885,8 +906,8 @@ export function ComercialSettingsPage() {
                 <Label htmlFor="notification_email" className="text-xs font-semibold">Endereço de E-mail</Label>
                 <Input
                   id="notification_email"
-                  type="email"
-                  placeholder="exemplo@empresa.com"
+                  type="text"
+                  placeholder="exemplo1@empresa.com; exemplo2@empresa.com (separe por vírgula ou ponto e vírgula)"
                   value={newEmail}
                   onChange={e => setNewEmail(e.target.value)}
                   className="h-10 text-sm"
