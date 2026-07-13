@@ -102,7 +102,7 @@ const MODULES: ModuleDef[] = [
         path: '/cierre-horas',
         color: 'text-blue-600',
         bgHover: 'hover:bg-blue-50',
-        allowedRoles: ['admin', 'rh', 'commercial']
+        allowedRoles: ['admin', 'rh', 'commercial', 'visualizador']
     },
     {
         id: 'operacoes',
