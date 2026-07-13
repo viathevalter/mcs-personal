@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Loader2,
   HelpCircle,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
 import { toast } from 'sonner';
