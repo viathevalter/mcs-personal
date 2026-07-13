@@ -90,6 +90,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   // Custom date selection states
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate] = useState('');
+  const [selectedLang, setSelectedLang] = useState<'pt' | 'es' | 'en' | 'it' | 'fr'>('pt');
 
   const handleStartDateChange = (val: string) => {
     setNewStartDate(val);
@@ -137,6 +138,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
       try {
         setLoadingData(true);
         setStep(1);
+        setSelectedLang((estimacion.document_language || 'pt').toLowerCase() as any);
 
         // Prepopulate dates: Today + 10 days default
         const today = new Date();
@@ -240,7 +242,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   useEffect(() => {
     if (items.length > 0) {
       const clientName = estimacion.client?.trade_name || estimacion.client?.legal_name || 'Cliente';
-      const lang = (estimacion.document_language || 'pt').toLowerCase();
+      const lang = selectedLang;
 
       // Dicionário de traduções para o assunto
       const subjects: Record<string, string> = {
@@ -379,7 +381,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
       setEmailBody(bodyHtml.trim());
     }
-  }, [items, estimacion, newStartDate, newEndDate]);
+  }, [items, estimacion, newStartDate, newEndDate, selectedLang]);
 
   // Calculate duration string
   const getDurationString = () => {
@@ -944,6 +946,35 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
                     {sendEmailCheckbox && (
                       <div className="space-y-4">
+                        {/* Seletor de Idioma da Notificação */}
+                        <div className="space-y-1.5 border-b pb-3">
+                          <Label className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                            Idioma da Notificação (E-mail e Assunto)
+                          </Label>
+                          <div className="flex space-x-2">
+                            {[
+                              { code: 'pt', name: 'Português' },
+                              { code: 'es', name: 'Español' },
+                              { code: 'en', name: 'English' },
+                              { code: 'it', name: 'Italiano' },
+                              { code: 'fr', name: 'Français' },
+                            ].map(langOption => (
+                              <button
+                                key={langOption.code}
+                                type="button"
+                                onClick={() => setSelectedLang(langOption.code as any)}
+                                className={`px-2.5 py-1 rounded-md border text-xs font-semibold transition-all duration-200 ${
+                                  selectedLang === langOption.code
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                    : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
+                                }`}
+                              >
+                                {langOption.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         {/* Notification Recipients */}
                         <div className="space-y-2">
                           <Label className="text-xs font-bold text-slate-700 dark:text-slate-350">
