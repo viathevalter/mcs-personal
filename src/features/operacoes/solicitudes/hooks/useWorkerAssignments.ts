@@ -117,6 +117,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                         id: `virtual-${w.id}`,
                         empresa_id: filters.empresa_id,
                         worker_id: w.id,
+                        job_function_name_snapshot: w.funcion,
                         client_id: matchedClient?.id || null,
                         client_site_id: null,
                         pedido_id: null,
