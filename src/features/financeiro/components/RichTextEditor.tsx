@@ -7,9 +7,10 @@ interface RichTextEditorProps {
     value: string;
     onChange: (val: string) => void;
     minHeight?: string;
+    maxHeight?: string;
 }
 
-export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight }) => {
+export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight, maxHeight }) => {
     const editorRef = useRef<HTMLDivElement>(null);
 
     // Keep track of internal content to avoid infinite cursors reset
@@ -218,7 +219,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
                 contentEditable
                 onInput={handleInput}
                 className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none"
-                style={{ outline: 'none', minHeight: minHeight || '380px' }}
+                style={{ outline: 'none', minHeight: minHeight || '380px', maxHeight: maxHeight || 'none' }}
             />
         </div>
     );

@@ -213,6 +213,7 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                             value={novaObs}
                             onChange={setNovaObs}
                             minHeight="110px"
+                            maxHeight="160px"
                         />
                     </div>
                     <div className="flex justify-end">
