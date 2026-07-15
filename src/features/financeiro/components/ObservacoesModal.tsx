@@ -7,6 +7,7 @@ import type { EnrichedTitulo, CobrancaObservacao } from '../types';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { RichTextEditor } from './RichTextEditor';
 
 interface ObservacoesModalProps {
     titulo: EnrichedTitulo;
@@ -28,6 +29,25 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
             fetchUser();
         }
     }, [isOpen, titulo]);
+
+    // Load draft note from sessionStorage when modal is opened/switched
+    useEffect(() => {
+        if (isOpen && titulo?.id) {
+            const savedDraft = sessionStorage.getItem(`obs_draft_${titulo.id}`) || '';
+            setNovaObs(savedDraft);
+        }
+    }, [isOpen, titulo?.id]);
+
+    // Save draft note to sessionStorage as the user types
+    useEffect(() => {
+        if (titulo?.id) {
+            if (novaObs && novaObs !== '<p><br></p>') {
+                sessionStorage.setItem(`obs_draft_${titulo.id}`, novaObs);
+            } else {
+                sessionStorage.removeItem(`obs_draft_${titulo.id}`);
+            }
+        }
+    }, [novaObs, titulo?.id]);
 
     const fetchUser = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -65,7 +85,8 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
     };
 
     const handleAddObs = async () => {
-        if (!novaObs.trim()) return;
+        const textContent = novaObs.replace(/<[^>]*>/g, '').trim();
+        if (!textContent) return;
 
         setIsSaving(true);
         try {
@@ -81,6 +102,7 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
             if (!res.success) throw res.error;
 
             setNovaObs('');
+            sessionStorage.removeItem(`obs_draft_${titulo.id}`);
             loadData(); // Reload to get the new list with IDs
         } catch (error) {
             toast.error(t('financeiro.modals.err_obs_add', 'Falha ao adicionar anotação.'));
@@ -163,7 +185,14 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                                             <h4 className={`font-semibold text-sm ${isRecebimento ? 'text-green-700' : 'text-brand-primary'}`}>
                                                 {obs.tipo}
                                             </h4>
-                                            <p className="text-gray-800 text-sm mt-1">{obs.descricao}</p>
+                                            {obs.descricao.trim().startsWith('<') ? (
+                                                <div 
+                                                    className="text-gray-850 dark:text-slate-200 text-sm mt-1 leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words" 
+                                                    dangerouslySetInnerHTML={{ __html: obs.descricao }} 
+                                                />
+                                            ) : (
+                                                <p className="text-gray-800 dark:text-slate-300 text-sm mt-1 whitespace-pre-wrap break-words">{obs.descricao}</p>
+                                            )}
                                             <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                                                 <span>Data: {dateObj.toLocaleDateString('pt-BR')} às {dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                                 <span>•</span>
@@ -178,24 +207,24 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                 </div>
 
                 {/* Input Area */}
-                <div className="bg-gray-50 border-t p-4 flex gap-2">
-                    <Input 
-                        value={novaObs}
-                        onChange={e => setNovaObs(e.target.value)}
-                        placeholder={t('financeiro.modals.obs_input_placeholder', 'Adicionar nova observação ou registro de contato...')}
-                        className="flex-1"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddObs();
-                        }}
-                    />
-                    <Button 
-                        onClick={handleAddObs} 
-                        disabled={isSaving || !novaObs.trim()}
-                        className="bg-brand-primary hover:bg-brand-primary/90"
-                    >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-                        {t('financeiro.modals.obs_btn_add', 'Adicionar')}
-                    </Button>
+                <div className="bg-gray-50 border-t p-4 flex flex-col gap-3">
+                    <div className="flex-1">
+                        <RichTextEditor 
+                            value={novaObs}
+                            onChange={setNovaObs}
+                            minHeight="110px"
+                        />
+                    </div>
+                    <div className="flex justify-end">
+                        <Button 
+                            onClick={handleAddObs} 
+                            disabled={isSaving || !novaObs.replace(/<[^>]*>/g, '').trim()}
+                            className="bg-brand-primary hover:bg-brand-primary/90 font-bold"
+                        >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                            {t('financeiro.modals.obs_btn_add', 'Adicionar Observação')}
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>

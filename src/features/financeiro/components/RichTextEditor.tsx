@@ -6,9 +6,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 interface RichTextEditorProps {
     value: string;
     onChange: (val: string) => void;
+    minHeight?: string;
 }
 
-export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange }) => {
+export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight }) => {
     const editorRef = useRef<HTMLDivElement>(null);
 
     // Keep track of internal content to avoid infinite cursors reset
@@ -216,8 +217,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
                 ref={editorRef}
                 contentEditable
                 onInput={handleInput}
-                className="w-full min-h-[380px] p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none"
-                style={{ outline: 'none' }}
+                className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                style={{ outline: 'none', minHeight: minHeight || '380px' }}
             />
         </div>
     );
