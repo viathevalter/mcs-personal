@@ -370,7 +370,7 @@ export function NewSolicitudPage() {
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
-            source_assignment_id: a.id,
+            source_assignment_id: a.id.startsWith('virtual-') ? null : a.id,
             source_worker_id: a.worker_id,
             source_pedido_id: a.pedido_id,
             source_pedido_item_id: a.pedido_item_id,
