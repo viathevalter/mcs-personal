@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/shared/supabase/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -420,7 +421,8 @@ MCS - Gestão Comercial`;
           descricao_servico: adj.descricaoServico,
           obra: selectedObra ? selectedObra.name : null
         },
-        emailData.token
+        emailData.token,
+        selectedEmpresaId
       );
 
       // Detectar URL e converter em um link HTML clicável
@@ -2007,17 +2009,17 @@ MCS - Gestão Comercial`;
                             <div className="grid grid-cols-2 gap-8 mb-8 text-xs">
                               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-900 space-y-1">
                                 <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Emissor</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome} LDA</p>
-                                <p className="text-muted-foreground">CIF/NIF: PT517834747</p>
-                                <p className="text-muted-foreground">R. São Tomé e Príncipe, 287 - Vila Nova de Gaia</p>
-                                <p className="text-muted-foreground">Portugal</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome}</p>
+                                <p className="text-muted-foreground">NIF: {f.empresaTaxId || 'N/A'}</p>
+                                <p className="text-muted-foreground">{f.empresaAddressLine || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
                               </div>
                               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-900 space-y-1">
                                 <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Cliente</p>
                                 <p className="font-bold text-slate-900 dark:text-slate-100">{f.clientName}</p>
-                                <p className="text-muted-foreground">NIF: ES55350245</p>
-                                <p className="text-muted-foreground">Pol. Ind. MERCADERIES C/1 NAU</p>
-                                <p className="text-muted-foreground">Espanha</p>
+                                <p className="text-muted-foreground">NIF: {f.taxId || 'N/A'}</p>
+                                <p className="text-muted-foreground">{f.clientAddressLine || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
                               </div>
                             </div>
 
@@ -2153,22 +2155,22 @@ MCS - Gestão Comercial`;
                             <div className="flex justify-between items-start mb-8">
                               <div>
                                 <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 font-mono">
-                                  Factura 2026/0347
+                                  {f.faturaNumero || `Factura Pró-forma nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
                               </div>
-                              {/* QR Code Mock */}
-                              <div className="border border-slate-200 dark:border-slate-700 p-1 bg-white rounded shadow-sm">
-                                <div className="w-14 h-14 bg-slate-100 flex flex-col items-center justify-center text-[7px] text-slate-400 font-bold border border-dashed border-slate-300">
-                                  <span>MOCK QR</span>
-                                  <div className="grid grid-cols-3 gap-0.5 mt-1">
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                    <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                                  </div>
+                              {/* QR Code dinâmico */}
+                              <div className="flex flex-col items-end gap-1">
+                                {f.atcud && (
+                                  <p className="text-[7px] font-bold text-slate-500 font-mono">ATCUD: {f.atcud}</p>
+                                )}
+                                <div className="border border-slate-200 dark:border-slate-700 p-1 bg-white rounded shadow-sm">
+                                  <QRCodeSVG
+                                    value={`${window.location.origin}/fatura/validar?token=${f.magicLinkToken || 'draft'}`}
+                                    size={56}
+                                    level="L"
+                                    includeMargin={false}
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -2177,18 +2179,22 @@ MCS - Gestão Comercial`;
                             <div className="grid grid-cols-2 gap-8 mb-8 text-[11px] leading-relaxed">
                               <div>
                                 <p className="font-bold text-[9px] text-slate-400 uppercase">De</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome}, Unipessoal Lda</p>
-                                <p className="text-muted-foreground">Rua Padre António Maria Pinho, n.º 353</p>
-                                <p className="text-muted-foreground">4460-853 Vila Nova de Gaia</p>
-                                <p className="text-muted-foreground">NIF: PT517834747</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome}</p>
+                                <p className="text-muted-foreground">{f.empresaAddressLine || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+                                <p className="text-muted-foreground">NIF: {f.empresaTaxId || 'N/A'}</p>
+                                {f.empresaCapitalSocial && <p className="text-[9px] text-slate-500">Cap. Social: {f.empresaCapitalSocial}</p>}
+                                {f.empresaConservatoria && <p className="text-[9px] text-slate-500">Cons. Reg. Com.: {f.empresaConservatoria}</p>}
+                                {f.empresaMatricula && <p className="text-[9px] text-slate-500">Matrícula/Registo: {f.empresaMatricula}</p>}
                                 <p className="text-muted-foreground mt-2 font-semibold">Conta:</p>
                                 <p className="text-muted-foreground font-mono text-[10px] whitespace-pre-line">{adj.iban.split('\n')[0]}</p>
                               </div>
                               <div>
                                 <p className="font-bold text-[9px] text-slate-400 uppercase">Para</p>
                                 <p className="font-bold text-slate-900 dark:text-slate-100">{f.clientName}</p>
-                                <p className="text-muted-foreground">AVENIDA DE LA INDUSTRIA 14, 25190</p>
-                                <p className="text-muted-foreground">LLEIDA, Espanha</p>
+                                <p className="text-muted-foreground">{f.clientAddressLine || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[f.clientPostalCode, f.clientCity].filter(Boolean).join(' ')}</p>
+                                <p className="text-muted-foreground">{f.clientCountryName || 'Espanha'}</p>
                                 <p className="text-muted-foreground mt-2">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                                 <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                               </div>
@@ -2274,18 +2280,17 @@ MCS - Gestão Comercial`;
                             <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex justify-between text-[9px] text-muted-foreground font-medium">
                               <div>
                                 <p className="font-bold uppercase mb-0.5">Local de Carga</p>
-                                <p>Rua Conselheiro Fonseca, n.º 157</p>
-                                <p>4405-853 Vila Nova de Gaia</p>
-                                <p>Portugal</p>
+                                <p>{f.empresaAddressLine || 'N/A'}</p>
+                                <p>{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
                               </div>
                               <div className="text-right">
                                 <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                                <p>AVENIDA DE LA INDUSTRIA 14, 25190 LLEIDA</p>
-                                <p>Espanha</p>
+                                <p>{f.clientAddressLine || 'N/A'}</p>
+                                <p>{[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
                               </div>
                             </div>
-                            <div className="text-center text-[8px] text-muted-foreground mt-4 italic font-semibold">
-                              Rexx - Processado por Programas Certificado nº 1123/AT
+                            <div className="text-center text-[8px] text-muted-foreground mt-4 italic font-semibold font-mono">
+                              {f.empresaCertifiedSoftwareText || 'ab8k - Processado por Programa Certificado nº 1137/AT'}
                             </div>
                           </div>
                         </div>

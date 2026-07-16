@@ -65,6 +65,14 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       latitude: undefined,
       longitude: undefined,
       bank_details: '',
+      next_invoice_number: 1,
+      invoice_series: '1',
+      atcud_prefix: '',
+      capital_social: '',
+      conservatoria: '',
+      matricula: '',
+      certified_software_text: 'ab8k - Processado por Programa Certificado nº 1137/AT',
+      invoice_logo_url: '',
       is_active: true,
     },
   });
@@ -97,6 +105,14 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           latitude: empresa.latitude || undefined,
           longitude: empresa.longitude || undefined,
           bank_details: empresa.bank_details || '',
+          next_invoice_number: empresa.next_invoice_number || 1,
+          invoice_series: empresa.invoice_series || '1',
+          atcud_prefix: empresa.atcud_prefix || '',
+          capital_social: empresa.capital_social || '',
+          conservatoria: empresa.conservatoria || '',
+          matricula: empresa.matricula || '',
+          certified_software_text: empresa.certified_software_text || 'ab8k - Processado por Programa Certificado nº 1137/AT',
+          invoice_logo_url: empresa.invoice_logo_url || '',
           is_active: empresa.is_active,
         });
       } else {
@@ -123,6 +139,14 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           latitude: undefined,
           longitude: undefined,
           bank_details: '',
+          next_invoice_number: 1,
+          invoice_series: '1',
+          atcud_prefix: '',
+          capital_social: '',
+          conservatoria: '',
+          matricula: '',
+          certified_software_text: 'ab8k - Processado por Programa Certificado nº 1137/AT',
+          invoice_logo_url: '',
           is_active: true,
         });
       }
@@ -546,6 +570,135 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                         <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
                         <p>O arquivamento/desativação de empresas base requer validação de segurança e permissão de super administrador.</p>
                       </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Bloco 5: Faturamento e Certificação */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <Wallet className="h-5 w-5 text-orange-500" />
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Faturamento & Certificação</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="invoice_series"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Série da Fatura</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 1" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="next_invoice_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Próximo Número da Fatura</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Ex: 117"
+                          className="bg-white dark:bg-slate-950"
+                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="atcud_prefix"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prefixo ATCUD</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: J6XZTGY3" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="capital_social"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Capital Social</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 3.000,00 €" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="conservatoria"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Conservatória Reg. Com.</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: V.N.Gaia" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="matricula"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Matrícula / Registo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 518954021" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="certified_software_text"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Texto de Certificação do Software</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: ab8k - Processado por Programa Certificado nº 1137/AT" className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="invoice_logo_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>URL Logotipo da Fatura</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: https://..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />

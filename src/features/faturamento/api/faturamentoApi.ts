@@ -71,6 +71,33 @@ export interface ClientBillingSummary {
   clientName: string;
   clientCodigo?: string | null;
   empresaNome: string;
+  empresaId: string;
+  empresaInvoiceSeries?: string | null;
+  empresaNextInvoiceNumber?: number | null;
+  empresaAtcudPrefix?: string | null;
+  empresaCapitalSocial?: string | null;
+  empresaConservatoria?: string | null;
+  empresaMatricula?: string | null;
+  empresaCertifiedSoftwareText?: string | null;
+  empresaInvoiceLogoUrl?: string | null;
+  empresaAddressLine?: string | null;
+  empresaPostalCode?: string | null;
+  empresaCity?: string | null;
+  empresaProvince?: string | null;
+  empresaTaxId?: string | null;
+  empresaEmail?: string | null;
+  empresaPhone?: string | null;
+  empresaIban?: string | null;
+
+  clientAddressLine?: string | null;
+  clientPostalCode?: string | null;
+  clientCity?: string | null;
+  clientProvince?: string | null;
+  clientCountryName?: string | null;
+
+  faturaNumero?: string | null;
+  atcud?: string | null;
+
   year: number;
   month: number; // 0-indexed (0 = Jan, 11 = Dec)
   totalHoras: number;
@@ -132,14 +159,34 @@ export async function getHorasPendentesFaturamento(
   try {
     if (!empresaId || !periodYear || !periodMonth) return [];
 
-    // 1. Fetch active company name
+    // 1. Fetch active company info
     const { data: empresaData } = await supabase
       .schema('core_common')
       .from('empresas')
-      .select('nome')
+      .select(`
+        nome, address_line, postal_code, city, province, tax_id, email, phone, iban,
+        invoice_series, next_invoice_number, atcud_prefix, capital_social, conservatoria, matricula, certified_software_text, invoice_logo_url
+      `)
       .eq('id', empresaId)
       .single();
+    
     const empresaNome = empresaData?.nome || 'Não Informada';
+    const empresaAddressLine = empresaData?.address_line || null;
+    const empresaPostalCode = empresaData?.postal_code || null;
+    const empresaCity = empresaData?.city || null;
+    const empresaProvince = empresaData?.province || null;
+    const empresaTaxId = empresaData?.tax_id || null;
+    const empresaEmail = empresaData?.email || null;
+    const empresaPhone = empresaData?.phone || null;
+    const empresaIban = empresaData?.iban || null;
+    const empresaInvoiceSeries = empresaData?.invoice_series || null;
+    const empresaNextInvoiceNumber = empresaData?.next_invoice_number || null;
+    const empresaAtcudPrefix = empresaData?.atcud_prefix || null;
+    const empresaCapitalSocial = empresaData?.capital_social || null;
+    const empresaConservatoria = empresaData?.conservatoria || null;
+    const empresaMatricula = empresaData?.matricula || null;
+    const empresaCertifiedSoftwareText = empresaData?.certified_software_text || null;
+    const empresaInvoiceLogoUrl = empresaData?.invoice_logo_url || null;
 
     // 2. Fetch active workers for the period (moved up)
     const activeWorkers = await getHoursControlWorkers({
@@ -154,6 +201,10 @@ export async function getHorasPendentesFaturamento(
       .from('clients')
       .select(`
         id, trade_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+        address_line, postal_code, city, province,
+        countries (
+          name
+        ),
         client_company_settings (
           empresa_id,
           payment_term_id,
@@ -333,7 +384,7 @@ export async function getHorasPendentesFaturamento(
       const { data: fatData } = await supabase
         .schema('core_finance')
         .from('faturas')
-        .select('id, status, magic_link_token, data_emissao, ajustes_json')
+        .select('id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud')
         .in('id', faturaIds);
       faturasList = fatData || [];
     }
@@ -541,6 +592,9 @@ export async function getHorasPendentesFaturamento(
       let dataEmissaoFatura: string | null = null;
       let ajustesJson: any | null = null;
 
+      let faturaNumero: string | null = null;
+      let faturaAtcud: string | null = null;
+
       const hourlyFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
       if (hourlyFaturaId) {
         const fatura = faturasMap.get(hourlyFaturaId);
@@ -548,6 +602,8 @@ export async function getHorasPendentesFaturamento(
           magicLinkToken = fatura.magic_link_token;
           dataEmissaoFatura = fatura.data_emissao || null;
           ajustesJson = fatura.ajustes_json || null;
+          faturaNumero = fatura.fatura_numero || null;
+          faturaAtcud = fatura.atcud || null;
           if (fatura.status === 'pending_client_approval') {
             statusBilling = 'invoiced_pending';
           } else if (fatura.status === 'approved') {
@@ -573,6 +629,30 @@ export async function getHorasPendentesFaturamento(
         clientName: client.trade_name || 'Cliente Desconhecido',
         clientCodigo: client.codigo || null,
         empresaNome,
+        empresaId: empresaId || '',
+        empresaInvoiceSeries,
+        empresaNextInvoiceNumber,
+        empresaAtcudPrefix,
+        empresaCapitalSocial,
+        empresaConservatoria,
+        empresaMatricula,
+        empresaCertifiedSoftwareText,
+        empresaInvoiceLogoUrl,
+        empresaAddressLine,
+        empresaPostalCode,
+        empresaCity,
+        empresaProvince,
+        empresaTaxId,
+        empresaEmail,
+        empresaPhone,
+        empresaIban,
+        clientAddressLine: client.address_line || null,
+        clientPostalCode: client.postal_code || null,
+        clientCity: client.city || null,
+        clientProvince: client.province || null,
+        clientCountryName: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
+        faturaNumero: faturaNumero,
+        atcud: faturaAtcud,
         year: periodYear,
         month: periodMonth - 1, // 0-indexed
         totalHoras,
@@ -609,9 +689,41 @@ export async function solicitarAprovacaoCliente(
   clientId: string, 
   horasIds: string[],
   ajustes?: any,
-  customToken?: string
+  customToken?: string,
+  empresaId?: string
 ): Promise<string> {
   const token = customToken || crypto.randomUUID();
+
+  let faturaNumero: string | null = null;
+  let atcud: string | null = null;
+
+  if (empresaId) {
+    // 1. Fetch active company numbering info
+    const { data: empresa } = await supabase
+      .schema('core_common')
+      .from('empresas')
+      .select('invoice_series, next_invoice_number, atcud_prefix')
+      .eq('id', empresaId)
+      .single();
+
+    if (empresa) {
+      const series = empresa.invoice_series || '1';
+      const number = empresa.next_invoice_number || 1;
+      const year = new Date().getFullYear();
+      
+      faturaNumero = `Factura nº${series} ${year}/${number}`;
+      if (empresa.atcud_prefix) {
+        atcud = `${empresa.atcud_prefix}-${number}`;
+      }
+
+      // 2. Increment next_invoice_number
+      await supabase
+        .schema('core_common')
+        .from('empresas')
+        .update({ next_invoice_number: number + 1 })
+        .eq('id', empresaId);
+    }
+  }
 
   // Cria a fatura com status pending_client_approval
   const { data: fatura, error: faturaError } = await supabase
@@ -621,8 +733,10 @@ export async function solicitarAprovacaoCliente(
       client_id: clientId,
       status: 'pending_client_approval',
       magic_link_token: token,
-      data_emissao: ajustes?.dataEmissao || new Date().toISOString().split('T')[0],
-      ajustes_json: ajustes || null
+      data_emissao: ajustes?.data_emissao || new Date().toISOString().split('T')[0],
+      ajustes_json: ajustes || null,
+      fatura_numero: faturaNumero,
+      atcud: atcud
     })
     .select('id, magic_link_token')
     .single();
