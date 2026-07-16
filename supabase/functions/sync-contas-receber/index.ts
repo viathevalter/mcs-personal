@@ -120,7 +120,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .schema('core_common')
         .from('clients')
-        .select('codigo, legal_name, trade_name, empresa_id')
+        .select('codigo, legal_name, trade_name')
         .range(start, start + limit - 1);
       if (error) throw error;
       if (!data || data.length === 0) break;
@@ -132,9 +132,8 @@ serve(async (req) => {
     for (const c of dbClients) {
       const cleanLegal = c.legal_name?.toLowerCase().trim() || "";
       const cleanTrade = c.trade_name?.toLowerCase().trim() || "";
-      const empId = c.empresa_id;
-      if (cleanLegal) clientsMap.set(`${empId}_${cleanLegal}`, c.codigo);
-      if (cleanTrade) clientsMap.set(`${empId}_${cleanTrade}`, c.codigo);
+      if (cleanLegal) clientsMap.set(cleanLegal, c.codigo);
+      if (cleanTrade) clientsMap.set(cleanTrade, c.codigo);
     }
 
     // C. Financial categories cache
@@ -170,11 +169,11 @@ serve(async (req) => {
       const spEmpresa = f.Empresa || "";
       const empId = companiesMap.get(spEmpresa.toLowerCase().trim()) || null;
 
-      // Resolve client code by matching client name under the correct company context
+      // Resolve client code by matching client name
       const spCliente = f.Cliente || "";
       let resolvedClientCode = null;
-      if (empId && spCliente) {
-        resolvedClientCode = clientsMap.get(`${empId}_${spCliente.toLowerCase().trim()}`) || null;
+      if (spCliente) {
+        resolvedClientCode = clientsMap.get(spCliente.toLowerCase().trim()) || null;
       }
 
       // Resolve category ID
