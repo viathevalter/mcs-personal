@@ -109,7 +109,8 @@ const migrationsToRun = [
   '20260716150000_unify_vidal_amill_client.sql',
   '20260716160000_fix_get_hours_control_workers_company.sql',
   '20260716170000_unify_hidraulicos_client.sql',
-  '20260716180000_unify_montra_client.sql'
+  '20260716180000_unify_montra_client.sql',
+  '20260716190000_unify_carvisa_client.sql'
 ];
 
 async function run() {
