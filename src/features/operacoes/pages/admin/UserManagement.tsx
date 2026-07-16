@@ -222,7 +222,7 @@ export const UserManagement: React.FC = () => {
                             const matchesSearch =
                                 (u.display_name?.toLowerCase().includes(searchLower) ?? false) ||
                                 u.email.toLowerCase().includes(searchLower) ||
-                                (linkedEmp?.nombrecompleto.toLowerCase().includes(searchLower) ?? false);
+                                (linkedEmp?.nombrecompleto?.toLowerCase().includes(searchLower) ?? false);
 
                             const matchesDept = filterDepartment ? linkedEmp?.mcs_departments?.name === filterDepartment : true;
 
