@@ -61,7 +61,7 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
       address_line: '',
       notes: '',
       status: 'active',
-      payment_term_id: undefined,
+      payment_term_id: '',
     },
   });
 
@@ -96,7 +96,7 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
         address_line: client.address_line || '',
         notes: client.notes || '',
         status: client.status,
-        payment_term_id: client.payment_term_id || undefined,
+        payment_term_id: client.payment_term_id || '',
       });
     } else {
       form.reset({
@@ -115,7 +115,7 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
         address_line: '',
         notes: '',
         status: 'active',
-        payment_term_id: undefined,
+        payment_term_id: '',
       });
     }
   }, [client, form]);

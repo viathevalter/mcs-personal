@@ -68,6 +68,7 @@ export function ClientsDataTable() {
   const [paymentTermFilter, setPaymentTermFilter] = useState<string>('all');
   const [sitesFilter, setSitesFilter] = useState<string>('all');
   const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [viesFilter, setViesFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<'codigo' | 'trade_name' | 'legal_name' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
@@ -103,6 +104,22 @@ export function ClientsDataTable() {
     // 4. Country Filter
     if (countryFilter !== 'all') {
       if (c.country_id !== countryFilter) return false;
+    }
+
+    // 5. VIES Filter
+    if (viesFilter !== 'all') {
+      if (viesFilter === 'not_applicable') {
+        if (c.vies_applicable) return false;
+      } else {
+        if (!c.vies_applicable) return false;
+        if (viesFilter === 'valid') {
+          if (c.vies_status !== 'valid') return false;
+        } else if (viesFilter === 'invalid') {
+          if (c.vies_status !== 'invalid') return false;
+        } else if (viesFilter === 'not_checked') {
+          if (c.vies_status !== 'not_checked' && c.vies_status !== 'stale') return false;
+        }
+      }
     }
 
     return true;
@@ -195,6 +212,22 @@ export function ClientsDataTable() {
                     {country.name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* VIES Filter */}
+          <div className="w-full sm:w-48">
+            <Select value={viesFilter} onValueChange={setViesFilter}>
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
+                <SelectValue placeholder="Status VIES" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status VIES</SelectItem>
+                <SelectItem value="valid">VIES Válido</SelectItem>
+                <SelectItem value="invalid">VIES Inválido</SelectItem>
+                <SelectItem value="not_applicable">Não Aplicável</SelectItem>
+                <SelectItem value="not_checked">Não Verificado / Outros</SelectItem>
               </SelectContent>
             </Select>
           </div>
