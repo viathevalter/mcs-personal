@@ -107,7 +107,8 @@ const migrationsToRun = [
   '20260709170000_fix_salary_report_workers_empresa_id.sql',
   '20260709180000_create_authenticate_worker_rpc.sql',
   '20260716150000_unify_vidal_amill_client.sql',
-  '20260716160000_fix_get_hours_control_workers_company.sql'
+  '20260716160000_fix_get_hours_control_workers_company.sql',
+  '20260716170000_unify_hidraulicos_client.sql'
 ];
 
 async function run() {

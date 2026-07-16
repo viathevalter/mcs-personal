@@ -1,0 +1,46 @@
+-- Unify INSTALACIONES Y SISTEMAS HIDRAULICOS S.L (ID: 226, Codigo: C0108) variants
+-- 1. Update clientes
+UPDATE public.clientes
+SET 
+  nombre_comercial = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L',
+  razon_social = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L'
+WHERE id = 226;
+
+-- 2. Update colaborador_por_pedido
+UPDATE public.colaborador_por_pedido
+SET 
+  idcliente = 226,
+  codcliente = 'C0108',
+  cliente_nombre = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L'
+WHERE cliente_nombre IN (
+  'INSTALACIONES Y SIS. HIDRAULICOS S.L',
+  'INSTALACIONES Y SISTEMAS HIDRÁULICOS',
+  'INSTALACIONES Y SISTEMAS HIDRAULICOS'
+) OR idcliente = 226;
+
+-- 3. Update workers
+UPDATE core_personal.workers
+SET cliente = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L'
+WHERE cliente IN (
+  'INSTALACIONES Y SIS. HIDRAULICOS S.L',
+  'INSTALACIONES Y SISTEMAS HIDRÁULICOS',
+  'INSTALACIONES Y SISTEMAS HIDRAULICOS'
+);
+
+-- 4. Update seguridade_status
+UPDATE core_personal.seguridade_status
+SET origem_cliente_nome = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L'
+WHERE origem_cliente_nome IN (
+  'INSTALACIONES Y SIS. HIDRAULICOS S.L',
+  'INSTALACIONES Y SISTEMAS HIDRÁULICOS',
+  'INSTALACIONES Y SISTEMAS HIDRAULICOS'
+);
+
+-- 5. Update asignaciones_grupo
+UPDATE public.asignaciones_grupo
+SET cliente_id = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L'
+WHERE cliente_id IN (
+  'INSTALACIONES Y SIS. HIDRAULICOS S.L',
+  'INSTALACIONES Y SISTEMAS HIDRÁULICOS',
+  'INSTALACIONES Y SISTEMAS HIDRAULICOS'
+);
