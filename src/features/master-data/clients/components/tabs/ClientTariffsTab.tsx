@@ -71,9 +71,8 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       const { data: workers, error: workersError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, cod_colab, funcion, cliente')
-        .in('id', workerIds)
-        .or('status_trabajador.ilike.Ativo,status_trabajador.ilike.Activo');
+        .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
+        .in('id', workerIds);
         
       if (workersError) throw workersError;
       return workers || [];
@@ -835,11 +834,16 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                   {loadingWorkers ? (
                     <SelectItem value="loading" disabled>Carregando trabalhadores...</SelectItem>
                   ) : (
-                    filteredWorkers.map(w => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.nome} ({w.funcion || 'Sem Função'})
-                      </SelectItem>
-                    ))
+                    filteredWorkers.map(w => {
+                      const isInactive = w.status_trabajador && 
+                        !w.status_trabajador.toLowerCase().includes('ativ') && 
+                        !w.status_trabajador.toLowerCase().includes('activ');
+                      return (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.nome} ({w.funcion || 'Sem Função'}){isInactive ? ` - ${w.status_trabajador}` : ''}
+                        </SelectItem>
+                      );
+                    })
                   )}
                 </SelectContent>
               </Select>
