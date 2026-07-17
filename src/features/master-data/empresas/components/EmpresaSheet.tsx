@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building, Wallet, MapPin, Phone, Info } from 'lucide-react';
+import { Building, Wallet, MapPin, Phone, Info, Upload, Loader2 } from 'lucide-react';
 
 import {
   Sheet,
@@ -28,6 +28,7 @@ import { CountrySelector, RegionSelector } from '../../locations/components/Loca
 import type { Empresa, CreateEmpresaDTO } from '../types';
 import { createEmpresaSchema } from '../types';
 import { useMutateEmpresa } from '../hooks/useEmpresas';
+import { supabase } from '@/shared/supabase/client';
 
 interface EmpresaSheetProps {
   open: boolean;
@@ -39,6 +40,53 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
   const isEditing = !!empresa;
   const { createEmpresa, updateEmpresa, isCreating, isUpdating } = useMutateEmpresa();
   const isSaving = isCreating || isUpdating;
+
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('O logotipo deve ter no máximo 2MB.');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem válida (PNG, JPG, etc.).');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    const toastId = toast.loading('Enviando logotipo...');
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const filePath = `public/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('company-logos')
+        .getPublicUrl(filePath);
+
+      form.setValue('invoice_logo_url', publicUrl);
+      toast.success('Logotipo carregado com sucesso!', { id: toastId });
+    } catch (error: any) {
+      console.error('Erro ao enviar logotipo:', error);
+      toast.error('Erro ao enviar logotipo: ' + error.message, { id: toastId });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
 
   const form = useForm<CreateEmpresaDTO>({
     resolver: zodResolver(createEmpresaSchema) as any,
@@ -693,11 +741,60 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                   control={form.control}
                   name="invoice_logo_url"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL Logotipo da Fatura</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: https://..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
-                      </FormControl>
+                    <FormItem className="space-y-2">
+                      <FormLabel>Logotipo da Fatura</FormLabel>
+                      <div className="flex items-center gap-4">
+                        {field.value ? (
+                          <div className="relative h-16 w-16 rounded border bg-slate-50 dark:bg-slate-900/50 p-1 flex items-center justify-center overflow-hidden shrink-0 group">
+                            <img src={field.value} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                            <button
+                              type="button"
+                              onClick={() => form.setValue('invoice_logo_url', '')}
+                              className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-bold"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="h-16 w-16 rounded border-2 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 shrink-0 text-xs">
+                            Sem Logo
+                          </div>
+                        )}
+                        <div className="flex-1 space-y-1">
+                          <FormControl>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                disabled={isUploadingLogo || isSaving}
+                                className="hidden"
+                                id="logo-file-input"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full bg-white dark:bg-slate-900 dark:border-slate-800 focus-visible:ring-orange-500 gap-1.5"
+                                disabled={isUploadingLogo || isSaving}
+                                onClick={() => document.getElementById('logo-file-input')?.click()}
+                              >
+                                {isUploadingLogo ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Enviando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4" />
+                                    Selecionar Imagem
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">Proporção retangular horizontal (ex: 3:1). PNG ou JPG até 2MB.</p>
+                        </div>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -1990,10 +1990,16 @@ MCS - Gestão Comercial`;
                           <div id={`informe-sheet-${f.clientId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left">
                             {/* Header */}
                             <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-800 pb-6 mb-6">
-                              <div className="space-y-1">
-                                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-                                  {f.empresaNome.toUpperCase()}
-                                </h3>
+                              <div className="space-y-2">
+                                {f.empresaInvoiceLogoUrl ? (
+                                  <div className="h-14 flex items-center mb-2">
+                                    <img src={f.empresaInvoiceLogoUrl} alt={f.empresaNome} className="max-h-full max-w-[220px] object-contain" />
+                                  </div>
+                                ) : (
+                                  <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                                    {f.empresaNome.toUpperCase()}
+                                  </h3>
+                                )}
                                 <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
                                 <p className="text-[10px] text-muted-foreground">MCS - Gestão Comercial</p>
                               </div>
@@ -2153,11 +2159,18 @@ MCS - Gestão Comercial`;
 
                             {/* Top row */}
                             <div className="flex justify-between items-start mb-8">
-                              <div>
-                                <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 font-mono">
-                                  {f.faturaNumero || `Factura Pró-forma nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                              <div className="flex items-center gap-4">
+                                {f.empresaInvoiceLogoUrl && (
+                                  <div className="h-10 flex items-center">
+                                    <img src={f.empresaInvoiceLogoUrl} alt={f.empresaNome} className="max-h-full max-w-[150px] object-contain" />
+                                  </div>
+                                )}
+                                <div>
+                                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 font-mono">
+                                    {f.faturaNumero || `Factura Pró-forma nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
+                                  </h3>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                                </div>
                               </div>
                               {/* QR Code dinâmico */}
                               <div className="flex flex-col items-end gap-1">
