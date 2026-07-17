@@ -29,7 +29,8 @@ ALTER TABLE core_common.empresas
   ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone,
   ADD COLUMN IF NOT EXISTS invoice_logo_url text,
   ADD COLUMN IF NOT EXISTS invoice_series text DEFAULT '1'::text,
-  ADD COLUMN IF NOT EXISTS matricula text;
+  ADD COLUMN IF NOT EXISTS matricula text,
+  ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES core_common.regions(id);
 
 ALTER TABLE core_personal.workers
   ADD COLUMN IF NOT EXISTS address_line text,
