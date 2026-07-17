@@ -392,14 +392,19 @@ export const clientsApi = {
 
     if (userIds.length > 0) {
       const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
+        .schema('core_operacoes')
+        .from('mcs_users')
+        .select('id, display_name, email')
         .in('id', userIds);
 
       if (profilesError) {
         console.error('Failed to fetch user profiles for audit:', profilesError);
       } else {
-        profiles = profilesData || [];
+        profiles = (profilesData || []).map(p => ({
+          id: p.id,
+          email: p.email,
+          full_name: p.display_name
+        }));
       }
     }
 
