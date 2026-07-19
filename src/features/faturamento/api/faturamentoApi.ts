@@ -58,12 +58,38 @@ export interface Fatura {
   data_emissao: string;
   magic_link_token: string;
   ajustes_json?: any | null;
+  fatura_numero?: string | null;
+  atcud?: string | null;
   client?: {
     nombre_comercial: string;
     codigo?: string | null;
     paymentTermName?: string | null;
     paymentTermDays?: number | null;
+    address_line?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+    province?: string | null;
+    tax_id?: string | null;
   };
+  empresa?: {
+    nome: string;
+    taxId: string;
+    addressLine?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+    province?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    iban?: string | null;
+    invoiceSeries?: string | null;
+    nextInvoiceNumber?: number | null;
+    atcudPrefix?: string | null;
+    capitalSocial?: string | null;
+    conservatoria?: string | null;
+    matricula?: string | null;
+    certifiedSoftwareText?: string | null;
+    invoiceLogoUrl?: string | null;
+  } | null;
 }
 
 export interface ClientBillingSummary {
@@ -776,87 +802,20 @@ export async function solicitarAprovacaoCliente(
 }
 
 export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura, horas: HoraTrabalhada[] }> {
-  // 1. Fetch fatura
-  const { data: fatura, error: faturaError } = await publicSupabase
-    .schema('core_finance')
-    .from('faturas')
-    .select('*')
-    .eq('magic_link_token', token)
-    .single();
+  const { data, error } = await publicSupabase.rpc('get_fatura_portal_data', { p_token: token });
+  
+  if (error) throw mapSupabaseError(error);
+  if (!data) throw new Error('Fatura não encontrada');
 
-  if (faturaError) throw mapSupabaseError(faturaError);
-  if (!fatura) throw new Error('Fatura não encontrada');
+  const fatura = data.fatura;
+  const horas = data.horas || [];
+  const workers = data.workers || [];
+  const jobFunctions = data.job_functions || [];
 
-  // Fetch all payment terms metadata
-  const { data: ptData } = await publicSupabase
-    .schema('core_common')
-    .from('payment_terms')
-    .select('id, name, days');
-  const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
+  const jobFunctionsMap = new Map((jobFunctions as any[]).map(j => [j.id, j.name]));
+  const workersMap = new Map((workers as any[]).map(w => [w.id, w]));
 
-  // 2. Fetch client
-  let clientObj: any = undefined;
-  if (fatura.client_id) {
-    const { data: clientData, error: clientError } = await publicSupabase
-      .schema('core_common')
-      .from('clients')
-      .select('id, trade_name, codigo, payment_terms, payment_term_id')
-      .eq('id', fatura.client_id)
-      .single();
-    
-    if (clientError) {
-      console.error('Erro ao buscar cliente para fatura:', clientError);
-    } else if (clientData) {
-      const termName = clientData.payment_terms || (clientData.payment_term_id ? ptMap.get(clientData.payment_term_id)?.name : null) || 'N/A';
-      const termDays = (clientData.payment_term_id ? ptMap.get(clientData.payment_term_id)?.days : null) ?? 0;
-      clientObj = { 
-        nombre_comercial: clientData.trade_name,
-        codigo: clientData.codigo,
-        paymentTermName: termName,
-        paymentTermDays: termDays
-      };
-    }
-  }
-
-  // 3. Fetch horas
-  const { data: horas, error: horasError } = await publicSupabase
-    .schema('core_finance')
-    .from('horas_trabalhadas')
-    .select('*')
-    .eq('fatura_id', fatura.id)
-    .order('data_trabalho', { ascending: false });
-
-  if (horasError) throw mapSupabaseError(horasError);
-
-  // 4. Fetch workers for hours
-  let workers: any[] = [];
-  const workerIds = Array.from(new Set((horas || []).map(h => h.worker_id).filter(Boolean)));
-  if (workerIds.length > 0) {
-    const { data: workersData, error: workersError } = await publicSupabase
-      .schema('core_personal')
-      .from('workers')
-      .select('id, nome, cod_colab, funcion')
-      .in('id', workerIds);
-    if (workersError) console.error('Erro ao buscar trabalhadores para fatura:', workersError);
-    else workers = workersData || [];
-  }
-
-  // 5. Fetch job functions based on hours
-  let jobFunctions: any[] = [];
-  const allFuncaoIds = Array.from(new Set((horas || []).map(h => h.funcao_id).filter(Boolean)));
-  if (allFuncaoIds.length > 0) {
-    const { data: jfData } = await publicSupabase
-      .schema('core_comercial')
-      .from('job_functions')
-      .select('id, name')
-      .in('id', allFuncaoIds);
-    jobFunctions = jfData || [];
-  }
-  const jobFunctionsMap = new Map(jobFunctions.map(j => [j.id, j.name]));
-
-  const workersMap = new Map(workers.map(w => [w.id, w]));
-
-  const horasMapeadas = (horas || []).map(h => {
+  const horasMapeadas = (horas as any[]).map(h => {
     const worker = workersMap.get(h.worker_id);
     const hourlyPerfil = jobFunctionsMap.get(h.funcao_id || '');
     return {
@@ -870,11 +829,8 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
   });
 
   return {
-    fatura: {
-      ...fatura,
-      client: clientObj
-    } as any,
-    horas: horasMapeadas as any[]
+    fatura: fatura as Fatura,
+    horas: horasMapeadas as HoraTrabalhada[]
   };
 }
 

@@ -482,19 +482,19 @@ MCS - Gestão Comercial`;
     setIsEmailModalOpen(true);
   };
 
-  const generatePDFAttachment = async (clientId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
-    const originalTab = getActiveTab(emailData?.cardId || clientId);
+  const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    const originalTab = getActiveTab(cardId);
     if (originalTab !== type) {
-      setActiveTab(emailData?.cardId || clientId, type);
-      await new Promise(resolve => setTimeout(resolve, 200)); // wait for React render
+      setActiveTab(cardId, type);
+      await new Promise(resolve => setTimeout(resolve, 250)); // wait for React render
     }
 
-    const elementId = `${type}-sheet-${clientId}`;
+    const elementId = `${type}-sheet-${cardId}`;
     const element = document.getElementById(elementId);
     if (!element) {
       console.warn(`Element not found: ${elementId}`);
       if (originalTab !== type) {
-        setActiveTab(emailData?.cardId || clientId, originalTab);
+        setActiveTab(cardId, originalTab);
       }
       return null;
     }
@@ -522,7 +522,7 @@ MCS - Gestão Comercial`;
       const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
 
       if (originalTab !== type) {
-        setActiveTab(emailData?.cardId || clientId, originalTab);
+        setActiveTab(cardId, originalTab);
       }
 
       return {
@@ -533,7 +533,7 @@ MCS - Gestão Comercial`;
     } catch (err) {
       console.error(`Error generating ${type} PDF:`, err);
       if (originalTab !== type) {
-        setActiveTab(emailData?.cardId || clientId, originalTab);
+        setActiveTab(cardId, originalTab);
       }
       return null;
     }
@@ -812,8 +812,8 @@ MCS - Gestão Comercial`;
       const toastId = toast.loading('Compilando relatórios e gerando anexos em PDF de alta qualidade. Por favor, aguarde...');
 
       const relatorioAttachment = await generateHoursPDFAttachment(faturamento);
-      const informeAttachment = await generatePDFAttachment(emailData.clientId, emailData.clientName, 'informe');
-      const facturaAttachment = await generatePDFAttachment(emailData.clientId, emailData.clientName, 'factura');
+      const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe');
+      const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura');
 
       const custom_attachments = [];
       if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
@@ -1153,8 +1153,8 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const handleExportA4PDF = async (clientId: string, clientName: string, type: 'informe' | 'factura') => {
-    const elementId = `${type}-sheet-${clientId}`;
+  const handleExportA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
+    const elementId = `${type}-sheet-${cardId}`;
     const element = document.getElementById(elementId);
     
     if (!element) {
@@ -2411,7 +2411,7 @@ MCS - Gestão Comercial`;
                         <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
                           <div className="w-full max-w-[800px] flex justify-end">
                             <Button 
-                              onClick={() => handleExportA4PDF(f.clientId, f.clientName, 'informe')}
+                              onClick={() => handleExportA4PDF(cardId, f.clientName, 'informe')}
                               variant="default"
                               size="sm"
                               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm"
@@ -2421,7 +2421,7 @@ MCS - Gestão Comercial`;
                             </Button>
                           </div>
                           {/* Folha A4 simulada */}
-                          <div id={`informe-sheet-${f.clientId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left">
+                          <div id={`informe-sheet-${cardId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left">
                             {/* Header */}
                             <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-800 pb-6 mb-6">
                               <div className="space-y-2">
@@ -2573,7 +2573,7 @@ MCS - Gestão Comercial`;
                         <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
                           <div className="w-full max-w-[800px] flex justify-end">
                             <Button 
-                              onClick={() => handleExportA4PDF(f.clientId, f.clientName, 'factura')}
+                              onClick={() => handleExportA4PDF(cardId, f.clientName, 'factura')}
                               variant="default"
                               size="sm"
                               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm"
@@ -2583,7 +2583,7 @@ MCS - Gestão Comercial`;
                             </Button>
                           </div>
                           {/* Folha A4 da Fatura */}
-                          <div id={`factura-sheet-${f.clientId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                          <div id={`factura-sheet-${cardId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
