@@ -2149,161 +2149,197 @@ MCS - Gestão Comercial`;
                             </Button>
                           </div>
                           {/* Folha A4 da Fatura */}
-                          <div id={`factura-sheet-${f.clientId}`} className="w-full max-w-[800px] bg-white dark:bg-slate-900 p-8 shadow-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-left relative">
+                          <div id={`factura-sheet-${f.clientId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             
-                            {selectedObra && (
-                              <div className="text-center font-bold text-xs bg-slate-100 dark:bg-slate-950 py-1 rounded text-slate-700 dark:text-slate-400 mb-6">
-                                OBRA: {selectedObra.name.toUpperCase()}
-                              </div>
-                            )}
+                            {/* Wrapper do conteúdo flex-1 */}
+                            <div className="flex-1">
+                              {selectedObra && (
+                                <div className="text-center font-bold text-xs bg-slate-100 py-1 rounded text-slate-700 mb-6">
+                                  OBRA: {selectedObra.name.toUpperCase()}
+                                </div>
+                              )}
 
-                            {/* Top row */}
-                            <div className="flex justify-between items-start mb-8">
-                              <div className="flex items-center gap-4">
-                                {f.empresaInvoiceLogoUrl && (
-                                  <div className="h-10 flex items-center">
-                                    <img src={f.empresaInvoiceLogoUrl} alt={f.empresaNome} className="max-h-full max-w-[150px] object-contain" />
+                              {/* Top row */}
+                              <div className="flex justify-between items-start mb-8">
+                                <div>
+                                  <h3 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight">
+                                    {f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
+                                  </h3>
+                                  <p className="text-xs font-bold text-slate-950 mt-1 uppercase tracking-wider">ORIGINAL</p>
+                                </div>
+                                {/* QR Code dinâmico */}
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="text-[9px] font-bold text-slate-700 font-sans">
+                                    ATCUD: {f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}
+                                  </span>
+                                  <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
+                                    <QRCodeSVG
+                                      value={`${window.location.origin}/fatura/validar?token=${f.magicLinkToken || 'draft'}`}
+                                      size={90}
+                                      level="H"
+                                      includeMargin={false}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* De / Para / Detalhes (3 Colunas) */}
+                              <div className="grid grid-cols-3 gap-6 mb-8 text-[11px] leading-relaxed border-t border-slate-100 pt-4">
+                                {/* Coluna 1: De */}
+                                <div>
+                                  <p className="font-bold text-[9px] text-slate-400 uppercase mb-1">De</p>
+                                  <p className="font-bold text-slate-900">{f.empresaNome}</p>
+                                  <p className="text-slate-600">{f.empresaAddressLine || 'N/A'}</p>
+                                  <p className="text-slate-600">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+                                  <p className="text-slate-600">{f.empresaProvince || 'Portugal'}</p>
+                                  {f.empresaEmail && <p className="text-slate-600">{f.empresaEmail}</p>}
+                                  <p className="text-slate-600">Nº Contribuinte: {f.empresaTaxId || 'N/A'}</p>
+                                  {f.empresaCapitalSocial && <p className="text-slate-600">Capital Social: {f.empresaCapitalSocial}</p>}
+                                  {f.empresaConservatoria && <p className="text-slate-600">Cons. Reg. Com.: {f.empresaConservatoria}</p>}
+                                  {f.empresaMatricula && <p className="text-slate-600">Matrícula: {f.empresaMatricula}</p>}
+                                </div>
+
+                                {/* Coluna 2: Detalhes */}
+                                <div>
+                                  <p className="font-bold text-[9px] text-slate-400 uppercase mb-1">ATCUD</p>
+                                  <p className="font-semibold text-slate-900">{f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}</p>
+                                  
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Emissão</p>
+                                  <p className="text-slate-700">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                                  
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
+                                  <p className="text-slate-700">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                                  
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Moeda</p>
+                                  <p className="text-slate-700">€ (Euro)</p>
+                                </div>
+
+                                {/* Coluna 3: Para */}
+                                <div>
+                                  <p className="font-bold text-[9px] text-slate-400 uppercase mb-1">Para</p>
+                                  <p className="font-bold text-slate-900">{f.clientName}</p>
+                                  <p className="text-slate-600">{f.clientAddressLine || 'N/A'}</p>
+                                  <p className="text-slate-600">{[f.clientPostalCode, f.clientCity].filter(Boolean).join(' ')}</p>
+                                  <p className="text-slate-600">{f.clientCountryName || 'Espanha'}</p>
+                                  <p className="text-slate-600 mt-2">Nº Contribuinte: {f.taxId || 'N/A'}</p>
+                                </div>
+                              </div>
+
+                              {/* Tabela de Itens (Coral Accent) */}
+                              <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1.5 text-center rounded-t mb-0">
+                                Lista de Artigos
+                               </div>
+                              <table className="w-full border-collapse border border-slate-200 rounded-b text-[11px] mb-6">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-200">
+                                    <th className="font-bold text-slate-700 pl-3 py-2 text-left">DESCRIÇÃO DO ARTIGO</th>
+                                    <th className="text-right font-bold text-slate-700 w-20 py-2">QUANT.</th>
+                                    <th className="text-right font-bold text-slate-700 w-24 py-2">PREÇO</th>
+                                    <th className="text-right font-bold text-slate-700 w-16 py-2">DESC.</th>
+                                    <th className="text-right font-bold text-slate-700 w-20 py-2">IVA (%)</th>
+                                    <th className="text-right font-bold text-slate-700 w-24 pr-3 py-2">TOTAL</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr className="border-b border-slate-100">
+                                    <td className="font-medium pl-3 py-2 text-slate-900">{adj.descricaoServico || 'Prestação de Serviços'}</td>
+                                    <td className="text-right py-2">{displayTotalHoras.toFixed(2)}</td>
+                                    <td className="text-right py-2">€ {(totalBase / (displayTotalHoras || 1)).toFixed(2)}</td>
+                                    <td className="text-right py-2">0,00</td>
+                                    <td className="text-right py-2">{adj.ivaPct}.00% (1)</td>
+                                    <td className="text-right font-bold pr-3 font-mono py-2">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  {Number(adj.incrementos) > 0 && (
+                                    <tr className="border-b border-slate-100 text-emerald-600">
+                                      <td className="font-medium pl-3 py-2">{adj.incrementosDesc || 'Incremento Adicional'}</td>
+                                      <td className="text-right py-2">1.00</td>
+                                      <td className="text-right py-2">€ {Number(adj.incrementos).toFixed(2)}</td>
+                                      <td className="text-right py-2">0,00</td>
+                                      <td className="text-right py-2">{adj.ivaPct}.00% (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-2">€ {Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  )}
+                                  {Number(adj.reducoes) > 0 && (
+                                    <tr className="border-b border-slate-100 text-rose-600">
+                                      <td className="font-medium pl-3 py-2">{adj.reducoesDesc || 'Redução Comercial'}</td>
+                                      <td className="text-right py-2">1.00</td>
+                                      <td className="text-right py-2">€ -{Number(adj.reducoes).toFixed(2)}</td>
+                                      <td className="text-right py-2">0,00</td>
+                                      <td className="text-right py-2">{adj.ivaPct}.00% (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-2">€ -{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+
+                              {/* Resumo da Fatura (Coral Accent) */}
+                              <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1.5 text-center rounded-t mb-0">
+                                Resumo
+                              </div>
+                              <table className="w-full border-collapse border border-slate-200 rounded-b text-[11px] mb-6">
+                                <tbody>
+                                  <tr className="border-b border-slate-100">
+                                    <td className="font-bold pl-3 py-2" colSpan={3}>Subtotal da Factura</td>
+                                    <td className="text-right font-bold w-40 pr-3 font-mono py-2">€ {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  <tr className="border-b border-slate-100">
+                                    <td className="font-bold pl-3 py-2" colSpan={3}>IVA {adj.ivaPct}.00% (Incidência: € {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
+                                    <td className="text-right font-bold w-40 pr-3 font-mono py-2">€ {((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  <tr className="bg-[#ec8a5e]/5">
+                                    <td className="font-extrabold text-[#ec8a5e] pl-3 py-2.5 text-xs" colSpan={3}>Total da Factura</td>
+                                    <td className="text-right font-extrabold text-slate-900 text-xs pr-3 font-mono py-2.5">
+                                      € {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+
+                              {/* Condições de IVA */}
+                              <div className="text-[10px] text-slate-500 mb-6 font-semibold">
+                                Condições de Enquadramento de IVA:<br/>
+                                (1) {adj.ivaPct === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+                              </div>
+                            </div>
+
+                            {/* Seção inferior empurrada para baixo */}
+                            <div className="space-y-4">
+                              {/* Certified software text */}
+                              <div className="text-center text-[10px] text-slate-700 italic font-semibold">
+                                {f.empresaCertifiedSoftwareText || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+                              </div>
+
+                              {/* Rodapé de moradas e contas */}
+                              <div className="border-t border-slate-200 pt-3 flex justify-between text-[9px] text-slate-500 font-medium">
+                                <div>
+                                  <p className="font-bold uppercase mb-0.5">Local de Carga</p>
+                                  <p>{f.empresaAddressLine || 'N/ Morada'}</p>
+                                  <p>{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+                                </div>
+                                {adj.iban && (
+                                  <div className="text-center">
+                                    <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
+                                    <p className="font-mono text-[9px]">{adj.iban.split('\n')[0]}</p>
                                   </div>
                                 )}
-                                <div>
-                                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 font-mono">
-                                    {f.faturaNumero || `Factura Pró-forma nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
-                                  </h3>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
-                                </div>
-                              </div>
-                              {/* QR Code dinâmico */}
-                              <div className="flex flex-col items-end gap-1">
-                                {f.atcud && (
-                                  <p className="text-[7px] font-bold text-slate-500 font-mono">ATCUD: {f.atcud}</p>
-                                )}
-                                <div className="border border-slate-200 dark:border-slate-700 p-1 bg-white rounded shadow-sm">
-                                  <QRCodeSVG
-                                    value={`${window.location.origin}/fatura/validar?token=${f.magicLinkToken || 'draft'}`}
-                                    size={56}
-                                    level="L"
-                                    includeMargin={false}
-                                  />
+                                <div className="text-right">
+                                  <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
+                                  <p>{f.clientAddressLine || 'V/ Morada'}</p>
+                                  <p>{[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
                                 </div>
                               </div>
                             </div>
 
-                            {/* De / Para */}
-                            <div className="grid grid-cols-2 gap-8 mb-8 text-[11px] leading-relaxed">
-                              <div>
-                                <p className="font-bold text-[9px] text-slate-400 uppercase">De</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome}</p>
-                                <p className="text-muted-foreground">{f.empresaAddressLine || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
-                                <p className="text-muted-foreground">NIF: {f.empresaTaxId || 'N/A'}</p>
-                                {f.empresaCapitalSocial && <p className="text-[9px] text-slate-500">Cap. Social: {f.empresaCapitalSocial}</p>}
-                                {f.empresaConservatoria && <p className="text-[9px] text-slate-500">Cons. Reg. Com.: {f.empresaConservatoria}</p>}
-                                {f.empresaMatricula && <p className="text-[9px] text-slate-500">Matrícula/Registo: {f.empresaMatricula}</p>}
-                                <p className="text-muted-foreground mt-2 font-semibold">Conta:</p>
-                                <p className="text-muted-foreground font-mono text-[10px] whitespace-pre-line">{adj.iban.split('\n')[0]}</p>
-                              </div>
-                              <div>
-                                <p className="font-bold text-[9px] text-slate-400 uppercase">Para</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.clientName}</p>
-                                <p className="text-muted-foreground">{f.clientAddressLine || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[f.clientPostalCode, f.clientCity].filter(Boolean).join(' ')}</p>
-                                <p className="text-muted-foreground">{f.clientCountryName || 'Espanha'}</p>
-                                <p className="text-muted-foreground mt-2">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                                <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                              </div>
-                            </div>
-
-                            {/* Tabela de Itens (Orange Accent) */}
-                            <div className="bg-orange-500 text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
-                              Lista de Artigos
-                            </div>
-                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b text-[11px] mb-6">
-                              <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
-                                <TableRow>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
-                                  <TableCell className="text-muted-foreground">{adj.descricaoServico}</TableCell>
-                                  <TableCell className="text-right">{displayTotalHoras.toFixed(2)}</TableCell>
-                                  <TableCell>UN</TableCell>
-                                  <TableCell className="text-right">€ {(totalBase / (displayTotalHoras || 1)).toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                {Number(adj.incrementos) > 0 && (
-                                  <TableRow>
-                                    <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
-                                    <TableCell className="text-muted-foreground">{adj.incrementosDesc || 'Incremento Adicional'}</TableCell>
-                                    <TableCell className="text-right">1.00</TableCell>
-                                    <TableCell>UN</TableCell>
-                                    <TableCell className="text-right">€ {Number(adj.incrementos).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                )}
-                                {Number(adj.reducoes) > 0 && (
-                                  <TableRow>
-                                    <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
-                                    <TableCell className="text-muted-foreground">{adj.reducoesDesc || 'Redução Comercial'}</TableCell>
-                                    <TableCell className="text-right">1.00</TableCell>
-                                    <TableCell>UN</TableCell>
-                                    <TableCell className="text-right">€ -{Number(adj.reducoes).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                )}
-                              </TableBody>
-                            </Table>
-
-                            {/* Resumo da Fatura (Orange Accent) */}
-                            <div className="bg-orange-500 text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
-                              Resumo
-                            </div>
-                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b text-[11px] mb-6">
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
-                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono font-mono">€ {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="font-bold" colSpan={3}>IVA {adj.ivaPct}%</TableCell>
-                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono font-mono">€ {((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                <TableRow className="bg-orange-50/50 dark:bg-orange-950/10">
-                                  <TableCell className="font-extrabold text-orange-800 dark:text-orange-400" colSpan={3}>Total da Fatura</TableCell>
-                                  <TableCell className="text-right font-extrabold text-orange-900 dark:text-orange-300 text-xs pr-3 font-mono">
-                                    € {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-
-                            {/* Condições de IVA */}
-                            <div className="text-[10px] text-muted-foreground mb-6 font-semibold">
-                              Condições de Enquadramento de IVA:<br/>
-                              (1) M09-IVA - autoliquidação
-                            </div>
-
-                            {/* Rodapé da fatura */}
-                            <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex justify-between text-[9px] text-muted-foreground font-medium">
-                              <div>
-                                <p className="font-bold uppercase mb-0.5">Local de Carga</p>
-                                <p>{f.empresaAddressLine || 'N/A'}</p>
-                                <p>{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                                <p>{f.clientAddressLine || 'N/A'}</p>
-                                <p>{[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
-                              </div>
-                            </div>
-                            <div className="text-center text-[8px] text-muted-foreground mt-4 italic font-semibold font-mono">
-                              {f.empresaCertifiedSoftwareText || 'ab8k - Processado por Programa Certificado nº 1137/AT'}
+                            {/* Barra preta com logotipo decorativo no canto inferior esquerdo */}
+                            <div className="absolute bottom-0 left-0 right-0 h-[45px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-10 text-[9px] font-sans rounded-b select-none overflow-hidden">
+                              {/* Decoração laranja no canto inferior esquerdo */}
+                              <div className="absolute left-0 bottom-0 top-0 w-24 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                              <span className="relative z-10 font-medium">
+                                Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
+                              </span>
+                              <span className="relative z-10 font-bold">
+                                Pág. 1/1
+                              </span>
                             </div>
                           </div>
                         </div>
