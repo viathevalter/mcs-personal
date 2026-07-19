@@ -86,6 +86,110 @@ export function FaturasPendentes() {
     totalBase: number;
   } | null>(null);
 
+  const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+  
+  const getTranslatedMonthName = (monthIndex: number, lang: 'pt' | 'es' | 'en') => {
+    const ptMonths = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const esMonths = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    const enMonths = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    if (lang === 'es') return esMonths[monthIndex];
+    if (lang === 'en') return enMonths[monthIndex];
+    return ptMonths[monthIndex];
+  };
+
+  const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
+    setEmailLanguage(lang);
+    if (!emailData) return;
+    
+    // Find billing info to reconstruct subject/body
+    const faturamento = faturamentos.find(f => f.clientId === emailData.clientId);
+    if (!faturamento) return;
+
+    const selectedObraId = selectedObraByClient[emailData.cardId];
+    const selectedObra = selectedObraId !== undefined
+      ? faturamento.obras.find(o => o.id === selectedObraId)
+      : null;
+
+    const adj = clientAdjustments[emailData.cardId] || initAdjustments(faturamento);
+    const finalTotal = (emailData.totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
+
+    const monthStr = getTranslatedMonthName(faturamento.month, lang);
+    const periodStr = lang === 'pt' ? `${monthStr} de ${faturamento.year}` : lang === 'es' ? `${monthStr} de ${faturamento.year}` : `${monthStr} ${faturamento.year}`;
+    
+    const obraSuffix = selectedObra ? (lang === 'pt' ? ` - Obra: ${selectedObra.name}` : lang === 'es' ? ` - Obra: ${selectedObra.name}` : ` - Worksite: ${selectedObra.name}`) : '';
+    
+    let subject = '';
+    let body = '';
+    const link = `${window.location.origin}/aprovacao-cliente/${emailData.token}`;
+
+    if (lang === 'es') {
+      subject = `MCS - Solicitud de Aprobación de Horas - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
+      body = `Hola,
+
+Nos gustaría solicitar su aprobación para el informe de facturación correspondiente al período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
+
+Adjunto encontrará los siguientes documentos para su análisis:
+1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
+2. Hoja de horas detallada con las fechas trabajadas
+3. Factura Pro-forma correspondiente por un valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Por favor, utilice el siguiente enlace para ver los documentos de manera interactiva y aprobar o disputar las horas:
+${link}
+
+Si tiene alguna pregunta, contáctenos respondiendo a este correo electrónico.
+
+Atentamente,
+MCS - Gestión Comercial`;
+    } else if (lang === 'en') {
+      subject = `MCS - Hours Approval Request - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
+      body = `Hello,
+
+We would like to request your approval for the billing report for the period of ${periodStr}${selectedObra ? ` (Worksite: ${selectedObra.name})` : ''}.
+
+Attached you will find the following documents for your analysis:
+1. Billing Report (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Worksite: ${selectedObra.name}` : ''}
+2. Detailed timesheet with the dates worked
+3. Corresponding Pro-forma invoice in the amount of € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Please use the link below to view the documents interactively and approve or dispute the hours:
+${link}
+
+If you have any questions, please contact us by replying to this email.
+
+Best regards,
+MCS - Commercial Management`;
+    } else {
+      subject = `MCS - Solicitação de Aprovação de Horas - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
+      body = `Olá,
+
+Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
+
+Em anexo, você encontrará os seguintes documentos para a sua análise:
+1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
+2. Folha de ponto detalhada com as datas trabalhadas
+3. Fatura Pró-forma correspondente no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Por favor, utilize o link abaixo para visualizar os documentos de forma interativa e aprovar ou contestar as horas:
+${link}
+
+Se tiver alguma dúvida, entre em contato respondendo a este e-mail.
+
+Atenciosamente,
+MCS - Gestão Comercial`;
+    }
+
+    setEmailData(prev => prev ? { ...prev, subject, body } : null);
+  };
+
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [sendEmailCheckbox, setSendEmailCheckbox] = useState(true);
@@ -362,6 +466,7 @@ MCS - Gestão Comercial`;
     setSelectedEmails(defaultEmails);
     setAdditionalEmails("");
     setSendEmailCheckbox(true);
+    setEmailLanguage('pt');
 
     setEmailData({
       clientId,
@@ -375,6 +480,281 @@ MCS - Gestão Comercial`;
       totalBase
     });
     setIsEmailModalOpen(true);
+  };
+
+  const generatePDFAttachment = async (clientId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    const originalTab = getActiveTab(emailData?.cardId || clientId);
+    if (originalTab !== type) {
+      setActiveTab(emailData?.cardId || clientId, type);
+      await new Promise(resolve => setTimeout(resolve, 200)); // wait for React render
+    }
+
+    const elementId = `${type}-sheet-${clientId}`;
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.warn(`Element not found: ${elementId}`);
+      if (originalTab !== type) {
+        setActiveTab(emailData?.cardId || clientId, originalTab);
+      }
+      return null;
+    }
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
+
+      if (originalTab !== type) {
+        setActiveTab(emailData?.cardId || clientId, originalTab);
+      }
+
+      return {
+        name: filename,
+        contentType: 'application/pdf',
+        contentBytes: pdfBase64
+      };
+    } catch (err) {
+      console.error(`Error generating ${type} PDF:`, err);
+      if (originalTab !== type) {
+        setActiveTab(emailData?.cardId || clientId, originalTab);
+      }
+      return null;
+    }
+  };
+
+  const generateHoursPDFAttachment = async (f: ClientBillingSummary): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    if (!emailData) return null;
+    
+    // Create a temporary container for the PDF content
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px'; // standard landscape width
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    const monthStr = getTranslatedMonthName(f.month, emailLanguage);
+    const periodStr = emailLanguage === 'en' ? `${monthStr} ${f.year}` : `${monthStr} de ${f.year}`;
+    
+    const labels = {
+      title: emailLanguage === 'pt' ? 'Relatório de Horas' : emailLanguage === 'es' ? 'Informe de Horas' : 'Timesheet Report',
+      client: emailLanguage === 'pt' ? 'Cliente' : emailLanguage === 'es' ? 'Cliente' : 'Client',
+      period: emailLanguage === 'pt' ? 'Período' : emailLanguage === 'es' ? 'Período' : 'Period',
+      totalHours: emailLanguage === 'pt' ? 'Total de Horas' : emailLanguage === 'es' ? 'Total de Horas' : 'Total Hours',
+      baseBilling: emailLanguage === 'pt' ? 'Faturamento Base' : emailLanguage === 'es' ? 'Facturación Base' : 'Base Billing',
+      worker: emailLanguage === 'pt' ? 'Trabalhador' : emailLanguage === 'es' ? 'Trabajador' : 'Worker'
+    };
+
+    // Filter workers/hours to only those matching emailData.horasIds
+    const filteredWorkersForPDF = f.workers.map(w => {
+      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+        if (h && h.id && emailData.horasIds.includes(h.id)) {
+          acc[date] = h;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
+      const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+      return {
+        ...w,
+        horasDiarias: filteredHorasDiarias,
+        totalHoras: wTotalHoras,
+        totalValor: wTotalValor
+      };
+    }).filter(w => w.totalHoras > 0);
+
+    const displayTotalHoras = filteredWorkersForPDF.reduce((sum, w) => sum + w.totalHoras, 0);
+    const displayTotalValor = filteredWorkersForPDF.reduce((sum, w) => sum + w.totalValor, 0);
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">${labels.title}</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.client}: <strong>${f.clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">${labels.totalHours}: <strong style="color: #1e293b; font-size: 16px;">${displayTotalHoras.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.baseBilling}: <strong style="color: #1e293b; font-size: 16px;">€ ${displayTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    const selectedObraId = selectedObraByClient[emailData.cardId];
+    const selectedObra = selectedObraId !== undefined ? f.obras.find(o => o.id === selectedObraId) : null;
+
+    const tablesToRender = [
+      {
+        title: selectedObra ? `OBRA: ${selectedObra.name.toUpperCase()}` : 'OBRA: TODAS AS OBRAS',
+        workers: filteredWorkersForPDF,
+        totalHoras: displayTotalHoras,
+        totalValor: displayTotalValor
+      }
+    ];
+
+    const numDays = new Date(f.year, f.month + 1, 0).getDate();
+    const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
+
+    tablesToRender.forEach((table) => {
+      let tableHtml = `
+        <div style="margin-bottom: 40px; page-break-inside: avoid;">
+          <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+            ${table.title}
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">${labels.worker}</th>
+      `;
+
+      daysArray.forEach(day => {
+        const cellDate = new Date(f.year, f.month, day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+        const weekdays = emailLanguage === 'pt' ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] : emailLanguage === 'es' ? ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const label = weekdays[dayOfWeek];
+        
+        let headerColor = '#64748b';
+        let headerBg = '';
+        if (isSunday) {
+          headerColor = '#e11d48';
+          headerBg = 'background-color: #ffe4e6;';
+        } else if (isSaturday) {
+          headerColor = '#d97706';
+          headerBg = 'background-color: #fef3c7;';
+        }
+
+        tableHtml += `
+          <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+            <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(day).padStart(2, '0')}</div>
+          </th>
+        `;
+      });
+
+      tableHtml += `
+                <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      table.workers.forEach(w => {
+        const workerTotal = Object.values(w.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
+        tableHtml += `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+        `;
+
+        daysArray.forEach(day => {
+          const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const hourObj = w.horasDiarias[dateKey] as any;
+          const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+          
+          const cellDate = new Date(f.year, f.month, day);
+          const dayOfWeek = cellDate.getDay();
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+
+          let cellStyle = 'color: #94a3b8;';
+          let cellBg = '';
+          if (hoursVal > 0) {
+            cellStyle = 'color: #2563eb; font-weight: 700;';
+          }
+          if (isSunday) {
+            cellBg = 'background-color: #fff1f2;';
+          } else if (isSaturday) {
+            cellBg = 'background-color: #fffbeb;';
+          }
+
+          tableHtml += `
+            <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+              ${hoursVal > 0 ? hoursVal : '-'}
+            </td>
+          `;
+        });
+
+        tableHtml += `
+            <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+          </tr>
+        `;
+      });
+
+      tableHtml += `
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.innerHTML += tableHtml;
+    });
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+      
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      document.body.removeChild(container);
+
+      return {
+        name: 'Relatorio_Datas_Trabalhadas.pdf',
+        contentType: 'application/pdf',
+        contentBytes: pdfBase64
+      };
+    } catch (error) {
+      console.error("Erro ao gerar PDF de horas:", error);
+      document.body.removeChild(container);
+      return null;
+    }
   };
 
   const handleSendEmail = async () => {
@@ -429,6 +809,17 @@ MCS - Gestão Comercial`;
         selectedEmpresaId
       );
 
+      const toastId = toast.loading('Compilando relatórios e gerando anexos em PDF de alta qualidade. Por favor, aguarde...');
+
+      const relatorioAttachment = await generateHoursPDFAttachment(faturamento);
+      const informeAttachment = await generatePDFAttachment(emailData.clientId, emailData.clientName, 'informe');
+      const facturaAttachment = await generatePDFAttachment(emailData.clientId, emailData.clientName, 'factura');
+
+      const custom_attachments = [];
+      if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
+      if (informeAttachment) custom_attachments.push(informeAttachment);
+      if (facturaAttachment) custom_attachments.push(facturaAttachment);
+
       // Detectar URL e converter em um link HTML clicável
       const linkRegex = /(https?:\/\/[^\s]+)/g;
       const htmlBody = emailData.body
@@ -444,17 +835,21 @@ MCS - Gestão Comercial`;
           email_body: htmlBody,
           is_faturamento: true,
           fatura_code: "FAT-" + emailData.token.substring(0, 8).toUpperCase(),
-          client_name: emailData.clientName
+          client_name: emailData.clientName,
+          custom_attachments
         }
       });
 
       if (functionErr) {
         console.error('Error invoking send-order-notification for billing:', functionErr);
         toast.warning('Ajustes salvos no faturamento, mas falhou ao enviar o e-mail de aprovação.', {
-          description: functionErr.message
+          description: functionErr.message,
+          id: toastId
         });
       } else {
-        toast.success(`E-mail com portal de aprovação enviado com sucesso para ${toEmails.join(', ')}!`);
+        toast.success(`E-mail com portal de aprovação enviado com sucesso para ${toEmails.join(', ')}!`, {
+          id: toastId
+        });
       }
 
       setIsEmailModalOpen(false);
@@ -1806,7 +2201,7 @@ MCS - Gestão Comercial`;
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredWorkers.map(worker => {
+                            {filteredWorkers.filter(worker => !worker.isBilled).map(worker => {
                               const workerTotal = Object.values(worker.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
                               return (
                                 <TableRow key={worker.workerId} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -2130,7 +2525,7 @@ MCS - Gestão Comercial`;
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {filteredWorkers.map(w => (
+                                {filteredWorkers.filter(w => !w.isBilled).map(w => (
                                   <TableRow key={w.workerId}>
                                     <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
                                       <div className="flex items-center justify-between w-full">
@@ -2597,6 +2992,24 @@ MCS - Gestão Comercial`;
 
                   {sendEmailCheckbox && (
                     <div className="space-y-4">
+                      {/* Idioma do E-mail */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Idioma do E-mail</label>
+                        <Select 
+                          value={emailLanguage} 
+                          onValueChange={(val: 'pt' | 'es' | 'en') => handleLanguageChange(val)}
+                        >
+                          <SelectTrigger className="h-9 text-xs dark:bg-slate-950 dark:border-slate-800 font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <SelectValue placeholder="Selecione o idioma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 Português (Padrão)</SelectItem>
+                            <SelectItem value="es" className="text-xs font-semibold">🇪🇸 Espanhol (Spanish)</SelectItem>
+                            <SelectItem value="en" className="text-xs font-semibold">🇬🇧 Inglês (English)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {/* Recipients checklists */}
                       <div className="space-y-2">
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Destinatários do E-mail</label>
