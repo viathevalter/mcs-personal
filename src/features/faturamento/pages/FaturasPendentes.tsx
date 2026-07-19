@@ -2209,11 +2209,8 @@ MCS - Gestão Comercial`;
                                   
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
                                   <p className="text-slate-700">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
-                                  
-                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Moeda</p>
-                                  <p className="text-slate-700">€ (Euro)</p>
                                 </div>
-
+                                                         
                                 {/* Coluna 3: Para */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
@@ -2228,10 +2225,10 @@ MCS - Gestão Comercial`;
                               {/* Tabela de Itens (Coral Accent) */}
                               <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
                                 Lista de Artigos
-                               </div>
-                              <table className="w-full border-collapse border border-[#ec8a5e] rounded-b text-[11px] mb-6">
+                              </div>
+                              <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                                 <thead>
-                                  <tr className="bg-[#ec8a5e] text-white border-b border-[#ec8a5e]">
+                                  <tr className="bg-[#f2a87a] text-white border-b border-[#ec8a5e]/40">
                                     <th className="font-bold text-white pl-3 py-1 text-left">DESCRIÇÃO DO ARTIGO</th>
                                     <th className="text-right font-bold text-white w-20 py-1">QUANT.</th>
                                     <th className="text-right font-bold text-white w-24 py-1">PREÇO</th>
@@ -2242,31 +2239,31 @@ MCS - Gestão Comercial`;
                                 </thead>
                                 <tbody>
                                   <tr className="border-b border-[#ec8a5e]/30">
-                                    <td className="font-medium pl-3 py-1.5 text-slate-900">{adj.descricaoServico || 'Prestação de Serviços'}</td>
-                                    <td className="text-right py-1.5">{displayTotalHoras.toFixed(2)}</td>
-                                    <td className="text-right py-1.5">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    <td className="text-right py-1.5">0,00</td>
-                                    <td className="text-right py-1.5">{adj.ivaPct}.00 (1)</td>
-                                    <td className="text-right font-bold pr-3 font-mono py-1.5">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'}</td>
+                                    <td className="text-right py-1 text-slate-800">{displayTotalHoras.toFixed(2)}</td>
+                                    <td className="text-right py-1 text-slate-800">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right py-1 text-slate-800">0,00</td>
+                                    <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                    <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   </tr>
                                   {Number(adj.incrementos) > 0 && (
-                                    <tr className="border-b border-[#ec8a5e]/30 text-emerald-600">
-                                      <td className="font-medium pl-3 py-1.5">{adj.incrementosDesc || 'Incremento Adicional'}</td>
-                                      <td className="text-right py-1.5">1.00</td>
-                                      <td className="text-right py-1.5">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                      <td className="text-right py-1.5">0,00</td>
-                                      <td className="text-right py-1.5">{adj.ivaPct}.00 (1)</td>
-                                      <td className="text-right font-bold pr-3 font-mono py-1.5">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
+                                      <td className="pl-3 py-1">{adj.incrementosDesc || 'Incremento Adicional'}</td>
+                                      <td className="text-right py-1">1.00</td>
+                                      <td className="text-right py-1">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right py-1">0,00</td>
+                                      <td className="text-right py-1">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-1">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                   )}
                                   {Number(adj.reducoes) > 0 && (
-                                    <tr className="border-b border-[#ec8a5e]/30 text-rose-600">
-                                      <td className="font-medium pl-3 py-1.5">{adj.reducoesDesc || 'Redução Comercial'}</td>
-                                      <td className="text-right py-1.5">1.00</td>
-                                      <td className="text-right py-1.5">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                      <td className="text-right py-1.5">0,00</td>
-                                      <td className="text-right py-1.5">{adj.ivaPct}.00 (1)</td>
-                                      <td className="text-right font-bold pr-3 font-mono py-1.5">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <tr className="border-b border-[#ec8a5e]/30 text-rose-700">
+                                      <td className="pl-3 py-1">{adj.reducoesDesc || 'Redução Comercial'}</td>
+                                      <td className="text-right py-1">1.00</td>
+                                      <td className="text-right py-1">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right py-1">0,00</td>
+                                      <td className="text-right py-1">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                   )}
                                 </tbody>
@@ -2276,19 +2273,19 @@ MCS - Gestão Comercial`;
                               <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
                                 Resumo
                               </div>
-                              <table className="w-full border-collapse border border-[#ec8a5e] rounded-b text-[11px] mb-6">
+                              <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                                 <tbody>
                                   <tr className="border-b border-[#ec8a5e]/30">
-                                    <td className="font-bold pl-3 py-1.5" colSpan={3}>Subtotal da Factura</td>
-                                    <td className="text-right font-bold w-40 pr-3 font-mono py-1.5">{(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                                    <td className="pl-3 py-1 text-slate-800" colSpan={3}>Subtotal da Factura</td>
+                                    <td className="text-right font-medium w-40 pr-3 font-mono py-1 text-slate-800">{(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
                                   </tr>
                                   <tr className="border-b border-[#ec8a5e]/30">
-                                    <td className="font-bold pl-3 py-1.5" colSpan={3}>IVA {adj.ivaPct}.00% (Incidência: {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €)</td>
-                                    <td className="text-right font-bold w-40 pr-3 font-mono py-1.5">{((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                                    <td className="pl-3 py-1 text-slate-800" colSpan={3}>IVA {Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
+                                    <td className="text-right font-medium w-40 pr-3 font-mono py-1 text-slate-800">{((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
                                   </tr>
-                                  <tr className="border-b border-[#ec8a5e]/60">
-                                    <td className="font-extrabold text-[#ec8a5e] pl-3 py-2 text-xs" colSpan={3}>Total da Factura</td>
-                                    <td className="text-right font-extrabold text-slate-900 text-xs pr-3 font-mono py-2">
+                                  <tr className="border-b border-[#ec8a5e]/40">
+                                    <td className="font-extrabold text-slate-900 pl-3 py-1.5 text-xs" colSpan={3}>Total da Factura</td>
+                                    <td className="text-right font-extrabold text-slate-900 text-xs pr-3 font-mono py-1.5">
                                       {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
                                     </td>
                                   </tr>
