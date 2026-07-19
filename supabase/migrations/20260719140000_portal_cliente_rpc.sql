@@ -1,5 +1,8 @@
--- 1. Cria a função que retorna dados do portal para a fatura com segurança (definida como SECURITY DEFINER para ignorar RLS)
-CREATE OR REPLACE FUNCTION core_finance.get_fatura_portal_data(p_token UUID)
+-- Drop old function in core_finance if it exists
+DROP FUNCTION IF EXISTS core_finance.get_fatura_portal_data(UUID);
+
+-- 1. Cria a função que retorna dados do portal para a fatura com segurança (definida como SECURITY DEFINER para ignorar RLS) no schema public
+CREATE OR REPLACE FUNCTION public.get_fatura_portal_data(p_token UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -114,5 +117,5 @@ BEGIN
 END;
 $$;
 
--- Concede privilégio de execução ao perfil público anon (acesso via magic link)
-GRANT EXECUTE ON FUNCTION core_finance.get_fatura_portal_data(UUID) TO anon, authenticated, service_role;
+-- Concede privilégio de execução ao perfil público anon (acesso via magic link) no schema public
+GRANT EXECUTE ON FUNCTION public.get_fatura_portal_data(UUID) TO anon, authenticated, service_role;
