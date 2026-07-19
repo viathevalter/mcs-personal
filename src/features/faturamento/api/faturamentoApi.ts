@@ -134,6 +134,7 @@ export interface ClientBillingSummary {
     totalHoras: number;
     totalValor: number;
     isValidated: boolean;
+    isBilled: boolean;
     funcaoId?: string;
     workerStatus?: string | null;
     dataBaixa?: string | null;
@@ -524,6 +525,7 @@ export async function getHorasPendentesFaturamento(
           totalHoras: wTotalHoras,
           totalValor: wTotalValor,
           isValidated,
+          isBilled: wHours.length > 0 && wHours.every(h => h.fatura_id !== null),
           funcaoId: hourlyFuncaoId || w.funcao_id,
           workerStatus: w.status_trabajador || 'Ativo',
           dataBaixa: w.data_baixa || null,
@@ -576,6 +578,7 @@ export async function getHorasPendentesFaturamento(
           totalHoras: wTotalHoras,
           totalValor: wTotalValor,
           isValidated: true,
+          isBilled: wHours.length > 0 && wHours.every(h => h.fatura_id !== null),
           workerStatus: wStatus,
           dataBaixa: wDataBaixa,
           observacoes: null,
@@ -587,37 +590,49 @@ export async function getHorasPendentesFaturamento(
         validatedWorkersCount++;
       }
 
+      // Calculate unbilled and billed counts
+      const unbilledWorkersList = workersSummary.filter(w => !w.isBilled);
+      const totalUnbilled = unbilledWorkersList.length;
+      const validatedUnbilled = unbilledWorkersList.filter(w => w.isValidated).length;
+
+      // Check if there are any unbilled hours or if we have workers with no hours recorded yet
+      const hasPendingHours = clientHours.some(h => !h.fatura_id);
+      const hasPendingWorkers = clientWorkers.length > 0 && clientHours.length === 0;
+      const hasUnbilled = hasPendingHours || hasPendingWorkers || totalUnbilled > 0;
+
       let statusBilling: ClientBillingSummary['statusBilling'] = 'waiting_validation';
       let magicLinkToken: string | null = null;
       let dataEmissaoFatura: string | null = null;
       let ajustesJson: any | null = null;
-
       let faturaNumero: string | null = null;
       let faturaAtcud: string | null = null;
 
-      const hourlyFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
-      if (hourlyFaturaId) {
-        const fatura = faturasMap.get(hourlyFaturaId);
-        if (fatura) {
-          magicLinkToken = fatura.magic_link_token;
-          dataEmissaoFatura = fatura.data_emissao || null;
-          ajustesJson = fatura.ajustes_json || null;
-          faturaNumero = fatura.fatura_numero || null;
-          faturaAtcud = fatura.atcud || null;
-          if (fatura.status === 'pending_client_approval') {
-            statusBilling = 'invoiced_pending';
-          } else if (fatura.status === 'approved') {
-            statusBilling = 'invoiced_approved';
-          } else if (fatura.status === 'disputed') {
-            statusBilling = 'invoiced_disputed';
-          }
-        }
-      } else {
-        const totalWorkers = workersSummary.length;
-        if (totalWorkers > 0 && validatedWorkersCount === totalWorkers) {
+      if (hasUnbilled) {
+        // Active billing session: there are unbilled hours/workers
+        if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
           statusBilling = 'ready';
         } else {
           statusBilling = 'waiting_validation';
+        }
+      } else {
+        // Billed session: all hours are already linked to a fatura
+        const latestFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
+        if (latestFaturaId) {
+          const fatura = faturasMap.get(latestFaturaId);
+          if (fatura) {
+            magicLinkToken = fatura.magic_link_token;
+            dataEmissaoFatura = fatura.data_emissao || null;
+            ajustesJson = fatura.ajustes_json || null;
+            faturaNumero = fatura.fatura_numero || null;
+            faturaAtcud = fatura.atcud || null;
+            if (fatura.status === 'pending_client_approval') {
+              statusBilling = 'invoiced_pending';
+            } else if (fatura.status === 'approved') {
+              statusBilling = 'invoiced_approved';
+            } else if (fatura.status === 'disputed') {
+              statusBilling = 'invoiced_disputed';
+            }
+          }
         }
       }
 
@@ -661,8 +676,8 @@ export async function getHorasPendentesFaturamento(
         magicLinkToken,
         dataEmissaoFatura,
         ajustesJson,
-        totalWorkers: workersSummary.length,
-        validatedWorkers: validatedWorkersCount,
+        totalWorkers: hasUnbilled ? totalUnbilled : workersSummary.length,
+        validatedWorkers: hasUnbilled ? validatedUnbilled : workersSummary.length,
         paymentTermName: termName,
         paymentTermDays: termDays,
         billingEmail: client.billing_email || null,

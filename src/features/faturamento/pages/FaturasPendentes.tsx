@@ -76,12 +76,14 @@ export function FaturasPendentes() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailData, setEmailData] = useState<{
     clientId: string;
+    cardId: string;
     clientName: string;
     recipientEmail: string;
     subject: string;
     body: string;
     horasIds: string[];
     token: string;
+    totalBase: number;
   } | null>(null);
 
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
@@ -295,8 +297,8 @@ export function FaturasPendentes() {
     fetchHoras();
   }, [selectedEmpresaId, selectedYear, selectedMonth]);
 
-  const handleSolicitarAprovacao = (clientId: string, workers: any[]) => {
-    const selectedObraId = selectedObraByClient[clientId];
+  const handleSolicitarAprovacao = (clientId: string, workers: any[], cardId: string) => {
+    const selectedObraId = selectedObraByClient[cardId];
     const faturamento = faturamentos.find(f => f.clientId === clientId);
     if (!faturamento) return;
 
@@ -318,8 +320,8 @@ export function FaturasPendentes() {
       return;
     }
 
-    const adj = clientAdjustments[clientId] || initAdjustments(faturamento);
-    const totalBase = selectedObra ? selectedObra.totalValor : faturamento.totalValor;
+    const adj = clientAdjustments[cardId] || initAdjustments(faturamento);
+    const totalBase = workers.reduce((sum, w) => sum + w.totalValor, 0);
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
     const periodStr = `${getMonthName(faturamento.month)} de ${faturamento.year}`;
@@ -363,12 +365,14 @@ MCS - Gestão Comercial`;
 
     setEmailData({
       clientId,
+      cardId,
       clientName: faturamento.clientName,
       recipientEmail: defaultEmails.join(", "),
       subject,
       body,
       horasIds,
-      token: previewToken
+      token: previewToken,
+      totalBase
     });
     setIsEmailModalOpen(true);
   };
@@ -397,9 +401,9 @@ MCS - Gestão Comercial`;
       const faturamento = faturamentos.find(f => f.clientId === emailData.clientId);
       if (!faturamento) return;
 
-      const adj = clientAdjustments[emailData.clientId] || initAdjustments(faturamento);
+      const adj = clientAdjustments[emailData.cardId] || initAdjustments(faturamento);
 
-      const selectedObraId = selectedObraByClient[emailData.clientId];
+      const selectedObraId = selectedObraByClient[emailData.cardId];
       const selectedObra = selectedObraId !== undefined
         ? faturamento.obras.find(o => o.id === selectedObraId)
         : null;
@@ -463,8 +467,8 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const toggleClient = (clientId: string) => {
-    setExpandedClients(prev => ({ ...prev, [clientId]: !prev[clientId] }));
+  const toggleClient = (cardId: string) => {
+    setExpandedClients(prev => ({ ...prev, [cardId]: !prev[cardId] }));
   };
 
   const toggleWorker = (clientId: string, workerId: string) => {
@@ -1170,8 +1174,9 @@ MCS - Gestão Comercial`;
       ) : (
         <div className="space-y-4">
           {filteredFaturamentos.map(f => {
+            const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
             const isProcessing = processingClient === f.clientId;
-            const isExpanded = expandedClients[f.clientId];
+            const isExpanded = expandedClients[cardId];
             
             const numDays = new Date(f.year, f.month + 1, 0).getDate();
             const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
@@ -1179,7 +1184,7 @@ MCS - Gestão Comercial`;
             const isBlocked = f.statusBilling === 'waiting_validation';
             const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
 
-            const selectedObraId = selectedObraByClient[f.clientId];
+            const selectedObraId = selectedObraByClient[cardId];
             const hasObraFilter = selectedObraId !== undefined;
 
             // Filter workers and their hours based on the selected Obra
@@ -1214,9 +1219,13 @@ MCS - Gestão Comercial`;
               ? f.obras.find(o => o.id === selectedObraId)
               : null;
 
+            const unbilledWorkersList = filteredWorkers.filter(w => !w.isBilled);
+            const totalUnbilled = unbilledWorkersList.length;
+            const validatedUnbilled = unbilledWorkersList.filter(w => w.isValidated).length;
+
             return (
               <Card 
-                key={f.clientId} 
+                key={cardId} 
                 className={`overflow-hidden shadow-sm transition-all hover:shadow-md border border-slate-200 dark:border-slate-800 ${
                   isBlocked ? 'opacity-85 bg-slate-50/70 dark:bg-slate-900/10 border-dashed' : ''
                 }`}
@@ -1224,7 +1233,7 @@ MCS - Gestão Comercial`;
                 {/* Cabeçalho do Cartão (Colunas Estilizadas) */}
                 <div 
                   className="p-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  onClick={() => toggleClient(f.clientId)}
+                  onClick={() => toggleClient(cardId)}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full lg:flex-1 items-center">
                     
@@ -1318,14 +1327,39 @@ MCS - Gestão Comercial`;
                   <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
                     {/* Ações baseadas no status */}
                     {isBlocked ? (
-                      <Button 
-                        disabled
-                        variant="secondary"
-                        size="sm"
-                        className="bg-slate-100 text-slate-400 cursor-not-allowed font-medium shrink-0"
-                      >
-                        Aguardando Validação
-                      </Button>
+                      validatedUnbilled > 0 ? (
+                        <Button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (f.viesApplicable && !f.viesValid) {
+                              toast.error('Faturamento Bloqueado: O VIES deste cliente está inválido ou pendente. Realize a consulta e validação no painel acima antes de prosseguir.');
+                              return;
+                            }
+                            const validatedUnbilledWorkers = unbilledWorkersList.filter(w => w.isValidated);
+                            handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers);
+                          }}
+                          disabled={isProcessing}
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-600 hover:bg-blue-50/50 text-blue-600 dark:border-blue-500 dark:text-blue-400 font-medium gap-1.5 shrink-0"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <LinkIcon size={14} />
+                          )}
+                          Aprovação Parcial ({validatedUnbilled}/{totalUnbilled})
+                        </Button>
+                      ) : (
+                        <Button 
+                          disabled
+                          variant="secondary"
+                          size="sm"
+                          className="bg-slate-100 text-slate-400 cursor-not-allowed font-medium shrink-0"
+                        >
+                          Aguardando Validação
+                        </Button>
+                      )
                     ) : f.statusBilling === 'ready' ? (
                       <Button 
                         onClick={(e) => {
@@ -1334,7 +1368,8 @@ MCS - Gestão Comercial`;
                             toast.error('Faturamento Bloqueado: O VIES deste cliente está inválido ou pendente. Realize a consulta e validação no painel acima antes de prosseguir.');
                             return;
                           }
-                          handleSolicitarAprovacao(f.clientId, filteredWorkers);
+                          const validatedUnbilledWorkers = unbilledWorkersList.filter(w => w.isValidated);
+                          handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers);
                         }}
                         disabled={isProcessing}
                         variant={f.viesApplicable && !f.viesValid ? "destructive" : "default"}
@@ -1436,10 +1471,10 @@ MCS - Gestão Comercial`;
                           <div 
                             onClick={() => setSelectedObraByClient(prev => {
                               const next = { ...prev };
-                              delete next[f.clientId];
+                              delete next[cardId];
                               return next;
                             })}
-                            className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${getObraColorClasses(-1, selectedObraByClient[f.clientId] === undefined)}`}
+                            className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${getObraColorClasses(-1, selectedObraByClient[cardId] === undefined)}`}
                           >
                             <div className="flex flex-col">
                               <span className="text-xs font-bold">Todas as Obras</span>
@@ -1452,11 +1487,11 @@ MCS - Gestão Comercial`;
 
                           {/* Cards for each Obra */}
                           {f.obras.map((obra, idx) => {
-                            const isSelected = selectedObraByClient[f.clientId] === obra.id;
+                            const isSelected = selectedObraByClient[cardId] === obra.id;
                             return (
                               <div 
                                 key={obra.id || 'sem_obra'}
-                                onClick={() => setSelectedObraByClient(prev => ({ ...prev, [f.clientId]: obra.id }))}
+                                onClick={() => setSelectedObraByClient(prev => ({ ...prev, [cardId]: obra.id }))}
                                 className={`flex-1 min-w-[150px] max-w-[240px] p-3 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center justify-between gap-3 ${getObraColorClasses(idx, isSelected)}`}
                               >
                                 <div className="flex flex-col min-w-0">
@@ -1478,39 +1513,39 @@ MCS - Gestão Comercial`;
                     {/* Tab Navigation */}
                     <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-2 gap-2 text-xs font-semibold">
                       <button 
-                        onClick={() => setActiveTab(f.clientId, 'edicao')} 
-                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(f.clientId) === 'edicao' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        onClick={() => setActiveTab(cardId, 'edicao')} 
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'edicao' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Edição dos dados
                       </button>
                       <button 
-                        onClick={() => setActiveTab(f.clientId, 'datas_trabalhadas')} 
-                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(f.clientId) === 'datas_trabalhadas' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        onClick={() => setActiveTab(cardId, 'datas_trabalhadas')} 
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'datas_trabalhadas' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Datas trabalhadas
                       </button>
                       <button 
-                        onClick={() => setActiveTab(f.clientId, 'importe')} 
-                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(f.clientId) === 'importe' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        onClick={() => setActiveTab(cardId, 'importe')} 
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'importe' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Importe
                       </button>
                       <button 
-                        onClick={() => setActiveTab(f.clientId, 'informe')} 
-                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(f.clientId) === 'informe' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        onClick={() => setActiveTab(cardId, 'informe')} 
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'informe' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Informe
                       </button>
                       <button 
-                        onClick={() => setActiveTab(f.clientId, 'factura')} 
-                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(f.clientId) === 'factura' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        onClick={() => setActiveTab(cardId, 'factura')} 
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'factura' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Factura Única
                       </button>
                     </div>
 
                     {/* Aba 1: Edição dos dados */}
-                    {getActiveTab(f.clientId) === 'edicao' && (
+                    {getActiveTab(cardId) === 'edicao' && (
                       <Table>
                         <TableHeader className="bg-slate-100/50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
                           <TableRow>
@@ -1596,7 +1631,11 @@ MCS - Gestão Comercial`;
                                   <TableCell className="text-slate-500 dark:text-slate-400 text-sm align-top pt-4">{worker.perfil}</TableCell>
                                   
                                   <TableCell className="text-right align-top pt-4">
-                                    {worker.isValidated ? (
+                                    {worker.isBilled ? (
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-medium py-0.5">
+                                        Faturado
+                                      </Badge>
+                                    ) : worker.isValidated ? (
                                       <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-medium py-0.5">
                                         Validado
                                       </Badge>
@@ -1608,15 +1647,15 @@ MCS - Gestão Comercial`;
                                   </TableCell>
 
                                   <TableCell className="text-right font-bold text-slate-800 dark:text-slate-200 align-top pt-4">
-                                    {worker.isValidated ? `${worker.totalHoras.toFixed(2)}h` : '--'}
+                                    {worker.isValidated || worker.isBilled ? `${worker.totalHoras.toFixed(2)}h` : '--'}
                                   </TableCell>
                                   <TableCell className="text-right font-semibold align-top pt-4">
-                                    {worker.isValidated ? (
+                                    {worker.isValidated || worker.isBilled ? (
                                       <div className="flex items-center justify-end gap-1.5 group/tarifa">
                                         <span className={worker.isException ? "text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200/50" : ""}>
                                           € {worker.tarifa.toFixed(2)}
                                         </span>
-                                        {!isAlreadyInvoiced && (
+                                        {!isAlreadyInvoiced && !worker.isBilled && (
                                           <button 
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -1682,7 +1721,7 @@ MCS - Gestão Comercial`;
                                                 </span>
                                                 <input
                                                   type="text"
-                                                  disabled={!worker.isValidated || isAlreadyInvoiced}
+                                                  disabled={!worker.isValidated || isAlreadyInvoiced || worker.isBilled}
                                                   defaultValue={hoursVal === 0 ? '0' : hoursVal.toString()}
                                                   onKeyDown={handleInputKeyDown}
                                                   onBlur={(e) => handleInputBlur(e, worker, targetDateStr, record, f.clientId)}
@@ -1812,11 +1851,11 @@ MCS - Gestão Comercial`;
                     )}
 
                     {/* Aba 3: Importe */}
-                    {getActiveTab(f.clientId) === 'importe' && (() => {
-                      const adj = clientAdjustments[f.clientId] || initAdjustments(f);
+                    {getActiveTab(cardId) === 'importe' && (() => {
+                      const adj = clientAdjustments[cardId] || initAdjustments(f);
                       const handleFieldChange = (field: keyof ClientAdjustments, val: any) => {
                         setClientAdjustments(prev => {
-                          const current = prev[f.clientId] || initAdjustments(f);
+                          const current = prev[cardId] || initAdjustments(f);
                           const updated = { ...current, [field]: val };
                           
                           if (field === 'dataEmissao' || field === 'condicoesPagamento') {
@@ -1826,7 +1865,7 @@ MCS - Gestão Comercial`;
                             dueDate.setDate(emissionDate.getDate() + days);
                             updated.dataVencimento = dueDate.toISOString().split('T')[0];
                           }
-                          return { ...prev, [f.clientId]: updated };
+                          return { ...prev, [cardId]: updated };
                         });
                       };
 
@@ -1967,8 +2006,8 @@ MCS - Gestão Comercial`;
                     })()}
 
                     {/* Aba 4: Informe */}
-                    {getActiveTab(f.clientId) === 'informe' && (() => {
-                      const adj = clientAdjustments[f.clientId] || initAdjustments(f);
+                    {getActiveTab(cardId) === 'informe' && (() => {
+                      const adj = clientAdjustments[cardId] || initAdjustments(f);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
@@ -2130,8 +2169,8 @@ MCS - Gestão Comercial`;
                     })()}
 
                     {/* Aba 5: Factura Única */}
-                    {getActiveTab(f.clientId) === 'factura' && (() => {
-                      const adj = clientAdjustments[f.clientId] || initAdjustments(f);
+                    {getActiveTab(cardId) === 'factura' && (() => {
+                      const adj = clientAdjustments[cardId] || initAdjustments(f);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -2395,8 +2434,8 @@ MCS - Gestão Comercial`;
             const currentFaturamento = faturamentos.find(f => f.clientId === emailData?.clientId);
             if (!emailData || !currentFaturamento) return null;
 
-            const currentAdj = clientAdjustments[emailData.clientId] || initAdjustments(currentFaturamento);
-            const currentTotalBase = currentFaturamento.totalValor;
+            const currentAdj = clientAdjustments[emailData.cardId] || initAdjustments(currentFaturamento);
+            const currentTotalBase = emailData.totalBase;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.ivaPct || 0)/100);
 
             // Available emails list
