@@ -8,6 +8,7 @@ DECLARE
     v_fatura RECORD;
     v_client RECORD;
     v_empresa RECORD;
+    v_empresa_id UUID;
     v_horas JSONB;
     v_workers JSONB;
     v_job_functions JSONB;
@@ -20,14 +21,19 @@ BEGIN
     END IF;
 
     -- B. Buscar cliente
-    SELECT id, trade_name, codigo, payment_terms, payment_term_id, empresa_id, address_line, postal_code, city, province, tax_id 
+    SELECT id, trade_name, codigo, payment_terms, address_line, postal_code, city, province, tax_id 
     INTO v_client 
     FROM core_common.clients 
     WHERE id = v_fatura.client_id;
 
-    -- C. Buscar empresa
-    IF v_client.empresa_id IS NOT NULL THEN
-        SELECT * INTO v_empresa FROM core_common.empresas WHERE id = v_client.empresa_id;
+    -- C. Buscar empresa associada via client_company_settings
+    SELECT empresa_id INTO v_empresa_id 
+    FROM core_common.client_company_settings 
+    WHERE client_id = v_fatura.client_id AND status = 'active'
+    LIMIT 1;
+
+    IF v_empresa_id IS NOT NULL THEN
+        SELECT * INTO v_empresa FROM core_common.empresas WHERE id = v_empresa_id;
     END IF;
 
     -- D. Buscar horas_trabalhadas
@@ -71,8 +77,8 @@ BEGIN
             'client', jsonb_build_object(
                 'nombre_comercial', v_client.trade_name,
                 'codigo', v_client.codigo,
-                'paymentTermName', COALESCE(v_client.payment_terms, (SELECT name FROM core_common.payment_terms WHERE id = v_client.payment_term_id), 'N/A'),
-                'paymentTermDays', COALESCE((SELECT days FROM core_common.payment_terms WHERE id = v_client.payment_term_id), 0),
+                'paymentTermName', COALESCE(v_client.payment_terms, 'N/A'),
+                'paymentTermDays', 0,
                 'address_line', v_client.address_line,
                 'postal_code', v_client.postal_code,
                 'city', v_client.city,
