@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail } from 'lucide-react';
 import { useWorkerAssignments } from './hooks/useWorkerAssignments';
 import { useCreateSolicitud } from './hooks/useCreateSolicitud';
 import { AssignmentsSelectionTable } from './components/AssignmentsSelectionTable';
@@ -14,6 +14,8 @@ import { useClientSites } from '@/features/master-data/client-sites/hooks/useCli
 import { supabase } from '@/shared/supabase/client';
 import { usePedidos } from '../pedidos/hooks/usePedidos';
 import { useAuth } from '../contexts/AuthContext';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -62,6 +64,8 @@ export function NewSolicitudPage() {
     const [isSubjectEdited, setIsSubjectEdited] = useState(false);
     const [isBodyEdited, setIsBodyEdited] = useState(false);
     const editorRef = useRef<HTMLDivElement>(null);
+    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
     // Target Client/Site and Housing logistics state for Relocations
     const [targetClientId, setTargetClientId] = useState<string>('all');
@@ -272,28 +276,76 @@ export function NewSolicitudPage() {
             ? (selectedPedido?.codigo || 'N/A')
             : (firstAssignment?.pedido?.codigo || firstAssignment?.pedido_codigo || 'N/A');
 
-        const workerNames = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-            ? selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ')
-            : selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
+        const workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
 
         const expectedStartStr = dueDate 
             ? new Date(dueDate).toLocaleDateString('pt-PT')
-            : 'Não informado';
+            : (emailLanguage === 'en' ? 'Not informed' : 'Não informado');
 
-        const typeLabel = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
-                          actionType === 'relocation' ? 'Realocação (Reubicación)' : 
-                          actionType === 'technical_test' ? 'Teste Técnico (Prueba)' : 
-                          actionType === 'offboarding' ? 'Desligamento (Baja)' : 
-                          actionType === 'order_extension' ? 'Prorrogação de Obra' : 
-                          actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 'Finalização de Obra';
-
-        if (!isSubjectEdited) {
-            const subject = `Notificação Operacional: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
-            setEmailSubject(subject);
+        let typeLabel = '';
+        if (emailLanguage === 'es') {
+            typeLabel = actionType === 'replacement' ? 'Sustitución (Reemplazo)' : 
+                        actionType === 'relocation' ? 'Reubicación' : 
+                        actionType === 'technical_test' ? 'Prueba Técnica (Prueba)' : 
+                        actionType === 'offboarding' ? 'Desvinculación (Baja)' : 
+                        actionType === 'order_extension' ? 'Prórroga de Obra' : 
+                        actionType === 'order_postponement' ? 'Aplazamiento de Inicio de Obra' : 'Finalización de Obra';
+        } else if (emailLanguage === 'en') {
+            typeLabel = actionType === 'replacement' ? 'Replacement' : 
+                        actionType === 'relocation' ? 'Relocation' : 
+                        actionType === 'technical_test' ? 'Technical Test' : 
+                        actionType === 'offboarding' ? 'Termination' : 
+                        actionType === 'order_extension' ? 'Worksite Extension' : 
+                        actionType === 'order_postponement' ? 'Worksite Postponement' : 'Worksite Completion';
+        } else {
+            typeLabel = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
+                        actionType === 'relocation' ? 'Realocação (Reubicación)' : 
+                        actionType === 'technical_test' ? 'Teste Técnico (Prueba)' : 
+                        actionType === 'offboarding' ? 'Desligamento (Baja)' : 
+                        actionType === 'order_extension' ? 'Prorrogação de Obra' : 
+                        actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 'Finalização de Obra';
         }
 
-        if (!isBodyEdited) {
-            const body = `<p>Olá Equipe,</p>
+        let subject = '';
+        if (emailLanguage === 'es') {
+            subject = `Notificación Operativa: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
+        } else if (emailLanguage === 'en') {
+            subject = `Operational Notification: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
+        } else {
+            subject = `Notificação Operacional: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
+        }
+
+        let body = '';
+        if (emailLanguage === 'es') {
+            body = `<p>Hola Equipo,</p>
+<p>Se ha registrado en el sistema una nueva solicitud de <strong>${typeLabel}</strong>.</p>
+<p><strong>Detalles de la Operación:</strong></p>
+<ul>
+  <li><strong>Cliente:</strong> ${clientName}</li>
+  <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
+  <li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || 'Ninguno seleccionado'}</li>
+  <li><strong>Fecha de Inicio:</strong> ${expectedStartStr}</li>
+  <li><strong>Motivo:</strong> ${reason || 'No informado'}</li>
+  <li><strong>Observaciones Extras:</strong> ${notes || 'Ninguna'}</li>
+</ul>
+<p>Por favor, realicen los trámites necesarios en sus respectivos sectores.</p>
+<p>Atentamente,<br/><strong>Operaciones</strong></p>`;
+        } else if (emailLanguage === 'en') {
+            body = `<p>Hello Team,</p>
+<p>A new <strong>${typeLabel}</strong> request has been registered in the system.</p>
+<p><strong>Operation Details:</strong></p>
+<ul>
+  <li><strong>Client:</strong> ${clientName}</li>
+  <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
+  <li><strong>Affected Worker(s):</strong> ${workerNames || 'None selected'}</li>
+  <li><strong>Start Date:</strong> ${expectedStartStr}</li>
+  <li><strong>Reason:</strong> ${reason || 'Not provided'}</li>
+  <li><strong>Extra Observations:</strong> ${notes || 'None'}</li>
+</ul>
+<p>Please carry out the necessary procedures in your respective departments.</p>
+<p>Best regards,<br/><strong>Operations</strong></p>`;
+        } else {
+            body = `<p>Olá Equipe,</p>
 <p>Uma nova solicitação de <strong>${typeLabel}</strong> foi registrada no sistema.</p>
 <p><strong>Detalhes da Operação:</strong></p>
 <ul>
@@ -306,9 +358,22 @@ export function NewSolicitudPage() {
 </ul>
 <p>Por favor, realizem os trâmites necessários nos seus respectivos setores.</p>
 <p>Atentamente,<br/><strong>Operações</strong></p>`;
+        }
+
+        if (!isSubjectEdited) {
+            setEmailSubject(subject);
+        }
+
+        if (!isBodyEdited) {
             setEmailBody(body);
         }
-    }, [actionType, selectedAssignments, assignments, selectedPedidoId, pedidos, dueDate, reason, notes, isSubjectEdited, isBodyEdited]);
+    }, [actionType, selectedAssignments, assignments, selectedPedidoId, pedidos, dueDate, reason, notes, isSubjectEdited, isBodyEdited, emailLanguage]);
+
+    const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
+        setEmailLanguage(lang);
+        setIsSubjectEdited(false);
+        setIsBodyEdited(false);
+    };
 
     const handleFormat = (command: string, value: string = '') => {
         document.execCommand(command, false, value);
@@ -583,7 +648,7 @@ export function NewSolicitudPage() {
                         ? 'lg:col-span-2 xl:col-span-2' 
                         : 'lg:col-span-3 xl:col-span-4'
                 } h-full flex flex-col min-h-0 overflow-hidden`}>
-                    <div className="bg-white dark:bg-slate-950 p-3 md:p-4 rounded-md border shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden space-y-4">
+                    <div className="bg-white dark:bg-slate-950 p-4 md:p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800/80 shadow-md flex-1 flex flex-col min-h-0 overflow-hidden space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b shrink-0">
                             <Users className="w-5 h-5 text-blue-500" />
                             <h2 className="text-lg font-semibold">
@@ -785,7 +850,7 @@ export function NewSolicitudPage() {
                         ? 'lg:col-span-2 xl:col-span-3' 
                         : 'lg:col-span-1 xl:col-span-1'
                 } h-full overflow-y-auto pr-1`}>
-                    <div className="bg-white dark:bg-slate-950 p-3 md:p-4 rounded-md border shadow-sm space-y-4">
+                    <div className="bg-white dark:bg-slate-950 p-4 md:p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800/80 shadow-md space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b">
                             <FileText className="w-5 h-5 text-indigo-500" />
                             <h2 className="text-lg font-semibold">2. Detalhes da Solicitação</h2>
@@ -1063,154 +1128,36 @@ export function NewSolicitudPage() {
                                 </div>
 
                                 {sendEmailNotification && (
-                                    <div className="space-y-4 pl-6 border-l-2 border-slate-200 dark:border-slate-800">
-                                        {/* Destinatários Configurados */}
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-350 block">
-                                                Destinatários de Notificação ({
-                                                    actionType === 'replacement' ? 'Reemplazo' : 
-                                                    actionType === 'relocation' ? 'Reubicación' : 
-                                                    actionType === 'technical_test' ? 'Prueba' : 
-                                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination') ? 'Pedido' : 
-                                                    'Baja'
-                                                })
-                                            </label>
-                                            {loadingEmails ? (
-                                                <div className="flex items-center space-x-2 text-slate-400">
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span className="text-xs">Carregando e-mails...</span>
-                                                </div>
-                                            ) : notificationEmails.length === 0 ? (
-                                                <p className="text-xs text-amber-600 font-medium flex items-start bg-amber-50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200">
-                                                    <AlertCircle className="mr-1.5 h-4 w-4 flex-shrink-0 mt-0.5" />
-                                                    Nenhum e-mail configurado para este evento nas Configurações.
-                                                </p>
-                                            ) : (
-                                                <div className="grid grid-cols-1 gap-2 border p-3 rounded-lg max-h-[120px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/20">
-                                                    {notificationEmails.map(emailObj => (
-                                                        <label key={emailObj.id} className="flex items-center space-x-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedEmails.includes(emailObj.email)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setSelectedEmails(prev => [...prev, emailObj.email]);
-                                                                    } else {
-                                                                        setSelectedEmails(prev => prev.filter(email => email !== emailObj.email));
-                                                                    }
-                                                                }}
-                                                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                            />
-                                                            <span className="truncate">{emailObj.email}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* E-mails Adicionais */}
-                                        <div className="space-y-1.5">
-                                            <label htmlFor="additional_emails" className="text-xs font-bold block">
-                                                E-mails Adicionais (separados por vírgula)
-                                            </label>
-                                            <Input
-                                                id="additional_emails"
-                                                type="text"
-                                                placeholder="exemplo@empresa.com, outro@empresa.com"
-                                                value={additionalEmails}
-                                                onChange={e => setAdditionalEmails(e.target.value)}
-                                                className="h-9 text-xs"
-                                            />
-                                        </div>
-
-                                        {/* Assunto do E-mail */}
-                                        <div className="space-y-1.5">
-                                            <label htmlFor="email_subject" className="text-xs font-bold block">
-                                                Assunto do E-mail
-                                            </label>
-                                            <Input
-                                                id="email_subject"
-                                                type="text"
-                                                placeholder="Assunto da notificação"
-                                                value={emailSubject}
-                                                onChange={e => {
-                                                    setIsSubjectEdited(true);
-                                                    setEmailSubject(e.target.value);
-                                                }}
-                                                className="h-9 text-xs font-semibold"
-                                            />
-                                        </div>
-
-                                        {/* Corpo do E-mail (Editor Simulado) */}
-                                        <div className="space-y-1.5 flex flex-col">
-                                            <label className="text-xs font-bold block">
-                                                Corpo do E-mail
-                                            </label>
-                                            
-                                            {/* Toolbar */}
-                                            <div className="flex items-center space-x-1 border border-b-0 rounded-t-lg bg-slate-50 dark:bg-slate-900 p-1.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleFormat('bold')}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Negrito"
-                                                >
-                                                    <Bold className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleFormat('italic')}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Itálico"
-                                                >
-                                                    <Italic className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleFormat('underline')}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Sublinhado"
-                                                >
-                                                    <Underline className="h-3.5 w-3.5" />
-                                                </button>
-                                                <span className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1"></span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleFormat('insertUnorderedList')}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Lista Marcadores"
-                                                >
-                                                    <List className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleFormat('insertOrderedList')}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Lista Numerada"
-                                                >
-                                                    <ListOrdered className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleInsertLink}
-                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                                    title="Inserir Link"
-                                                >
-                                                    <Link className="h-3.5 w-3.5" />
-                                                </button>
+                                    <div className="space-y-3 pl-6 border-l-2 border-slate-200 dark:border-slate-800 text-xs">
+                                        <div className="bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-150/80 dark:border-slate-800 space-y-3 text-left">
+                                            <div className="flex justify-between items-center text-[10px] text-slate-450 uppercase font-bold tracking-wider">
+                                                <span>E-mail de Notificação</span>
+                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                    {emailLanguage === 'pt' ? '🇵🇹 PT' : emailLanguage === 'es' ? '🇪🇸 ES' : '🇬🇧 EN'}
+                                                </span>
                                             </div>
-
-                                            <div
-                                                ref={editorRef}
-                                                contentEditable
-                                                dangerouslySetInnerHTML={{ __html: emailBody }}
-                                                onInput={(e) => {
-                                                    setIsBodyEdited(true);
-                                                    setEmailBody(e.currentTarget.innerHTML);
-                                                }}
-                                                className="w-full min-h-[180px] max-h-[300px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
-                                                style={{ outline: 'none' }}
-                                            />
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 font-bold block">ASSUNTO</span>
+                                                <p className="font-semibold text-slate-700 dark:text-slate-350 truncate">
+                                                    {emailSubject || 'Sem assunto'}
+                                                </p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 font-bold block">DESTINATÁRIOS</span>
+                                                <div className="text-[10px] text-slate-500 font-medium truncate">
+                                                    {[...selectedEmails, ...(additionalEmails ? additionalEmails.split(',').map(e => e.trim()).filter(Boolean) : [])].join(', ') || 'Nenhum destinatário'}
+                                                </div>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setIsEmailModalOpen(true)}
+                                                className="w-full h-8 text-[11px] gap-1.5 font-bold hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                                            >
+                                                <FileText size={12} />
+                                                Configurar E-mail & Idioma
+                                            </Button>
                                         </div>
                                     </div>
                                 )}
@@ -1252,6 +1199,216 @@ export function NewSolicitudPage() {
                 </div>
 
             </div>
+
+            {/* Modal de E-mail retangular espaçoso e premium */}
+            <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+                <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-850 dark:text-slate-100">
+                            <Mail className="h-5 w-5 text-blue-500" />
+                            Configurar E-mail de Notificação
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground">
+                            Configure o idioma, destinatários, assunto e corpo do e-mail de notificação operacional de forma espaçosa.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2 text-left">
+                        {/* Linha 1: Idioma e Destinatários Adicionais */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Idioma */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Idioma do E-mail</label>
+                                <Select 
+                                    value={emailLanguage} 
+                                    onValueChange={(val: 'pt' | 'es' | 'en') => handleLanguageChange(val)}
+                                >
+                                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                        <SelectValue placeholder="Selecione o idioma" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 Português (Padrão)</SelectItem>
+                                        <SelectItem value="es" className="text-xs font-semibold">🇪🇸 Espanhol (Spanish)</SelectItem>
+                                        <SelectItem value="en" className="text-xs font-semibold">🇬🇧 Inglês (English)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* E-mails Adicionais */}
+                            <div className="space-y-1.5">
+                                <label htmlFor="modal_additional_emails" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                                    E-mails Adicionais (separados por vírgula)
+                                </label>
+                                <Input
+                                    id="modal_additional_emails"
+                                    type="text"
+                                    placeholder="exemplo@empresa.com, outro@empresa.com"
+                                    value={additionalEmails}
+                                    onChange={e => setAdditionalEmails(e.target.value)}
+                                    className="h-9 text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Destinatários Configurados */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                                Destinatários de Notificação ({
+                                    actionType === 'replacement' ? 'Reemplazo' : 
+                                    actionType === 'relocation' ? 'Reubicación' : 
+                                    actionType === 'technical_test' ? 'Prueba' : 
+                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination') ? 'Pedido' : 
+                                    'Baja'
+                                })
+                            </label>
+                            {loadingEmails ? (
+                                <div className="flex items-center space-x-2 text-slate-400">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span className="text-xs">Carregando e-mails...</span>
+                                </div>
+                            ) : notificationEmails.length === 0 ? (
+                                <p className="text-xs text-amber-600 font-medium flex items-start bg-amber-50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200">
+                                    <AlertCircle className="mr-1.5 h-4 w-4 flex-shrink-0 mt-0.5" />
+                                    Nenhum e-mail configurado para este evento nas Configurações.
+                                </p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-3 rounded-lg max-h-[120px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/20">
+                                    {notificationEmails.map(emailObj => (
+                                        <label key={emailObj.id} className="flex items-center space-x-2 text-xs font-semibold text-slate-700 dark:text-slate-350 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedEmails.includes(emailObj.email)}
+                                                onChange={e => {
+                                                    if (e.target.checked) {
+                                                        setSelectedEmails(prev => [...prev, emailObj.email]);
+                                                    } else {
+                                                        setSelectedEmails(prev => prev.filter(email => email !== emailObj.email));
+                                                    }
+                                                }}
+                                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="truncate">{emailObj.email}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Assunto do E-mail */}
+                        <div className="space-y-1.5">
+                            <label htmlFor="modal_email_subject" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                                Assunto do E-mail
+                            </label>
+                            <Input
+                                id="modal_email_subject"
+                                type="text"
+                                placeholder="Assunto da notificação"
+                                value={emailSubject}
+                                onChange={e => {
+                                    setIsSubjectEdited(true);
+                                    setEmailSubject(e.target.value);
+                                }}
+                                className="h-9 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+                            />
+                        </div>
+
+                        {/* Corpo do E-mail (Editor Simulado) */}
+                        <div className="space-y-1.5 flex flex-col">
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                                    Corpo do E-mail
+                                </label>
+                                <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    onClick={() => {
+                                        setIsSubjectEdited(false);
+                                        setIsBodyEdited(false);
+                                        toast.success('Modelo restaurado para o idioma selecionado.');
+                                    }}
+                                    className="h-6 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50/50"
+                                >
+                                    Restaurar Padrão
+                                </Button>
+                            </div>
+                            
+                            {/* Toolbar */}
+                            <div className="flex items-center space-x-1 border border-b-0 rounded-t-lg bg-slate-50 dark:bg-slate-900 p-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleFormat('bold')}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Negrito"
+                                >
+                                    <Bold className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleFormat('italic')}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Itálico"
+                                >
+                                    <Italic className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleFormat('underline')}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Sublinhado"
+                                >
+                                    <Underline className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1.5"></span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleFormat('insertUnorderedList')}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Lista Marcadores"
+                                >
+                                    <List className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleFormat('insertOrderedList')}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Lista Numerada"
+                                >
+                                    <ListOrdered className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleInsertLink}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    title="Inserir Link"
+                                >
+                                    <Link className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+
+                            <div
+                                ref={editorRef}
+                                contentEditable
+                                dangerouslySetInnerHTML={{ __html: emailBody }}
+                                onInput={(e) => {
+                                    setIsBodyEdited(true);
+                                    setEmailBody(e.currentTarget.innerHTML);
+                                }}
+                                className="w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
+                                style={{ outline: 'none' }}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-2 border-t mt-4 gap-2">
+                        <Button type="button" variant="outline" onClick={() => setIsEmailModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button type="button" onClick={() => setIsEmailModalOpen(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                            Salvar Configurações
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
