@@ -127,6 +127,9 @@ export function LeadsPage() {
     setCurrentPage(1);
   }, [searchTerm, sortField, sortDirection]);
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [dnsCache] = useState<Map<string, boolean>>(() => new Map());
+
   const [etlResult, setEtlResult] = useState<{
     total: number;
     valid: any[];
@@ -424,11 +427,13 @@ export function LeadsPage() {
     };
     reader.readAsBinaryString(file);
   };
-  const runEtlAnalysis = () => {
+  const runEtlAnalysis = async () => {
     if (!mappings.companyCol || !mappings.emailCol) {
       setEtlResult(null);
       return;
     }
+
+    setIsAnalyzing(true);
 
     const nameIdx = mappings.nameCol ? fileHeaders.indexOf(mappings.nameCol) : -1;
     const companyIdx = fileHeaders.indexOf(mappings.companyCol);
@@ -442,8 +447,73 @@ export function LeadsPage() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
-    // Lista de e-mails já existentes no banco para a empresa selecionada
-    const dbEmails = new Set(leads.map(l => l.email.toLowerCase().trim()));
+    // Corretor de erros comuns de digitação em domínios
+    const DOMAIN_TYPOS: Record<string, string> = {
+      'gamil.com': 'gmail.com',
+      'gmial.com': 'gmail.com',
+      'gmaill.com': 'gmail.com',
+      'hotamil.com': 'hotmail.com',
+      'hotmial.com': 'hotmail.com',
+      'hotmaill.com': 'hotmail.com',
+      'outllok.com': 'outlook.com',
+      'outlok.com': 'outlook.com',
+      'yahooo.com': 'yahoo.com',
+    };
+
+    // Lista de domínios temporários descartáveis
+    const DISPOSABLE_DOMAINS = new Set([
+      'yopmail.com', 'mailinator.com', 'tempmail.com', '10minutemail.com',
+      'dispostable.com', 'sharklasers.com', 'guerrillamail.com', 'temp-mail.org'
+    ]);
+
+    // Primeira passada: limpar e extrair domínios únicos para verificação DNS em lote
+    const rowsToProcess: any[] = [];
+    const uniqueDomains = new Set<string>();
+
+    fileRows.forEach(row => {
+      let email = String(row[emailIdx] || '').trim().toLowerCase();
+      if (!email || email === 'x') return;
+
+      // Corrigir typos no domínio
+      const parts = email.split('@');
+      if (parts.length === 2) {
+        const domain = parts[1];
+        if (DOMAIN_TYPOS[domain]) {
+          email = `${parts[0]}@${DOMAIN_TYPOS[domain]}`;
+        }
+        uniqueDomains.add(email.split('@')[1]);
+      }
+      rowsToProcess.push({ row, email });
+    });
+
+    // Validar domínios via API do Google DNS de forma concorrente e cacheada
+    const domainsToCheck = Array.from(uniqueDomains).filter(domain => !dnsCache.has(domain));
+    
+    if (domainsToCheck.length > 0) {
+      const checkPromises = domainsToCheck.map(async (domain) => {
+        // Pular verificações para domínios conhecidos gigantes
+        const wellKnown = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'live.com'];
+        if (wellKnown.includes(domain)) {
+          dnsCache.set(domain, true);
+          return;
+        }
+
+        try {
+          const res = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`);
+          const data = await res.json();
+          const hasMx = !!(data.Answer && data.Answer.length > 0);
+          dnsCache.set(domain, hasMx);
+        } catch (e) {
+          console.warn(`DNS MX check failed for domain: ${domain}`, e);
+          dnsCache.set(domain, true); // Fallback amigável
+        }
+      });
+      // Executar todas em paralelo com timeout de 3.5 segundos
+      await Promise.race([
+        Promise.all(checkPromises),
+        new Promise(resolve => setTimeout(resolve, 3500))
+      ]);
+    }
 
     const validLeads: any[] = [];
     const uniqueEmailsInFile = new Set<string>();
@@ -452,9 +522,8 @@ export function LeadsPage() {
     let duplicateCount = 0;
     let dbDuplicateCount = 0;
 
-    fileRows.forEach(row => {
+    rowsToProcess.forEach(({ row, email }) => {
       const name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-      const email = String(row[emailIdx] || '').trim().toLowerCase();
       const companyName = String(row[companyIdx] || '').trim();
       const phone = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
       const notes = notesIdx !== -1 ? String(row[notesIdx] || '').trim() : '';
@@ -463,12 +532,18 @@ export function LeadsPage() {
       const service = serviceIdx !== -1 ? String(row[serviceIdx] || '').trim() : '';
       const origin = originIdx !== -1 ? String(row[originIdx] || '').trim() : '';
 
-      // Se a linha for completamente vazia nos campos principais, apenas pula silenciosamente
-      if (!name && !email && !companyName) return;
-
-      // Validação de dados mínimos aceitáveis (Empresa + E-mail válido)
+      // Validação de dados mínimos
       const hasCompany = !!companyName;
-      const isEmailValid = email && email !== 'x' && emailRegex.test(email);
+      const isSyntaxValid = emailRegex.test(email);
+
+      // Extrair domínio
+      const domain = email.split('@')[1] || '';
+
+      // Verificar se é domínio temporário ou se falhou no teste DNS MX
+      const isDisposable = DISPOSABLE_DOMAINS.has(domain);
+      const hasMailServer = dnsCache.get(domain) !== false; // Considera válido se não for explicitamente falso
+
+      const isEmailValid = isSyntaxValid && !isDisposable && hasMailServer;
 
       if (!hasCompany || !isEmailValid) {
         invalidCount++;
@@ -490,7 +565,7 @@ export function LeadsPage() {
         }
       }
 
-      // Fallback inteligente para o Nome de Contato (obrigatório NOT NULL no banco de dados)
+      // Fallback inteligente para o Nome
       const finalName = name || cargo || (existingLead ? existingLead.name : 'Responsável');
 
       uniqueEmailsInFile.add(email);
@@ -516,6 +591,8 @@ export function LeadsPage() {
       dbDuplicateCount,
       analyzed: true,
     });
+    
+    setIsAnalyzing(false);
   };
 
   useEffect(() => {
@@ -1452,7 +1529,15 @@ export function LeadsPage() {
 
               {/* Right Column: ETL Analysis Dashboard (col-span-5) */}
               <div className="md:col-span-5 flex flex-col justify-start space-y-4 border-t md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0">
-                {fileHeaders.length > 0 && etlResult && etlResult.analyzed ? (
+                {isAnalyzing ? (
+                  <div className="h-full min-h-[220px] flex flex-col justify-center items-center text-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed text-muted-foreground text-xs gap-2.5">
+                    <Loader2 className="h-8 w-8 text-yellow-500 animate-spin" />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">Verificando e-mails na rede de DNS...</span>
+                    <span className="text-[11px] leading-relaxed text-slate-500">
+                      Validando a sintaxe dos e-mails, corrigindo erros comuns de digitação (typos), descartando domínios temporários e consultando servidores MX em tempo real.
+                    </span>
+                  </div>
+                ) : fileHeaders.length > 0 && etlResult && etlResult.analyzed ? (
                   <div className="space-y-3">
                     <h4 className="font-semibold text-xs flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
                       <FileSpreadsheet className="h-4 w-4 text-yellow-500" />
@@ -1471,7 +1556,7 @@ export function LeadsPage() {
                       </div>
 
                       <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 p-2.5 rounded-lg flex flex-col justify-center">
-                        <span className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold">Incompletos (Ignorados)</span>
+                        <span className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold">Incompletos / Inválidos</span>
                         <span className="text-lg font-bold text-rose-700 dark:text-rose-400">{etlResult.invalidCount}</span>
                       </div>
 
@@ -1505,7 +1590,7 @@ export function LeadsPage() {
                         <span className="font-semibold">{etlResult.dbDuplicateCount}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>• Linhas inválidas:</span>
+                        <span>• Linhas inválidas / Sem servidor de e-mail:</span>
                         <span className="font-semibold">{etlResult.invalidCount}</span>
                       </div>
                     </div>
@@ -1527,10 +1612,10 @@ export function LeadsPage() {
             <Button 
               type="button" 
               onClick={handleImportLeads} 
-              disabled={isCreatingBatch || fileHeaders.length === 0 || !etlResult || etlResult.valid.length === 0}
+              disabled={isCreatingBatch || isAnalyzing || fileHeaders.length === 0 || !etlResult || etlResult.valid.length === 0}
               className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
             >
-              {isCreatingBatch ? 'Processando...' : 'Processar Importação'}
+              {isCreatingBatch ? 'Processando...' : isAnalyzing ? 'Verificando...' : 'Processar Importação'}
             </Button>
           </DialogFooter>
         </DialogContent>
