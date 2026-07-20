@@ -32,6 +32,10 @@ export const empresaSchema = z.object({
   matricula: z.string().nullable().optional(),
   certified_software_text: z.string().nullable().optional(),
   invoice_logo_url: z.string().nullable().optional(),
+  microsoft_tenant_id: z.string().nullable().optional(),
+  microsoft_client_id: z.string().nullable().optional(),
+  microsoft_client_secret: z.string().nullable().optional(),
+  microsoft_sharepoint_drive_id: z.string().nullable().optional(),
   is_active: z.boolean().default(true),
   created_at: z.string().optional(),
 });

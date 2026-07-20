@@ -121,6 +121,10 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       matricula: '',
       certified_software_text: 'ab8k - Processado por Programa Certificado nº 1137/AT',
       invoice_logo_url: '',
+      microsoft_tenant_id: '',
+      microsoft_client_id: '',
+      microsoft_client_secret: '',
+      microsoft_sharepoint_drive_id: '',
       is_active: true,
     },
   });
@@ -161,6 +165,10 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           matricula: empresa.matricula || '',
           certified_software_text: empresa.certified_software_text || 'ab8k - Processado por Programa Certificado nº 1137/AT',
           invoice_logo_url: empresa.invoice_logo_url || '',
+          microsoft_tenant_id: (empresa as any).microsoft_tenant_id || '',
+          microsoft_client_id: (empresa as any).microsoft_client_id || '',
+          microsoft_client_secret: (empresa as any).microsoft_client_secret || '',
+          microsoft_sharepoint_drive_id: (empresa as any).microsoft_sharepoint_drive_id || '',
           is_active: empresa.is_active,
         });
       } else {
@@ -195,6 +203,10 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           matricula: '',
           certified_software_text: 'ab8k - Processado por Programa Certificado nº 1137/AT',
           invoice_logo_url: '',
+          microsoft_tenant_id: '',
+          microsoft_client_id: '',
+          microsoft_client_secret: '',
+          microsoft_sharepoint_drive_id: '',
           is_active: true,
         });
       }
@@ -795,6 +807,79 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                           <p className="text-[10px] text-muted-foreground">Proporção retangular horizontal (ex: 3:1). PNG ou JPG até 2MB.</p>
                         </div>
                       </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Bloco 6: Conectividade Microsoft Office 365 (Opcional) */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                <Mail className="h-5 w-5 text-blue-500" />
+                <div className="space-y-0.5 text-left">
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-200">Microsoft Office 365 / Exchange</h3>
+                  <p className="text-[10px] text-muted-foreground font-medium">Configure credenciais dedicadas para esta empresa (Opcional)</p>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30 leading-normal text-left">
+                Deixe estes campos em branco para utilizar as credenciais globais padrão do sistema. Preencha-os apenas se esta empresa (como a Stocco) possuir um Tenant da Microsoft 365 totalmente independente.
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="microsoft_tenant_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Microsoft Tenant ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: a2a912e1-..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="microsoft_client_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Application (Client) ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: b859012c-..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="microsoft_client_secret"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client Secret (Valor)</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Ex: abc8Q~..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="microsoft_sharepoint_drive_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ID do SharePoint Drive (Opcional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: b!abcde..." className="bg-white dark:bg-slate-950" {...field} value={field.value || ''} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -56,16 +56,17 @@ async function sendMailViaGraph(
   senderName: string,
   targetEmail: string,
   subject: string,
-  htmlContent: string
+  htmlContent: string,
+  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string }
 ): Promise<{ success: boolean; error?: string; tokenClaims?: any }> {
   try {
-    const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
-    const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
-    const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+    const tenantId = microsoftCredentials?.tenantId || Deno.env.get('SHAREPOINT_TENANT_ID');
+    const clientId = microsoftCredentials?.clientId || Deno.env.get('SHAREPOINT_CLIENT_ID');
+    const clientSecret = microsoftCredentials?.clientSecret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
 
     if (!tenantId || !clientId || !clientSecret) {
-      console.warn("Microsoft Graph configurations are missing in Supabase secrets.");
-      return { success: false, error: "Microsoft Graph secrets are missing (SHAREPOINT_TENANT_ID, CLIENT_ID, CLIENT_SECRET)." };
+      console.warn("Microsoft Graph configurations are missing.");
+      return { success: false, error: "Microsoft Graph secrets are missing." };
     }
 
     // 1. Obter Token de Acesso
@@ -649,7 +650,23 @@ serve(async (req) => {
         `;
       }
 
-      const mailResult = await sendMailViaGraph(senderEmail, senderName, targetEmail, subject, htmlContent);
+      let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
+      if (empresa && empresa.microsoft_tenant_id && empresa.microsoft_client_id && empresa.microsoft_client_secret) {
+        msCredentials = {
+          tenantId: empresa.microsoft_tenant_id,
+          clientId: empresa.microsoft_client_id,
+          clientSecret: empresa.microsoft_client_secret
+        };
+      }
+
+      const mailResult = await sendMailViaGraph(
+        senderEmail,
+        senderName,
+        targetEmail,
+        subject,
+        htmlContent,
+        msCredentials
+      );
       emailSent = mailResult.success;
       emailError = mailResult.error;
     }

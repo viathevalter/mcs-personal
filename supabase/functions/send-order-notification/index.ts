@@ -141,15 +141,16 @@ async function sendMailViaGraph(
   toEmails: string[],
   subject: string,
   htmlContent: string,
-  attachments: EmailAttachment[] = []
+  attachments: EmailAttachment[] = [],
+  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
-    const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
-    const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+    const tenantId = microsoftCredentials?.tenantId || Deno.env.get('SHAREPOINT_TENANT_ID');
+    const clientId = microsoftCredentials?.clientId || Deno.env.get('SHAREPOINT_CLIENT_ID');
+    const clientSecret = microsoftCredentials?.clientSecret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
 
     if (!tenantId || !clientId || !clientSecret) {
-      console.warn("Microsoft Graph configurations are missing in Supabase secrets.");
+      console.warn("Microsoft Graph configurations are missing.");
       return { success: false, error: "Microsoft Graph secrets are missing." };
     }
 
@@ -251,6 +252,8 @@ serve(async (req) => {
     let senderEmail = "vendas@stoco.es";
     let senderName = "Comercial";
     let attachments: EmailAttachment[] = [];
+    let resolvedEmpresa: any = null;
+    let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
     
     if (custom_attachments && Array.isArray(custom_attachments)) {
       attachments.push(...custom_attachments);
@@ -322,6 +325,7 @@ serve(async (req) => {
         );
       }
 
+      resolvedEmpresa = empresa;
       senderEmail = empresa.proposal_sender_email || senderEmail;
       senderName = empresa.trade_name || senderName;
 
@@ -588,6 +592,7 @@ serve(async (req) => {
         );
       }
 
+      resolvedEmpresa = empresa;
       senderEmail = empresa.proposal_sender_email || senderEmail;
       senderName = empresa.trade_name || senderName;
 
@@ -749,10 +754,10 @@ serve(async (req) => {
         const fileName = `${templateType}_operacional_${solicitud.codigo}.docx`;
 
         // Converter para PDF via OneDrive/Microsoft Graph
-        const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
-        const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
-        const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
-        const driveId = Deno.env.get('SHAREPOINT_DRIVE_ID');
+        const tenantId = empresa?.microsoft_tenant_id || Deno.env.get('SHAREPOINT_TENANT_ID');
+        const clientId = empresa?.microsoft_client_id || Deno.env.get('SHAREPOINT_CLIENT_ID');
+        const clientSecret = empresa?.microsoft_client_secret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+        const driveId = empresa?.microsoft_sharepoint_drive_id || Deno.env.get('SHAREPOINT_DRIVE_ID');
 
         if (tenantId && clientId && clientSecret && driveId) {
           try {
@@ -900,6 +905,7 @@ serve(async (req) => {
           .single();
 
         if (!empErr && empresa) {
+          resolvedEmpresa = empresa;
           senderEmail = empresa.proposal_sender_email || senderEmail;
           senderName = empresa.trade_name || senderName;
         }
@@ -914,8 +920,18 @@ serve(async (req) => {
         .single();
 
       if (!empErr && empresa) {
+        resolvedEmpresa = empresa;
         senderEmail = empresa.proposal_sender_email || senderEmail;
         senderName = empresa.trade_name || senderName;
+      }
+    }
+    if (resolvedEmpresa) {
+      if (resolvedEmpresa.microsoft_tenant_id && resolvedEmpresa.microsoft_client_id && resolvedEmpresa.microsoft_client_secret) {
+        msCredentials = {
+          tenantId: resolvedEmpresa.microsoft_tenant_id,
+          clientId: resolvedEmpresa.microsoft_client_id,
+          clientSecret: resolvedEmpresa.microsoft_client_secret
+        };
       }
     }
     if (sender_email) {
@@ -929,7 +945,8 @@ serve(async (req) => {
       to_emails,
       email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`),
       email_body,
-      attachments
+      attachments,
+      msCredentials
     );
 
     if (!mailRes.success) {
