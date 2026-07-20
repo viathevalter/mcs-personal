@@ -12,7 +12,7 @@ export const queryClient = new QueryClient();
 export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <QueryClientProvider client={queryClient}>
-            <ThemeProvider defaultTheme="dark" storageKey="mcs-personal-theme">
+            <ThemeProvider defaultTheme="light" storageKey="mcs-personal-theme">
                 <AuthProvider>
                     <RoleProvider>
                         <EmpresaProvider>

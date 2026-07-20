@@ -236,6 +236,19 @@
       "exportBtn": "Descargar Planilla",
       "noWorkers": "No se encontraron trabajadores pendientes con los filtros actuales.",
       "error": "Error al exportar la planilla. Intenta de nuevo."
+    },
+    "exportWorkers": {
+      "btn": "Exportar Relación",
+      "title": "Exportar Trabajadores (Excel)",
+      "desc": "Selecciona las columnas para la hoja de cálculo de trabajadores.\nLa exportación traerá a los trabajadores activos e inactivos del mes de referencia, de acuerdo con los filtros de contratante, cliente y búsqueda.",
+      "fields": "Campos para exportar",
+      "selectAll": "Marcar todos",
+      "deselectAll": "Desmarcar todos",
+      "cancel": "Cancelar",
+      "exporting": "Procesando Archivo...",
+      "exportBtn": "Descargar Planilla",
+      "noWorkers": "No se encontraron trabajadores con los filtros actuales.",
+      "error": "Error al exportar la planilla. Intenta de nuevo."
     }
   },
   "clientHoursDetail": {

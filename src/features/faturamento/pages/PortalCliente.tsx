@@ -629,10 +629,16 @@ export function PortalCliente() {
                 <div className="w-full max-w-[800px] bg-white p-8 shadow border border-slate-200 text-slate-800 rounded text-left">
                   {/* Header */}
                   <div className="flex justify-between items-start border-b-2 border-slate-100 pb-6 mb-6">
-                    <div className="space-y-1">
-                      <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                        {fatura.client?.nombre_comercial ? 'STO - STOCCO' : 'MCS'}
-                      </h3>
+                    <div className="space-y-2">
+                      {fatura.empresa?.invoiceLogoUrl ? (
+                        <div className="h-14 flex items-center mb-2">
+                          <img src={fatura.empresa.invoiceLogoUrl} alt={fatura.empresa.nome} className="max-h-full max-w-[220px] object-contain" />
+                        </div>
+                      ) : (
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                          {fatura.empresa?.nome || 'STOCCO'}
+                        </h3>
+                      )}
                       <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Informe de Facturación</p>
                       <p className="text-[9px] text-muted-foreground">MCS - Gestão Comercial</p>
                     </div>
@@ -648,17 +654,23 @@ export function PortalCliente() {
                   <div className="grid grid-cols-2 gap-8 mb-8">
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                       <p className="font-bold text-slate-400 uppercase text-[8px] mb-0.5">Emissor</p>
-                      <p className="font-bold text-slate-955">STOCCO LDA</p>
-                      <p className="text-muted-foreground">CIF/NIF: PT517834747</p>
-                      <p className="text-muted-foreground">R. São Tomé e Príncipe, 287 - Vila Nova de Gaia</p>
-                      <p className="text-muted-foreground">Portugal</p>
+                      <p className="font-bold text-slate-955">{fatura.empresa?.nome || 'STOCCO LDA'}</p>
+                      <p className="text-slate-600">CIF/NIF: {fatura.empresa?.taxId || 'PT517834747'}</p>
+                      <p className="text-slate-600">{fatura.empresa?.addressLine || 'Rua Padre António Maria Pinho, n.º 353'}</p>
+                      <p className="text-slate-600">
+                        {[fatura.empresa?.postalCode || '4460-853', fatura.empresa?.city || 'Vila Nova de Gaia'].filter(Boolean).join(' ')}
+                      </p>
+                      <p className="text-slate-600">{fatura.empresa?.province || 'Portugal'}</p>
                     </div>
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                       <p className="font-bold text-slate-400 uppercase text-[8px] mb-0.5">Cliente</p>
                       <p className="font-bold text-slate-955">{fatura.client?.nombre_comercial}</p>
-                      <p className="text-muted-foreground">NIF: ES55350245</p>
-                      <p className="text-muted-foreground">Pol. Ind. MERCADERIES C/1 NAU</p>
-                      <p className="text-muted-foreground">Espanha</p>
+                      <p className="text-slate-600">NIF: {fatura.client?.tax_id || 'N/A'}</p>
+                      <p className="text-slate-600">{fatura.client?.address_line || 'N/A'}</p>
+                      <p className="text-slate-600">
+                        {[fatura.client?.postal_code, fatura.client?.city].filter(Boolean).join(' ')}
+                      </p>
+                      <p className="text-slate-600">{fatura.client?.province || 'Espanha'}</p>
                     </div>
                   </div>
 

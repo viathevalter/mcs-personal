@@ -16,6 +16,7 @@ import { Combobox } from '../../components/ui/combobox';
 import { MultiSelect } from '../../components/ui/multi-select';
 import { useTranslation } from 'react-i18next';
 import { ExportPendingHoursDialog } from './components/ExportPendingHoursDialog';
+import { ExportHoursControlWorkersDialog } from './components/ExportHoursControlWorkersDialog';
 
 export function HoursControlPage() {
     const { t, i18n } = useTranslation();
@@ -163,13 +164,23 @@ export function HoursControlPage() {
                         <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">{t('hoursControl.subtitle')}</span>
                     </div>
                     {selectedEmpresaId && (
-                        <ExportPendingHoursDialog 
-                            periodYear={periodYear}
-                            periodMonth={periodMonth}
-                            contratanteFilter={contratanteFilter}
-                            clientFilter={clientFilter}
-                            workerStatusFilter={workerStatusFilter}
-                        />
+                        <div className="flex gap-2">
+                            <ExportHoursControlWorkersDialog 
+                                periodYear={periodYear}
+                                periodMonth={periodMonth}
+                                contratanteFilter={contratanteFilter}
+                                clientFilter={clientFilter}
+                                workerStatusFilter={workerStatusFilter}
+                                searchQuery={debouncedQuery}
+                            />
+                            <ExportPendingHoursDialog 
+                                periodYear={periodYear}
+                                periodMonth={periodMonth}
+                                contratanteFilter={contratanteFilter}
+                                clientFilter={clientFilter}
+                                workerStatusFilter={workerStatusFilter}
+                            />
+                        </div>
                     )}
                 </div>,
                 portalNode
