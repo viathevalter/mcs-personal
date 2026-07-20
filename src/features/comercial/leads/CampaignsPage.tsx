@@ -476,8 +476,10 @@ export function CampaignsPage() {
         if (hasActiveCampaign) return false;
       }
 
-      // Must have valid email address
-      return l.email && l.email.includes('@');
+      // Must have valid email address and not be opted out
+      if (!l.email || !l.email.includes('@')) return false;
+      const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out]');
+      return !isOptedOut;
     });
 
     // 7. Apply limit and offset (Division of audience for batching)
@@ -1306,13 +1308,16 @@ export function CampaignsPage() {
                     let html = previewTemplate.html_content;
                     const testFormUrl = `${window.location.origin}/public/novo-lead?empresa_id=${selectedEmpresaId || ''}`;
                     const testPresupuestoUrl = `${window.location.origin}/public/solicitar-presupuesto?empresa_id=${selectedEmpresaId || ''}`;
+                    const testOptOutUrl = `${window.location.origin}/public/coleta-dados/exemplo?opt_out=1`;
                     html = html
                       .replace(/\{\{\s*name\s*\}\}/g, "Cliente Exemplo")
                       .replace(/\{\{\s*company_name\s*\}\}/g, "Empresa Exemplo Ltda")
                       .replace(/\{\{\s*email\s*\}\}/g, "cliente@exemplo.com")
                       .replace(/\{\{\s*phone\s*\}\}/g, "+351 912 345 678")
                       .replace(/\{\{\s*form_url\s*\}\}/g, testFormUrl)
-                      .replace(/\{\{\s*presupuesto_url\s*\}\}/g, testPresupuestoUrl);
+                      .replace(/\{\{\s*presupuesto_url\s*\}\}/g, testPresupuestoUrl)
+                      .replace(/\{\{\s*opt_out_url\s*\}\}/g, testOptOutUrl)
+                      .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl);
                     return html;
                   })()} 
                   title="Preview" 

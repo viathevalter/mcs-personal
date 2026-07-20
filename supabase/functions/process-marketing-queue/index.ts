@@ -146,7 +146,10 @@ serve(async (req) => {
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
           .replace(/\{\{\s*email\s*\}\}/g, lead.email || "")
           .replace(/\{\{\s*phone\s*\}\}/g, lead.phone || "")
-          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}`);
+          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}`)
+          .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${lead.id}`)
+          .replace(/\{\{\s*opt_out_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`)
+          .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`);
       };
 
       const htmlBody = formatVars(rawHtml);

@@ -184,11 +184,11 @@ export function useMutateMarketing() {
         return campaign as MarketingCampaign;
       }
 
-      // 3. Caso contrário (fallback): Buscar todos os leads da empresa
+      // 3. Caso contrário (fallback): Buscar todos os leads da empresa (excluindo descadastrados)
       const { data: leads, error: errLeads } = await supabase
         .schema('core_comercial')
         .from('leads')
-        .select('id, email')
+        .select('id, email, name, notes')
         .eq('empresa_id', selectedEmpresaId);
 
       if (errLeads) throw errLeads;
@@ -197,9 +197,13 @@ export function useMutateMarketing() {
         throw new Error('Nenhum lead cadastrado para esta empresa.');
       }
 
-      // 4. Montar a fila de disparos (Ignora leads sem email ou inválidos)
+      // 4. Montar a fila de disparos (Ignora leads sem email, inválidos ou descadastrados)
       const queueItems = leads
-        .filter((l) => l.email && l.email.includes('@'))
+        .filter((l) => {
+          if (!l.email || !l.email.includes('@')) return false;
+          const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out]');
+          return !isOptedOut;
+        })
         .map((l) => ({
           campaign_id: campaignId,
           lead_id: l.id,
