@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building, Wallet, MapPin, Phone, Info, Upload, Loader2 } from 'lucide-react';
+import { Building, Wallet, MapPin, Phone, Info, Upload, Loader2, Mail } from 'lucide-react';
 
 import {
   Sheet,
