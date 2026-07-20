@@ -110,7 +110,8 @@ const migrationsToRun = [
   '20260716160000_fix_get_hours_control_workers_company.sql',
   '20260716170000_unify_hidraulicos_client.sql',
   '20260716180000_unify_montra_client.sql',
-  '20260716190000_unify_carvisa_client.sql'
+  '20260716190000_unify_carvisa_client.sql',
+  '20260720130000_fix_search_workers_company_filter.sql'
 ];
 
 async function run() {
