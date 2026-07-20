@@ -33,6 +33,8 @@ import { EpisPage } from '../features/master-data/epis/pages/EpisPage';
 import { PaymentTermsPage } from '../features/master-data/payment-terms/pages/PaymentTermsPage';
 import { ColetaDadosPublicaPage } from '../features/comercial/leads/ColetaDadosPublicaPage';
 import { SolicitarPresupuestoPage } from '../features/comercial/leads/SolicitarPresupuestoPage';
+import { TermosUsoPage } from '../features/comercial/leads/TermosUsoPage';
+import { PoliticaPrivacidadePage } from '../features/comercial/leads/PoliticaPrivacidadePage';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
@@ -156,6 +158,16 @@ export const router = createBrowserRouter([
     {
         path: '/public/solicitar-presupuesto',
         element: <SolicitarPresupuestoPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/termos-uso',
+        element: <TermosUsoPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/politica-privacidade',
+        element: <PoliticaPrivacidadePage />,
         errorElement: <RootErrorBoundary />,
     },
     {
