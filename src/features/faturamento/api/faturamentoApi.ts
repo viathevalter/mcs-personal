@@ -192,7 +192,7 @@ export async function getHorasPendentesFaturamento(
       .schema('core_common')
       .from('empresas')
       .select(`
-        nome, address_line, postal_code, city, province, tax_id, email, phone, iban,
+        nome, address_line, postal_code, city, province, tax_id, email, phone, iban, bank_details,
         invoice_series, next_invoice_number, atcud_prefix, capital_social, conservatoria, matricula, certified_software_text, invoice_logo_url
       `)
       .eq('id', empresaId)
