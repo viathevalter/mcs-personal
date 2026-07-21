@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getFaturaByToken, aprovarHorasCliente, contestarHorasCliente, publicSupabase } from '../api/faturamentoApi';
 import type { Fatura, HoraTrabalhada } from '../api/faturamentoApi';
