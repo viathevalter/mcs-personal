@@ -815,6 +815,29 @@ export async function solicitarAprovacaoCliente(
   return token;
 }
 
+export async function cancelarFatura(faturaId: string): Promise<void> {
+  // 1. Reset horas_trabalhadas pointing to this fatura back to validado and fatura_id = null
+  const { error: horasError } = await supabase
+    .schema('core_finance')
+    .from('horas_trabalhadas')
+    .update({ 
+      status: 'validado',
+      fatura_id: null 
+    })
+    .eq('fatura_id', faturaId);
+
+  if (horasError) throw mapSupabaseError(horasError);
+
+  // 2. Delete the fatura row
+  const { error: faturaError } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .delete()
+    .eq('id', faturaId);
+
+  if (faturaError) throw mapSupabaseError(faturaError);
+}
+
 export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura, horas: HoraTrabalhada[] }> {
   const { data, error } = await publicSupabase.rpc('get_fatura_portal_data', { p_token: token });
   
