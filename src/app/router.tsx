@@ -146,6 +146,11 @@ export const router = createBrowserRouter([
         errorElement: <RootErrorBoundary />,
     },
     {
+        path: '/fatura/validar',
+        element: <PortalCliente />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
         path: '/public/coleta-dados/:id',
         element: <ColetaDadosPublicaPage />,
         errorElement: <RootErrorBoundary />,

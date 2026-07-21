@@ -2610,7 +2610,7 @@ MCS - Gestão Comercial`;
                                   </span>
                                   <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
                                     <QRCodeSVG
-                                      value={`${window.location.origin}/fatura/validar?token=${f.magicLinkToken || 'draft'}`}
+                                      value={`${window.location.origin}/aprovacao-cliente/${f.magicLinkToken || 'draft'}`}
                                       size={90}
                                       level="H"
                                       includeMargin={false}

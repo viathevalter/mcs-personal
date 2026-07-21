@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { getFaturaByToken, aprovarHorasCliente, contestarHorasCliente, publicSupabase } from '../api/faturamentoApi';
 import type { Fatura, HoraTrabalhada } from '../api/faturamentoApi';
 import { CheckCircle, XCircle, Clock, FileText, AlertTriangle, MessageSquare, Loader2, Calendar, FileSpreadsheet, Check, Paperclip, Trash2 } from 'lucide-react';
@@ -38,7 +37,9 @@ const isWeekend = (day: number, year: number, month: number) => {
 };
 
 export function PortalCliente() {
-  const { token } = useParams<{ token: string }>();
+  const { token: routeToken } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const token = routeToken || searchParams.get('token') || '';
   
   const [loading, setLoading] = useState(true);
   const [fatura, setFatura] = useState<Fatura | null>(null);
@@ -788,7 +789,7 @@ export function PortalCliente() {
                         </span>
                         <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
                           <QRCodeSVG
-                            value={`${window.location.origin}/fatura/validar?token=${fatura.magic_link_token || 'draft'}`}
+                            value={`${window.location.origin}/aprovacao-cliente/${token}`}
                             size={90}
                             level="H"
                             includeMargin={false}
