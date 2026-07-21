@@ -139,7 +139,7 @@ serve(async (req) => {
       const rawHtml = template.html_content;
       const rawSubject = template.subject;
 
-      const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs-personal.vercel.app";
+      const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs.gestaologinpro.com";
       const formatVars = (text: string) => {
         const unsubscribeLink = `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`;
         return text
