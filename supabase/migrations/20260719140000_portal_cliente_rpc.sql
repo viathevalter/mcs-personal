@@ -29,11 +29,14 @@ BEGIN
     FROM core_common.clients 
     WHERE id = v_fatura.client_id;
 
-    -- C. Buscar empresa associada via client_company_settings
-    SELECT empresa_id INTO v_empresa_id 
-    FROM core_common.client_company_settings 
-    WHERE client_id = v_fatura.client_id AND status = 'active'
-    LIMIT 1;
+    -- C. Buscar empresa associada (prioridade: v_fatura.empresa_id, depois client_company_settings)
+    v_empresa_id := v_fatura.empresa_id;
+    IF v_empresa_id IS NULL THEN
+        SELECT empresa_id INTO v_empresa_id 
+        FROM core_common.client_company_settings 
+        WHERE client_id = v_fatura.client_id AND status = 'active'
+        LIMIT 1;
+    END IF;
 
     IF v_empresa_id IS NOT NULL THEN
         SELECT * INTO v_empresa FROM core_common.empresas WHERE id = v_empresa_id;

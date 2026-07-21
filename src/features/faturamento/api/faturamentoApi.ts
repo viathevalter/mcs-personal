@@ -785,6 +785,7 @@ export async function solicitarAprovacaoCliente(
     .from('faturas')
     .insert({
       client_id: clientId,
+      empresa_id: empresaId || null,
       status: 'pending_client_approval',
       magic_link_token: token,
       data_emissao: ajustes?.data_emissao || new Date().toISOString().split('T')[0],

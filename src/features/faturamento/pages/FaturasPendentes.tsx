@@ -489,16 +489,29 @@ MCS - Gestão Comercial`;
   };
 
   const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    // 1. Ensure client card is expanded
+    if (!expandedClients[cardId]) {
+      setExpandedClients(prev => ({ ...prev, [cardId]: true }));
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // 2. Switch tab if needed and wait for React DOM render
     const originalTab = getActiveTab(cardId);
     if (originalTab !== type) {
       setActiveTab(cardId, type);
-      await new Promise(resolve => setTimeout(resolve, 250)); // wait for React render
+      await new Promise(resolve => setTimeout(resolve, 400)); // wait for React render
     }
 
     const elementId = `${type}-sheet-${cardId}`;
-    const element = document.getElementById(elementId);
+    let element = document.getElementById(elementId);
     if (!element) {
-      console.warn(`Element not found: ${elementId}`);
+      // Retry once after 300ms if initial lookup failed
+      await new Promise(resolve => setTimeout(resolve, 300));
+      element = document.getElementById(elementId);
+    }
+
+    if (!element) {
+      console.warn(`Element not found for PDF capture: ${elementId}`);
       if (originalTab !== type) {
         setActiveTab(cardId, originalTab);
       }

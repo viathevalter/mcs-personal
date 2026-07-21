@@ -906,8 +906,12 @@ serve(async (req) => {
 
         if (!empErr && empresa) {
           resolvedEmpresa = empresa;
-          senderEmail = empresa.proposal_sender_email || senderEmail;
-          senderName = empresa.trade_name || senderName;
+          if (is_faturamento) {
+            senderEmail = empresa.billing_email || empresa.email || empresa.proposal_sender_email || senderEmail;
+          } else {
+            senderEmail = empresa.proposal_sender_email || empresa.billing_email || senderEmail;
+          }
+          senderName = empresa.trade_name || empresa.nome || senderName;
         }
       }
     } else if (resolvedEmpresaId) {
@@ -921,8 +925,12 @@ serve(async (req) => {
 
       if (!empErr && empresa) {
         resolvedEmpresa = empresa;
-        senderEmail = empresa.proposal_sender_email || senderEmail;
-        senderName = empresa.trade_name || senderName;
+        if (is_faturamento) {
+          senderEmail = empresa.billing_email || empresa.email || empresa.proposal_sender_email || senderEmail;
+        } else {
+          senderEmail = empresa.proposal_sender_email || empresa.billing_email || senderEmail;
+        }
+        senderName = empresa.trade_name || empresa.nome || senderName;
       }
     }
     if (resolvedEmpresa) {
