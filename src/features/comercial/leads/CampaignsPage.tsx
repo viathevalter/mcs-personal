@@ -1317,7 +1317,10 @@ export function CampaignsPage() {
                       .replace(/\{\{\s*form_url\s*\}\}/g, testFormUrl)
                       .replace(/\{\{\s*presupuesto_url\s*\}\}/g, testPresupuestoUrl)
                       .replace(/\{\{\s*opt_out_url\s*\}\}/g, testOptOutUrl)
-                      .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl);
+                      .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl)
+                      .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
+                      .replace(/\*\|UNSUBSCRIBE\|\*/gi, testOptOutUrl)
+                      .replace(/%UNSUBSCRIBE_URL%/gi, testOptOutUrl);
                     return html;
                   })()} 
                   title="Preview" 

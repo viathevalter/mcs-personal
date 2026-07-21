@@ -141,6 +141,7 @@ serve(async (req) => {
 
       const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs-personal.vercel.app";
       const formatVars = (text: string) => {
+        const unsubscribeLink = `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`;
         return text
           .replace(/\{\{\s*name\s*\}\}/g, lead.name || "")
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
@@ -148,8 +149,11 @@ serve(async (req) => {
           .replace(/\{\{\s*phone\s*\}\}/g, lead.phone || "")
           .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}`)
           .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${lead.id}`)
-          .replace(/\{\{\s*opt_out_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`)
-          .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`);
+          .replace(/\{\{\s*opt_out_url\s*\}\}/g, unsubscribeLink)
+          .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, unsubscribeLink)
+          .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
+          .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
+          .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink);
       };
 
       const htmlBody = formatVars(rawHtml);
