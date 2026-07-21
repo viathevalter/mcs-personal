@@ -11,7 +11,8 @@ import {
   getHorasPendentesFaturamento, 
   solicitarAprovacaoCliente, 
   atualizarHorasDiarias, 
-  atualizarTarifaFaturada 
+  atualizarTarifaFaturada,
+  cancelarFatura
 } from '../api/faturamentoApi';
 import type { ClientBillingSummary } from '../api/faturamentoApi';
 import { toast } from 'sonner';
@@ -33,6 +34,7 @@ import {
   AlertTriangle,
   StickyNote,
   Mail,
+  Trash2,
   FileSpreadsheet,
   Send,
   Check,
@@ -489,59 +491,55 @@ MCS - Gestão Comercial`;
   };
 
   const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
-    // 1. Ensure client card is expanded
-    if (!expandedClients[cardId]) {
-      setExpandedClients(prev => ({ ...prev, [cardId]: true }));
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-
-    // 2. Switch tab if needed and wait for React DOM render
-    const originalTab = getActiveTab(cardId);
-    if (originalTab !== type) {
-      setActiveTab(cardId, type);
-      await new Promise(resolve => setTimeout(resolve, 400)); // wait for React render
-    }
-
     const elementId = `${type}-sheet-${cardId}`;
     let element = document.getElementById(elementId);
     if (!element) {
-      // Retry once after 300ms if initial lookup failed
-      await new Promise(resolve => setTimeout(resolve, 300));
-      element = document.getElementById(elementId);
+      console.warn(`Element not found for PDF capture: ${elementId}`);
+      return null;
     }
 
-    if (!element) {
-      console.warn(`Element not found for PDF capture: ${elementId}`);
-      if (originalTab !== type) {
-        setActiveTab(cardId, originalTab);
-      }
-      return null;
+    const parentWrapper = element.closest('.hidden');
+    const wasHidden = !!parentWrapper;
+
+    if (wasHidden && parentWrapper) {
+      parentWrapper.classList.remove('hidden');
+      parentWrapper.classList.add('block');
+      (parentWrapper as HTMLElement).style.position = 'absolute';
+      (parentWrapper as HTMLElement).style.left = '-9999px';
+      (parentWrapper as HTMLElement).style.top = '0';
+      (parentWrapper as HTMLElement).style.width = '800px';
     }
 
     try {
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.82);
       
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
       
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
 
-      if (originalTab !== type) {
-        setActiveTab(cardId, originalTab);
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('block');
+        parentWrapper.classList.add('hidden');
+        (parentWrapper as HTMLElement).style.position = '';
+        (parentWrapper as HTMLElement).style.left = '';
+        (parentWrapper as HTMLElement).style.top = '';
+        (parentWrapper as HTMLElement).style.width = '';
       }
 
       return {
@@ -551,8 +549,13 @@ MCS - Gestão Comercial`;
       };
     } catch (err) {
       console.error(`Error generating ${type} PDF:`, err);
-      if (originalTab !== type) {
-        setActiveTab(cardId, originalTab);
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('block');
+        parentWrapper.classList.add('hidden');
+        (parentWrapper as HTMLElement).style.position = '';
+        (parentWrapper as HTMLElement).style.left = '';
+        (parentWrapper as HTMLElement).style.top = '';
+        (parentWrapper as HTMLElement).style.width = '';
       }
       return null;
     }
@@ -733,16 +736,17 @@ MCS - Gestão Comercial`;
 
     try {
       const canvas = await html2canvas(container, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.82);
       
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
       const imgWidth = 297;
@@ -751,13 +755,13 @@ MCS - Gestão Comercial`;
       let heightLeft = imgHeight;
       let position = 0;
       
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= 210;
       
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= 210;
       }
       
@@ -878,6 +882,30 @@ MCS - Gestão Comercial`;
       toast.error('Erro ao solicitar aprovação: ' + err.message);
     } finally {
       setSendingEmail(false);
+    }
+  };
+
+  const handleCancelFatura = async (f: ClientBillingSummary) => {
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja cancelar e excluir esta fatura de ${f.clientName}?\n\nTodas as horas voltarão para o estado pendente para que você possa refazer o faturamento do zero.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setIsProcessing(true);
+      const faturaId = f.clientHours.find(h => h.fatura_id)?.fatura_id;
+      if (faturaId) {
+        await cancelarFatura(faturaId);
+        toast.success('Fatura cancelada com sucesso! As horas foram liberadas para novo faturamento.');
+      } else {
+        toast.info('Nenhuma fatura registrada para este cliente.');
+      }
+      fetchHoras();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao cancelar fatura: ' + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -1802,18 +1830,26 @@ MCS - Gestão Comercial`;
                         Solicitar Aprovação
                       </Button>
                     ) : f.statusBilling === 'invoiced_pending' ? (
-                      <Button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyLink(f.magicLinkToken);
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-50 font-medium gap-1.5 shrink-0 dark:bg-amber-950/20 dark:text-amber-400"
-                      >
-                        <Copy size={14} />
-                        Copiar Link
-                      </Button>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button 
+                          onClick={() => handleCopyLink(f.magicLinkToken)}
+                          variant="outline"
+                          size="sm"
+                          className="border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-50 font-medium gap-1.5 shrink-0 dark:bg-amber-950/20 dark:text-amber-400"
+                        >
+                          <Copy size={14} />
+                          Copiar Link
+                        </Button>
+                        <Button 
+                          onClick={() => handleCancelFatura(f)}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 bg-red-50/50 text-red-700 hover:bg-red-100 font-medium gap-1.5 shrink-0 dark:bg-red-950/20 dark:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                          Cancelar / Resetar Fatura
+                        </Button>
+                      </div>
                     ) : (
                       <Button 
                         disabled
@@ -2406,7 +2442,6 @@ MCS - Gestão Comercial`;
                               <Button 
                                 variant="outline" 
                                 size="sm" 
-                                className="gap-1 bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-xs font-bold py-1.5"
                                 onClick={() => {
                                   toast.success("Ajustes salvos temporariamente na memória local. Eles serão gravados permanentemente no banco de dados ao Solicitar Aprovação.");
                                 }}
@@ -2419,15 +2454,15 @@ MCS - Gestão Comercial`;
                       );
                     })()}
 
-                    {/* Aba 4: Informe */}
-                    {getActiveTab(cardId) === 'informe' && (() => {
+                    {/* Aba 4: Informe Pró-forma */}
+                    {(() => {
                       const adj = clientAdjustments[cardId] || initAdjustments(f);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
 
                       return (
-                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
+                        <div className={getActiveTab(cardId) === 'informe' ? 'p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4' : 'hidden'}>
                           <div className="w-full max-w-[800px] flex justify-end">
                             <Button 
                               onClick={() => handleExportA4PDF(cardId, f.clientName, 'informe')}
@@ -2583,13 +2618,13 @@ MCS - Gestão Comercial`;
                     })()}
 
                     {/* Aba 5: Factura Única */}
-                    {getActiveTab(cardId) === 'factura' && (() => {
+                    {(() => {
                       const adj = clientAdjustments[cardId] || initAdjustments(f);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
                       return (
-                        <div className="p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4">
+                        <div className={getActiveTab(cardId) === 'factura' ? 'p-8 bg-slate-100 dark:bg-slate-950/40 flex flex-col items-center gap-4' : 'hidden'}>
                           <div className="w-full max-w-[800px] flex justify-end">
                             <Button 
                               onClick={() => handleExportA4PDF(cardId, f.clientName, 'factura')}

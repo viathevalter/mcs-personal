@@ -200,7 +200,7 @@ async function sendMailViaGraph(
           contentBytes: att.contentBytes,
         })),
       },
-      saveToSentItems: "true",
+      saveToSentItems: true,
     };
 
     console.log(`Disparando e-mail de notificação de pedido via Microsoft Graph para: ${toEmails.join(', ')}`);
