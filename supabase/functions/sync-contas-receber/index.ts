@@ -245,6 +245,130 @@ serve(async (req) => {
       log(`  Upserted batch of ${batch.length} items (${upsertedCount}/${rowsToUpsert.length}).`);
     }
 
+    // 7. Sync relational payments & timeline observations
+    log("Syncing partial payment history & comments to relational tables...");
+    const spIdsWithHistory = rowsToUpsert
+      .filter(r => r.hist_valor_parcial || r.comentarios)
+      .map(r => r.sp_id);
+
+    if (spIdsWithHistory.length > 0) {
+      // Fetch DB ids for these sp_ids in batches of 1000
+      for (let i = 0; i < spIdsWithHistory.length; i += 1000) {
+        const batchSpIds = spIdsWithHistory.slice(i, i + 1000);
+        const { data: dbRows, error: dbRowsErr } = await supabase
+          .from('contas_receber')
+          .select('id, sp_id, hist_valor_parcial, comentarios')
+          .in('sp_id', batchSpIds);
+
+        if (!dbRowsErr && dbRows) {
+          for (const row of dbRows) {
+            const contaId = row.id;
+
+            // Process hist_valor_parcial
+            if (row.hist_valor_parcial) {
+              let histList: any[] = [];
+              try {
+                histList = typeof row.hist_valor_parcial === 'string' ? JSON.parse(row.hist_valor_parcial) : row.hist_valor_parcial;
+              } catch (_) {}
+
+              if (Array.isArray(histList)) {
+                for (const p of histList) {
+                  const valor = typeof p.ValorParcial === 'number' ? p.ValorParcial : parseFloat(String(p.ValorParcial || 0).replace(/\./g, '').replace(',', '.'));
+                  if (isNaN(valor) || valor <= 0) continue;
+
+                  let dataReceb = p.DataPagamento || p.data_pagamento || p.data || new Date().toISOString();
+                  if (typeof dataReceb === 'string' && dataReceb.includes('T')) {
+                    dataReceb = dataReceb.split('T')[0];
+                  }
+
+                  const formaPag = p.Desc || p.forma_pagamento || 'Transferencia';
+                  const usuario = p.Usuario || p.usuario || 'Sistema';
+
+                  // Insert payment if missing
+                  const { data: existingPag } = await supabase
+                    .from('contas_receber_pagamentos')
+                    .select('id')
+                    .eq('conta_receber_id', contaId)
+                    .eq('valor', valor)
+                    .eq('data_recebimento', dataReceb)
+                    .maybeSingle();
+
+                  if (!existingPag) {
+                    await supabase.from('contas_receber_pagamentos').insert({
+                      conta_receber_id: contaId,
+                      valor: valor,
+                      data_recebimento: dataReceb,
+                      forma_pagamento: formaPag,
+                      tipo_recebimento: 'Parcial'
+                    });
+                  }
+
+                  // Insert timeline note if missing
+                  const formattedVal = valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  const obsDesc = `Recebimento Parcial registrado (Histórico SharePoint): € ${formattedVal} (Forma: ${formaPag})`;
+
+                  const { data: existingObs } = await supabase
+                    .from('cobranca_observacoes')
+                    .select('id')
+                    .eq('conta_receber_id', contaId)
+                    .ilike('descricao', `%€ ${formattedVal}%`)
+                    .maybeSingle();
+
+                  if (!existingObs) {
+                    await supabase.from('cobranca_observacoes').insert({
+                      conta_receber_id: contaId,
+                      data: new Date(dataReceb).toISOString(),
+                      usuario: usuario,
+                      tipo: 'Recebimento',
+                      descricao: obsDesc
+                    });
+                  }
+                }
+              }
+            }
+
+            // Process comentarios
+            if (row.comentarios) {
+              let comList: any[] = [];
+              try {
+                comList = typeof row.comentarios === 'string' ? JSON.parse(row.comentarios) : row.comentarios;
+              } catch (_) {}
+
+              if (Array.isArray(comList)) {
+                for (const c of comList) {
+                  const desc = (c.Desc || c.desc || c.descricao || c.texto || '').trim();
+                  if (!desc) continue;
+
+                  let dataObs = c.Data || c.data || new Date().toISOString();
+                  if (typeof dataObs === 'string' && !dataObs.includes('T') && dataObs.length === 10) {
+                    dataObs = `${dataObs}T12:00:00.000Z`;
+                  }
+                  const usuario = c.Usuario || c.usuario || 'Sistema';
+
+                  const { data: existingObs } = await supabase
+                    .from('cobranca_observacoes')
+                    .select('id')
+                    .eq('conta_receber_id', contaId)
+                    .eq('descricao', desc)
+                    .maybeSingle();
+
+                  if (!existingObs) {
+                    await supabase.from('cobranca_observacoes').insert({
+                      conta_receber_id: contaId,
+                      data: new Date(dataObs).toISOString(),
+                      usuario: usuario,
+                      tipo: 'Anotación Manual',
+                      descricao: desc
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     log("SharePoint ContasReceber Bulk Sync completed successfully!");
 
     return new Response(JSON.stringify({

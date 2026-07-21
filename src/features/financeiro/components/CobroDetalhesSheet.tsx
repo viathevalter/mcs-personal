@@ -62,6 +62,50 @@ export function CobroDetalhesSheet({
     const [isSavingObs, setIsSavingObs] = useState(false);
     const [currentUser, setCurrentUser] = useState('Sistema');
 
+    const partialPaymentsList = React.useMemo(() => {
+        if (!titulo) return [];
+        const list: Array<{ valor: number; data: string; desc: string; usuario: string }> = [];
+
+        // 1. From pagamentos_reais
+        if (Array.isArray(titulo.pagamentos_reais)) {
+            titulo.pagamentos_reais.forEach((p: any) => {
+                const val = typeof p.valor === 'number' ? p.valor : parseFloat(String(p.valor || 0));
+                if (val > 0) {
+                    list.push({
+                        valor: val,
+                        data: p.data_recebimento || '',
+                        desc: p.forma_pagamento || 'Transferência',
+                        usuario: p.criado_por || 'Sistema'
+                    });
+                }
+            });
+        }
+
+        // 2. From Hist_ValorParcial (if not duplicate)
+        if (Array.isArray(titulo.Hist_ValorParcial)) {
+            titulo.Hist_ValorParcial.forEach((p: any) => {
+                const val = typeof p.ValorParcial === 'number' ? p.ValorParcial : parseFloat(String(p.ValorParcial || 0).replace(/\./g, '').replace(',', '.'));
+                if (!isNaN(val) && val > 0) {
+                    const dataStr = p.DataPagamento || p.data || '';
+                    const descStr = p.Desc || p.desc || 'Transferência';
+                    const userStr = p.Usuario || p.usuario || 'Sistema';
+
+                    const exists = list.some(item => Math.abs(item.valor - val) < 0.01 && (item.data.slice(0, 10) === dataStr.slice(0, 10) || !item.data));
+                    if (!exists) {
+                        list.push({
+                            valor: val,
+                            data: dataStr,
+                            desc: descStr,
+                            usuario: userStr
+                        });
+                    }
+                }
+            });
+        }
+
+        return list;
+    }, [titulo]);
+
     useEffect(() => {
         if (isOpen && titulo) {
             loadTimeline();
@@ -270,6 +314,42 @@ export function CobroDetalhesSheet({
                                     )}
                                 </div>
                             </div>
+
+                            {/* Partial Payments Section if any */}
+                            {partialPaymentsList.length > 0 && (
+                                <div className="space-y-3 pt-2">
+                                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 border-b pb-1">
+                                        <DollarSign size={16} className="text-emerald-600" />
+                                        {t('financeiro.detail_sheet.partial_payments_history', 'Histórico de Pagamentos Parciais')} ({partialPaymentsList.length})
+                                    </h3>
+                                    <div className="border rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                                        <table className="w-full text-xs text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-800 border-b text-slate-600 dark:text-slate-300 font-semibold">
+                                                    <th className="p-2">Valor Parcial</th>
+                                                    <th className="p-2">Data</th>
+                                                    <th className="p-2">Forma / Descrição</th>
+                                                    <th className="p-2">Usuário</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y dark:divide-slate-800">
+                                                {partialPaymentsList.map((p, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                                                        <td className="p-2 font-bold text-emerald-600">
+                                                            {formatCurrency(p.valor)}
+                                                        </td>
+                                                        <td className="p-2 font-medium text-slate-700 dark:text-slate-300">
+                                                            {p.data ? formatDate(p.data) : '-'}
+                                                        </td>
+                                                        <td className="p-2 text-slate-800 dark:text-slate-200">{p.desc || 'Transferência'}</td>
+                                                        <td className="p-2 text-slate-400 font-mono text-[11px]">{p.usuario}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Billing origin */}
                             {!titulo.fatura_id ? (

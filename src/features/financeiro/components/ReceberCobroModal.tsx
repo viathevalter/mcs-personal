@@ -30,6 +30,56 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
     const [bancoId, setBancoId] = useState('');
     const [valorRecebido, setValorRecebido] = useState(titulo.Saldo_a_pagar.toString());
 
+    // Combine payments from pagamentos_reais and Hist_ValorParcial for display
+    const partialPaymentsList = React.useMemo(() => {
+        const list: Array<{ valor: number; data: string; desc: string; usuario: string }> = [];
+
+        // 1. From pagamentos_reais
+        if (Array.isArray(titulo.pagamentos_reais)) {
+            titulo.pagamentos_reais.forEach(p => {
+                const val = typeof p.valor === 'number' ? p.valor : parseFloat(String(p.valor || 0));
+                if (val > 0) {
+                    list.push({
+                        valor: val,
+                        data: p.data_recebimento || '',
+                        desc: p.forma_pagamento || 'Transferencia',
+                        usuario: p.criado_por || 'Sistema'
+                    });
+                }
+            });
+        }
+
+        // 2. From Hist_ValorParcial (if not duplicate)
+        if (Array.isArray(titulo.Hist_ValorParcial)) {
+            titulo.Hist_ValorParcial.forEach((p: any) => {
+                const val = typeof p.ValorParcial === 'number' ? p.ValorParcial : parseFloat(String(p.ValorParcial || 0).replace(/\./g, '').replace(',', '.'));
+                if (!isNaN(val) && val > 0) {
+                    const dataStr = p.DataPagamento || p.data || '';
+                    const descStr = p.Desc || p.desc || 'Transferencia';
+                    const userStr = p.Usuario || p.usuario || 'Sistema';
+
+                    // Check duplicate
+                    const exists = list.some(item => Math.abs(item.valor - val) < 0.01 && (item.data.slice(0, 10) === dataStr.slice(0, 10) || !item.data));
+                    if (!exists) {
+                        list.push({
+                            valor: val,
+                            data: dataStr,
+                            desc: descStr,
+                            usuario: userStr
+                        });
+                    }
+                }
+            });
+        }
+
+        return list;
+    }, [titulo]);
+
+    const totalRecebidoCalculado = React.useMemo(() => {
+        const sum = partialPaymentsList.reduce((acc, curr) => acc + curr.valor, 0);
+        return sum > 0 ? sum : (titulo.Valot_total - titulo.Saldo_a_pagar);
+    }, [partialPaymentsList, titulo]);
+
     useEffect(() => {
         if (isOpen) {
             loadBancos();
@@ -250,6 +300,64 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                                     disabled={tipoRecebimento === 'Integral'}
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Información Parcial / Historial de Pagos Parciales */}
+                    <div className="mt-8 border rounded-xl overflow-hidden shadow-sm bg-white">
+                        <div className="bg-slate-800 text-white px-4 py-2.5 font-bold text-sm flex justify-between items-center">
+                            <span>Información parcial</span>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                            <div className="flex flex-wrap justify-between items-center border-b pb-3 gap-4">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Historial de pagos parciales ({partialPaymentsList.length})
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
+                                    <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+                                        ✓ Recebido: € {totalRecebidoCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-rose-700 bg-rose-50 px-2.5 py-1 rounded border border-rose-200">
+                                        - Saldo a Receber: € {titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {partialPaymentsList.length === 0 ? (
+                                <p className="text-xs text-muted-foreground py-4 text-center">
+                                    Nenhuma baixa parcial registrada para este documento.
+                                </p>
+                            ) : (
+                                <div className="overflow-x-auto max-h-[200px]">
+                                    <table className="w-full text-xs text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b text-slate-600 font-semibold sticky top-0">
+                                                <th className="p-2 w-8">#</th>
+                                                <th className="p-2">💰 Valor Parcial</th>
+                                                <th className="p-2">📅 Data de Pagamento</th>
+                                                <th className="p-2">Descrição / Forma</th>
+                                                <th className="p-2">Usuário</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {partialPaymentsList.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                                    <td className="p-2 font-bold text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2 font-bold text-emerald-600">
+                                                        € {item.valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="p-2 text-slate-700 font-medium">
+                                                        {item.data ? new Date(item.data).toLocaleDateString('pt-PT') : 'N/A'}
+                                                    </td>
+                                                    <td className="p-2 text-slate-800">{item.desc || 'Transferência'}</td>
+                                                    <td className="p-2 text-slate-500 font-mono text-[11px]">{item.usuario || 'Sistema'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
