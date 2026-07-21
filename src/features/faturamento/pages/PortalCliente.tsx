@@ -298,7 +298,7 @@ export function PortalCliente() {
     dueDate.setDate(emissionDate.getDate() + expectedTermDays);
     const dataVencimentoStr = adj.data_vencimento || dueDate.toISOString().split('T')[0];
 
-    const defaultIban = "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL";
+    const defaultIban = fatura?.empresa?.bankDetails || (fatura?.empresa?.iban ? `IBAN: ${fatura.empresa.iban}` : "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL");
 
     return {
       totalBaseVal,
@@ -644,7 +644,7 @@ export function PortalCliente() {
                     </div>
                     <div className="text-right space-y-1">
                       <p className="font-bold text-slate-500 uppercase text-[9px]">Documento</p>
-                      <p className="font-bold text-slate-900">IF-{year}/0760</p>
+                      <p className="font-bold text-slate-900">IF-{year}/{String(fatura.fatura_numero || fatura.empresa?.nextInvoiceNumber || '0001').padStart(4, '0')}</p>
                       <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                       <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                     </div>

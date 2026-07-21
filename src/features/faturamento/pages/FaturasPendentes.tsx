@@ -131,6 +131,7 @@ export function FaturasPendentes() {
     let body = '';
     const link = `${window.location.origin}/aprovacao-cliente/${emailData.token}`;
 
+    const docNum = String(faturamento.faturaNumero || faturamento.empresaNextInvoiceNumber || '0001').padStart(4, '0');
     if (lang === 'es') {
       subject = `MCS - Solicitud de Aprobación de Horas - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
       body = `Hola,
@@ -138,7 +139,7 @@ export function FaturasPendentes() {
 Nos gustaría solicitar su aprobación para el informe de facturación correspondiente al período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
 
 Adjunto encontrará los siguientes documentos para su análisis:
-1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
+1. Informe de Facturación (IF-${faturamento.year}/${docNum})${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
 2. Hoja de horas detallada con las fechas trabajadas
 3. Factura Pro-forma correspondiente por un valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -156,7 +157,7 @@ MCS - Gestión Comercial`;
 We would like to request your approval for the billing report for the period of ${periodStr}${selectedObra ? ` (Worksite: ${selectedObra.name})` : ''}.
 
 Attached you will find the following documents for your analysis:
-1. Billing Report (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Worksite: ${selectedObra.name}` : ''}
+1. Billing Report (IF-${faturamento.year}/${docNum})${selectedObra ? ` - ref. Worksite: ${selectedObra.name}` : ''}
 2. Detailed timesheet with the dates worked
 3. Corresponding Pro-forma invoice in the amount of € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -174,7 +175,7 @@ MCS - Commercial Management`;
 Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
 
 Em anexo, você encontrará os seguintes documentos para a sua análise:
-1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
+1. Informe de Facturación (IF-${faturamento.year}/${docNum})${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
 2. Folha de ponto detalhada com as datas trabalhadas
 3. Fatura Pró-forma correspondente no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -284,7 +285,7 @@ MCS - Gestão Comercial`;
     dueDate.setDate(emissionDate.getDate() + payDays);
     const dueStr = dueDate.toISOString().split('T')[0];
 
-    const defaultIban = "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL";
+    const defaultIban = f.empresaBankDetails || (f.empresaIban ? `IBAN: ${f.empresaIban}` : "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL");
     const defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year} - Obra: Sin Obra`;
 
     return {
@@ -434,13 +435,14 @@ MCS - Gestão Comercial`;
     
     const previewToken = crypto.randomUUID(); 
     const link = `${window.location.origin}/aprovacao-cliente/${previewToken}`;
+    const docNum = String(faturamento.faturaNumero || faturamento.empresaNextInvoiceNumber || '0001').padStart(4, '0');
     
     const body = `Olá,
 
 Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}${selectedObra ? ` (Obra: ${selectedObra.name})` : ''}.
 
 Em anexo, você encontrará os seguintes documentos para a sua análise:
-1. Informe de Facturación (IF-${faturamento.year}/0760)${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
+1. Informe de Facturación (IF-${faturamento.year}/${docNum})${selectedObra ? ` - ref. Obra: ${selectedObra.name}` : ''}
 2. Folha de ponto detalhada com as datas trabalhadas
 3. Fatura Pró-forma correspondente no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -2138,7 +2140,7 @@ MCS - Gestão Comercial`;
                     )}
 
                     {/* Aba 2: Datas trabalhadas */}
-                    {getActiveTab(f.clientId) === 'datas_trabalhadas' && (
+                    {getActiveTab(cardId) === 'datas_trabalhadas' && (
                       <div className="p-6 bg-white dark:bg-slate-950 overflow-x-auto">
                         <div className="mb-6 flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
                           <div>
@@ -2439,7 +2441,7 @@ MCS - Gestão Comercial`;
                               </div>
                               <div className="text-right text-xs space-y-1">
                                 <p className="font-bold text-slate-500 uppercase text-[10px]">Documento</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/0760</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/{String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}</p>
                                 <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                                 <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                               </div>

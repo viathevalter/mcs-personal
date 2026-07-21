@@ -114,6 +114,7 @@ export interface ClientBillingSummary {
   empresaEmail?: string | null;
   empresaPhone?: string | null;
   empresaIban?: string | null;
+  empresaBankDetails?: string | null;
 
   clientAddressLine?: string | null;
   clientPostalCode?: string | null;
@@ -206,6 +207,7 @@ export async function getHorasPendentesFaturamento(
     const empresaEmail = empresaData?.email || null;
     const empresaPhone = empresaData?.phone || null;
     const empresaIban = empresaData?.iban || null;
+    const empresaBankDetails = empresaData?.bank_details || null;
     const empresaInvoiceSeries = empresaData?.invoice_series || null;
     const empresaNextInvoiceNumber = empresaData?.next_invoice_number || null;
     const empresaAtcudPrefix = empresaData?.atcud_prefix || null;
@@ -687,6 +689,7 @@ export async function getHorasPendentesFaturamento(
         empresaEmail,
         empresaPhone,
         empresaIban,
+        empresaBankDetails,
         clientAddressLine: client.address_line || null,
         clientPostalCode: client.postal_code || null,
         clientCity: client.city || null,

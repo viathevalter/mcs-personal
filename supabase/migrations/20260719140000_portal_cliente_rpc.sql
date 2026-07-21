@@ -98,6 +98,7 @@ BEGIN
                 'email', v_empresa.email,
                 'phone', v_empresa.phone,
                 'iban', v_empresa.iban,
+                'bankDetails', v_empresa.bank_details,
                 'invoiceSeries', v_empresa.invoice_series,
                 'nextInvoiceNumber', v_empresa.next_invoice_number,
                 'atcudPrefix', v_empresa.atcud_prefix,
