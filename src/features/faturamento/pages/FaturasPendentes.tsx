@@ -286,6 +286,10 @@ MCS - Gestão Comercial`;
     const dueStr = dueDate.toISOString().split('T')[0];
 
     const defaultIban = f.empresaBankDetails || (f.empresaIban ? `IBAN: ${f.empresaIban}` : "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL");
+    let ibanVal = f.ajustesJson?.iban ?? defaultIban;
+    if (f.empresaBankDetails && ibanVal && (!ibanVal.includes('\n') || ibanVal.startsWith('IBAN:'))) {
+      ibanVal = f.empresaBankDetails;
+    }
     const defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year} - Obra: Sin Obra`;
 
     return {
@@ -294,7 +298,7 @@ MCS - Gestão Comercial`;
       reducoes: f.ajustesJson?.reducoes ?? 0,
       reducoesDesc: f.ajustesJson?.reducoes_desc ?? '',
       ivaPct: f.ajustesJson?.iva_pct ?? 0,
-      iban: f.ajustesJson?.iban ?? defaultIban,
+      iban: ibanVal,
       dataEmissao: f.dataEmissaoFatura || f.ajustesJson?.dataEmissao || emissionStr,
       dataVencimento: f.ajustesJson?.data_vencimento || dueStr,
       condicoesPagamento: f.ajustesJson?.condicoes_pagamento || condPay,
@@ -2752,7 +2756,7 @@ MCS - Gestão Comercial`;
                                 {adj.iban && (
                                   <div className="text-center">
                                     <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
-                                    <p className="font-mono text-[9px]">{adj.iban.split('\n')[0]}</p>
+                                    <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adj.iban}</div>
                                   </div>
                                 )}
                                 <div className="text-right">

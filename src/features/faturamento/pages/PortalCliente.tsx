@@ -301,6 +301,10 @@ export function PortalCliente() {
     const dataVencimentoStr = adj.data_vencimento || dueDate.toISOString().split('T')[0];
 
     const defaultIban = fatura?.empresa?.bankDetails || (fatura?.empresa?.iban ? `IBAN: ${fatura.empresa.iban}` : "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL");
+    let ibanVal = adj.iban;
+    if (!ibanVal || (fatura?.empresa?.bankDetails && (!ibanVal.includes('\n') || ibanVal.startsWith('IBAN:')))) {
+      ibanVal = fatura?.empresa?.bankDetails || defaultIban;
+    }
 
     return {
       totalBaseVal,
@@ -313,7 +317,7 @@ export function PortalCliente() {
         reducoes,
         reducoesDesc: adj.reducoes_desc || '',
         ivaPct,
-        iban: adj.iban || defaultIban,
+        iban: ibanVal,
         condicoesPagamento: adj.condicoes_pagamento || termName,
         descricaoServico: adj.descricao_servico || `Prestação de Serviços - Obra: Sin Obra`,
       }
@@ -939,6 +943,12 @@ export function PortalCliente() {
                         <p>{[fatura.empresa?.postalCode || '4460-853', fatura.empresa?.city || 'Vila Nova de Gaia'].filter(Boolean).join(' ')}</p>
                         <p>{fatura.empresa?.province || 'Portugal'}</p>
                       </div>
+                      {adjustments.iban && (
+                        <div className="text-center">
+                          <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
+                          <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adjustments.iban}</div>
+                        </div>
+                      )}
                       <div className="text-right">
                         <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
                         <p>{fatura.client?.address_line || 'N/A'}</p>
