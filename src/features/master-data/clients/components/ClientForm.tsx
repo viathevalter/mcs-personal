@@ -292,7 +292,11 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Prazo de Pagamento Padrão</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <Select 
+                      key={`${field.value || 'none'}-${paymentTerms.length}`} 
+                      onValueChange={field.onChange} 
+                      value={field.value || ''}
+                    >
                       <FormControl>
                         <SelectTrigger className="bg-white focus-visible:ring-orange-500">
                           <SelectValue placeholder="Selecione o prazo de pagamento" />

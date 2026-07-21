@@ -21,6 +21,12 @@ export function ClientFinanceTab({ client }: ClientFinanceTabProps) {
   const [financialStatus, setFinancialStatus] = useState(client.financial_status || 'active');
   const [creditLimit, setCreditLimit] = useState(client.credit_limit?.toString() || '0');
 
+  useEffect(() => {
+    setPaymentTermId(client.payment_term_id || 'none');
+    setFinancialStatus(client.financial_status || 'active');
+    setCreditLimit(client.credit_limit?.toString() || '0');
+  }, [client]);
+
   const handleSave = async () => {
     try {
       await updateClient({
@@ -63,7 +69,11 @@ export function ClientFinanceTab({ client }: ClientFinanceTabProps) {
 
           <div className="space-y-2 pt-2">
             <Label htmlFor="tab_payment_term">Prazo de Pagamento Padrão</Label>
-            <Select value={paymentTermId} onValueChange={setPaymentTermId}>
+            <Select 
+              key={`${paymentTermId || 'none'}-${paymentTerms.length}`}
+              value={paymentTermId} 
+              onValueChange={setPaymentTermId}
+            >
               <SelectTrigger id="tab_payment_term" className="focus-visible:ring-orange-500">
                 <SelectValue placeholder="Selecione o prazo padrão..." />
               </SelectTrigger>
