@@ -332,16 +332,21 @@ export function PortalCliente() {
   }
 
   if (error || !fatura) {
+    const isDraftToken = token === 'draft' || !token;
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full shadow-lg border-red-100">
+        <Card className="max-w-md w-full shadow-lg border-amber-100">
           <CardHeader className="text-center">
-            <div className="mx-auto bg-red-100 p-3 rounded-full w-16 h-16 flex items-center justify-center mb-4">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
+            <div className={`mx-auto p-3 rounded-full w-16 h-16 flex items-center justify-center mb-4 ${isDraftToken ? 'bg-amber-100' : 'bg-red-100'}`}>
+              <AlertTriangle className={`w-8 h-8 ${isDraftToken ? 'text-amber-600' : 'text-red-600'}`} />
             </div>
-            <CardTitle className="text-xl text-red-800">Acesso Inválido</CardTitle>
+            <CardTitle className={`text-xl ${isDraftToken ? 'text-amber-800' : 'text-red-800'}`}>
+              {isDraftToken ? 'Link de Validação em Rascunho' : 'Acesso Inválido'}
+            </CardTitle>
             <CardDescription className="text-base mt-2">
-              {error || "Fatura não encontrada"}
+              {isDraftToken 
+                ? "Esta fatura está em rascunho e aguarda a emissão do link de aprovação pelo departamento financeiro." 
+                : (error || "Não foi possível carregar as informações. O link pode ser inválido ou ter expirado.")}
             </CardDescription>
           </CardHeader>
         </Card>

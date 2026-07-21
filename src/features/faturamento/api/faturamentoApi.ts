@@ -635,32 +635,42 @@ export async function getHorasPendentesFaturamento(
       let faturaNumero: string | null = null;
       let faturaAtcud: string | null = null;
 
+      const latestFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
+      if (latestFaturaId) {
+        const fatura = faturasMap.get(latestFaturaId);
+        if (fatura) {
+          magicLinkToken = fatura.magic_link_token;
+          dataEmissaoFatura = fatura.data_emissao || null;
+          ajustesJson = fatura.ajustes_json || null;
+          faturaNumero = fatura.fatura_numero || null;
+          faturaAtcud = fatura.atcud || null;
+          if (fatura.status === 'pending_client_approval') {
+            statusBilling = 'invoiced_pending';
+          } else if (fatura.status === 'approved') {
+            statusBilling = 'invoiced_approved';
+          } else if (fatura.status === 'disputed') {
+            statusBilling = 'invoiced_disputed';
+          }
+        }
+      }
+
+      if (!magicLinkToken) {
+        const existingFaturaForClient = Array.from(faturasMap.values()).find(f => f.client_id === client.id);
+        if (existingFaturaForClient) {
+          magicLinkToken = existingFaturaForClient.magic_link_token;
+          dataEmissaoFatura = existingFaturaForClient.data_emissao || null;
+          ajustesJson = existingFaturaForClient.ajustes_json || null;
+          faturaNumero = existingFaturaForClient.fatura_numero || null;
+          faturaAtcud = existingFaturaForClient.atcud || null;
+        }
+      }
+
       if (hasUnbilled) {
         // Active billing session: there are unbilled hours/workers
         if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
           statusBilling = 'ready';
         } else {
           statusBilling = 'waiting_validation';
-        }
-      } else {
-        // Billed session: all hours are already linked to a fatura
-        const latestFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
-        if (latestFaturaId) {
-          const fatura = faturasMap.get(latestFaturaId);
-          if (fatura) {
-            magicLinkToken = fatura.magic_link_token;
-            dataEmissaoFatura = fatura.data_emissao || null;
-            ajustesJson = fatura.ajustes_json || null;
-            faturaNumero = fatura.fatura_numero || null;
-            faturaAtcud = fatura.atcud || null;
-            if (fatura.status === 'pending_client_approval') {
-              statusBilling = 'invoiced_pending';
-            } else if (fatura.status === 'approved') {
-              statusBilling = 'invoiced_approved';
-            } else if (fatura.status === 'disputed') {
-              statusBilling = 'invoiced_disputed';
-            }
-          }
         }
       }
 
