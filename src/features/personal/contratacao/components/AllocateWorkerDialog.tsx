@@ -271,6 +271,12 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       return;
     }
 
+    const isTarifaSuperior = position.base_cost_hour_snapshot && Number(tarifaAcordada) > Number(position.base_cost_hour_snapshot);
+    if (isTarifaSuperior && (!notes || notes.trim().length < 5)) {
+      alert('A tarifa acordada é superior à tarifa orçada. Por favor, insira uma justificativa nas "Observações de Alocação" detalhando o motivo antes de confirmar.');
+      return;
+    }
+
     allocate(
       {
         pedido_item_id: position.id,
@@ -701,10 +707,15 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   Defina o valor pago por hora a este trabalhador de acordo com o acordado.
                 </p>
                 {tarifaAcordada && position.base_cost_hour_snapshot && Number(tarifaAcordada) > Number(position.base_cost_hour_snapshot) && (
-                  <p className="text-xs text-rose-600 dark:text-rose-450 font-semibold mt-1 flex items-center gap-1 animate-pulse">
-                    <AlertTriangle size={14} className="shrink-0" />
-                    Atenção: A tarifa acordada ({Number(tarifaAcordada).toFixed(2)} €) é superior à tarifa orçada ({Number(position.base_cost_hour_snapshot).toFixed(2)} €).
-                  </p>
+                  <div className="text-xs text-rose-600 dark:text-rose-450 font-semibold mt-2 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-lg flex flex-col gap-1.5 animate-pulse">
+                    <div className="flex items-center gap-1">
+                      <AlertTriangle size={14} className="shrink-0" />
+                      Atenção: A tarifa acordada ({Number(tarifaAcordada).toFixed(2)} €) é superior à tarifa orçada ({Number(position.base_cost_hour_snapshot).toFixed(2)} €).
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-600 dark:text-slate-400">
+                      Como controle operacional, é obrigatório preencher o campo de <strong>Observações de Alocação</strong> abaixo detalhando a justificativa dessa contratação acima do orçado para que o sistema libere a alocação.
+                    </p>
+                  </div>
                 )}
               </div>
               <div className="w-full md:w-64 shrink-0">
