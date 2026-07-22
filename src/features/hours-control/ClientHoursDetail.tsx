@@ -34,6 +34,13 @@ interface WorkerDetail {
     data_baixa?: string | null;
 }
 
+const getBucketName = (filePath?: string): string => {
+    if (filePath && filePath.includes('/')) {
+        return 'horas_trabalhadores';
+    }
+    return 'extracao-horas';
+};
+
 export function ClientHoursDetail() {
     const { clientName } = useParams();
     const [searchParams] = useSearchParams();
@@ -177,8 +184,9 @@ export function ClientHoursDetail() {
     const handleViewFile = async (filePath: string) => {
         try {
             toast.loading(t('clientHoursDetail.messages.generatingLink'), { id: 'view_file' });
+            const bucketName = getBucketName(filePath);
             const { data, error } = await supabase.storage
-                .from('extracao-horas')
+                .from(bucketName)
                 .createSignedUrl(filePath, 60); // 60 seconds validity
 
             if (error) throw error;
@@ -200,8 +208,9 @@ export function ClientHoursDetail() {
         try {
             setActionLoading(recordId + '-dl');
             toast.loading(t('clientHoursDetail.messages.generatingDl'), { id: 'download_file' });
+            const bucketName = getBucketName(filePath);
             const { data, error } = await supabase.storage
-                .from('extracao-horas')
+                .from(bucketName)
                 .createSignedUrl(filePath, 60); // 60 seconds validity
 
             if (error) throw error;
@@ -228,8 +237,9 @@ export function ClientHoursDetail() {
             setActionLoading(worker.hour_record_id + '-ap');
             let signedUrl = undefined;
             if (worker.file_url) {
+                const bucketName = getBucketName(worker.file_url);
                 const { data, error } = await supabase.storage
-                    .from('extracao-horas')
+                    .from(bucketName)
                     .createSignedUrl(worker.file_url, 3600); // 1 hour validity
 
                 if (error) throw error;
@@ -265,8 +275,9 @@ export function ClientHoursDetail() {
             setActionLoading(recordId + '-rj');
 
             // Delete file from storage first
+            const bucketName = getBucketName(filePath);
             const { error: storageError } = await supabase.storage
-                .from('extracao-horas')
+                .from(bucketName)
                 .remove([filePath]);
 
             if (storageError) {
