@@ -106,13 +106,12 @@ export const HiringDashboardPage: React.FC = () => {
       }
     }
     
-    // Formatar tamanho uniforme
-    const camiseta = worker.camiseta || '';
-    const calca = worker.pantalones || '';
-    let tallaUniforme = 'Não informado';
-    if (camiseta || calca) {
-      tallaUniforme = `${camiseta}${calca ? `(${calca})` : ''}`;
-    }
+    // Formatar tamanho camiseta e calça (TALLA UNIFORME)
+    const camisetaText = worker.camiseta ? `TALLA UNIFORME: ${worker.camiseta}` : 'TALLA UNIFORME: Não informado';
+    const calcaText = worker.pantalones ? `TALLA UNIFORME: ${worker.pantalones}` : 'TALLA UNIFORME: Não informado';
+    
+    // Formatar CNH (LICENCIA DE CONDUCIR)
+    const cnh = worker.licencia_conducir === 'Si' ? 'Si' : 'No';
     
     // Formatar tarifa
     const tarifa = alloc.tarifa_acordada ? `${Number(alloc.tarifa_acordada).toFixed(2).replace('.', ',')} €` : 'N/A';
@@ -128,7 +127,9 @@ NÚMERO DEL PEDIDO: ${pedidoCodigo}
 FECHA DE INICIO: ${dataInicio}
 FUNÇÃO: ${(alloc.job_function_name_snapshot || 'Desconhecida').toUpperCase()}
 TARIFA: ${tarifa}
-TALLA UNIFORME: ${tallaUniforme}`;
+${camisetaText}
+${calcaText}
+LICENCIA DE CONDUCIR: ${cnh}`;
 
     navigator.clipboard.writeText(text)
       .then(() => {
