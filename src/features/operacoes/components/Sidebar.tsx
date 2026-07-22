@@ -3,11 +3,17 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { Activity, AlertCircle, Box, Building, CheckSquare, FileText, LayoutDashboard, ListTodo, Settings, ShoppingCart, Upload, UserCog, Users, ArrowLeft, Menu } from 'lucide-react';
 import { useLanguage } from '../i18n';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
+  const { role } = useRole();
+
+  const isSystemAdmin = role === 'super_admin' || role === 'admin';
+  const isRH = role === 'super_admin' || role === 'admin' || role === 'admin_rh';
+  const isOps = role === 'super_admin' || role === 'admin' || role === 'operador';
 
   const NavItem = ({ to, icon: Icon, label }: any) => (
     <NavLink
@@ -69,35 +75,48 @@ export const Sidebar: React.FC = () => {
         <SectionLabel label={t('menu.main_menu')} />
         <div className="space-y-1">
           <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />
-          <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />
-          <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />
-          <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />
-          <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />
+          {isSystemAdmin && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
+          {(isSystemAdmin || isOps) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
+          {(isSystemAdmin || isOps) && <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />}
+          {isSystemAdmin && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
         </div>
 
-        <SectionLabel label="Personal / RH" />
-        <div className="space-y-1">
-          <NavItem to="/operacoes/personal/contratacao" icon={UserCog} label="Contratação Inicial" />
-          <NavItem to="/operacoes/personal/assignments" icon={Users} label="Trabalhadores Alocados" />
-        </div>
+        {(isSystemAdmin || isRH || isOps) && (
+          <>
+            <SectionLabel label="Personal / RH" />
+            <div className="space-y-1">
+              <NavItem to="/operacoes/personal/contratacao" icon={UserCog} label="Contratação Inicial" />
+              <NavItem to="/operacoes/personal/assignments" icon={Users} label="Trabalhadores Alocados" />
+            </div>
+          </>
+        )}
 
-        <SectionLabel label={t('menu.daily_mgmt')} />
-        <div className="space-y-1">
-          <NavItem to="/operacoes/operacao/tarefas" icon={ListTodo} label={t('menu.minhas_tarefas')} />
-          <NavItem to="/operacoes/incidencias" icon={AlertCircle} label={t('menu.incidencias')} />
-          <NavItem to="/operacoes/admin/comissoes" icon={FileText} label={t('menu.comissoes')} />
-        </div>
+        {(isSystemAdmin || isRH || isOps) && (
+          <>
+            <SectionLabel label={t('menu.daily_mgmt')} />
+            <div className="space-y-1">
+              <NavItem to="/operacoes/operacao/tarefas" icon={ListTodo} label={t('menu.minhas_tarefas')} />
+              <NavItem to="/operacoes/incidencias" icon={AlertCircle} label={t('menu.incidencias')} />
+              {isSystemAdmin && <NavItem to="/operacoes/admin/comissoes" icon={FileText} label={t('menu.comissoes')} />}
+            </div>
+          </>
+        )}
 
-        <SectionLabel label={t('menu.admin')} />
-        <div className="space-y-1">
-          <NavItem to="/operacoes/admin/playbooks" icon={Settings} label={t('menu.playbooks')} />
-          <NavItem to="/operacoes/admin/tasks" icon={CheckSquare} label={t('menu.tarefas_modelo')} />
-          <NavItem to="/operacoes/admin/departamentos" icon={Building} label={t('menu.departamentos')} />
-          <NavItem to="/operacoes/admin/funcionarios" icon={UserCog} label={t('menu.funcionarios')} />
-          <NavItem to="/operacoes/admin/importar-funcionarios" icon={Upload} label={t('menu.importar_dados')} />
-          <NavItem to="/operacoes/admin/usuarios" icon={Users} label={t('menu.usuarios')} />
-        </div>
+        {isSystemAdmin && (
+          <>
+            <SectionLabel label={t('menu.admin')} />
+            <div className="space-y-1">
+              <NavItem to="/operacoes/admin/playbooks" icon={Settings} label={t('menu.playbooks')} />
+              <NavItem to="/operacoes/admin/tasks" icon={CheckSquare} label={t('menu.tarefas_modelo')} />
+              <NavItem to="/operacoes/admin/departamentos" icon={Building} label={t('menu.departamentos')} />
+              <NavItem to="/operacoes/admin/funcionarios" icon={UserCog} label={t('menu.funcionarios')} />
+              <NavItem to="/operacoes/admin/importar-funcionarios" icon={Upload} label={t('menu.importar_dados')} />
+              <NavItem to="/operacoes/admin/usuarios" icon={Users} label={t('menu.usuarios')} />
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );
 };
+

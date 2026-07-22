@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
-import { Edit, Save, UserPlus, X, Search, Filter } from 'lucide-react';
+import { Edit, Save, UserPlus, X, Search, Filter, Shield, Building2, CheckCircle2 } from 'lucide-react';
 
 interface MCSUser {
     id: string;
@@ -20,19 +20,47 @@ interface DepartmentMember {
     mcs_departments?: { name: string } | null;
 }
 
+interface Company {
+    id: string;
+    nome: string;
+    codigo: string;
+}
+
 export const UserManagement: React.FC = () => {
     const { user, refreshProfile } = useAuth();
     const [users, setUsers] = useState<MCSUser[]>([]);
     const [employees, setEmployees] = useState<DepartmentMember[]>([]);
+    const [companies, setCompanies] = useState<Company[]>([]);
     const [_loading, setLoading] = useState(true);
-    const [editingUser, setEditingUser] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // Modal Edit State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<MCSUser | null>(null);
     const [formData, setFormData] = useState<Partial<MCSUser> & { employee_id?: string }>({});
+    const [membershipsForm, setMembershipsForm] = useState<Record<string, { role: string; is_active: boolean }>>({});
+    
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDepartment, setFilterDepartment] = useState('');
 
     useEffect(() => {
         fetchData();
+        fetchCompanies();
     }, []);
+
+    const fetchCompanies = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('core_common.empresas')
+                .select('id, nome, codigo')
+                .eq('is_active', true)
+                .order('nome');
+            if (error) throw error;
+            setCompanies(data || []);
+        } catch (err) {
+            console.error('Error fetching companies:', err);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -75,30 +103,54 @@ export const UserManagement: React.FC = () => {
         }
     };
 
-    const handleEdit = (u: MCSUser) => {
-        // Find linked employee
+    const handleEdit = async (u: MCSUser) => {
+        setSelectedUser(u);
         const linkedEmp = employees.find(e => e.user_id === u.id);
-        setEditingUser(u.id);
+        
         setFormData({
             role: u.role,
-            display_name: u.display_name,
+            display_name: u.display_name || '',
             employee_id: linkedEmp?.id || '',
             managed_departments: u.managed_departments || []
         });
+
+        // Load existing memberships for this user
+        try {
+            const { data: memsData, error: memsError } = await supabase
+                .from('core_common.user_memberships')
+                .select('*')
+                .eq('user_id', u.id);
+
+            if (memsError) throw memsError;
+
+            const initialMems: Record<string, { role: string; is_active: boolean }> = {};
+            companies.forEach(c => {
+                const found = memsData?.find(m => m.empresa_id === c.id);
+                if (found) {
+                    initialMems[c.id] = { role: found.role, is_active: found.is_active };
+                } else {
+                    initialMems[c.id] = { role: 'user', is_active: false };
+                }
+            });
+            setMembershipsForm(initialMems);
+        } catch (err) {
+            console.error('Error fetching user memberships:', err);
+        }
+
+        setIsModalOpen(true);
     };
 
-    const handleSave = async (userId: string) => {
+    const handleSave = async () => {
+        if (!selectedUser) return;
+        setIsSaving(true);
         try {
-            // 1. Update ONLY display_name directly if needed (RLS usually allows updating own records or basic info, 
-            // but if this fails too, we can move it to the RPC, for now let's keep it here first)
-            const { error: nameError } = await supabase
+            const userId = selectedUser.id;
+
+            // 1. Update display_name
+            await supabase
                 .from('mcs_users')
                 .update({ display_name: formData.display_name })
                 .eq('id', userId);
-
-            if (nameError) {
-                console.warn('Erro ao atualizar display_name (possível RLS), prosseguindo com role:', nameError);
-            }
 
             // 2. Call secure RPC to update Roles and Departments
             const { error: rpcError } = await supabase.rpc('update_user_role', {
@@ -110,49 +162,64 @@ export const UserManagement: React.FC = () => {
             if (rpcError) throw rpcError;
 
             // 3. Update Employee Link
-            // First unlink any employee currently linked to this user (if changing)
-            // Ideally we'd do this more carefully, but for now:
+            await supabase
+                .from('mcs_department_members')
+                .update({ user_id: null })
+                .eq('user_id', userId);
 
             if (formData.employee_id) {
-                // Remove link from old employee if different
-                // Actually, just set the new one. The old one might remain linked if we are not careful, 
-                // but usually user_id is unique on department members? 
-                // Let's first clear THIS user from ALL employees (unlink all)
-                await supabase
-                    .from('mcs_department_members')
-                    .update({ user_id: null })
-                    .eq('user_id', userId);
-
-                // Now link selected
                 const { error: linkError } = await supabase
                     .from('mcs_department_members')
                     .update({ user_id: userId })
                     .eq('id', formData.employee_id);
 
                 if (linkError) throw linkError;
-            } else {
-                // If empty, just unlink
-                await supabase
-                    .from('mcs_department_members')
-                    .update({ user_id: null })
-                    .eq('user_id', userId);
             }
 
-            setEditingUser(null);
-            fetchData(); // Refresh the list
+            // 4. Update Company Memberships
+            for (const companyId of Object.keys(membershipsForm)) {
+                const mem = membershipsForm[companyId];
+                if (mem.is_active) {
+                    // Upsert membership
+                    const { error: upsertError } = await supabase
+                        .from('core_common.user_memberships')
+                        .upsert({
+                            user_id: userId,
+                            empresa_id: companyId,
+                            role: mem.role,
+                            is_active: true
+                        }, {
+                            onConflict: 'user_id,empresa_id,role'
+                        });
+                    if (upsertError) throw upsertError;
+                } else {
+                    // Remove membership if disabled
+                    const { error: deleteError } = await supabase
+                        .from('core_common.user_memberships')
+                        .delete()
+                        .eq('user_id', userId)
+                        .eq('empresa_id', companyId);
+                    if (deleteError) throw deleteError;
+                }
+            }
 
-            // If the user edited their own profile, refresh their session profile too
+            setIsModalOpen(false);
+            fetchData(); // Refresh list
+
+            // If editing own profile, refresh session
             if (user?.id === userId) {
                 await refreshProfile();
             }
         } catch (error) {
             console.error('Error saving:', error);
             alert('Erro ao salvar alterações');
+        } finally {
+            setIsSaving(false);
         }
     };
 
     if (!user?.isAdmin) {
-        return <div className="p-8">Acesso Negado. Apenas administradores.</div>;
+        return <div className="p-8 text-slate-800 dark:text-white">Acesso Negado. Apenas administradores.</div>;
     }
 
     const uniqueDepartments = Array.from(new Set(employees.map(e => e.mcs_departments?.name).filter(Boolean))).sort();
@@ -164,7 +231,6 @@ export const UserManagement: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Gerenciar Usuários</h1>
                     <p className="text-slate-500">Controle de acesso e vínculo com funcionários</p>
                 </div>
-                {/* Future: Invite User Button */}
                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                     <UserPlus size={18} />
                     Convidar Usuário (Em Breve)
@@ -228,7 +294,6 @@ export const UserManagement: React.FC = () => {
 
                             return matchesSearch && matchesDept;
                         }).map(u => {
-                            const isEditing = editingUser === u.id;
                             const linkedEmp = employees.find(e => e.user_id === u.id);
 
                             return (
@@ -237,109 +302,31 @@ export const UserManagement: React.FC = () => {
                                         {u.email}
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                                        {isEditing ? (
-                                            <input
-                                                className="border rounded px-2 py-1 w-full dark:bg-slate-800 dark:border-slate-600"
-                                                value={formData.display_name || ''}
-                                                onChange={e => setFormData({ ...formData, display_name: e.target.value })}
-                                            />
-                                        ) : (
-                                            u.display_name || '-'
-                                        )}
+                                        {u.display_name || '-'}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {isEditing ? (
-                                            <div className="flex flex-col gap-2">
-                                                <select
-                                                    className="border rounded px-2 py-1 dark:bg-slate-800 dark:border-slate-600"
-                                                    value={formData.role}
-                                                    onChange={e => setFormData({ ...formData, role: e.target.value as any })}
-                                                >
-                                                    <option value="user">Usuário</option>
-                                                    <option value="manager">Gerente</option>
-                                                    <option value="admin">Admin</option>
-                                                    <option value="super_admin">Super Admin</option>
-                                                </select>
-                                                {formData.role === 'admin' && (
-                                                    <div className="mt-2 space-y-1 bg-slate-50 dark:bg-slate-900 p-2 rounded border dark:border-slate-700">
-                                                        <div className="flex justify-between items-center mb-2">
-                                                            <div className="text-xs font-semibold text-slate-500">Dptos Gerenciados:</div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    const allSelected = formData.managed_departments?.length === uniqueDepartments.length;
-                                                                    setFormData({
-                                                                        ...formData,
-                                                                        managed_departments: allSelected ? [] : [...uniqueDepartments] as string[]
-                                                                    });
-                                                                }}
-                                                                className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                                                            >
-                                                                {formData.managed_departments?.length === uniqueDepartments.length ? 'Limpar Todos' : 'Selecionar Todos'}
-                                                            </button>
-                                                        </div>
-                                                        <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                                                            {uniqueDepartments.map(dept => (
-                                                                <label key={dept} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={formData.managed_departments?.includes(dept as string)}
-                                                                        onChange={(e) => {
-                                                                            const current = formData.managed_departments || [];
-                                                                            if (e.target.checked) {
-                                                                                setFormData({ ...formData, managed_departments: [...current, dept as string] });
-                                                                            } else {
-                                                                                setFormData({ ...formData, managed_departments: current.filter(d => d !== dept) });
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    {dept}
-                                                                </label>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div>
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                                    ${u.role === 'super_admin' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' :
-                                                        u.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
-                                                            u.role === 'manager' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
-                                                                'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                                    {u.role.toUpperCase()}
-                                                </span>
-                                                {u.role === 'admin' && u.managed_departments && u.managed_departments.length > 0 && (
-                                                    <div className="text-xs text-slate-500 mt-1">
-                                                        {u.managed_departments.join(', ')}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                        <div>
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                                ${u.role === 'super_admin' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' :
+                                                    u.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
+                                                        u.role === 'manager' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
+                                                            'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {u.role.toUpperCase()}
+                                            </span>
+                                            {u.role === 'admin' && u.managed_departments && u.managed_departments.length > 0 && (
+                                                <div className="text-xs text-slate-500 mt-1">
+                                                    {u.managed_departments.join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                                        {isEditing ? (
-                                            <select
-                                                className="border rounded px-2 py-1 w-full dark:bg-slate-800 dark:border-slate-600"
-                                                value={formData.employee_id}
-                                                onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
-                                            >
-                                                <option value="">-- Sem Vínculo --</option>
-                                                {employees.map(emp => (
-                                                    <option key={emp.id} value={emp.id}>
-                                                        {emp.nombrecompleto} ({emp.usuario || 'Sem user'})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                        {linkedEmp ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium text-slate-700 dark:text-slate-200">{linkedEmp.nombrecompleto}</span>
+                                            </div>
                                         ) : (
-                                            linkedEmp ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-slate-700 dark:text-slate-200">{linkedEmp.nombrecompleto}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-slate-400 italic">Não vinculado</span>
-                                            )
+                                            <span className="text-slate-400 italic">Não vinculado</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
@@ -350,20 +337,13 @@ export const UserManagement: React.FC = () => {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        {isEditing ? (
-                                            <div className="flex justify-end gap-2">
-                                                <button onClick={() => handleSave(u.id)} className="p-1 text-green-600 hover:bg-green-50 rounded"><Save size={18} /></button>
-                                                <button onClick={() => setEditingUser(null)} className="p-1 text-slate-400 hover:bg-slate-50 rounded"><X size={18} /></button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleEdit(u)}
-                                                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                                title="Editar Permissões"
-                                            >
-                                                <Edit size={18} />
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => handleEdit(u)}
+                                            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                            title="Editar Acessos e Permissões"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
                                     </td>
                                 </tr>
                             );
@@ -371,6 +351,192 @@ export const UserManagement: React.FC = () => {
                     </tbody>
                 </table>
             </div>
+
+            {/* Unified Edit Modal */}
+            {isModalOpen && selectedUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 rounded-t-2xl">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Shield className="text-blue-600" size={20} />
+                                    Editar Configurações de Acesso
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-1">{selectedUser.email}</p>
+                            </div>
+                            <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                            {/* General Data */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Nome de Exibição</label>
+                                    <input
+                                        type="text"
+                                        className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.display_name || ''}
+                                        onChange={e => setFormData({ ...formData, display_name: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Funcionário Vinculado</label>
+                                    <select
+                                        className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.employee_id}
+                                        onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
+                                    >
+                                        <option value="">-- Sem Vínculo --</option>
+                                        {employees.map(emp => (
+                                            <option key={emp.id} value={emp.id}>
+                                                {emp.nombrecompleto} ({emp.usuario || 'Sem user'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* System Role */}
+                            <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
+                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Perfil de App (Global)</label>
+                                <select
+                                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.role}
+                                    onChange={e => setFormData({ ...formData, role: e.target.value as any })}
+                                >
+                                    <option value="user">Colaborador Comum (user)</option>
+                                    <option value="manager">Gerente (manager)</option>
+                                    <option value="operador">Operador (operador)</option>
+                                    <option value="admin">Administrador (admin)</option>
+                                    <option value="super_admin">Super Administrador (super_admin)</option>
+                                </select>
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    O Super Administrador tem acesso global irrestrito. Outros perfis dependem dos vínculos de empresas configurados abaixo.
+                                </p>
+                            </div>
+
+                            {/* Managed Departments (Admin only) */}
+                            {formData.role === 'admin' && (
+                                <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Departamentos Gerenciados</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const allSelected = formData.managed_departments?.length === uniqueDepartments.length;
+                                                setFormData({
+                                                    ...formData,
+                                                    managed_departments: allSelected ? [] : [...uniqueDepartments] as string[]
+                                                });
+                                            }}
+                                            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                        >
+                                            {formData.managed_departments?.length === uniqueDepartments.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700">
+                                        {uniqueDepartments.map(dept => (
+                                            <label key={dept} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                                                    checked={formData.managed_departments?.includes(dept as string)}
+                                                    onChange={(e) => {
+                                                        const current = formData.managed_departments || [];
+                                                        if (e.target.checked) {
+                                                            setFormData({ ...formData, managed_departments: [...current, dept as string] });
+                                                        } else {
+                                                            setFormData({ ...formData, managed_departments: current.filter(d => d !== dept) });
+                                                        }
+                                                    }}
+                                                />
+                                                {dept}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Company / Filiais Memberships */}
+                            <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
+                                <div className="mb-3">
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Acesso às Empresas e Filiais</label>
+                                    <p className="text-[11px] text-slate-400">Marque as filiais às quais este usuário tem permissão para visualizar e operar.</p>
+                                </div>
+                                <div className="space-y-3">
+                                    {companies.map(comp => {
+                                        const mem = membershipsForm[comp.id] || { role: 'user', is_active: false };
+                                        return (
+                                            <div key={comp.id} className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${mem.is_active ? 'bg-blue-50/20 border-blue-200 dark:border-blue-800/40 dark:bg-blue-950/10' : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'}`}>
+                                                <div className="flex items-center space-x-3 w-1/2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`comp-${comp.id}`}
+                                                        className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                                                        checked={mem.is_active}
+                                                        onChange={(e) => setMembershipsForm(prev => ({
+                                                            ...prev,
+                                                            [comp.id]: { ...prev[comp.id], is_active: e.target.checked }
+                                                        }))}
+                                                    />
+                                                    <label htmlFor={`comp-${comp.id}`} className="cursor-pointer">
+                                                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                            <Building2 size={14} className="text-slate-400" />
+                                                            {comp.nome}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 block uppercase tracking-wider">{comp.codigo}</span>
+                                                    </label>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-xs text-slate-400">Permissão:</span>
+                                                    <select
+                                                        disabled={!mem.is_active}
+                                                        className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 disabled:opacity-50 outline-none"
+                                                        value={mem.role}
+                                                        onChange={(e) => setMembershipsForm(prev => ({
+                                                            ...prev,
+                                                            [comp.id]: { ...prev[comp.id], role: e.target.value }
+                                                        }))}
+                                                    >
+                                                        <option value="admin">Admin da Filial</option>
+                                                        <option value="rh">Recursos Humanos</option>
+                                                        <option value="finance">Financeiro</option>
+                                                        <option value="commercial">Comercial</option>
+                                                        <option value="user">Colaborador Local</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-800/50 rounded-b-2xl">
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+                                disabled={isSaving}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5 disabled:opacity-75"
+                                disabled={isSaving}
+                            >
+                                <CheckCircle2 size={16} />
+                                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

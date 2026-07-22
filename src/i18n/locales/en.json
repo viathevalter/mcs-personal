@@ -10,7 +10,8 @@
         "documents": "Documents",
         "mainMenu": "Main Menu",
         "expand": "Expand menu",
-        "collapse": "Collapse menu"
+        "collapse": "Collapse menu",
+        "access": "Access Management"
     },
     "topbar": {
         "themeLight": "Light",

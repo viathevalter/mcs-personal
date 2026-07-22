@@ -384,6 +384,7 @@ export async function getHorasPendentesFaturamento(
     // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company)
     const relevantClients = clientsList.filter(client => {
       if (client.empresa_id !== empresaId) return false;
+      if (client.status !== 'active') return false;
       const clientNameLower = client.trade_name?.trim().toLowerCase();
       const hasWorkers = activeWorkers.some(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
       const hasHours = hoursList.some(h => h.client_id === client.id);

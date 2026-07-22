@@ -11,7 +11,8 @@
     "documents": "Documentos",
     "mainMenu": "Menú Principal",
     "expand": "Expandir menú",
-    "collapse": "Colapsar menú"
+    "collapse": "Colapsar menú",
+    "access": "Gestión de Accesos"
   },
   "topbar": {
     "themeLight": "Claro",

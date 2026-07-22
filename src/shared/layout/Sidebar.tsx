@@ -34,7 +34,7 @@ export function Sidebar() {
         { to: '/taxes', tKey: 'Configuração de Impostos', icon: Calculator, roles: ['admin', 'finance'] },
         { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
         { to: '/documents', tKey: 'Conformidade CAE', icon: ShieldCheck, roles: ['cae_compliance'] },
-        { to: '/admin/users', tKey: 'navigation.access', icon: UserCog, roles: ['admin'] },
+        { to: '/operacoes/admin/usuarios', tKey: 'navigation.access', icon: UserCog, roles: ['admin'] },
         { to: '/admin/categories', tKey: 'Categorias (Descontos/Acresc)', icon: Tags, roles: ['admin'] },
     ];
 

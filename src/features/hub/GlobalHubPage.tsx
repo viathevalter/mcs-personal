@@ -149,10 +149,10 @@ export function GlobalHubPage() {
 
         // Mapeia roles globais do App para roles equivalentes nas filiais
         const mappedRoles = [...userMembershipRoles];
-        if (userRole === 'admin_rh') {
+        if (userRole === 'admin_rh' || userMembershipRoles.includes('rh')) {
             mappedRoles.push('rh');
         }
-        if (userRole === 'operador') {
+        if (userRole === 'operador' || userMembershipRoles.includes('operador')) {
             mappedRoles.push('operacoes');
         }
 
