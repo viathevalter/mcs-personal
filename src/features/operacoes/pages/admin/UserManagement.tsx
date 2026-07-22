@@ -51,7 +51,8 @@ export const UserManagement: React.FC = () => {
     const fetchCompanies = async () => {
         try {
             const { data, error } = await supabase
-                .from('core_common.empresas')
+                .schema('core_common')
+                .from('empresas')
                 .select('id, nome, codigo')
                 .eq('is_active', true)
                 .order('nome');
@@ -117,7 +118,8 @@ export const UserManagement: React.FC = () => {
         // Load existing memberships for this user
         try {
             const { data: memsData, error: memsError } = await supabase
-                .from('core_common.user_memberships')
+                .schema('core_common')
+                .from('user_memberships')
                 .select('*')
                 .eq('user_id', u.id);
 
@@ -182,7 +184,8 @@ export const UserManagement: React.FC = () => {
                 if (mem.is_active) {
                     // Upsert membership
                     const { error: upsertError } = await supabase
-                        .from('core_common.user_memberships')
+                        .schema('core_common')
+                        .from('user_memberships')
                         .upsert({
                             user_id: userId,
                             empresa_id: companyId,
@@ -195,7 +198,8 @@ export const UserManagement: React.FC = () => {
                 } else {
                     // Remove membership if disabled
                     const { error: deleteError } = await supabase
-                        .from('core_common.user_memberships')
+                        .schema('core_common')
+                        .from('user_memberships')
                         .delete()
                         .eq('user_id', userId)
                         .eq('empresa_id', companyId);
