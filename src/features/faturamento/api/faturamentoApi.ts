@@ -931,12 +931,26 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       const { data: clientsData, error: clientsError } = await supabase
         .schema('core_common')
         .from('clients')
-        .select('id, codigo, trade_name, payment_terms, payment_term_id, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
+        .select(`
+          id, codigo, trade_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+          client_company_settings (
+            empresa_id,
+            payment_term_id,
+            status
+          )
+        `)
         .in('id', clientIds);
       if (clientsError) console.error('Erro ao buscar clientes para tracking:', clientsError);
       else clients = clientsData || [];
     }
-    const clientsMap = new Map(clients.map(c => [c.id, c]));
+    const clientsMap = new Map(clients.map(c => {
+      const settings = c.client_company_settings?.find((s: any) => !empresaId || s.empresa_id === empresaId);
+      return [c.id, {
+        ...c,
+        payment_term_id: settings?.payment_term_id || null,
+        status: settings?.status || 'active'
+      }];
+    }));
 
     // Fetch all payment terms metadata
     const { data: ptData } = await supabase
@@ -974,7 +988,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
 
     return faturas.map(f => {
       const client = clientsMap.get(f.client_id);
-      const termName = client ? (client.payment_terms || (client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
+      const termName = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
       const termDays = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null) : null;
 
       return {
