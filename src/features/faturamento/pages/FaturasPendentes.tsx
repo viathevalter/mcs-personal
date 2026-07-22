@@ -834,6 +834,12 @@ MCS - Gestão Comercial`;
 
       const toastId = toast.loading('Compilando relatórios e gerando anexos em PDF de alta qualidade. Por favor, aguarde...');
 
+      // 1. Ensure the client card is expanded so the DOM elements are mounted and accessible
+      if (!expandedClients[emailData.cardId]) {
+        setExpandedClients(prev => ({ ...prev, [emailData.cardId]: true }));
+        await new Promise(resolve => setTimeout(resolve, 600)); // wait for expansion transition and layout mounting
+      }
+
       const relatorioAttachment = await generateHoursPDFAttachment(faturamento);
       const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe');
       const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura');
