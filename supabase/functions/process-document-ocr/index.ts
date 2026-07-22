@@ -53,10 +53,58 @@ serve(async (req) => {
       bucket_id = body.record.bucket_id;
       mime_type = body.record.metadata?.mimetype || "application/pdf";
       
-      const pathParts = file_path.split('/');
-      if (pathParts.length >= 3) {
-        client_id = pathParts[0];
-        worker_id = pathParts[1];
+      console.log(`[Storage Webhook] Buscando registro de horas para file_url: ${file_path}`);
+      // Buscar worker_id, year e month a partir do file_url no banco de dados
+      const { data: dbRecord, error: dbRecordErr } = await supabase
+        .schema('core_personal')
+        .from('worker_hours')
+        .select('worker_id, period_year, period_month, cliente_nombre')
+        .eq('file_url', file_path)
+        .limit(1)
+        .maybeSingle();
+
+      if (dbRecordErr) {
+        console.error("[Storage Webhook] Erro ao buscar registro no banco:", dbRecordErr);
+      }
+
+      if (dbRecord) {
+        worker_id = dbRecord.worker_id;
+        year = dbRecord.period_year;
+        month = dbRecord.period_month;
+        
+        // Resolver o client_id através do cliente_nombre do registro
+        if (dbRecord.cliente_nombre) {
+          const { data: allClients } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, legal_name, trade_name');
+
+          const matchedClient = allClients?.find((c: any) => 
+            c.legal_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) || 
+            c.trade_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) ||
+            dbRecord.cliente_nombre.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
+            dbRecord.cliente_nombre.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
+          );
+          if (matchedClient) {
+            client_id = matchedClient.id;
+            console.log(`[Storage Webhook] resolved client_id: ${client_id} para o cliente: ${dbRecord.cliente_nombre}`);
+          } else {
+            console.warn(`[Storage Webhook] Não foi possível resolver o client_id para o nome: ${dbRecord.cliente_nombre}`);
+          }
+        }
+      } else {
+        // Fallback para o comportamento anterior de tentar extrair do path
+        console.warn(`[Storage Webhook] Registro não encontrado para o file_url: ${file_path}. Usando fallback do path.`);
+        const pathParts = file_path.split('/');
+        if (pathParts.length >= 3) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(pathParts[0])) {
+            client_id = pathParts[0];
+          }
+          if (uuidRegex.test(pathParts[1])) {
+            worker_id = pathParts[1];
+          }
+        }
       }
     } else {
       // Chamada HTTP Direta
