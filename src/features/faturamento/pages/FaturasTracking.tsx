@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle } from 'lucide-react';
+import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -288,7 +288,10 @@ export function FaturasTracking() {
     const ivaPct = Number(adj.iva_pct || 0);
     const finalTotal = (fatura.total_valor + incrementos - reducoes) * (1 + ivaPct / 100);
 
-    let subject = `MCS - Solicitação de Aprovação de Horas - ${fatura.client?.nombre_comercial} - ${periodStr}`;
+    const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || fatura.client?.legal_name || 'Cliente';
+    const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
+
+    let subject = `MCS - Solicitação de Aprovação de Horas - ${clientName} - ${periodStr}`;
     const link = `${window.location.origin}/aprovacao-cliente/${fatura.magic_link_token}`;
     
     let body = `Olá,
@@ -296,7 +299,7 @@ export function FaturasTracking() {
 Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}.
 
 Em anexo, você encontrará os seguintes documentos para a sua análise:
-1. Informe de Facturación (IF-${periodYear}/0760)
+1. Informe de Facturación (${docNumber})
 2. Folha de ponto detalhada com as datas trabalhadas
 3. Fatura Pró-forma correspondente no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
@@ -309,14 +312,14 @@ Atenciosamente,
 MCS - Gestão Comercial`;
 
     if (isAcceptance) {
-      subject = `MCS - Aprovação de Ponto & Faturamento Ajustado - ${fatura.client?.nombre_comercial} - ${periodStr}`;
+      subject = `MCS - Aprovação de Ponto & Faturamento Ajustado - ${clientName} - ${periodStr}`;
       body = `Olá,
 
 Informamos que aceitamos as correções propostas na contestação de horas referente ao período de ${periodStr}.
 
 Os documentos de faturamento foram atualizados com sucesso e estão anexados a este e-mail para a sua conferência e arquivo:
 1. Folha de ponto detalhada com as datas trabalhadas retificadas
-2. Informe de Facturación (IF-${periodYear}/0760) atualizado
+2. Informe de Facturación (${docNumber}) atualizado
 3. Fatura Pró-forma correspondente retificada no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
 Qualquer dúvida ou necessidade de suporte, entre em contato respondendo a este e-mail.
@@ -326,10 +329,9 @@ MCS - Gestão Comercial`;
     }
 
     const defaultEmails: string[] = [];
-    if (fatura.client?.billingEmail) {
-      defaultEmails.push(fatura.client.billingEmail);
-    } else if (fatura.client?.clientEmail) {
-      defaultEmails.push(fatura.client.clientEmail);
+    const clientEmail = fatura.client?.billingEmail || fatura.client?.clientEmail || fatura.client?.email || fatura.client?.billing_email;
+    if (clientEmail) {
+      defaultEmails.push(clientEmail);
     }
     
     // Check some operations emails by default
@@ -343,7 +345,7 @@ MCS - Gestão Comercial`;
     setEmailData({
       faturaId: fatura.id,
       clientId: fatura.client_id,
-      clientName: fatura.client?.nombre_comercial || 'Cliente',
+      clientName: clientName,
       recipientEmail: defaultEmails.join(", "),
       subject,
       body,
@@ -357,6 +359,25 @@ MCS - Gestão Comercial`;
     });
     
     setIsEmailModalOpen(true);
+  };
+
+  const handleCancelFaturaTracking = async (faturaId: string) => {
+    const confirmDelete = window.confirm(
+      'Tem certeza que deseja cancelar e excluir esta fatura?\n\nTodas as horas associadas retornarão para o estado pendente no painel de faturamento para que você possa refazer do zero.'
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+      await cancelarFatura(faturaId);
+      toast.success('Fatura cancelada e horas liberadas com sucesso!');
+      fetchFaturas();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao cancelar fatura: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendEmail = async () => {
@@ -592,6 +613,13 @@ MCS - Gestão Comercial`;
                                 className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors"
                               >
                                 <Mail className="w-3.5 h-3.5" /> Reenviar E-mail
+                              </button>
+
+                              <button
+                                onClick={() => handleCancelFaturaTracking(fatura.id)}
+                                className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
                               </button>
                             </>
                           )}

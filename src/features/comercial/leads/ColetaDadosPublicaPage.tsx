@@ -5,8 +5,211 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2 } from 'lucide-react';
+import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+
+const translations = {
+  pt: {
+    back: 'Voltar',
+    optOutTitle: 'Subscrição Cancelada',
+    optOutDesc: 'O seu endereço de e-mail foi removido da lista.',
+    optOutInfo: 'Não receberá mais e-mails das nossas campanhas de marketing. Se isto foi um erro, entre em contato com nossa equipe.',
+    successTitle: 'Obrigado!',
+    successDesc: 'As suas informações foram salvas com sucesso.',
+    successInfo: 'Nossa equipe comercial já recebeu os dados atualizados e dará andamento à elaboração de sua proposta e contrato.',
+    badgeUpdate: 'Atualização cadastral',
+    badgeNew: 'Novo Cadastro',
+    titleUpdate: 'Ficha de Cadastro de Cliente',
+    titleNew: 'Ficha de Cadastro de Novo Lead',
+    descUpdate: (leadName: string, companyName: string) => `Olá, ${leadName}! Confirme ou complete os dados cadastrais da empresa ${companyName} para darmos início ao contrato.`,
+    descNew: 'Por favor, preencha os dados abaixo com as informações de sua empresa para gerarmos a proposta comercial.',
+    loadingForm: 'Carregando formulário...',
+    secIdent: 'Identificação da Empresa',
+    lblTradeName: 'Nome Comercial / Fantasia *',
+    phTradeName: 'Ex: Mastercorp Portugal',
+    lblLegalName: 'Razão Social *',
+    phLegalName: 'Ex: Mastercorp S.A.',
+    lblTaxId: 'NIF / CIF / CPF (Número Fiscal) *',
+    phTaxId: 'Ex: 500123456',
+    secContact: 'Contato Principal',
+    lblContactName: 'Nome do Ponto de Contato *',
+    phContactName: 'Ex: Ana Souza',
+    lblContactEmail: 'E-mail de Contato *',
+    phContactEmail: 'Ex: ana@empresa.com',
+    lblBillingEmail: 'E-mail para Faturamento',
+    phBillingEmail: 'Ex: financeiro@empresa.com',
+    lblPhone: 'Telefone *',
+    phPhone: 'Ex: +351 912 345 678',
+    secAddress: 'Endereço de Faturamento',
+    lblCountry: 'País',
+    lblRegion: 'Região',
+    lblProvince: 'Província',
+    phProvince: 'Ex: Madrid',
+    lblCity: 'Cidade',
+    phCity: 'Ex: Lisboa',
+    lblPostalCode: 'Código Postal',
+    phPostalCode: 'Ex: 1000-001',
+    lblAddressLine: 'Logradouro / Avenida / Rua e Número',
+    phAddressLine: 'Ex: Avenida da Liberdade, nº 123, 4º Andar',
+    btnSubmit: 'Confirmar e Enviar Dados',
+    btnSubmitting: 'Enviando Informações...',
+    requiredError: 'Por favor, preencha todos os campos obrigatórios.',
+    companyError: 'Identificador da empresa do grupo não encontrado.',
+    toastSuccess: 'Informações enviadas com sucesso!',
+    toastError: 'Erro ao enviar dados. Tente novamente.',
+    loadError: 'Não foi possível carregar as informações do formulário.'
+  },
+  es: {
+    back: 'Volver',
+    optOutTitle: 'Suscripción Cancelada',
+    optOutDesc: 'Su dirección de correo electrónico ha sido dada de baja.',
+    optOutInfo: 'Ya no recibirá más correos de nuestras campañas de marketing. Si esto fue un error, por favor póngase en contacto con nuestro equipo comercial.',
+    successTitle: '¡Gracias!',
+    successDesc: 'Su información ha sido guardada con éxito.',
+    successInfo: 'Nuestro equipo comercial ya ha recibido los datos actualizados y procederá con la elaboración de su propuesta y contrato.',
+    badgeUpdate: 'Actualización de datos',
+    badgeNew: 'Nuevo Registro',
+    titleUpdate: 'Ficha de Registro de Cliente',
+    titleNew: 'Ficha de Registro de Nuevo Lead',
+    descUpdate: (leadName: string, companyName: string) => `¡Hola, ${leadName}! Confirme o complete los datos de registro de la empresa ${companyName} para iniciar el contrato.`,
+    descNew: 'Por favor, complete los datos a continuación con la información de su empresa para generar la propuesta comercial.',
+    loadingForm: 'Cargando formulario...',
+    secIdent: 'Identificación de la Empresa',
+    lblTradeName: 'Nombre Comercial / Fantasía *',
+    phTradeName: 'Ej: Talleres Metalúrgicos S.L.',
+    lblLegalName: 'Razón Social *',
+    phLegalName: 'Ej: Metalúrgicas Unidas S.A.',
+    lblTaxId: 'NIF / CIF / NIE (Número Fiscal) *',
+    phTaxId: 'Ej: B12345678',
+    secContact: 'Contacto Principal',
+    lblContactName: 'Nombre del Punto de Contacto *',
+    phContactName: 'Ej: Juan Pérez',
+    lblContactEmail: 'Correo Electrónico de Contacto *',
+    phContactEmail: 'Ej: contacto@empresa.com',
+    lblBillingEmail: 'Correo Electrónico para Facturación',
+    phBillingEmail: 'Ej: financiero@empresa.com',
+    lblPhone: 'Teléfono *',
+    phPhone: 'Ej: +34 600 000 000',
+    secAddress: 'Dirección de Facturación',
+    lblCountry: 'País',
+    lblRegion: 'Región',
+    lblProvince: 'Provincia',
+    phProvince: 'Ej: Madrid',
+    lblCity: 'Ciudad',
+    phCity: 'Ej: Barcelona',
+    lblPostalCode: 'Código Postal',
+    phPostalCode: 'Ej: 28001',
+    lblAddressLine: 'Calle, Avenida o Plaza y Número',
+    phAddressLine: 'Ej: Gran Vía, nº 123, 4º Derecha',
+    btnSubmit: 'Confirmar y Enviar Datos',
+    btnSubmitting: 'Enviando Información...',
+    requiredError: 'Por favor, rellene todos los campos obligatorios.',
+    companyError: 'Identificador de la empresa del grupo no encontrado.',
+    toastSuccess: '¡Información enviada con éxito!',
+    toastError: 'Error al enviar los datos. Inténtelo de nuevo.',
+    loadError: 'No se pudo cargar la información del formulario.'
+  },
+  it: {
+    back: 'Indietro',
+    optOutTitle: 'Iscrizione Annullata',
+    optOutDesc: 'Il tuo indirizzo email è stato rimosso dalla lista.',
+    optOutInfo: 'Non riceverai più email dalle nostre campagne di marketing. Se si è trattato di un errore, contatta il nostro team commerciale.',
+    successTitle: 'Grazie!',
+    successDesc: 'Le tue informazioni sono state salvate con successo.',
+    successInfo: 'Il nostro team commerciale ha già ricevuto i dati aggiornati e procederà con la stesura della proposta e del contratto.',
+    badgeUpdate: 'Aggiornamento dati',
+    badgeNew: 'Nuovo Profilo',
+    titleUpdate: 'Scheda di Registrazione Cliente',
+    titleNew: 'Scheda di Registrazione Nuovo Lead',
+    descUpdate: (leadName: string, companyName: string) => `Ciao, ${leadName}! Conferma o completa i dati di registrazione dell'azienda ${companyName} per avviare il contratto.`,
+    descNew: 'Si prega di compilare i dati sottostanti con le informazioni della propria azienda per generare la proposta proposta.',
+    loadingForm: 'Caricamento del modulo...',
+    secIdent: 'Identificazione dell\'Azienda',
+    lblTradeName: 'Nome Commerciale / Insegna *',
+    phTradeName: 'Es: Carpenteria Metallica S.R.L.',
+    lblLegalName: 'Ragione Sociale *',
+    phLegalName: 'Es: Carpenterie Unite S.P.A.',
+    lblTaxId: 'Partita IVA / Codice Fiscale *',
+    phTaxId: 'Es: IT12345678901',
+    secContact: 'Contatto Principale',
+    lblContactName: 'Nome del Punto di Contatto *',
+    phContactName: 'Es: Mario Rossi',
+    lblContactEmail: 'Email di Contatto *',
+    phContactEmail: 'Es: contatto@azienda.it',
+    lblBillingEmail: 'Email per Fatturazione',
+    phBillingEmail: 'Es: amministrazione@azienda.it',
+    lblPhone: 'Telefono *',
+    phPhone: 'Es: +39 02 1234567',
+    secAddress: 'Indirizzo di Fatturazione',
+    lblCountry: 'Paese',
+    lblRegion: 'Regione',
+    lblProvince: 'Provincia',
+    phProvince: 'Es: Milano',
+    lblCity: 'Città',
+    phCity: 'Es: Roma',
+    lblPostalCode: 'Codice Postale',
+    phPostalCode: 'Es: 20121',
+    lblAddressLine: 'Via, Viale o Piazza e Numero Civico',
+    phAddressLine: 'Es: Corso Vittorio Emanuele II, n. 123',
+    btnSubmit: 'Conferma e Invia Dati',
+    btnSubmitting: 'Invio Informazioni in corso...',
+    requiredError: 'Si prega di compilare tutti i campi obbligatori.',
+    companyError: 'Identificativo dell\'azienda del gruppo non trovato.',
+    toastSuccess: 'Informazioni inviate con successo!',
+    toastError: 'Errore durante l\'invio dei dati. Riprova.',
+    loadError: 'Impossibile caricare le informazioni del modulo.'
+  },
+  fr: {
+    back: 'Retour',
+    optOutTitle: 'Désinscription Confirmée',
+    optOutDesc: 'Votre adresse e-mail a été supprimée de la liste.',
+    optOutInfo: 'Vous ne recevrez plus d\'e-mails de nos campagnes marketing. Si c\'était une erreur, veuillez contacter notre équipe commerciale.',
+    successTitle: 'Merci !',
+    successDesc: 'Vos informations ont été enregistrées avec succès.',
+    successInfo: 'Notre équipe commerciale a bien reçu les données mises à jour et va procéder à la rédaction de votre proposition et de votre contrat.',
+    badgeUpdate: 'Mise à jour des données',
+    badgeNew: 'Nouveau Fiche',
+    titleUpdate: 'Fiche d\'Enregistrement Client',
+    titleNew: 'Fiche d\'Enregistrement Nouveau Lead',
+    descUpdate: (leadName: string, companyName: string) => `Bonjour, ${leadName} ! Veuillez confirmer ou compléter les données d'enregistrement de l'entreprise ${companyName} pour lancer le contrat.`,
+    descNew: 'Veuillez remplir les données ci-dessous avec les informations de votre entreprise afin de générer la proposition commerciale.',
+    loadingForm: 'Chargement du formulaire...',
+    secIdent: 'Identification de l\'Entreprise',
+    lblTradeName: 'Nom Commercial / Enseigne *',
+    phTradeName: 'Ex : Chaudronnerie Métallique S.A.S.',
+    lblLegalName: 'Raison Sociale *',
+    phLegalName: 'Ex : Métallurgie Réunie S.A.',
+    lblTaxId: 'Numéro de TVA / SIRET *',
+    phTaxId: 'Ex : FR12345678901',
+    secContact: 'Contact Principal',
+    lblContactName: 'Nom du Point de Contact *',
+    phContactName: 'Ex : Jean Dupont',
+    lblContactEmail: 'E-mail de Contact *',
+    phContactEmail: 'Ex : contact@entreprise.fr',
+    lblBillingEmail: 'E-mail de Facturation',
+    phBillingEmail: 'Ex : compta@entreprise.fr',
+    lblPhone: 'Téléphone *',
+    phPhone: 'Ex : +33 1 23 45 67 89',
+    secAddress: 'Adresse de Facturation',
+    lblCountry: 'Pays',
+    lblRegion: 'Région',
+    lblProvince: 'Département / Province',
+    phProvince: 'Ex : Paris',
+    lblCity: 'Ville',
+    phCity: 'Ex : Lyon',
+    lblPostalCode: 'Code Postal',
+    phPostalCode: 'Ex : 75001',
+    lblAddressLine: 'Rue, Avenue ou Boulevard et Numéro',
+    phAddressLine: 'Ex : Rue de la Paix, nº 123',
+    btnSubmit: 'Confirmer et Envoyer les Données',
+    btnSubmitting: 'Envoi des Informations...',
+    requiredError: 'Veuillez remplir tous les champs obligatoires.',
+    companyError: 'Identifiant de l\'entreprise du groupe introuvable.',
+    toastSuccess: 'Informations envoyées avec succès !',
+    toastError: 'Erreur lors de l\'envoi des données. Veuillez réessayer.',
+    loadError: 'Impossible de charger les informations du formulaire.'
+  }
+};
 
 export function ColetaDadosPublicaPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +225,21 @@ export function ColetaDadosPublicaPage() {
   const [leadName, setLeadName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [empresaId, setEmpresaId] = useState('');
+
+  // Language detection logic
+  const getInitialLang = (): 'es' | 'it' | 'fr' | 'pt' => {
+    const urlLang = searchParams.get('lang')?.toLowerCase();
+    if (urlLang === 'pt' || urlLang === 'es' || urlLang === 'it' || urlLang === 'fr') {
+      return urlLang as any;
+    }
+    const browserLang = navigator.language.slice(0, 2).toLowerCase();
+    if (browserLang === 'pt' || browserLang === 'it' || browserLang === 'fr') {
+      return browserLang as any;
+    }
+    return 'es'; // Default fallback for European business
+  };
+  const [lang, setLang] = useState<'es' | 'it' | 'fr' | 'pt'>(getInitialLang);
+  const t = translations[lang];
 
   // Form State
   const [formData, setFormData] = useState({
@@ -47,7 +265,7 @@ export function ColetaDadosPublicaPage() {
         if (empresaIdParam) {
           setEmpresaId(empresaIdParam);
         } else {
-          toast.error('Parâmetros inválidos. O link precisa conter o identificador da empresa.');
+          toast.error(t.companyError);
         }
         return;
       }
@@ -136,24 +354,24 @@ export function ColetaDadosPublicaPage() {
         }
       } catch (err: any) {
         console.error(err);
-        toast.error('Não foi possível carregar as informações do formulário.');
+        toast.error(t.loadError);
       } finally {
         setIsLoading(false);
       }
     }
 
     loadLeadData();
-  }, [id, empresaIdParam]);
+  }, [id, empresaIdParam, lang]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.phone || !formData.company_name || !formData.legal_name || !formData.tax_id) {
-      toast.error('Por favor, preencha todos os campos obrigatórios.');
+      toast.error(t.requiredError);
       return;
     }
 
     if (!empresaId) {
-      toast.error('Identificador da empresa do grupo não encontrado.');
+      toast.error(t.companyError);
       return;
     }
 
@@ -209,10 +427,10 @@ export function ColetaDadosPublicaPage() {
       }
 
       setIsSubmitted(true);
-      toast.success('Informações enviadas com sucesso!');
+      toast.success(t.toastSuccess);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao enviar dados. Tente novamente.');
+      toast.error(err.message || t.toastError);
     } finally {
       setIsLoading(false);
     }
@@ -227,13 +445,13 @@ export function ColetaDadosPublicaPage() {
             <CheckCircle className="h-10 w-10 text-red-500" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Suscripción Cancelada</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">{t.optOutTitle}</h1>
             <p className="text-slate-400 text-lg">
-              Su dirección de correo electrónico ha sido dada de baja.
+              {t.optOutDesc}
             </p>
           </div>
           <p className="text-slate-500 text-sm">
-            Ya no receberá más correos de nuestras campañas de marketing. Si esto fue un error, por favor póngase en contacto con nuestro equipo comercial.
+            {t.optOutInfo}
           </p>
         </div>
       </div>
@@ -249,13 +467,13 @@ export function ColetaDadosPublicaPage() {
             <CheckCircle className="h-10 w-10" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Obrigado!</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">{t.successTitle}</h1>
             <p className="text-slate-400 text-lg">
-              Suas informações foram salvas com sucesso.
+              {t.successDesc}
             </p>
           </div>
           <p className="text-slate-500 text-sm">
-            Nossa equipe comercial já recebeu os dados atualizados e dará andamento à elaboração de sua proposta e contrato.
+            {t.successInfo}
           </p>
         </div>
       </div>
@@ -271,27 +489,46 @@ export function ColetaDadosPublicaPage() {
         {/* Decorative Top Accent Bar */}
         <div className="h-1.5 bg-gradient-to-r from-yellow-500 to-amber-500" />
         
-        <div className="p-8 sm:p-10 space-y-8">
+        <div className="relative p-8 sm:p-10 space-y-8">
           
+          {/* Language Selector */}
+          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-full p-1 z-10">
+            <Globe className="h-3 w-3 text-slate-500 ml-1.5 mr-0.5 shrink-0" />
+            {(['es', 'it', 'fr', 'pt'] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(l)}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${
+                  lang === l
+                    ? 'bg-yellow-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+
           {/* Header */}
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs font-semibold uppercase tracking-wider">
-              {id ? 'Atualização cadastral' : 'Novo Cadastro'}
+              {id ? t.badgeUpdate : t.badgeNew}
             </div>
             <h1 className="text-3xl font-bold text-white tracking-tight leading-tight">
-              {id ? 'Ficha de Cadastro de Cliente' : 'Ficha de Cadastro de Novo Lead'}
+              {id ? t.titleUpdate : t.titleNew}
             </h1>
             <p className="text-slate-400 text-sm">
               {id 
-                ? `Olá, ${leadName}! Confirme ou complete os dados cadastrais da empresa ${companyName} para darmos início ao contrato.`
-                : 'Por favor, preencha os dados abaixo com as informações de sua empresa para gerarmos a proposta comercial.'}
+                ? t.descUpdate(leadName, companyName)
+                : t.descNew}
             </p>
           </div>
 
           {isLoading && !formData.name ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
               <Loader2 className="h-10 w-10 text-yellow-500 animate-spin" />
-              <p className="text-slate-500 text-sm">Carregando formulário...</p>
+              <p className="text-slate-500 text-sm">{t.loadingForm}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -300,16 +537,16 @@ export function ColetaDadosPublicaPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                   <Building className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Identificação da Empresa</h3>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secIdent}</h3>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="company_name" className="text-slate-300">Nome Comercial / Fantasia *</Label>
+                    <Label htmlFor="company_name" className="text-slate-300">{t.lblTradeName}</Label>
                     <Input
                       id="company_name"
                       required
-                      placeholder="Ex: Mastercorp Portugal"
+                      placeholder={t.phTradeName}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                       value={formData.company_name}
                       onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
@@ -317,11 +554,11 @@ export function ColetaDadosPublicaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="legal_name" className="text-slate-300">Razão Social *</Label>
+                    <Label htmlFor="legal_name" className="text-slate-300">{t.lblLegalName}</Label>
                     <Input
                       id="legal_name"
                       required
-                      placeholder="Ex: Mastercorp S.A."
+                      placeholder={t.phLegalName}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                       value={formData.legal_name}
                       onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
@@ -330,11 +567,11 @@ export function ColetaDadosPublicaPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="tax_id" className="text-slate-300">NIF / CIF / CPF (Número Fiscal) *</Label>
+                  <Label htmlFor="tax_id" className="text-slate-300">{t.lblTaxId}</Label>
                   <Input
                     id="tax_id"
                     required
-                    placeholder="Ex: 500123456"
+                    placeholder={t.phTaxId}
                     className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                     value={formData.tax_id}
                     onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
@@ -346,15 +583,15 @@ export function ColetaDadosPublicaPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                   <User className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Contato Principal</h3>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secContact}</h3>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-slate-300">Nome do Ponto de Contato *</Label>
+                  <Label htmlFor="name" className="text-slate-300">{t.lblContactName}</Label>
                   <Input
                     id="name"
                     required
-                    placeholder="Ex: Ana Souza"
+                    placeholder={t.phContactName}
                     className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -363,14 +600,14 @@ export function ColetaDadosPublicaPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-slate-300">E-mail de Contato *</Label>
+                    <Label htmlFor="email" className="text-slate-300">{t.lblContactEmail}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                       <Input
                         id="email"
                         type="email"
                         required
-                        placeholder="Ex: ana@empresa.com"
+                        placeholder={t.phContactEmail}
                         className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -379,13 +616,13 @@ export function ColetaDadosPublicaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="billing_email" className="text-slate-300">E-mail para Faturamento</Label>
+                    <Label htmlFor="billing_email" className="text-slate-300">{t.lblBillingEmail}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                       <Input
                         id="billing_email"
                         type="email"
-                        placeholder="Ex: financeiro@empresa.com"
+                        placeholder={t.phBillingEmail}
                         className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
                         value={formData.billing_email}
                         onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
@@ -395,13 +632,13 @@ export function ColetaDadosPublicaPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-slate-300">Telefone *</Label>
+                  <Label htmlFor="phone" className="text-slate-300">{t.lblPhone}</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                     <Input
                       id="phone"
                       required
-                      placeholder="Ex: +351 912 345 678"
+                      placeholder={t.phPhone}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -414,12 +651,12 @@ export function ColetaDadosPublicaPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                   <MapPin className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Endereço de Faturamento</h3>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secAddress}</h3>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-slate-300">País</Label>
+                    <Label className="text-slate-300">{t.lblCountry}</Label>
                     <CountrySelector
                       value={formData.country_id || null}
                       onChange={(val) => setFormData({ ...formData, country_id: val || '', region_id: '' })}
@@ -427,7 +664,7 @@ export function ColetaDadosPublicaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Região</Label>
+                    <Label className="text-slate-300">{t.lblRegion}</Label>
                     <RegionSelector
                       countryId={formData.country_id || null}
                       value={formData.region_id || null}
@@ -438,10 +675,10 @@ export function ColetaDadosPublicaPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="province" className="text-slate-300">Província</Label>
+                    <Label htmlFor="province" className="text-slate-300">{t.lblProvince}</Label>
                     <Input
                       id="province"
-                      placeholder="Ex: Madrid"
+                      placeholder={t.phProvince}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                       value={formData.province}
                       onChange={(e) => setFormData({ ...formData, province: e.target.value })}
@@ -449,10 +686,10 @@ export function ColetaDadosPublicaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="city" className="text-slate-300">Cidade</Label>
+                    <Label htmlFor="city" className="text-slate-300">{t.lblCity}</Label>
                     <Input
                       id="city"
-                      placeholder="Ex: Lisboa"
+                      placeholder={t.phCity}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
@@ -460,10 +697,10 @@ export function ColetaDadosPublicaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="postal_code" className="text-slate-300">Código Postal</Label>
+                    <Label htmlFor="postal_code" className="text-slate-300">{t.lblPostalCode}</Label>
                     <Input
                       id="postal_code"
-                      placeholder="Ex: 1000-001"
+                      placeholder={t.phPostalCode}
                       className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                       value={formData.postal_code}
                       onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
@@ -472,10 +709,10 @@ export function ColetaDadosPublicaPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="address_line" className="text-slate-300">Logradouro / Avenida / Rua e Número</Label>
+                  <Label htmlFor="address_line" className="text-slate-300">{t.lblAddressLine}</Label>
                   <Input
                     id="address_line"
-                    placeholder="Ex: Avenida da Liberdade, nº 123, 4º Andar"
+                    placeholder={t.phAddressLine}
                     className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
                     value={formData.address_line}
                     onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
@@ -492,10 +729,10 @@ export function ColetaDadosPublicaPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Enviando Informações...
+                      {t.btnSubmitting}
                     </>
                   ) : (
-                    'Confirmar e Enviar Dados'
+                    t.btnSubmit
                   )}
                 </Button>
               </div>
