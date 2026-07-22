@@ -24,7 +24,8 @@ import {
   Loader2,
   HelpCircle,
   AlertTriangle,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
 import { toast } from 'sonner';
@@ -82,6 +83,61 @@ export const HiringDashboardPage: React.FC = () => {
     } finally {
       setIsCancelPending(false);
     }
+  };
+
+  const handleCopyTeamsText = (alloc: any) => {
+    const worker = alloc.worker || {};
+    const clienteNome = selectedPedido?.client?.trade_name || selectedPedido?.client?.legal_name || 'Desconhecido';
+    const pedidoCodigo = selectedPedido?.codigo || 'N/A';
+    
+    // Formatar data de início
+    let dataInicio = 'N/A';
+    const dateSrc = alloc.planned_start_date || alloc.start_date;
+    if (dateSrc) {
+      const dateObj = new Date(dateSrc);
+      if (!isNaN(dateObj.getTime())) {
+        // Garantir fuso horário local correto ao converter date string (YYYY-MM-DD)
+        const parts = String(dateSrc).split('-');
+        if (parts.length === 3) {
+          dataInicio = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        } else {
+          dataInicio = dateObj.toLocaleDateString('pt-BR');
+        }
+      }
+    }
+    
+    // Formatar tamanho uniforme
+    const camiseta = worker.camiseta || '';
+    const calca = worker.pantalones || '';
+    let tallaUniforme = 'Não informado';
+    if (camiseta || calca) {
+      tallaUniforme = `${camiseta}${calca ? `(${calca})` : ''}`;
+    }
+    
+    // Formatar tarifa
+    const tarifa = alloc.tarifa_acordada ? `${Number(alloc.tarifa_acordada).toFixed(2).replace('.', ',')} €` : 'N/A';
+
+    const text = `${clienteNome.toUpperCase()} - Pedido ${pedidoCodigo}
+
+Abajo la contratación del PEDIDO ${pedidoCodigo}
+
+NOMBRE: ${(worker.nome || 'Desconhecido').toUpperCase()}
+NÚMERO DEL MÓVIL: ${worker.movil || 'Não informado'}
+EMPRESA: ${clienteNome.toUpperCase()}
+NÚMERO DEL PEDIDO: ${pedidoCodigo}
+FECHA DE INICIO: ${dataInicio}
+FUNÇÃO: ${(alloc.job_function_name_snapshot || 'Desconhecida').toUpperCase()}
+TARIFA: ${tarifa}
+TALLA UNIFORME: ${tallaUniforme}`;
+
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        toast.success(`Dados de ${worker.nome || 'trabalhador'} copiados no formato do Teams!`);
+      })
+      .catch((err) => {
+        console.error('Erro ao copiar para clipboard:', err);
+        toast.error('Não foi possível copiar os dados automaticamente.');
+      });
   };
 
   const getProfileQuestions = (perguntaRespuesta: any, cargoName: string) => {
@@ -993,12 +1049,25 @@ export const HiringDashboardPage: React.FC = () => {
                               </span>
                             </div>
 
-                            <div className="col-span-2 flex items-center space-x-1.5 text-slate-655 dark:text-slate-400 pt-1 border-t border-slate-100/40 border-dashed">
-                              <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                              <span className="font-semibold text-slate-500">Tarifa Acordada:</span>
-                              <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900">
-                                {alloc.tarifa_acordada ? `${Number(alloc.tarifa_acordada).toFixed(2)} €/h` : 'N/A'}
-                              </span>
+                            <div className="col-span-2 flex justify-between items-center pt-1 border-t border-slate-100/40 border-dashed">
+                              <div className="flex items-center space-x-1.5 text-slate-655 dark:text-slate-400">
+                                <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                <span className="font-semibold text-slate-500">Tarifa Acordada:</span>
+                                <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900">
+                                  {alloc.tarifa_acordada ? `${Number(alloc.tarifa_acordada).toFixed(2)} €/h` : 'N/A'}
+                                </span>
+                              </div>
+                              {!isTerminated && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyTeamsText(alloc)}
+                                  className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 px-2.5 py-1 rounded border border-indigo-200 dark:border-indigo-900/60 transition-colors shrink-0 shadow-sm"
+                                  title="Copiar dados formatados para colar no Teams"
+                                >
+                                  <Copy className="h-3 w-3 shrink-0" />
+                                  Teams
+                                </button>
+                              )}
                             </div>
 
                           </div>
