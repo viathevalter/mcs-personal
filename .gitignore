@@ -26,4 +26,6 @@ dist-ssr
 .vercel
 .env*
 scratch/
+perguntas_tecnicas_propostas.xlsx
+~$perguntas_tecnicas_propostas.xlsx
 
