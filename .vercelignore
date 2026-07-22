@@ -14,6 +14,7 @@ scratch
 *.mjs
 *.ts
 !src/**/*
+!public/**/*
 !supabase/**/*
 !vite.config.ts
 !tsconfig*.json
