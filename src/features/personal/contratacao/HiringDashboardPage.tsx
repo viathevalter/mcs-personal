@@ -106,9 +106,9 @@ export const HiringDashboardPage: React.FC = () => {
       }
     }
     
-    // Formatar tamanho camiseta e calça (TALLA UNIFORME)
-    const camisetaText = worker.camiseta ? `TALLA UNIFORME: ${worker.camiseta}` : 'TALLA UNIFORME: Não informado';
-    const calcaText = worker.pantalones ? `TALLA UNIFORME: ${worker.pantalones}` : 'TALLA UNIFORME: Não informado';
+    // Formatar tamanho camiseta e calça
+    const camisetaVal = worker.camiseta || 'Não informado';
+    const calcaVal = worker.pantalones || 'Não informado';
     
     // Formatar CNH (LICENCIA DE CONDUCIR)
     const cnh = worker.licencia_conducir === 'Si' ? 'Si' : 'No';
@@ -116,7 +116,8 @@ export const HiringDashboardPage: React.FC = () => {
     // Formatar tarifa
     const tarifa = alloc.tarifa_acordada ? `${Number(alloc.tarifa_acordada).toFixed(2).replace('.', ',')} €` : 'N/A';
 
-    const text = `${clienteNome.toUpperCase()} - Pedido ${pedidoCodigo}
+    // 1. Texto Plano (Plain Text) para fallback
+    const plainText = `${clienteNome.toUpperCase()} - Pedido ${pedidoCodigo}
 
 Abajo la contratación del PEDIDO ${pedidoCodigo}
 
@@ -125,19 +126,49 @@ NÚMERO DEL MÓVIL: ${worker.movil || 'Não informado'}
 EMPRESA: ${clienteNome.toUpperCase()}
 NÚMERO DEL PEDIDO: ${pedidoCodigo}
 FECHA DE INICIO: ${dataInicio}
-FUNÇÃO: ${(alloc.job_function_name_snapshot || 'Desconhecida').toUpperCase()}
+FUNCIÓN: ${(alloc.job_function_name_snapshot || 'Desconhecida').toUpperCase()}
 TARIFA: ${tarifa}
-${camisetaText}
-${calcaText}
+TALLA UNIFORME: ${camisetaVal}
+TALLA UNIFORME: ${calcaVal}
 LICENCIA DE CONDUCIR: ${cnh}`;
 
-    navigator.clipboard.writeText(text)
+    // 2. Rich Text (HTML) para manter negritos no Teams
+    const htmlText = `<div><strong>${clienteNome.toUpperCase()} - Pedido ${pedidoCodigo}</strong></div>
+<div>Abajo la contratación del PEDIDO ${pedidoCodigo}</div>
+<br />
+<div><strong>NOMBRE:</strong> ${(worker.nome || 'Desconhecido').toUpperCase()}</div>
+<div><strong>NÚMERO DEL MÓVIL:</strong> ${worker.movil || 'Não informado'}</div>
+<div><strong>EMPRESA:</strong> ${clienteNome.toUpperCase()}</div>
+<div><strong>NÚMERO DEL PEDIDO:</strong> ${pedidoCodigo}</div>
+<div><strong>FECHA DE INICIO:</strong> ${dataInicio}</div>
+<div><strong>FUNCIÓN:</strong> ${(alloc.job_function_name_snapshot || 'Desconhecida').toUpperCase()}</div>
+<div><strong>TARIFA:</strong> ${tarifa}</div>
+<div><strong>TALLA UNIFORME:</strong> ${camisetaVal}</div>
+<div><strong>TALLA UNIFORME:</strong> ${calcaVal}</div>
+<div><strong>LICENCIA DE CONDUCIR:</strong> ${cnh}</div>`;
+
+    // Gravar no Clipboard os dois formatos
+    const clipboardData = [
+      new ClipboardItem({
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        'text/html': new Blob([htmlText], { type: 'text/html' })
+      })
+    ];
+
+    navigator.clipboard.write(clipboardData)
       .then(() => {
-        toast.success(`Dados de ${worker.nome || 'trabalhador'} copiados no formato do Teams!`);
+        toast.success(`Dados de ${worker.nome || 'trabalhador'} copiados em negrito para o Teams!`);
       })
       .catch((err) => {
         console.error('Erro ao copiar para clipboard:', err);
-        toast.error('Não foi possível copiar os dados automaticamente.');
+        // Fallback simples se write(ClipboardItem) falhar por algum motivo de compatibilidade
+        navigator.clipboard.writeText(plainText)
+          .then(() => {
+            toast.success(`Dados copiados (formato texto simples)`);
+          })
+          .catch(() => {
+            toast.error('Não foi possível copiar os dados automaticamente.');
+          });
       });
   };
 
