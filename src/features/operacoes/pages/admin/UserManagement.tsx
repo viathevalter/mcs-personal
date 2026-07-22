@@ -181,29 +181,53 @@ export const UserManagement: React.FC = () => {
             // 4. Update Company Memberships
             for (const companyId of Object.keys(membershipsForm)) {
                 const mem = membershipsForm[companyId];
+                
+                // Check if membership already exists for this user and company
+                const { data: existing, error: searchError } = await supabase
+                    .schema('core_common')
+                    .from('user_memberships')
+                    .select('id')
+                    .eq('user_id', userId)
+                    .eq('empresa_id', companyId)
+                    .maybeSingle();
+
+                if (searchError) throw searchError;
+
                 if (mem.is_active) {
-                    // Upsert membership
-                    const { error: upsertError } = await supabase
-                        .schema('core_common')
-                        .from('user_memberships')
-                        .upsert({
-                            user_id: userId,
-                            empresa_id: companyId,
-                            role: mem.role,
-                            is_active: true
-                        }, {
-                            onConflict: 'user_id,empresa_id,role'
-                        });
-                    if (upsertError) throw upsertError;
+                    if (existing) {
+                        // Update existing membership
+                        const { error: updateError } = await supabase
+                            .schema('core_common')
+                            .from('user_memberships')
+                            .update({
+                                role: mem.role,
+                                is_active: true
+                            })
+                            .eq('id', existing.id);
+                        if (updateError) throw updateError;
+                    } else {
+                        // Insert new membership
+                        const { error: insertError } = await supabase
+                            .schema('core_common')
+                            .from('user_memberships')
+                            .insert({
+                                user_id: userId,
+                                empresa_id: companyId,
+                                role: mem.role,
+                                is_active: true
+                            });
+                        if (insertError) throw insertError;
+                    }
                 } else {
                     // Remove membership if disabled
-                    const { error: deleteError } = await supabase
-                        .schema('core_common')
-                        .from('user_memberships')
-                        .delete()
-                        .eq('user_id', userId)
-                        .eq('empresa_id', companyId);
-                    if (deleteError) throw deleteError;
+                    if (existing) {
+                        const { error: deleteError } = await supabase
+                            .schema('core_common')
+                            .from('user_memberships')
+                            .delete()
+                            .eq('id', existing.id);
+                        if (deleteError) throw deleteError;
+                    }
                 }
             }
 
@@ -214,9 +238,9 @@ export const UserManagement: React.FC = () => {
             if (user?.id === userId) {
                 await refreshProfile();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving:', error);
-            alert('Erro ao salvar alterações');
+            alert('Erro ao salvar alterações: ' + (error.message || JSON.stringify(error)));
         } finally {
             setIsSaving(false);
         }
