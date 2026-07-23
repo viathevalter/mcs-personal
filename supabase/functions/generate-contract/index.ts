@@ -228,6 +228,40 @@ serve(async (req) => {
       }
     }
 
+    // Tentar buscar preferências salvas na solicitação de documentos do trabalhador (data_inicio e cliente)
+    try {
+      const { data: latestDocReq } = await supabase
+        .schema("core_personal")
+        .from("document_requests")
+        .select("extracted_data")
+        .eq("worker_id", worker.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestDocReq?.extracted_data) {
+        if (latestDocReq.extracted_data.start_date) {
+          startDate = latestDocReq.extracted_data.start_date;
+          console.log(`Utilizando data de início da solicitação de documentos: ${startDate}`);
+        }
+        if (latestDocReq.extracted_data.client_id) {
+          const { data: cli } = await supabase
+            .schema("core_common")
+            .from("clients")
+            .select("legal_name, trade_name, address_line, city")
+            .eq("id", latestDocReq.extracted_data.client_id)
+            .maybeSingle();
+          if (cli) {
+            clientName = cli.trade_name || cli.legal_name || clientName;
+            clientAddress = [cli.address_line, cli.city].filter(Boolean).join(", ");
+            console.log(`Utilizando cliente da solicitação de documentos: ${clientName}`);
+          }
+        }
+      }
+    } catch (errDocReq) {
+      console.error("Erro ao carregar dados da solicitação de documentos:", errDocReq);
+    }
+
     // Formatar datas auxiliares
     const formatDate = (dateStr?: string | null) => {
       if (!dateStr) return "";
