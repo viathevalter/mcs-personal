@@ -340,9 +340,39 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
             if (!filePath) throw new Error("Caminho inválido");
 
+            // Sanitizar o arquivo XML (fechar tags <w:p> pendentes e escapar &) antes de subir
+            let fileToUpload: Blob = file;
+            try {
+                const arrayBuf = await file.arrayBuffer();
+                const zip = new JSZip();
+                await zip.loadAsync(arrayBuf);
+
+                for (const relPath of Object.keys(zip.files)) {
+                    if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
+                        let xml = await zip.file(relPath)!.async('text');
+                        
+                        const openP = (xml.match(/<w:p[ >]/g) || []).length;
+                        const closeP = (xml.match(/<\/w:p>/g) || []).length;
+                        const diffP = openP - closeP;
+                        if (diffP > 0) {
+                            const missing = '</w:p>'.repeat(diffP);
+                            if (xml.includes('</w:body>')) {
+                                xml = xml.replace('</w:body>', missing + '</w:body>');
+                            }
+                        }
+
+                        const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
+                        zip.file(relPath, escaped);
+                    }
+                }
+                fileToUpload = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            } catch (zipErr) {
+                console.warn("Erro na sanitização JSZip do upload:", zipErr);
+            }
+
             const { error } = await supabase.storage
                 .from('contract-templates')
-                .upload(filePath, file, {
+                .upload(filePath, fileToUpload, {
                     upsert: true,
                     contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 });
