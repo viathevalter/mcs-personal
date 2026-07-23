@@ -148,22 +148,19 @@ export const UserManagement: React.FC = () => {
         try {
             const userId = selectedUser.id;
 
+            // Check if user exists in auth.users
+            const { data: authExists, error: authCheckError } = await supabase.rpc('does_auth_user_exist', {
+                target_user_id: userId
+            });
+            if (authCheckError) throw authCheckError;
+
             // 1. Update display_name
             await supabase
                 .from('mcs_users')
                 .update({ display_name: formData.display_name })
                 .eq('id', userId);
 
-            // 2. Call secure RPC to update Roles and Departments
-            const { error: rpcError } = await supabase.rpc('update_user_role', {
-                target_user_id: userId,
-                new_role: formData.role,
-                new_managed_departments: formData.role === 'admin' ? formData.managed_departments || [] : []
-            });
-
-            if (rpcError) throw rpcError;
-
-            // 3. Update Employee Link
+            // 2. Update Employee Link
             await supabase
                 .from('mcs_department_members')
                 .update({ user_id: null })
@@ -177,6 +174,22 @@ export const UserManagement: React.FC = () => {
 
                 if (linkError) throw linkError;
             }
+
+            if (!authExists) {
+                alert('Dados básicos salvos com sucesso!\n\nNota: Este usuário ainda não se cadastrou no sistema (não existe em auth.users). Por isso, o perfil de acesso global e os vínculos com empresas só poderão ser salvos após o usuário realizar o primeiro acesso.');
+                setIsModalOpen(false);
+                fetchData(); // Refresh list
+                return;
+            }
+
+            // 3. Call secure RPC to update Roles and Departments
+            const { error: rpcError } = await supabase.rpc('update_user_role', {
+                target_user_id: userId,
+                new_role: formData.role,
+                new_managed_departments: formData.role === 'admin' ? formData.managed_departments || [] : []
+            });
+
+            if (rpcError) throw rpcError;
 
             // 4. Update Company Memberships
             for (const companyId of Object.keys(membershipsForm)) {
