@@ -612,20 +612,45 @@ Equipo de Contratación`;
         await loadWorkersForEmpresa(targetEmpresa);
     };
 
-    // Carregar Lista de Clientes
-    const loadClients = async () => {
+    // Carregar Lista de Clientes Ativos (com Código e filtro por Empresa)
+    const loadClients = async (empresaId?: string) => {
         try {
             const { data, error } = await supabase
                 .schema('core_common')
                 .from('clients')
-                .select('id, legal_name, trade_name')
+                .select(`
+                    id, codigo, trade_name, legal_name, tax_id,
+                    client_company_settings (
+                        empresa_id,
+                        status
+                    )
+                `)
                 .order('trade_name', { ascending: true });
             
             if (error) throw error;
-            const mapped = (data || []).map(c => ({
-                id: c.id,
-                name: c.trade_name || c.legal_name || 'Sem Nome'
-            }));
+
+            const mapped = (data || [])
+                .filter(client => {
+                    const settings = client.client_company_settings || [];
+                    if (settings.length === 0) return true;
+                    
+                    if (empresaId) {
+                        const targetSetting = settings.find((s: any) => s.empresa_id === empresaId);
+                        if (targetSetting) {
+                            return targetSetting.status === 'active';
+                        }
+                    }
+                    return settings.some((s: any) => s.status === 'active');
+                })
+                .map(client => {
+                    const codePrefix = client.codigo ? `[${client.codigo}] ` : (client.tax_id ? `[NIF: ${client.tax_id}] ` : '');
+                    const clientName = client.trade_name || client.legal_name || 'Sem Nome';
+                    return {
+                        id: client.id,
+                        name: `${codePrefix}${clientName}`
+                    };
+                });
+
             setClientsList(mapped);
         } catch (err) {
             console.error("Erro ao carregar lista de clientes:", err);
@@ -633,8 +658,8 @@ Equipo de Contratación`;
     };
 
     useEffect(() => {
-        loadClients();
-    }, []);
+        loadClients(selectedEmpresaId);
+    }, [selectedEmpresaId]);
 
     useEffect(() => {
         if (selectedEmpresaId) {
@@ -802,6 +827,7 @@ Equipo de Contratación`;
     const handleOpenEditRequest = (req: DocumentRequest) => {
         setEditingRequest(req);
         setEditEmpresaId(req.empresa_id);
+        loadClients(req.empresa_id);
         const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || 'none';
         setEditClientId(explicitClientId);
         setEditDialogOpen(true);
@@ -1026,7 +1052,9 @@ Equipo de Contratación`;
                                                 onValueChange={(val) => {
                                                     setRequestEmpresaId(val);
                                                     setRequestWorkerId(null);
+                                                    setRequestClientId('none');
                                                     loadWorkersForEmpresa(val);
+                                                    loadClients(val);
                                                 }}
                                             >
                                                 <SelectTrigger className="bg-white dark:bg-black">
@@ -1113,7 +1141,11 @@ Equipo de Contratación`;
                                         <Label>Empresa (Contratante)</Label>
                                         <Select 
                                             value={editEmpresaId} 
-                                            onValueChange={setEditEmpresaId}
+                                            onValueChange={(val) => {
+                                                setEditEmpresaId(val);
+                                                setEditClientId('none');
+                                                loadClients(val);
+                                            }}
                                         >
                                             <SelectTrigger className="bg-white dark:bg-black">
                                                 <SelectValue placeholder="Selecione a empresa contratante..." />
