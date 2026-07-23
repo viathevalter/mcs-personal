@@ -6,6 +6,7 @@ import { getContractByToken, signContract, type Contract } from '../api/contract
 import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 function adjustDocxPreviewSpacing(container: HTMLElement | null) {
