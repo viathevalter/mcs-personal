@@ -785,7 +785,8 @@ Equipo de Contratación`;
 
         try {
             setCreatingRequest(true);
-            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, requestClientId || undefined);
+            const targetClient = (requestClientId && requestClientId !== 'none') ? requestClientId : undefined;
+            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, targetClient);
             const link = `${window.location.origin}/enviar-documentos/${res.token}`;
             setRequestSuccessLink(link);
             toast.success("Solicitação criada com sucesso!");
@@ -802,7 +803,7 @@ Equipo de Contratación`;
     const handleOpenEditRequest = (req: DocumentRequest) => {
         setEditingRequest(req);
         setEditEmpresaId(req.empresa_id);
-        const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || '';
+        const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || 'none';
         setEditClientId(explicitClientId);
         setEditDialogOpen(true);
     };
@@ -816,7 +817,8 @@ Equipo de Contratación`;
 
         try {
             setUpdatingRequest(true);
-            await updateDocumentRequest(editingRequest.id, editEmpresaId, editClientId || undefined);
+            const targetClient = (editClientId && editClientId !== 'none') ? editClientId : undefined;
+            await updateDocumentRequest(editingRequest.id, editEmpresaId, targetClient);
             toast.success("Solicitação atualizada com sucesso!");
             setEditDialogOpen(false);
             loadDocRequests();
@@ -1051,7 +1053,7 @@ Equipo de Contratación`;
                                                     <SelectValue placeholder="Selecione o cliente de destino..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">Sem Cliente Especificado</SelectItem>
+                                                    <SelectItem value="none">Sem Cliente Especificado</SelectItem>
                                                     {clientsList.map(cli => (
                                                         <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
                                                     ))}
@@ -1137,7 +1139,7 @@ Equipo de Contratación`;
                                                 <SelectValue placeholder="Selecione o cliente de destino..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">Sem Cliente Especificado</SelectItem>
+                                                <SelectItem value="none">Sem Cliente Especificado</SelectItem>
                                                 {clientsList.map(cli => (
                                                     <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
                                                 ))}
