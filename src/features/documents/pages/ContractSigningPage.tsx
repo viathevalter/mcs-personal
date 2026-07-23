@@ -31,6 +31,26 @@ function adjustDocxPreviewSpacing(container: HTMLElement | null) {
     });
 }
 
+function replaceSignatureTags(container: HTMLElement | null, signatureImgBase64: string | null) {
+    if (!container) return;
+    const inner = container.innerHTML;
+    const signatureRegex = /\[ASSINATURA\]|\[assinatura\]|\[ASSINATURA_TRABALHADOR\]|\{\{assinatura\}\}|\{\{assinatura_trabalhador\}\}/gi;
+    
+    if (!signatureRegex.test(inner)) return;
+
+    if (signatureImgBase64) {
+        container.innerHTML = inner.replace(
+            signatureRegex,
+            `<img src="${signatureImgBase64}" style="max-height: 48px; max-width: 180px; display: inline-block; vertical-align: middle; margin: 2px 4px;" alt="Assinatura" />`
+        );
+    } else {
+        container.innerHTML = inner.replace(
+            signatureRegex,
+            `<span style="display: inline-block; border-bottom: 1.5px solid #64748b; min-width: 160px; text-align: center; font-size: 11px; color: #94a3b8; padding: 2px 4px;">( Assinatura do Colaborador )</span>`
+        );
+    }
+}
+
 
 export function ContractSigningPage() {
     const { token } = useParams<{ token: string }>();
@@ -146,12 +166,19 @@ export function ContractSigningPage() {
             })
             .then(() => {
                 adjustDocxPreviewSpacing(docContainerRef.current);
+                replaceSignatureTags(docContainerRef.current, signatureBase64);
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx:", err);
             });
         }
     }, [fileBlob]);
+
+    useEffect(() => {
+        if (docContainerRef.current && signatureBase64) {
+            replaceSignatureTags(docContainerRef.current, signatureBase64);
+        }
+    }, [signatureBase64]);
 
 
     // 2.5. Inicializar e redimensionar o canvas
