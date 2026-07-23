@@ -38,6 +38,13 @@ export function WorkerDashboardPage() {
 
             if (error) throw error;
 
+            // Fetch workers data (ingresso and baixa dates) as a fallback if not in the session profiles
+            const { data: dbWorkers } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, data_ingresso, data_baixa')
+                .in('id', workerIds);
+
             // Verify if there is a record for the current month and previous month.
             // If not, we generate a pending record.
             const now = new Date();
@@ -55,14 +62,18 @@ export function WorkerDashboardPage() {
 
             // For each profile, evaluate if they are 'ativo'. If so, ensure current and prev month exist for THAT profile.
             for (const profile of profiles) {
+                const dbWorker = dbWorkers?.find(w => w.id === profile.id);
+                const dataIngresso = profile.data_ingresso || dbWorker?.data_ingresso;
+                const dataBaixa = profile.data_baixa || dbWorker?.data_baixa;
+
                 const isAtivo = profile.status_trabajador?.toLowerCase().includes('at') ||
                     profile.status_trabajador?.toLowerCase().includes('ac');
 
                 let isEligibleCurrent = isAtivo;
                 let isEligiblePrev = isAtivo;
 
-                if (!isAtivo && profile.data_baixa) {
-                    const baixaDate = new Date(profile.data_baixa + 'T00:00:00');
+                if (!isAtivo && dataBaixa) {
+                    const baixaDate = new Date(dataBaixa + 'T00:00:00');
                     const baixaYear = baixaDate.getFullYear();
                     const baixaMonth = baixaDate.getMonth() + 1;
 
@@ -84,8 +95,8 @@ export function WorkerDashboardPage() {
                     let shouldHaveCurrentMonth = isEligibleCurrent;
                     let shouldHavePrevMonth = isEligiblePrev;
 
-                    if (profile.data_ingresso) {
-                        const admissionDate = new Date(profile.data_ingresso);
+                    if (dataIngresso) {
+                        const admissionDate = new Date(dataIngresso);
                         const admissionYear = admissionDate.getFullYear();
                         const admissionMonth = admissionDate.getMonth() + 1;
 

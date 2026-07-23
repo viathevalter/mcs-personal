@@ -63,7 +63,9 @@ export function WorkerLoginPage() {
                 nome: d.nome,
                 pasaporte: d.pasaporte,
                 status_trabajador: d.status_trabajador,
-                empresa_id: d.empresa_id
+                empresa_id: d.empresa_id,
+                data_ingresso: d.data_ingresso,
+                data_baixa: d.data_baixa
             }));
 
             // Save basic worker info plus ALL matching profiles to localStorage
