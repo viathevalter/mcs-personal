@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { 
     Loader2, UploadCloud, CheckCircle2, User, 
-    FileText, CreditCard, Sparkles, Camera, Smartphone, AlertTriangle
+    FileText, CreditCard, Sparkles, Camera, Smartphone, AlertTriangle,
+    Mail, MapPin, Phone, Users, Home, Shirt
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,6 +38,8 @@ export function WorkerDocCapturePage() {
     // Extracted / Form fields
     const [formData, setFormData] = useState({
         nome: '',
+        email: '',
+        movil: '',
         nif: '',
         niss: '',
         nie: '',
@@ -44,7 +47,14 @@ export function WorkerDocCapturePage() {
         pasaporte: '',
         licencia_conducir: '',
         nacionalidade: '',
-        fecha_nacimiento: ''
+        fecha_nacimiento: '',
+        direccion_actual: '',
+        ubicacion_actual: '',
+        contacto_emergencia_nombre: '',
+        contacto_emergencia_parentesco: '',
+        contacto_emergencia_telefono: '',
+        talla_camisa: '',
+        talla_pantalon: ''
     });
 
     // Refs for file inputs
@@ -76,10 +86,26 @@ export function WorkerDocCapturePage() {
                 setLicenseUrl(reqData.license_url);
                 setSelfieUrl(reqData.selfie_url);
 
+                const existingData = reqData.extracted_data || {};
+
                 if (reqData.worker) {
                     setFormData(prev => ({
                         ...prev,
-                        nome: reqData.worker?.nome || ''
+                        nome: reqData.worker?.nome || existingData.nome || '',
+                        email: reqData.worker?.email || existingData.email || '',
+                        movil: reqData.worker?.movil || existingData.movil || '',
+                        direccion_actual: existingData.direccion_actual || '',
+                        ubicacion_actual: existingData.ubicacion_actual || '',
+                        contacto_emergencia_nombre: existingData.contacto_emergencia_nombre || '',
+                        contacto_emergencia_parentesco: existingData.contacto_emergencia_parentesco || '',
+                        contacto_emergencia_telefono: existingData.contacto_emergencia_telefono || '',
+                        talla_camisa: existingData.talla_camisa || '',
+                        talla_pantalon: existingData.talla_pantalon || '',
+                        nif: existingData.nif || '',
+                        niss: existingData.niss || '',
+                        pasaporte: existingData.pasaporte || '',
+                        nie: existingData.nie || '',
+                        dni: existingData.dni || ''
                     }));
                 }
             } catch (err) {
@@ -350,6 +376,157 @@ export function WorkerDocCapturePage() {
                                     </div>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Dados de Contacto y Dirección */}
+                    <Card className="bg-slate-900 border-slate-800">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-100">
+                                    <Mail className="h-5 w-5 text-indigo-400" />
+                                    Contacto y Dirección Actual
+                                </CardTitle>
+                                <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Requerido</Badge>
+                            </div>
+                            <CardDescription className="text-slate-400 text-xs">
+                                Ingrese su correo electrónico y dirección donde reside actualmente.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Correo Electrónico (E-mail)</label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                        <Input 
+                                            type="email"
+                                            placeholder="ejemplo@correo.com"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-300 block mb-1">Ubicación Actual (Ciudad y País)</label>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <Input 
+                                                placeholder="Ej: Madrid, España / Oporto, Portugal"
+                                                value={formData.ubicacion_actual}
+                                                onChange={(e) => setFormData({ ...formData, ubicacion_actual: e.target.value })}
+                                                className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-300 block mb-1">Dirección / Morada Completa</label>
+                                        <div className="relative">
+                                            <Home className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <Input 
+                                                placeholder="Calle/Rua, Número, Piso, Código Postal"
+                                                value={formData.direccion_actual}
+                                                onChange={(e) => setFormData({ ...formData, direccion_actual: e.target.value })}
+                                                className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Contactos de Emergencia */}
+                    <Card className="bg-slate-900 border-slate-800">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-100">
+                                    <Users className="h-5 w-5 text-indigo-400" />
+                                    Contacto de Emergencia / Familiar
+                                </CardTitle>
+                                <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Importante</Badge>
+                            </div>
+                            <CardDescription className="text-slate-400 text-xs">
+                                Indique los datos de un familiar directo a quien contactar en caso de emergencia.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Nombre Completo del Familiar</label>
+                                    <Input 
+                                        placeholder="Ej: María Gómez"
+                                        value={formData.contacto_emergencia_nombre}
+                                        onChange={(e) => setFormData({ ...formData, contacto_emergencia_nombre: e.target.value })}
+                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Parentesco</label>
+                                    <Input 
+                                        placeholder="Ej: Esposa, Padre, Hermano..."
+                                        value={formData.contacto_emergencia_parentesco}
+                                        onChange={(e) => setFormData({ ...formData, contacto_emergencia_parentesco: e.target.value })}
+                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Teléfono con Prefijo</label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                        <Input 
+                                            placeholder="Ej: +34 600 000 000"
+                                            value={formData.contacto_emergencia_telefono}
+                                            onChange={(e) => setFormData({ ...formData, contacto_emergencia_telefono: e.target.value })}
+                                            className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Tallas de Uniforme / EPI */}
+                    <Card className="bg-slate-900 border-slate-800">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-100">
+                                    <Shirt className="h-5 w-5 text-indigo-400" />
+                                    Tallas de Uniforme / Ropa de Trabajo
+                                </CardTitle>
+                                <Badge variant="secondary" className="bg-slate-800 text-slate-400">Opcional</Badge>
+                            </div>
+                            <CardDescription className="text-slate-400 text-xs">
+                                Indique las tallas para la asignación de su equipo de protección e indumentaria laboral.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Talla de Camisa / Polo</label>
+                                    <Input 
+                                        placeholder="Ej: S, M, L, XL, XXL"
+                                        value={formData.talla_camisa}
+                                        onChange={(e) => setFormData({ ...formData, talla_camisa: e.target.value })}
+                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Talla de Pantalón</label>
+                                    <Input 
+                                        placeholder="Ej: 38, 40, 42, 44, 46"
+                                        value={formData.talla_pantalon}
+                                        onChange={(e) => setFormData({ ...formData, talla_pantalon: e.target.value })}
+                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                    />
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 

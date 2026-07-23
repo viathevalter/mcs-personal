@@ -387,6 +387,10 @@ export async function approveDocumentRequest(
     workerId: string,
     approvedData: {
         nome?: string;
+        email?: string;
+        location?: string;
+        address_line?: string;
+        notes?: string;
         nif?: string;
         niss?: string;
         nie?: string;

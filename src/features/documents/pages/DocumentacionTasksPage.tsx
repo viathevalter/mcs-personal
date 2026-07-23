@@ -58,7 +58,9 @@ export function DocumentacionTasksPage() {
 
     // Dialog & Form states - Nova Solicitação de Docs
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+    const [requestEmpresaId, setRequestEmpresaId] = useState<string>('dae64d51-2181-4510-b14f-e63d2f111a8e'); // Default Wiseowe
     const [requestWorkerId, setRequestWorkerId] = useState<string | null>(null);
+    const [requestWorkersList, setRequestWorkersList] = useState<{ value: string; label: string }[]>([]);
     const [creatingRequest, setCreatingRequest] = useState(false);
     const [requestSuccessLink, setRequestSuccessLink] = useState<string | null>(null);
 
@@ -70,6 +72,14 @@ export function DocumentacionTasksPage() {
     const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
     const [verifyFormData, setVerifyFormData] = useState({
         nome: '',
+        email: '',
+        direccion_actual: '',
+        ubicacion_actual: '',
+        contacto_emergencia_nombre: '',
+        contacto_emergencia_parentesco: '',
+        contacto_emergencia_telefono: '',
+        talla_camisa: '',
+        talla_pantalon: '',
         nif: '',
         niss: '',
         nie: '',
@@ -564,11 +574,11 @@ Equipo de Contratación`;
     };
 
     // 3. Carregar Trabalhadores para o Combobox
-    const loadWorkers = async () => {
-        if (!selectedEmpresaId) return;
+    const loadWorkersForEmpresa = async (empresaId: string) => {
+        if (!empresaId) return;
         try {
             const res = await listWorkers({
-                empresaId: selectedEmpresaId,
+                empresaId: empresaId,
                 page: 1,
                 pageSize: 1000,
                 statusTrabajador: ['ativos', 'pendentes_ingresso'],
@@ -577,10 +587,18 @@ Equipo de Contratación`;
                 value: w.id || '',
                 label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})`
             }));
+            setRequestWorkersList(options);
             setWorkersList(options);
         } catch (err) {
-            console.error("Erro ao carregar trabalhadores:", err);
+            console.error("Erro ao carregar trabalhadores da empresa:", err);
         }
+    };
+
+    const loadWorkers = async () => {
+        const targetEmpresa = (selectedEmpresaId && selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') 
+            ? selectedEmpresaId 
+            : requestEmpresaId;
+        await loadWorkersForEmpresa(targetEmpresa);
     };
 
     useEffect(() => {
@@ -724,14 +742,14 @@ Equipo de Contratación`;
     // 5. Submeter nova solicitação de documentos
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!requestWorkerId || !selectedEmpresaId) {
-            toast.error("Selecione um trabalhador.");
+        if (!requestWorkerId || !requestEmpresaId) {
+            toast.error("Por favor, selecione a Empresa e o Trabalhador.");
             return;
         }
 
         try {
             setCreatingRequest(true);
-            const res = await createDocumentRequest(selectedEmpresaId, requestWorkerId);
+            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId);
             const link = `${window.location.origin}/enviar-documentos/${res.token}`;
             setRequestSuccessLink(link);
             toast.success("Solicitação criada com sucesso!");
@@ -750,6 +768,14 @@ Equipo de Contratación`;
         const data = req.extracted_data || {};
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
+            email: data.email || req.worker?.email || '',
+            direccion_actual: data.direccion_actual || '',
+            ubicacion_actual: data.ubicacion_actual || '',
+            contacto_emergencia_nombre: data.contacto_emergencia_nombre || '',
+            contacto_emergencia_parentesco: data.contacto_emergencia_parentesco || '',
+            contacto_emergencia_telefono: data.contacto_emergencia_telefono || '',
+            talla_camisa: data.talla_camisa || '',
+            talla_pantalon: data.talla_pantalon || '',
             nif: data.nif || '',
             niss: data.niss || '',
             nie: data.nie || '',
@@ -803,9 +829,31 @@ Equipo de Contratación`;
         try {
             setVerifying(true);
             
+            // Montar notas consolidadas de contatos de emergência e uniformes se houver
+            let emergencyNotes = '';
+            if (verifyFormData.contacto_emergencia_nombre || verifyFormData.contacto_emergencia_telefono) {
+                emergencyNotes += `Contacto Emergência: ${verifyFormData.contacto_emergencia_nombre} (${verifyFormData.contacto_emergencia_parentesco || 'Familiar'}) - Tel: ${verifyFormData.contacto_emergencia_telefono}`;
+            }
+            if (verifyFormData.talla_camisa || verifyFormData.talla_pantalon) {
+                if (emergencyNotes) emergencyNotes += ' | ';
+                emergencyNotes += `Uniformes - Camisa: ${verifyFormData.talla_camisa || '-'}, Calça: ${verifyFormData.talla_pantalon || '-'}`;
+            }
+
             // Selfie URL passa a ser a foto oficial do trabalhador se presente
             const approvedPayload = {
-                ...verifyFormData,
+                nome: verifyFormData.nome,
+                email: verifyFormData.email || undefined,
+                location: verifyFormData.ubicacion_actual || undefined,
+                address_line: verifyFormData.direccion_actual || undefined,
+                notes: emergencyNotes || undefined,
+                nif: verifyFormData.nif,
+                niss: verifyFormData.niss,
+                nie: verifyFormData.nie,
+                dni: verifyFormData.dni,
+                pasaporte: verifyFormData.pasaporte,
+                licencia_conducir: verifyFormData.licencia_conducir,
+                nacionalidade: verifyFormData.nacionalidade,
+                fecha_nacimiento: verifyFormData.fecha_nacimiento,
                 foto: selectedRequest.selfie_url || undefined
             };
 
@@ -889,9 +937,32 @@ Equipo de Contratación`;
                                 {!requestSuccessLink ? (
                                     <form onSubmit={handleCreateRequest} className="space-y-4 pt-2">
                                         <div className="space-y-2">
+                                            <Label>Empresa (Contratante)</Label>
+                                            <Select 
+                                                value={requestEmpresaId} 
+                                                onValueChange={(val) => {
+                                                    setRequestEmpresaId(val);
+                                                    setRequestWorkerId(null);
+                                                    loadWorkersForEmpresa(val);
+                                                }}
+                                            >
+                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                    <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="dae64d51-2181-4510-b14f-e63d2f111a8e">Wiseowe Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="441f1f5d-aed3-40e3-8c77-7b1217757251">Stocco, Lda</SelectItem>
+                                                    <SelectItem value="847796c4-b253-4e53-9e6b-34a127ec7d85">Luminous Capital Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="a798620a-358a-4c6c-9db2-3a507c583cac">Triângulo</SelectItem>
+                                                    <SelectItem value="f5d32323-4d68-4a54-8fb8-0ba670dcaecf">Kotrik & Rosas</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
                                             <Label>Selecionar Trabalhador</Label>
                                             <Combobox
-                                                options={workersList}
+                                                options={requestWorkersList.length > 0 ? requestWorkersList : workersList}
                                                 value={requestWorkerId || ''}
                                                 onChange={(val) => setRequestWorkerId(val || null)}
                                                 placeholder="Pesquise o trabalhador cadastrado..."
@@ -899,7 +970,7 @@ Equipo de Contratación`;
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2">
                                             <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
-                                            <Button type="submit" disabled={creatingRequest || !requestWorkerId} className="bg-indigo-600 hover:bg-indigo-500">
+                                            <Button type="submit" disabled={creatingRequest || !requestWorkerId || !requestEmpresaId} className="bg-indigo-600 hover:bg-indigo-500">
                                                 {creatingRequest ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                                 Criar Link
                                             </Button>
@@ -1776,7 +1847,7 @@ Equipo de Contratación`;
                                             <Input value={verifyFormData.licencia_conducir} onChange={(e) => setVerifyFormData({ ...verifyFormData, licencia_conducir: e.target.value })} />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
+                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <Label className="text-xs">Nacionalidade</Label>
                                                 <Input value={verifyFormData.nacionalidade} onChange={(e) => setVerifyFormData({ ...verifyFormData, nacionalidade: e.target.value })} />
@@ -1784,6 +1855,56 @@ Equipo de Contratación`;
                                             <div>
                                                 <Label className="text-xs">Data de Nascimento (AAAA-MM-DD)</Label>
                                                 <Input type="date" value={verifyFormData.fecha_nacimiento} onChange={(e) => setVerifyFormData({ ...verifyFormData, fecha_nacimiento: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t pt-3 space-y-3">
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Morada Atual</h5>
+                                            <div>
+                                                <Label className="text-xs">Correo Electrónico (E-mail)</Label>
+                                                <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <Label className="text-xs">Ubicación / Cidade e País</Label>
+                                                    <Input value={verifyFormData.ubicacion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, ubicacion_actual: e.target.value })} placeholder="Ex: Madrid, España" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">Endereço / Morada Atual</Label>
+                                                    <Input value={verifyFormData.direccion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, direccion_actual: e.target.value })} placeholder="Ex: Calle Mayor 12, 3ºB" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t pt-3 space-y-3">
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto de Emergência / Familiar</h5>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <Label className="text-xs">Nome do Familiar</Label>
+                                                    <Input value={verifyFormData.contacto_emergencia_nombre} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_nombre: e.target.value })} placeholder="Nome completo" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">Parentesco</Label>
+                                                    <Input value={verifyFormData.contacto_emergencia_parentesco} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_parentesco: e.target.value })} placeholder="Ex: Esposa" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">Telefone</Label>
+                                                    <Input value={verifyFormData.contacto_emergencia_telefono} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_telefono: e.target.value })} placeholder="+34 600..." />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t pt-3 space-y-3">
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Tamanhos de Uniforme / EPI</h5>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <Label className="text-xs">Talla Camisa / Polo</Label>
+                                                    <Input value={verifyFormData.talla_camisa} onChange={(e) => setVerifyFormData({ ...verifyFormData, talla_camisa: e.target.value })} placeholder="Ex: M, L, XL" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">Talla Pantalón</Label>
+                                                    <Input value={verifyFormData.talla_pantalon} onChange={(e) => setVerifyFormData({ ...verifyFormData, talla_pantalon: e.target.value })} placeholder="Ex: 40, 42, 44" />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
