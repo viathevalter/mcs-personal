@@ -5,7 +5,7 @@ import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
     listContracts, generateContract, type Contract,
-    listDocumentRequests, createDocumentRequest, approveDocumentRequest, type DocumentRequest
+    listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
 import { Combobox } from '@/components/ui/combobox';
@@ -21,7 +21,7 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send, Search, X
+    MessageSquare, Send, Search, X, Pencil, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -601,6 +601,31 @@ Equipo de Contratación`;
         await loadWorkersForEmpresa(targetEmpresa);
     };
 
+    // Carregar Lista de Clientes Ativos
+    const loadClients = async () => {
+        try {
+            const { data, error } = await supabase
+                .schema('core_common')
+                .from('clients')
+                .select('id, legal_name, trade_name')
+                .eq('status', 'active')
+                .order('trade_name', { ascending: true });
+            
+            if (error) throw error;
+            const mapped = (data || []).map(c => ({
+                id: c.id,
+                name: c.trade_name || c.legal_name || 'Sem Nome'
+            }));
+            setClientsList(mapped);
+        } catch (err) {
+            console.error("Erro ao carregar lista de clientes:", err);
+        }
+    };
+
+    useEffect(() => {
+        loadClients();
+    }, []);
+
     useEffect(() => {
         if (selectedEmpresaId) {
             loadContracts();
@@ -749,7 +774,7 @@ Equipo de Contratación`;
 
         try {
             setCreatingRequest(true);
-            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId);
+            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, requestClientId || undefined);
             const link = `${window.location.origin}/enviar-documentos/${res.token}`;
             setRequestSuccessLink(link);
             toast.success("Solicitação criada com sucesso!");
@@ -759,6 +784,52 @@ Equipo de Contratación`;
             toast.error("Falha ao criar solicitação de documentos.");
         } finally {
             setCreatingRequest(false);
+        }
+    };
+
+    // 5b. Editar Solicitação Existente
+    const handleOpenEditRequest = (req: DocumentRequest) => {
+        setEditingRequest(req);
+        setEditEmpresaId(req.empresa_id);
+        const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || '';
+        setEditClientId(explicitClientId);
+        setEditDialogOpen(true);
+    };
+
+    const handleSaveEditRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingRequest || !editEmpresaId) {
+            toast.error("Por favor, selecione a Empresa.");
+            return;
+        }
+
+        try {
+            setUpdatingRequest(true);
+            await updateDocumentRequest(editingRequest.id, editEmpresaId, editClientId || undefined);
+            toast.success("Solicitação atualizada com sucesso!");
+            setEditDialogOpen(false);
+            loadDocRequests();
+        } catch (err) {
+            console.error("Erro ao atualizar solicitação:", err);
+            toast.error("Falha ao atualizar solicitação de documentos.");
+        } finally {
+            setUpdatingRequest(false);
+        }
+    };
+
+    // 5c. Excluir Solicitação
+    const handleDeleteRequest = async (reqId: string, workerName?: string) => {
+        if (!window.confirm(`Tem certeza que deseja excluir a solicitação de documentos de ${workerName || 'este trabalhador'}?`)) {
+            return;
+        }
+
+        try {
+            await deleteDocumentRequest(reqId);
+            toast.success("Solicitação excluída com sucesso!");
+            loadDocRequests();
+        } catch (err) {
+            console.error("Erro ao excluir solicitação:", err);
+            toast.error("Falha ao excluir solicitação.");
         }
     };
 
@@ -959,6 +1030,24 @@ Equipo de Contratación`;
                                             </Select>
                                         </div>
 
+                                         <div className="space-y-2">
+                                            <Label>Cliente (Alocação / Destino)</Label>
+                                            <Select 
+                                                value={requestClientId} 
+                                                onValueChange={setRequestClientId}
+                                            >
+                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                    <SelectValue placeholder="Selecione o cliente de destino..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">Sem Cliente Especificado</SelectItem>
+                                                    {clientsList.map(cli => (
+                                                        <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
                                         <div className="space-y-2">
                                             <Label>Selecionar Trabalhador</Label>
                                             <Combobox
@@ -992,11 +1081,67 @@ Equipo de Contratación`;
                                                 </Button>
                                             </div>
                                         </div>
-                                        <div className="flex justify-center pt-2">
-                                            <Button onClick={() => setRequestDialogOpen(false)} className="bg-indigo-600 hover:bg-indigo-500">Fechar</Button>
-                                        </div>
                                     </div>
                                 )}
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* Modal de Editar Solicitação de Documentos */}
+                        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                                <DialogHeader>
+                                    <DialogTitle>Editar Solicitação de Documentos</DialogTitle>
+                                    <DialogDescription>
+                                        Altere a Empresa Contratante e o Cliente de destino da solicitação do trabalhador <strong>{editingRequest?.worker?.nome}</strong>.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <form onSubmit={handleSaveEditRequest} className="space-y-4 pt-2">
+                                    <div className="space-y-2">
+                                        <Label>Empresa (Contratante)</Label>
+                                        <Select 
+                                            value={editEmpresaId} 
+                                            onValueChange={setEditEmpresaId}
+                                        >
+                                            <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectValue placeholder="Selecione a empresa contratante..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="dae64d51-2181-4510-b14f-e63d2f111a8e">Wiseowe Unipessoal Lda</SelectItem>
+                                                <SelectItem value="441f1f5d-aed3-40e3-8c77-7b1217757251">Stocco, Lda</SelectItem>
+                                                <SelectItem value="847796c4-b253-4e53-9e6b-34a127ec7d85">Luminous Capital Unipessoal Lda</SelectItem>
+                                                <SelectItem value="a798620a-358a-4c6c-9db2-3a507c583cac">Triângulo</SelectItem>
+                                                <SelectItem value="f5d32323-4d68-4a54-8fb8-0ba670dcaecf">Kotrik & Rosas</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Cliente (Alocação / Destino)</Label>
+                                        <Select 
+                                            value={editClientId} 
+                                            onValueChange={setEditClientId}
+                                        >
+                                            <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectValue placeholder="Selecione o cliente de destino..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="">Sem Cliente Especificado</SelectItem>
+                                                {clientsList.map(cli => (
+                                                    <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+                                        <Button type="submit" disabled={updatingRequest || !editEmpresaId} className="bg-indigo-600 hover:bg-indigo-500">
+                                            {updatingRequest ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                            Salvar Alterações
+                                        </Button>
+                                    </div>
+                                </form>
                             </DialogContent>
                         </Dialog>
 
@@ -1345,7 +1490,8 @@ Equipo de Contratación`;
                                                 
                                                 const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
                                                 const latestAssignment = req.worker?.assignments?.[0];
-                                                const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                                                const clientName = req.client?.trade_name || req.client?.legal_name ||
+                                                                   activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                                                    latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
                                                 
                                                 const empresaName = req.empresa?.name || 'Stocco';
@@ -1387,6 +1533,26 @@ Equipo de Contratación`;
                                                             {new Date(req.expires_at).toLocaleDateString('pt-PT')}
                                                         </TableCell>
                                                         <TableCell className="text-right space-x-1 whitespace-nowrap">
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                onClick={() => handleOpenEditRequest(req)}
+                                                                title="Editar Empresa e Cliente"
+                                                                className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600"
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Button>
+
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                onClick={() => handleDeleteRequest(req.id, req.worker?.nome)}
+                                                                title="Excluir Solicitação"
+                                                                className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+
                                                             {req.status === 'pending_upload' && !isExpired && (
                                                                 <Button 
                                                                     size="sm" 

@@ -271,6 +271,9 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
     const empresaIds = [...new Set(docRequests.map(r => r.empresa_id).filter(Boolean))];
     const clientIds: string[] = [];
     docRequests.forEach(r => {
+        if ((r as any).extracted_data?.client_id) {
+            clientIds.push((r as any).extracted_data.client_id);
+        }
         r.worker?.assignments?.forEach((a: any) => {
             if (a.client_id) clientIds.push(a.client_id);
         });
@@ -291,9 +294,12 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
 
     return docRequests.map(r => {
         const emp = empresasMap.get(r.empresa_id);
+        const explicitClientId = (r as any).extracted_data?.client_id;
+        const explicitClient = explicitClientId ? clientsMap.get(explicitClientId) : null;
         return {
             ...r,
             empresa: emp ? { id: emp.id, name: emp.nome } : null,
+            client: explicitClient || r.worker?.assignments?.[0]?.client || null,
             worker: r.worker ? {
                 ...r.worker,
                 assignments: r.worker.assignments?.map((a: any) => ({
@@ -305,7 +311,8 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
     }) as unknown as DocumentRequest[];
 }
 
-export async function createDocumentRequest(empresaId: string, workerId: string): Promise<DocumentRequest> {
+export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string): Promise<DocumentRequest> {
+    const extractedData = clientId ? { client_id: clientId } : {};
     const { data, error } = await supabase
         .schema('core_personal')
         .from('document_requests')
@@ -313,6 +320,7 @@ export async function createDocumentRequest(empresaId: string, workerId: string)
             empresa_id: empresaId,
             worker_id: workerId,
             status: 'pending_upload',
+            extracted_data: extractedData,
             expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() // 48h
         })
         .select()
@@ -323,6 +331,44 @@ export async function createDocumentRequest(empresaId: string, workerId: string)
     }
 
     return data as unknown as DocumentRequest;
+}
+
+export async function updateDocumentRequest(requestId: string, empresaId: string, clientId?: string): Promise<void> {
+    const { data: existing } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .select('extracted_data')
+        .eq('id', requestId)
+        .single();
+
+    const currentExtracted = existing?.extracted_data || {};
+    const updatedExtracted = { ...currentExtracted, client_id: clientId || null };
+
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .update({
+            empresa_id: empresaId,
+            extracted_data: updatedExtracted,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
+export async function deleteDocumentRequest(requestId: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .delete()
+        .eq('id', requestId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
 }
 
 export async function getDocumentRequestByToken(token: string): Promise<DocumentRequest> {

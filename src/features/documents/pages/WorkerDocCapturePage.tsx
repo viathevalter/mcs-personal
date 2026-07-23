@@ -510,21 +510,35 @@ export function WorkerDocCapturePage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-semibold text-slate-300 block mb-1">Talla de Camisa / Polo</label>
-                                    <Input 
-                                        placeholder="Ej: S, M, L, XL, XXL"
+                                    <select
                                         value={formData.talla_camisa}
                                         onChange={(e) => setFormData({ ...formData, talla_camisa: e.target.value })}
-                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
-                                    />
+                                        className="w-full h-10 px-3 py-2 border border-slate-800 rounded-lg bg-slate-950 text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    >
+                                        <option value="">Seleccionar Talla...</option>
+                                        <option value="S (50/52)">S (50/52)</option>
+                                        <option value="M(54/56)">M(54/56)</option>
+                                        <option value="L(58)">L(58)</option>
+                                        <option value="XL(60)">XL(60)</option>
+                                        <option value="XXL(62)">XXL(62)</option>
+                                        <option value="XXXL(64)">XXXL(64)</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="text-xs font-semibold text-slate-300 block mb-1">Talla de Pantalón</label>
-                                    <Input 
-                                        placeholder="Ej: 38, 40, 42, 44, 46"
+                                    <select
                                         value={formData.talla_pantalon}
                                         onChange={(e) => setFormData({ ...formData, talla_pantalon: e.target.value })}
-                                        className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
-                                    />
+                                        className="w-full h-10 px-3 py-2 border border-slate-800 rounded-lg bg-slate-950 text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    >
+                                        <option value="">Seleccionar Talla...</option>
+                                        <option value="S (38/40)">S (38/40)</option>
+                                        <option value="M(42/44)">M(42/44)</option>
+                                        <option value="L(46)">L(46)</option>
+                                        <option value="XL(52)">XL(52)</option>
+                                        <option value="XXL(54)">XXL(54)</option>
+                                        <option value="XXXL(56)">XXXL(56)</option>
+                                    </select>
                                 </div>
                             </div>
                         </CardContent>
