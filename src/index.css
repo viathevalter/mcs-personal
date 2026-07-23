@@ -134,6 +134,12 @@
 .docx [class*="footer"] {
   max-width: 100% !important;
   box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.docx header *,
+.docx [class*="header"] * {
+  top: 0 !important;
 }
 
 .docx header img,
@@ -142,6 +148,7 @@
 .docx [class*="footer"] img {
   max-width: 100% !important;
   left: 0 !important;
+  top: 0 !important;
   box-sizing: border-box !important;
 }
 
