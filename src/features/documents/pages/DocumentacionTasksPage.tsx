@@ -612,14 +612,13 @@ Equipo de Contratación`;
         await loadWorkersForEmpresa(targetEmpresa);
     };
 
-    // Carregar Lista de Clientes Ativos
+    // Carregar Lista de Clientes
     const loadClients = async () => {
         try {
             const { data, error } = await supabase
                 .schema('core_common')
                 .from('clients')
                 .select('id, legal_name, trade_name')
-                .eq('status', 'active')
                 .order('trade_name', { ascending: true });
             
             if (error) throw error;
