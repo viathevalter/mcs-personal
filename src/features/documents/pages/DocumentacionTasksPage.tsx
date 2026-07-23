@@ -63,6 +63,7 @@ export function DocumentacionTasksPage() {
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
     const [requestEmpresaId, setRequestEmpresaId] = useState<string>('dae64d51-2181-4510-b14f-e63d2f111a8e'); // Default Wiseowe
     const [requestClientId, setRequestClientId] = useState<string>('');
+    const [requestStartDate, setRequestStartDate] = useState<string>('');
     const [requestWorkerId, setRequestWorkerId] = useState<string | null>(null);
     const [requestWorkersList, setRequestWorkersList] = useState<{ value: string; label: string }[]>([]);
     const [creatingRequest, setCreatingRequest] = useState(false);
@@ -73,6 +74,7 @@ export function DocumentacionTasksPage() {
     const [editingRequest, setEditingRequest] = useState<DocumentRequest | null>(null);
     const [editEmpresaId, setEditEmpresaId] = useState<string>('');
     const [editClientId, setEditClientId] = useState<string>('');
+    const [editStartDate, setEditStartDate] = useState<string>('');
     const [updatingRequest, setUpdatingRequest] = useState(false);
 
     // Dialog & Form states - Verificação de Documento Enviado (Lado a Lado)
@@ -810,7 +812,7 @@ Equipo de Contratación`;
         try {
             setCreatingRequest(true);
             const targetClient = (requestClientId && requestClientId !== 'none') ? requestClientId : undefined;
-            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, targetClient);
+            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, targetClient, requestStartDate || undefined);
             const link = `${window.location.origin}/enviar-documentos/${res.token}`;
             setRequestSuccessLink(link);
             toast.success("Solicitação criada com sucesso!");
@@ -830,6 +832,8 @@ Equipo de Contratación`;
         loadClients(req.empresa_id);
         const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || 'none';
         setEditClientId(explicitClientId);
+        const explicitStartDate = (req as any).extracted_data?.start_date || (req as any).worker?.assignments?.[0]?.start_date || (req as any).worker?.assignments?.[0]?.planned_start_date || '';
+        setEditStartDate(explicitStartDate);
         setEditDialogOpen(true);
     };
 
@@ -843,7 +847,7 @@ Equipo de Contratación`;
         try {
             setUpdatingRequest(true);
             const targetClient = (editClientId && editClientId !== 'none') ? editClientId : undefined;
-            await updateDocumentRequest(editingRequest.id, editEmpresaId, targetClient);
+            await updateDocumentRequest(editingRequest.id, editEmpresaId, targetClient, editStartDate || undefined);
             toast.success("Solicitação atualizada com sucesso!");
             setEditDialogOpen(false);
             loadDocRequests();
@@ -1035,7 +1039,7 @@ Equipo de Contratación`;
                                     Solicitar Documentos
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                            <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
                                     <DialogTitle>Solicitar Documentos por Link</DialogTitle>
                                     <DialogDescription>
@@ -1057,7 +1061,7 @@ Equipo de Contratación`;
                                                     loadClients(val);
                                                 }}
                                             >
-                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                     <SelectValue placeholder="Selecione a empresa contratante..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1076,7 +1080,7 @@ Equipo de Contratación`;
                                                 value={requestClientId} 
                                                 onValueChange={setRequestClientId}
                                             >
-                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                     <SelectValue placeholder="Selecione o cliente de destino..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1086,6 +1090,16 @@ Equipo de Contratación`;
                                                     ))}
                                                 </SelectContent>
                                             </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Data de Início Previsto (Trabalho)</Label>
+                                            <Input 
+                                                type="date"
+                                                value={requestStartDate}
+                                                onChange={(e) => setRequestStartDate(e.target.value)}
+                                                className="bg-white dark:bg-black"
+                                            />
                                         </div>
 
                                         <div className="space-y-2">
@@ -1128,11 +1142,11 @@ Equipo de Contratación`;
 
                         {/* Modal de Editar Solicitação de Documentos */}
                         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                            <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
                                     <DialogTitle>Editar Solicitação de Documentos</DialogTitle>
                                     <DialogDescription>
-                                        Altere a Empresa Contratante e o Cliente de destino da solicitação do trabalhador <strong>{editingRequest?.worker?.nome}</strong>.
+                                        Altere a Empresa Contratante, o Cliente de destino e a Data de Início do trabalho para <strong>{editingRequest?.worker?.nome}</strong>.
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -1147,7 +1161,7 @@ Equipo de Contratación`;
                                                 loadClients(val);
                                             }}
                                         >
-                                            <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                 <SelectValue placeholder="Selecione a empresa contratante..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1166,7 +1180,7 @@ Equipo de Contratación`;
                                             value={editClientId} 
                                             onValueChange={setEditClientId}
                                         >
-                                            <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                 <SelectValue placeholder="Selecione o cliente de destino..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1176,6 +1190,16 @@ Equipo de Contratación`;
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Data de Início Previsto (Trabalho)</Label>
+                                        <Input 
+                                            type="date"
+                                            value={editStartDate}
+                                            onChange={(e) => setEditStartDate(e.target.value)}
+                                            className="bg-white dark:bg-black"
+                                        />
                                     </div>
 
                                     <div className="flex justify-end gap-2 pt-2">
