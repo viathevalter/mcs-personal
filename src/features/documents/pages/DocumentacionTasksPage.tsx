@@ -228,12 +228,14 @@ export function DocumentacionTasksPage() {
             } else if (sortFieldRequests === 'planned_start_date') {
                 const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssA = a.worker?.assignments?.[0];
-                valA = activeAssA?.planned_start_date || activeAssA?.start_date ||
+                valA = (a as any).extracted_data?.start_date ||
+                       activeAssA?.planned_start_date || activeAssA?.start_date ||
                        latestAssA?.planned_start_date || latestAssA?.start_date || '9999-12-31';
 
                 const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssB = b.worker?.assignments?.[0];
-                valB = activeAssB?.planned_start_date || activeAssB?.start_date ||
+                valB = (b as any).extracted_data?.start_date ||
+                       activeAssB?.planned_start_date || activeAssB?.start_date ||
                        latestAssB?.planned_start_date || latestAssB?.start_date || '9999-12-31';
             } else if (sortFieldRequests === 'created_at') {
                 valA = a.created_at || '';
@@ -1564,8 +1566,22 @@ Equipo de Contratación`;
                                                 
                                                 const empresaName = req.empresa?.name || 'Stocco';
                                                 
-                                                const plannedStartDate = activeAssignment?.planned_start_date || activeAssignment?.start_date ||
+                                                const plannedStartDate = (req as any).extracted_data?.start_date ||
+                                                                          activeAssignment?.planned_start_date || activeAssignment?.start_date ||
                                                                           latestAssignment?.planned_start_date || latestAssignment?.start_date;
+
+                                                const formatDisplayDate = (dateStr?: string | null) => {
+                                                    if (!dateStr) return 'Não informada';
+                                                    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                    if (match) {
+                                                        return `${match[3]}/${match[2]}/${match[1]}`;
+                                                    }
+                                                    try {
+                                                        return new Date(dateStr).toLocaleDateString('pt-PT');
+                                                    } catch (_) {
+                                                        return dateStr;
+                                                    }
+                                                };
 
                                                 return (
                                                     <TableRow key={req.id}>
@@ -1580,7 +1596,7 @@ Equipo de Contratación`;
                                                             {clientName}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                                            {plannedStartDate ? new Date(plannedStartDate).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                            {formatDisplayDate(plannedStartDate)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Badge className={
