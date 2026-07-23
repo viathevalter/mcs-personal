@@ -68,6 +68,13 @@ export function DocumentacionTasksPage() {
     const [creatingRequest, setCreatingRequest] = useState(false);
     const [requestSuccessLink, setRequestSuccessLink] = useState<string | null>(null);
 
+    // Dialog & Form states - Editar Solicitação de Docs
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editingRequest, setEditingRequest] = useState<DocumentRequest | null>(null);
+    const [editEmpresaId, setEditEmpresaId] = useState<string>('');
+    const [editClientId, setEditClientId] = useState<string>('');
+    const [updatingRequest, setUpdatingRequest] = useState(false);
+
     // Dialog & Form states - Verificação de Documento Enviado (Lado a Lado)
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
