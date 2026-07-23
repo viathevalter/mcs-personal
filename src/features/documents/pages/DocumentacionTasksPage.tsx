@@ -59,6 +59,7 @@ export function DocumentacionTasksPage() {
     // Dialog & Form states - Nova Solicitação de Docs
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
     const [requestEmpresaId, setRequestEmpresaId] = useState<string>('dae64d51-2181-4510-b14f-e63d2f111a8e'); // Default Wiseowe
+    const [requestClientId, setRequestClientId] = useState<string>('');
     const [requestWorkerId, setRequestWorkerId] = useState<string | null>(null);
     const [requestWorkersList, setRequestWorkersList] = useState<{ value: string; label: string }[]>([]);
     const [creatingRequest, setCreatingRequest] = useState(false);
