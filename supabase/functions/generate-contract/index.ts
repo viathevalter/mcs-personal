@@ -241,6 +241,16 @@ serve(async (req) => {
     const documentDatePT = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
     const documentDateES = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 
+    function xmlEscape(str: string): string {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
     // Pre-processamento com JSZip para substituir tags entre colchetes [campo]
     let processedBuffer = templateBuffer;
     try {
@@ -283,8 +293,9 @@ serve(async (req) => {
 
             if (placeholderDict.hasOwnProperty(cleanKey)) {
               replaced = true;
-              console.log(`Substituindo [${cleanKey}] por: "${placeholderDict[cleanKey]}" no arquivo ${relativePath}`);
-              return `</w:t></w:r><w:r><w:t>${placeholderDict[cleanKey]}</w:t></w:r><w:r><w:t>`;
+              const safeValue = xmlEscape(placeholderDict[cleanKey]);
+              console.log(`Substituindo [${cleanKey}] por: "${safeValue}" no arquivo ${relativePath}`);
+              return safeValue;
             }
             return match;
           });
