@@ -1564,6 +1564,12 @@ Equipo de Contratación`;
                                                                    activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                                                    latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
                                                 
+                                                const rawWorkerCode = (req.worker as any)?.cod_colab || '';
+                                                const workerCode = rawWorkerCode ? (String(rawWorkerCode).startsWith('E') ? String(rawWorkerCode) : `E${rawWorkerCode}`) : '';
+
+                                                const rawClientCode = (req.client as any)?.codigo || (activeAssignment?.client as any)?.codigo || (latestAssignment?.client as any)?.codigo || '';
+                                                const clientCode = rawClientCode ? (String(rawClientCode).startsWith('C') ? String(rawClientCode) : `C${rawClientCode}`) : '';
+
                                                 const empresaName = req.empresa?.name || 'Stocco';
                                                 
                                                 const plannedStartDate = (req as any).extracted_data?.start_date ||
@@ -1586,14 +1592,28 @@ Equipo de Contratación`;
                                                 return (
                                                     <TableRow key={req.id}>
                                                         <TableCell>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">{req.worker?.nome}</div>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                                                <span>{req.worker?.nome}</span>
+                                                                {workerCode && (
+                                                                    <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                                        ({workerCode})
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                                             {empresaName}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                                            {clientName}
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                {clientCode && (
+                                                                    <span className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 px-1.5 py-0.5 rounded">
+                                                                        [{clientCode}]
+                                                                    </span>
+                                                                )}
+                                                                <span>{clientName}</span>
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                                             {formatDisplayDate(plannedStartDate)}

@@ -285,7 +285,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
             ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
             : Promise.resolve({ data: [] }),
         uniqueClientIds.length > 0
-            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', uniqueClientIds)
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, codigo').in('id', uniqueClientIds)
             : Promise.resolve({ data: [] })
     ]);
 
