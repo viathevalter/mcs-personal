@@ -56,6 +56,9 @@ export function DocumentacionTasksPage() {
     const [loadingPreview, setLoadingPreview] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
+    // Lista global de clientes e trabalhadores para formulários
+    const [clientsList, setClientsList] = useState<{ id: string; name: string }[]>([]);
+
     // Dialog & Form states - Nova Solicitação de Docs
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
     const [requestEmpresaId, setRequestEmpresaId] = useState<string>('dae64d51-2181-4510-b14f-e63d2f111a8e'); // Default Wiseowe
