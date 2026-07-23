@@ -378,6 +378,18 @@ export async function deleteDocumentRequest(requestId: string): Promise<void> {
     }
 }
 
+export async function deleteContract(contractId: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .delete()
+        .eq('id', contractId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
 export async function getDocumentRequestByToken(token: string): Promise<DocumentRequest> {
     const { data, error } = await supabase
         .schema('core_personal')

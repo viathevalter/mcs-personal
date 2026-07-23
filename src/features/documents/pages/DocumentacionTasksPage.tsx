@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
-    listContracts, generateContract, type Contract,
+    listContracts, generateContract, deleteContract, type Contract,
     listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
@@ -356,6 +356,18 @@ export function DocumentacionTasksPage() {
         } finally {
             setUploadingTemplate(null);
             setActiveUploadDocType(null);
+        }
+    };
+
+    const handleDeleteContractItem = async (contractId: string) => {
+        if (!window.confirm("Tem certeza que deseja excluir este registro de contrato?")) return;
+        try {
+            await deleteContract(contractId);
+            toast.success("Contrato excluído com sucesso!");
+            loadContracts();
+        } catch (err: any) {
+            console.error("Erro ao excluir contrato:", err);
+            toast.error(`Erro ao excluir contrato: ${err.message || err}`);
         }
     };
 
@@ -1861,6 +1873,15 @@ Equipo de Contratación`;
                                                                     </Button>
                                                                 </>
                                                             )}
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleDeleteContractItem(contract.id)}
+                                                                title="Excluir Contrato"
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
+                                                            </Button>
                                                         </TableCell>
                                                     </TableRow>
                                                 );
