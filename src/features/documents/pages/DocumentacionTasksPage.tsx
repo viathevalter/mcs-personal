@@ -570,7 +570,8 @@ Equipo de Contratación`;
             const res = await listWorkers({
                 empresaId: selectedEmpresaId,
                 page: 1,
-                pageSize: 200,
+                pageSize: 1000,
+                statusTrabajador: ['ativos', 'pendentes_ingresso'],
             });
             const options = res.data.map(w => ({
                 value: w.id || '',
