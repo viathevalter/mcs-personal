@@ -938,8 +938,8 @@ Equipo de Contratación`;
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
-            direccion_actual: data.direccion_actual || '',
-            ubicacion_actual: data.ubicacion_actual || '',
+            direccion_actual: data.direccion_actual || req.worker?.address_line || '',
+            ubicacion_actual: data.ubicacion_actual || req.worker?.location || '',
             contacto_emergencia_nombre: data.contacto_emergencia_nombre || '',
             contacto_emergencia_parentesco: data.contacto_emergencia_parentesco || '',
             contacto_emergencia_telefono: data.contacto_emergencia_telefono || '',
