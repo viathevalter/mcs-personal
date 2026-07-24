@@ -79,7 +79,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { mutate: updateWorker, isPending: isUpdatingWorker } = useUpdateWorker();
     const isPending = isUpdatingWorker;
 
-    const { data: jobFunctions = [] } = useJobFunctions(worker.empresa_id);
+    const { data: jobFunctions = [] } = useJobFunctions(worker.empresa_id || selectedEmpresaId);
 
     const form = useForm({
         resolver: zodResolver(formSchema),

@@ -227,7 +227,7 @@ export async function getWorker(id: string): Promise<Worker | null> {
 
     return {
         ...(data as Worker),
-        empresa_id: empresaId
+        empresa_id: empresaId || (data as Worker).empresa_id
     };
 }
 
