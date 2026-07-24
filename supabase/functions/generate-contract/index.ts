@@ -287,7 +287,7 @@ serve(async (req) => {
 
     // Pre-processamento com JSZip para substituir tags entre colchetes [campo]
     let processedBuffer = templateBuffer;
-    const workerAddress = worker.address_line || worker.morada || worker.direccion || worker.location || "";
+    const workerAddress = worker.morada_contrato || worker.address_line || worker.morada || worker.direccion || worker.location || "";
     const workerPassport = worker.pasaporte || worker.passaporte || worker.dni || worker.nie || worker.nif || "";
     const workerBirthDate = formatDate(worker.fecha_nacimiento);
 
