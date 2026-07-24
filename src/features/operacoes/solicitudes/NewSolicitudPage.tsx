@@ -427,11 +427,15 @@ export function NewSolicitudPage() {
 
         const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
             ? (selectedPedido?.client_id || null)
-            : (actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null);
+            : (actionType === 'relocation')
+                ? (targetClientId !== 'all' ? targetClientId : null)
+                : (firstAssignment?.client_id || null);
 
         const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
             ? (selectedPedido?.client_site_id || null)
-            : (actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null);
+            : (actionType === 'relocation')
+                ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
+                : (firstAssignment?.client_site_id || null);
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
@@ -446,7 +450,7 @@ export function NewSolicitudPage() {
             requires_housing: actionType === 'relocation' ? requiresHousing : false,
             housing_start_date: actionType === 'relocation' && requiresHousing && housingStartDate ? housingStartDate : null,
             housing_end_date: actionType === 'relocation' && requiresHousing && housingEndDate ? housingEndDate : null,
-            requires_replacement: (actionType === 'offboarding') ? requiresReplacement : false,
+            requires_replacement: (actionType === 'replacement') ? true : (actionType === 'offboarding' ? requiresReplacement : false),
             action_type: (actionType === 'replacement' ? 'replace' : 
                           actionType === 'relocation' ? 'relocate' : 
                           actionType === 'offboarding' ? 'offboard' : 

@@ -279,7 +279,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
 
     allocate(
       {
-        pedido_item_id: position.id,
+        pedido_item_id: (position.isSynthetic || (position.id && position.id.startsWith('reemplazo-'))) ? undefined : position.id,
         worker_id: mode === 'existing' ? selectedWorkerId : undefined,
         worker_name: mode === 'new' ? workerName : undefined,
         worker_document: mode === 'new' ? workerDocument : undefined,

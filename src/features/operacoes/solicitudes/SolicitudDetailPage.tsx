@@ -5,13 +5,15 @@ import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer } from 'lucide-react';
 import { SolicitudOverviewTab } from './components/SolicitudOverviewTab';
 import { SolicitudTasksTab } from './components/SolicitudTasksTab';
 import { SolicitudTimelineTab } from './components/SolicitudTimelineTab';
 import { SolicitudTargetsTab } from './components/SolicitudTargetsTab';
 import { SolicitudStatusBadge } from './components/SolicitudStatusBadge';
 import { SolicitudTypeBadge } from './components/SolicitudTypeBadge';
+import { useSolicitudTargets } from './hooks/useSolicitudTargets';
+import { printReplacementDoc } from './utils/printReplacement';
 
 export function SolicitudDetailPage() {
   const { id } = useParams();
@@ -20,11 +22,49 @@ export function SolicitudDetailPage() {
   const { data: solicitud, isLoading: loadingSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
+  const { data: targets = [] } = useSolicitudTargets(id);
 
   const handleRefresh = () => {
     refetchSolicitud();
     refetchTasks();
     refetchTimeline();
+  };
+
+  const handlePrintPDF = () => {
+    if (!solicitud) return;
+    const firstTarget = targets[0];
+    const clientName = solicitud.client?.trade_name || 
+                       solicitud.client?.legal_name || 
+                       solicitud.pedido?.client?.trade_name || 
+                       solicitud.pedido?.client?.legal_name || 
+                       firstTarget?.source_client?.trade_name || 
+                       firstTarget?.source_client?.legal_name || 
+                       'N/A';
+                       
+    const siteName = solicitud.client_site?.name || 
+                     solicitud.pedido?.client_site?.name || 
+                     firstTarget?.source_site?.name || 
+                     'Local não definido';
+                     
+    const workerName = firstTarget?.source_worker?.nome || 'Não especificado';
+    const workerCodColab = firstTarget?.source_worker?.cod_colab || null;
+    const workerFuncion = firstTarget?.source_worker?.funcion || 'Trabalhador';
+    const reason = firstTarget?.reason || solicitud.description || 'Substituição operacional';
+    const notes = firstTarget?.notes || null;
+    
+    printReplacementDoc({
+      codigo: solicitud.codigo,
+      title: solicitud.title,
+      created_at: solicitud.created_at,
+      due_date: solicitud.due_date || null,
+      clientName,
+      siteName,
+      workerName,
+      workerCodColab,
+      workerFuncion,
+      reason,
+      notes
+    });
   };
 
   if (loadingSolicitud) {
@@ -48,10 +88,18 @@ export function SolicitudDetailPage() {
               <SolicitudStatusBadge status={solicitud.status} />
               <SolicitudTypeBadge tipo={solicitud.tipo} />
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Atualizar
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={handleRefresh}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </Button>
+              {solicitud.tipo === 'replacement' && (
+                <Button variant="default" size="sm" onClick={handlePrintPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5">
+                  <Printer className="h-4 w-4" />
+                  Imprimir PDF
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 

@@ -256,19 +256,62 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       const { data, error } = await supabase
         .schema('core_operacoes')
         .from('solicitud_targets')
-        .select('id, source_assignment_id, source_pedido_item_id, status, action_type, requires_replacement, solicitud_id, solicitud:solicitudes_operativas(due_date)')
+        .select(`
+          id, 
+          source_assignment_id, 
+          source_pedido_id,
+          source_pedido_item_id, 
+          source_worker_id,
+          source_client_id,
+          source_client_site_id,
+          status, 
+          action_type, 
+          requires_replacement, 
+          reason,
+          notes,
+          solicitud_id, 
+          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id)
+        `)
         .eq('empresa_id', selectedEmpresaId)
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress']);
+
       if (error) {
         console.error("Error fetching replacement targets:", error);
         return [];
       }
-      // Filter client-side to include replace actions OR offboards requesting replacement
-      return (data || []).filter((t: any) => 
+      
+      const targets = (data || []).filter((t: any) => 
         t.action_type === 'replace' || 
         (t.action_type === 'offboard' && t.requires_replacement === true)
       );
+
+      const workerIds = [...new Set(targets.map((t: any) => t.source_worker_id).filter(Boolean))];
+      const clientIds = [...new Set(targets.map((t: any) => t.source_client_id || t.solicitud?.client_id).filter(Boolean))];
+      const siteIds = [...new Set(targets.map((t: any) => t.source_client_site_id || t.solicitud?.client_site_id).filter(Boolean))];
+
+      const [workersRes, clientsRes, sitesRes] = await Promise.all([
+        workerIds.length > 0 
+          ? supabase.schema('core_personal').from('workers').select('id, nome, cod_colab, funcion').in('id', workerIds)
+          : Promise.resolve({ data: [] }),
+        clientIds.length > 0
+          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
+          : Promise.resolve({ data: [] }),
+        siteIds.length > 0
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code').in('id', siteIds)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      const workersMap = new Map(workersRes.data?.map(w => [w.id, w]) || []);
+      const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
+      const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
+
+      return targets.map((t: any) => ({
+        ...t,
+        source_worker: workersMap.get(t.source_worker_id) || null,
+        client: clientsMap.get(t.source_client_id || t.solicitud?.client_id) || null,
+        client_site: sitesMap.get(t.source_client_site_id || t.solicitud?.client_site_id) || null
+      }));
     },
     enabled: !!selectedEmpresaId
   });
@@ -321,13 +364,73 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     enabled: !!selectedEmpresaId
   });
 
+  // Blended list of Pedidos (real active Pedidos + synthetic Pedidos for standalone replacements)
+  const blendedPedidos = useMemo(() => {
+    const list = [...activePedidos];
+    const activePedidoIds = new Set(activePedidos.map(p => p.id));
+    const standaloneReplacements = replacementTargets.filter(t => 
+      !t.source_pedido_id || !activePedidoIds.has(t.source_pedido_id)
+    );
+    
+    standaloneReplacements.forEach(t => {
+      const existingId = `reemplazo-${t.solicitud_id || t.id}`;
+      let syntheticPedido = list.find(p => p.id === existingId);
+      
+      const itemJobFunction = t.source_worker?.funcion || 'Perfil';
+      const item = {
+        id: `reemplazo-item-${t.id}`,
+        pedido_id: existingId,
+        job_function_id: null,
+        job_function_name_snapshot: itemJobFunction,
+        job_function: { name: itemJobFunction },
+        quantity_requested: 1,
+        quantity_fulfilled: 0,
+        includes_epi: false,
+        includes_housing: t.requires_housing || false,
+        base_cost_hour_snapshot: null,
+        isReplacementItem: true,
+        replaced_worker: t.source_worker,
+        reason: t.reason,
+        notes: t.notes,
+        solicitud_target_id: t.id
+      };
+      
+      if (syntheticPedido) {
+        syntheticPedido.pedido_items.push(item);
+      } else {
+        syntheticPedido = {
+          id: existingId,
+          isSynthetic: true,
+          syntheticType: 'replacement',
+          solicitud_id: t.solicitud_id,
+          codigo: t.solicitud?.codigo || `R-${t.id.slice(0, 8)}`,
+          title: t.solicitud?.title || `Substituição`,
+          client_id: t.source_client_id || t.solicitud?.client_id || null,
+          client_site_id: t.source_client_site_id || t.solicitud?.client_site_id || null,
+          expected_start_date: t.solicitud?.due_date || null,
+          expected_end_date: null,
+          client: t.client || { trade_name: 'N/A - Reemplazo' },
+          client_site: t.client_site || { name: 'N/A - Local não definido' },
+          pedido_items: [item]
+        };
+        list.push(syntheticPedido);
+      }
+    });
+    
+    return list;
+  }, [activePedidos, replacementTargets]);
+
   // Selected Pedido helper
   const selectedPedido = useMemo(() => {
-    return activePedidos.find(p => p.id === selectedPedidoId) || null;
-  }, [activePedidos, selectedPedidoId]);
+    return blendedPedidos.find(p => p.id === selectedPedidoId) || null;
+  }, [blendedPedidos, selectedPedidoId]);
 
   // Allocations for the selected Pedido
   const allocations = useMemo(() => {
+    if (selectedPedidoId && selectedPedidoId.toString().startsWith('reemplazo-')) {
+      const gsoId = selectedPedidoId.toString().replace('reemplazo-', '');
+      return allAllocations.filter(a => a.solicitud_id === gsoId);
+    }
     return allAllocations.filter(a => a.pedido_id === selectedPedidoId);
   }, [allAllocations, selectedPedidoId]);
 
@@ -337,16 +440,19 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     let fulQty = 0;
     let hasReplacement = false;
     
-    pedido.pedido_items?.forEach((item: any) => {
-      reqQty += item.quantity_requested || 0;
-      
-      // count active replacement targets for this item
-      const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id).length;
-      if (repCount > 0) hasReplacement = true;
-      
-      fulQty += Math.max(0, (item.quantity_fulfilled || 0) - repCount);
-    });
-    
+    if (pedido.isSynthetic) {
+      reqQty = pedido.pedido_items.length;
+      fulQty = pedido.pedido_items.filter((item: any) => item.quantity_fulfilled > 0).length;
+      hasReplacement = true;
+    } else {
+      pedido.pedido_items?.forEach((item: any) => {
+        reqQty += item.quantity_requested || 0;
+        const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id).length;
+        if (repCount > 0) hasReplacement = true;
+        fulQty += Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+      });
+    }
+
     const isCompleted = reqQty > 0 && fulQty >= reqQty;
     return {
       reqQty,
@@ -375,25 +481,25 @@ LICENCIA DE CONDUCIR: ${cnh}`;
   // Unique clients present in active pedidos for filter dropdown
   const clientsList = useMemo(() => {
     const map = new Map<string, string>();
-    activePedidos.forEach(p => {
+    blendedPedidos.forEach(p => {
       if (p.client) {
         map.set(p.client.id, p.client.trade_name || p.client.legal_name || 'Cliente');
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [activePedidos]);
+  }, [blendedPedidos]);
 
   // Unique profiles present in active pedidos for filter dropdown
   const profilesList = useMemo(() => {
     const set = new Set<string>();
-    activePedidos.forEach(p => {
+    blendedPedidos.forEach(p => {
       p.pedido_items?.forEach((item: any) => {
         const name = item.job_function_name_snapshot || item.job_function?.name;
         if (name) set.add(name);
       });
     });
     return Array.from(set).sort();
-  }, [activePedidos]);
+  }, [blendedPedidos]);
 
   // Calculate totals across all active orders
   const totals = useMemo(() => {
@@ -401,7 +507,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     let activeOrders = 0;
     let urgentCount = 0;
     
-    activePedidos.forEach(p => {
+    blendedPedidos.forEach(p => {
       const { reqQty, fulQty, isCompleted, hasReplacement } = getPedidoHiringStatus(p, replacementTargets);
       
       const isPending = !isCompleted || hasReplacement;
@@ -429,11 +535,11 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       activeOrders,
       urgentCount
     };
-  }, [activePedidos, replacementTargets]);
+  }, [blendedPedidos, replacementTargets]);
 
   // Filtered pedidos for sidebar list
   const filteredPedidos = useMemo(() => {
-    return activePedidos.filter(p => {
+    return blendedPedidos.filter(p => {
       const { isCompleted, hasReplacement } = getPedidoHiringStatus(p, replacementTargets);
 
       // 1. Status Filter
@@ -476,7 +582,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       if (workerSearch) {
         const query = workerSearch.toLowerCase();
         const hasHiredWorker = allAllocations.some(a => 
-          a.pedido_id === p.id && 
+          (a.pedido_id === p.id || (p.isSynthetic && a.solicitud_id === p.solicitud_id)) && 
           a.worker?.nome?.toLowerCase().includes(query)
         );
         if (!hasHiredWorker) return false;
@@ -484,7 +590,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
       return true;
     });
-  }, [activePedidos, replacementTargets, statusFilter, clientFilter, profileFilter, searchQuery, workerSearch, allAllocations]);
+  }, [blendedPedidos, replacementTargets, statusFilter, clientFilter, profileFilter, searchQuery, workerSearch, allAllocations]);
 
   // Automatically select the first Pedido if none is selected, or if the selected one is filtered out
   React.useEffect(() => {
@@ -502,7 +608,9 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     if (!selectedPedido) return;
 
     // Find if there is a pending replacement target for this item
-    const repTarget = replacementTargets.find(t => t.source_pedido_item_id === item.id);
+    const repTarget = selectedPedido.isSynthetic 
+      ? replacementTargets.find(t => t.id === item.solicitud_target_id)
+      : replacementTargets.find(t => t.source_pedido_item_id === item.id);
 
     setSelectedPosition({
       id: item.id,
@@ -520,8 +628,9 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       status: item.status,
       pergunta_respuesta: selectedPedido.pergunta_respuesta,
       base_cost_hour_snapshot: item.base_cost_hour_snapshot,
-      solicitud_id: repTarget?.solicitud_id || undefined,
-      replacement_due_date: repTarget?.solicitud?.due_date || undefined
+      solicitud_id: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : (repTarget?.solicitud_id || undefined),
+      replacement_due_date: repTarget?.solicitud?.due_date || undefined,
+      isSynthetic: selectedPedido.isSynthetic || false
     });
     
     setIsDialogOpen(true);
@@ -776,8 +885,8 @@ LICENCIA DE CONDUCIR: ${cnh}`;
               <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-5 border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-2">
                   <div>
-                    <span className="bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                      Pedido Comercial
+                    <span className={`${selectedPedido.isSynthetic ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-400 border-purple-200' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-400 border-indigo-200'} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider border`}>
+                      {selectedPedido.isSynthetic ? 'Substituição Operativa' : 'Pedido Comercial'}
                     </span>
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                       {selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente'}
@@ -853,13 +962,15 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
                       : 0;
 
+                    const isReplacement = repCount > 0 || item.isReplacementItem;
+
                     return (
                       <div 
                         key={item.id} 
                         className={`border rounded-xl p-4 flex flex-col justify-between space-y-4 hover:shadow-md transition-all ${
                           isItemFulfilled 
                             ? 'bg-emerald-50/10 border-emerald-150 dark:bg-emerald-950/5 dark:border-emerald-950' 
-                            : repCount > 0
+                            : isReplacement
                               ? 'bg-purple-50/10 border-purple-200 dark:bg-purple-950/5 dark:border-purple-900/50'
                               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                         }`}
@@ -900,33 +1011,42 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                               isItemFulfilled 
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                                : repCount > 0
+                                : isReplacement
                                   ? 'bg-purple-50 text-purple-755 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400'
                                   : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/40 dark:text-amber-400'
                             }`}>
-                              {effectiveFulfilled} de {item.quantity_requested} Contratados {repCount > 0 && `(${repCount} p. reimplacar)`}
+                              {item.isReplacementItem 
+                                ? 'Reemplazo Pendente' 
+                                : `${effectiveFulfilled} de ${item.quantity_requested} Contratados ${repCount > 0 ? `(${repCount} p. reimplacar)` : ''}`}
                             </span>
                           </div>
 
                           {/* Progress bar */}
                           <div className="mt-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                             <div 
-                              className={`h-full transition-all duration-300 ${isItemFulfilled ? 'bg-emerald-550' : repCount > 0 ? 'bg-purple-500' : 'bg-amber-500'}`}
+                              className={`h-full transition-all duration-300 ${isItemFulfilled ? 'bg-emerald-550' : isReplacement ? 'bg-purple-500' : 'bg-amber-500'}`}
                               style={{ width: `${progress}%` }}
                             ></div>
                           </div>
 
-                          {repCount > 0 && (() => {
-                            const repDate = firstRep?.solicitud?.due_date 
-                              ? new Date(firstRep.solicitud.due_date).toLocaleDateString('pt-PT')
+                          {isReplacement && (() => {
+                            const repDate = (firstRep?.solicitud?.due_date || selectedPedido.expected_start_date)
+                              ? new Date(firstRep?.solicitud?.due_date || selectedPedido.expected_start_date).toLocaleDateString('pt-PT')
                               : '';
+                            const workerName = item.replaced_worker?.nome || 'Trabalhador';
+                            const workerCod = item.replaced_worker?.cod_colab ? ` (Cód: ${item.replaced_worker.cod_colab})` : '';
+                            const reasonStr = item.reason ? ` Motivo: ${item.reason}.` : '';
                             return (
-                              <div className="mt-3 flex items-start gap-1.5 text-[10px] text-purple-700 dark:text-purple-400 bg-purple-50/40 dark:bg-purple-950/15 p-2 rounded-lg border border-purple-200/40">
-                                <AlertTriangle className="h-3.5 w-3.5 text-purple-650 shrink-0 mt-0.5" />
-                                <span>
-                                  Há uma solicitação de substituição (reemplazo) ativa para este cargo. A vaga foi reaberta.
-                                  {repDate && <strong> Novo trabalhador deve iniciar em: {repDate}.</strong>}
-                                </span>
+                              <div className="mt-3 flex flex-col gap-1 text-[10px] text-purple-700 dark:text-purple-400 bg-purple-50/40 dark:bg-purple-950/15 p-2 rounded-lg border border-purple-200/40">
+                                <div className="flex items-center gap-1.5 font-bold">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                                  <span>Substituição Pendente</span>
+                                </div>
+                                <p className="mt-1">
+                                  Substituir: <strong>{workerName}</strong>{workerCod}.
+                                </p>
+                                {reasonStr && <p className="text-slate-500">{reasonStr}</p>}
+                                {repDate && <p className="mt-1 font-semibold text-purple-700 dark:text-purple-400">Data de início esperada: {repDate}</p>}
                               </div>
                             );
                           })()}
@@ -953,13 +1073,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             className={`h-8 text-xs font-semibold ${
                               isItemFulfilled 
                                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
-                                : repCount > 0
+                                : isReplacement
                                   ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
                                   : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                             }`}
                           >
                             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                            {repCount > 0 ? '+ Substituir' : '+ Contratar'}
+                            {isReplacement ? '+ Substituir' : '+ Contratar'}
                           </Button>
                         </div>
                       </div>
