@@ -351,8 +351,14 @@ export function DocumentacionTasksPage() {
                     if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
                         let xml = await zip.file(relPath)!.async('text');
                         if (relPath.startsWith('word/header')) {
-                            xml = xml.replace(/relativeFrom="paragraph"/g, 'relativeFrom="page"');
-                            xml = xml.replace(/<wp:posOffset>-?\d+<\/wp:posOffset>/g, '<wp:posOffset>0</wp:posOffset>');
+                            if (xml.includes('<wp:anchor')) {
+                                xml = xml.replace(/<wp:anchor[\s\S]*?>/g, '<wp:inline distT="0" distB="0" distL="0" distR="0">');
+                                xml = xml.replace(/<\/wp:anchor>/g, '</wp:inline>');
+                                xml = xml.replace(/<wp:simplePos[\s\S]*?\/>/g, '');
+                                xml = xml.replace(/<wp:positionH[\s\S]*?<\/wp:positionH>/g, '');
+                                xml = xml.replace(/<wp:positionV[\s\S]*?<\/wp:positionV>/g, '');
+                                xml = xml.replace(/<wp:wrapNone\/>/g, '');
+                            }
                         }
                         const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
                         zip.file(relPath, escaped);
