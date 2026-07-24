@@ -143,7 +143,8 @@
       "docsPt": "Documentos Portugal",
       "docsEs": "Documentos Espanha",
       "passport": "Passaporte",
-      "driversLicense": "Licença de Conduzir"
+      "driversLicense": "Licença de Conduzir",
+      "jobFunction": "Função"
     },
     "placeholders": {
       "name": "Nome do trabalhador",
@@ -158,7 +159,9 @@
       "nie": "Nº NIE",
       "nuss": "Nº NUSS",
       "passport": "Nº Passaporte",
-      "selectOption": "Selecione"
+      "selectOption": "Selecione",
+      "selectJobFunction": "Selecione a função...",
+      "noJobFunction": "Não informada no perfil"
     },
     "status": {
       "active": "Ativo",

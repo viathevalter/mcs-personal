@@ -17,6 +17,7 @@ export interface UpdateWorkerParams {
     fecha_nacimiento: string | null;
     nuss: string | null;
     foto: string | null;
+    funcion: string | null;
 }
 
 export function useUpdateWorker() {

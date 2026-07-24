@@ -123,6 +123,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             status_seguridad: updates.status_seguridad,
             camiseta: updates.camiseta,
             pantalones: updates.pantalones,
+            funcion: updates.funcion,
         })
         .eq('id', id)
         .select('id');

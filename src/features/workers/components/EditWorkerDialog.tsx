@@ -42,6 +42,7 @@ import { toast } from 'sonner';
 import { BenefitsTab, type BenefitsTabRef } from './BenefitsTab';
 import { BankTab, type BankTabRef } from './BankTab';
 import { DiscountsTab } from './tabs/DiscountsTab';
+import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJobFunctions';
 
 const formSchema = z.object({
     nome: z.string().min(3, { message: "O nome deve ter no mínimo 3 caracteres." }),
@@ -58,6 +59,7 @@ const formSchema = z.object({
     nuss: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     status_trabajador: z.string().optional().nullable(),
     status_seguridad: z.string().optional().nullable(),
+    funcion: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -77,6 +79,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { mutate: updateWorker, isPending: isUpdatingWorker } = useUpdateWorker();
     const isPending = isUpdatingWorker;
 
+    const { data: jobFunctions = [] } = useJobFunctions(worker.empresa_id);
+
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -94,6 +98,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nuss: worker.nuss || "",
             status_trabajador: worker.status_trabajador || "",
             status_seguridad: worker.status_seguridad || "",
+            funcion: worker.funcion || "none",
         },
     });
 
@@ -115,6 +120,7 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 nuss: worker.nuss || "",
                 status_trabajador: worker.status_trabajador || "",
                 status_seguridad: worker.status_seguridad || "",
+                funcion: worker.funcion || "none",
             });
             setActiveTab("basico");
         }
@@ -135,7 +141,8 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
             nacionalidade: values.nacionalidade || null,
             fecha_nacimiento: values.fecha_nacimiento || null,
             nuss: values.nuss || null,
-            foto: worker.foto || null
+            foto: worker.foto || null,
+            funcion: values.funcion === 'none' ? null : (values.funcion || null),
         }, {
             onSuccess: () => {
                 if (activeTab === "beneficios" && benefitsTabRef.current) {
@@ -284,6 +291,31 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                                 <FormControl>
                                                     <Input placeholder={t('editWorker.placeholders.email')} {...field} value={field.value || ''} />
                                                 </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="funcion"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{t('editWorker.fields.jobFunction')}</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || 'none'} value={field.value || 'none'}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder={t('editWorker.placeholders.selectJobFunction')} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="none">{t('editWorker.placeholders.noJobFunction')}</SelectItem>
+                                                        {jobFunctions.map((jf: any) => (
+                                                            <SelectItem key={jf.id} value={jf.name}>
+                                                                {jf.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
