@@ -228,6 +228,40 @@ serve(async (req) => {
       }
     }
 
+    // Tentar buscar preferências salvas na solicitação de documentos do trabalhador (data_inicio e cliente)
+    try {
+      const { data: latestDocReq } = await supabase
+        .schema("core_personal")
+        .from("document_requests")
+        .select("extracted_data")
+        .eq("worker_id", worker.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestDocReq?.extracted_data) {
+        if (latestDocReq.extracted_data.start_date) {
+          startDate = latestDocReq.extracted_data.start_date;
+          console.log(`Utilizando data de início da solicitação de documentos: ${startDate}`);
+        }
+        if (latestDocReq.extracted_data.client_id) {
+          const { data: cli } = await supabase
+            .schema("core_common")
+            .from("clients")
+            .select("legal_name, trade_name, address_line, city")
+            .eq("id", latestDocReq.extracted_data.client_id)
+            .maybeSingle();
+          if (cli) {
+            clientName = cli.trade_name || cli.legal_name || clientName;
+            clientAddress = [cli.address_line, cli.city].filter(Boolean).join(", ");
+            console.log(`Utilizando cliente da solicitação de documentos: ${clientName}`);
+          }
+        }
+      }
+    } catch (errDocReq) {
+      console.error("Erro ao carregar dados da solicitação de documentos:", errDocReq);
+    }
+
     // Formatar datas auxiliares
     const formatDate = (dateStr?: string | null) => {
       if (!dateStr) return "";
@@ -241,8 +275,22 @@ serve(async (req) => {
     const documentDatePT = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
     const documentDateES = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 
+    function xmlEscape(str: string): string {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
     // Pre-processamento com JSZip para substituir tags entre colchetes [campo]
     let processedBuffer = templateBuffer;
+    const workerAddress = worker.address_line || worker.morada || worker.direccion || worker.location || "";
+    const workerPassport = worker.pasaporte || worker.passaporte || worker.dni || worker.nie || worker.nif || "";
+    const workerBirthDate = formatDate(worker.fecha_nacimiento);
+
     try {
       console.log("Iniciando pre-processamento com JSZip...");
       const zip = new JSZip();
@@ -251,21 +299,41 @@ serve(async (req) => {
       const placeholderDict: Record<string, string> = {
         "Nombre": worker.nome || "",
         "NOMBRE": worker.nome || "",
-        "fecha_nascimento": formatDate(worker.fecha_nacimiento),
-        "fecha_nacimiento": formatDate(worker.fecha_nacimiento),
-        "Passaporte": worker.pasaporte || "",
-        "PASSAPORTE": worker.pasaporte || "",
+        "nome": worker.nome || "",
+        "NOME": worker.nome || "",
+        "fecha_nascimento": workerBirthDate,
+        "fecha_nacimiento": workerBirthDate,
+        "data_nascimento": workerBirthDate,
+        "Passaporte": workerPassport,
+        "PASSAPORTE": workerPassport,
+        "pasaporte": workerPassport,
+        "PASAPORTE": workerPassport,
+        "passaporte": workerPassport,
         "NIF": worker.nif || "",
+        "nif": worker.nif || "",
         "NISS": worker.niss || "",
-        "Domicilio": worker.morada || "",
-        "DOMICILIO": worker.morada || "",
+        "niss": worker.niss || "",
+        "Domicilio": workerAddress,
+        "DOMICILIO": workerAddress,
+        "domicilio": workerAddress,
+        "morada": workerAddress,
+        "Morada": workerAddress,
+        "MORADA": workerAddress,
+        "direccion": workerAddress,
+        "DIRECCION": workerAddress,
+        "direccion_actual": workerAddress,
+        "address_line": workerAddress,
         "funcion": jobFunction,
         "FUNCION": jobFunction,
+        "funcao": jobFunction,
+        "FUNCAO": jobFunction,
         "Cliente": clientName,
         "CLIENTE": clientName,
+        "cliente": clientName,
         "endereco": siteAddress || clientAddress || "Instalações do Cliente",
         "ENDERECO": siteAddress || clientAddress || "Instalações do Cliente",
         "fecha_inicio": formatDate(startDate),
+        "data_inicio": formatDate(startDate),
         "Fecha_Assinatura_PT": documentDatePT,
         "Fecha_Assinatura_ESP": documentDateES,
       };
@@ -275,21 +343,33 @@ serve(async (req) => {
       for (const [relativePath, file] of Object.entries(zip.files)) {
         if (relativePath.endsWith(".xml") && relativePath.startsWith("word/")) {
           let content = await file.async("text");
-          let replaced = false;
+          const originalContent = content;
 
+          // 1. Desfazer embrulhos de campos de formulário SDT (<w:sdt>...)
+          content = content.replace(/<w:sdt\b[^>]*>[\s\S]*?<w:sdtContent\b[^>]*>([\s\S]*?)<\/w:sdtContent>\s*<\/w:sdt>/gi, '$1');
+          
+          // 2. Remover estilos de texto de espaço reservado que escondem valores no Word
+          content = content.replace(/<w:rStyle\b[^>]*w:val="[^"]*Placeholder[^"]*"[^>]*\/>/gi, '');
+          content = content.replace(/<w:rStyle\b[^>]*w:val="[^"]*TextodoEspaoReservado[^"]*"[^>]*\/>/gi, '');
+          content = content.replace(/<w:showingPlcHdr\/>/gi, '');
+
+          // 3. Normalizar tags {{...}} divididas em múltiplos nós de XML do Word
+          content = content.replace(/\{\s*(?:<[^>]+>)*\s*\{\s*(?:<[^>]+>)*\s*([\s\S]*?)\s*(?:<[^>]+>)*\s*\}\s*(?:<[^>]+>)*\s*\}/gi, (m, k) => '{{' + k.replace(/<[^>]+>/g, '').trim() + '}}');
+
+          // 4. Pré-substituir tags de colchetes [campo]
           content = content.replace(bracketRegex, (match) => {
             const plainText = match.replace(/<[^>]+>/g, "");
             const cleanKey = plainText.replace(/[\[\]]/g, "").trim();
 
             if (placeholderDict.hasOwnProperty(cleanKey)) {
-              replaced = true;
-              console.log(`Substituindo [${cleanKey}] por: "${placeholderDict[cleanKey]}" no arquivo ${relativePath}`);
-              return `</w:t></w:r><w:r><w:t>${placeholderDict[cleanKey]}</w:t></w:r><w:r><w:t>`;
+              const safeValue = xmlEscape(placeholderDict[cleanKey]);
+              console.log(`Substituindo [${cleanKey}] por: "${safeValue}" no arquivo ${relativePath}`);
+              return safeValue;
             }
             return match;
           });
 
-          if (replaced) {
+          if (content !== originalContent) {
             zip.file(relativePath, content);
           }
         }
@@ -305,22 +385,42 @@ serve(async (req) => {
     const mergeData = {
       nome: worker.nome || "",
       nome_completo: worker.nome || "",
+      Nombre: worker.nome || "",
+      NOMBRE: worker.nome || "",
       nif: worker.nif || "",
       niss: worker.niss || "",
       nie: worker.nie || "",
       dni: worker.dni || "",
-      pasaporte: worker.pasaporte || "",
+      pasaporte: workerPassport,
+      passaporte: workerPassport,
+      Passaporte: workerPassport,
+      PASSAPORTE: workerPassport,
       nacionalidade: worker.nacionalidade || "",
-      morada: worker.morada || "",
-      data_nascimento: formatDate(worker.fecha_nacimiento),
+      morada: workerAddress,
+      Morada: workerAddress,
+      MORADA: workerAddress,
+      domicilio: workerAddress,
+      Domicilio: workerAddress,
+      DOMICILIO: workerAddress,
+      direccion: workerAddress,
+      direccion_actual: workerAddress,
+      address_line: workerAddress,
+      data_nascimento: workerBirthDate,
+      fecha_nascimento: workerBirthDate,
+      fecha_nacimiento: workerBirthDate,
       contato: worker.movil || "",
       
       cliente: clientName,
       cliente_nome: clientName,
+      Cliente: clientName,
       obra_local: siteName || siteAddress || "Instalações do Cliente",
+      endereco: siteAddress || clientAddress || "Instalações do Cliente",
       
       data_inicio: formatDate(startDate),
+      fecha_inicio: formatDate(startDate),
       funcao: jobFunction,
+      funcion: jobFunction,
+      Funcao: jobFunction,
       salario_base: assignment?.salario_base || "A combinar",
 
       // Variáveis de data de assinatura em formato amigável para docx-templates

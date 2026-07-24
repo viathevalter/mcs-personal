@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
-    listContracts, generateContract, type Contract,
+    listContracts, generateContract, deleteContract, type Contract,
     listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
@@ -21,7 +21,7 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send, Search, X, Pencil, Trash2
+    MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,6 +63,7 @@ export function DocumentacionTasksPage() {
     const [requestDialogOpen, setRequestDialogOpen] = useState(false);
     const [requestEmpresaId, setRequestEmpresaId] = useState<string>('dae64d51-2181-4510-b14f-e63d2f111a8e'); // Default Wiseowe
     const [requestClientId, setRequestClientId] = useState<string>('');
+    const [requestStartDate, setRequestStartDate] = useState<string>('');
     const [requestWorkerId, setRequestWorkerId] = useState<string | null>(null);
     const [requestWorkersList, setRequestWorkersList] = useState<{ value: string; label: string }[]>([]);
     const [creatingRequest, setCreatingRequest] = useState(false);
@@ -73,6 +74,7 @@ export function DocumentacionTasksPage() {
     const [editingRequest, setEditingRequest] = useState<DocumentRequest | null>(null);
     const [editEmpresaId, setEditEmpresaId] = useState<string>('');
     const [editClientId, setEditClientId] = useState<string>('');
+    const [editStartDate, setEditStartDate] = useState<string>('');
     const [updatingRequest, setUpdatingRequest] = useState(false);
 
     // Dialog & Form states - Verificação de Documento Enviado (Lado a Lado)
@@ -85,6 +87,7 @@ export function DocumentacionTasksPage() {
         nome: '',
         email: '',
         direccion_actual: '',
+        morada_contrato: '',
         ubicacion_actual: '',
         contacto_emergencia_nombre: '',
         contacto_emergencia_parentesco: '',
@@ -226,12 +229,14 @@ export function DocumentacionTasksPage() {
             } else if (sortFieldRequests === 'planned_start_date') {
                 const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssA = a.worker?.assignments?.[0];
-                valA = activeAssA?.planned_start_date || activeAssA?.start_date ||
+                valA = (a as any).extracted_data?.start_date ||
+                       activeAssA?.planned_start_date || activeAssA?.start_date ||
                        latestAssA?.planned_start_date || latestAssA?.start_date || '9999-12-31';
 
                 const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssB = b.worker?.assignments?.[0];
-                valB = activeAssB?.planned_start_date || activeAssB?.start_date ||
+                valB = (b as any).extracted_data?.start_date ||
+                       activeAssB?.planned_start_date || activeAssB?.start_date ||
                        latestAssB?.planned_start_date || latestAssB?.start_date || '9999-12-31';
             } else if (sortFieldRequests === 'created_at') {
                 valA = a.created_at || '';
@@ -336,9 +341,46 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
             if (!filePath) throw new Error("Caminho inválido");
 
+            // Sanitizar e normalizar o arquivo XML (posicionamento de cabeçalho e escapar &) antes de subir
+            let fileToUpload: Blob = file;
+            try {
+                const arrayBuf = await file.arrayBuffer();
+                const zip = new JSZip();
+                await zip.loadAsync(arrayBuf);
+
+                for (const relPath of Object.keys(zip.files)) {
+                    if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
+                        let xml = await zip.file(relPath)!.async('text');
+                        if (relPath.startsWith('word/header') || relPath.startsWith('word/footer')) {
+                            if (xml.includes('<wp:anchor')) {
+                                xml = xml.replace(/<wp:anchor[\s\S]*?>/g, '<wp:inline distT="0" distB="0" distL="0" distR="0">');
+                                xml = xml.replace(/<\/wp:anchor>/g, '</wp:inline>');
+                                xml = xml.replace(/<wp:simplePos[\s\S]*?\/>/g, '');
+                                xml = xml.replace(/<wp:positionH[\s\S]*?<\/wp:positionH>/g, '');
+                                xml = xml.replace(/<wp:positionV[\s\S]*?<\/wp:positionV>/g, '');
+                                xml = xml.replace(/<wp:wrapNone\/>/g, '');
+                            }
+                            xml = xml.replace(/cx="7\d+"/g, 'cx="6600000"').replace(/cx="75\d+"/g, 'cx="6600000"');
+                            if (xml.includes('<w:pPr>')) {
+                                if (!xml.includes('<w:jc')) {
+                                    xml = xml.replace('<w:pPr>', '<w:pPr><w:jc w:val="center"/>');
+                                } else {
+                                    xml = xml.replace(/<w:jc w:val="[^"]*"\/>/g, '<w:jc w:val="center"/>');
+                                }
+                            }
+                        }
+                        const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
+                        zip.file(relPath, escaped);
+                    }
+                }
+                fileToUpload = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            } catch (zipErr) {
+                console.warn("Erro na sanitização JSZip do upload:", zipErr);
+            }
+
             const { error } = await supabase.storage
                 .from('contract-templates')
-                .upload(filePath, file, {
+                .upload(filePath, fileToUpload, {
                     upsert: true,
                     contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 });
@@ -352,6 +394,18 @@ export function DocumentacionTasksPage() {
         } finally {
             setUploadingTemplate(null);
             setActiveUploadDocType(null);
+        }
+    };
+
+    const handleDeleteContractItem = async (contractId: string) => {
+        if (!window.confirm("Tem certeza que deseja excluir este registro de contrato?")) return;
+        try {
+            await deleteContract(contractId);
+            toast.success("Contrato excluído com sucesso!");
+            loadContracts();
+        } catch (err: any) {
+            console.error("Erro ao excluir contrato:", err);
+            toast.error(`Erro ao excluir contrato: ${err.message || err}`);
         }
     };
 
@@ -702,8 +756,13 @@ Equipo de Contratación`;
                 renderHeaders: true,
                 renderFooters: true,
             })
+            .then(() => {
+                if (previewContainerRef.current?.parentElement) {
+                    previewContainerRef.current.parentElement.scrollTop = 0;
+                }
+            })
             .catch(err => {
-                console.error("Erro ao renderizar visualização do contrato gerado:", err);
+                console.error("Erro ao renderizar pré-visualização:", err);
             });
         }
     }, [previewBlob]);
@@ -810,7 +869,7 @@ Equipo de Contratación`;
         try {
             setCreatingRequest(true);
             const targetClient = (requestClientId && requestClientId !== 'none') ? requestClientId : undefined;
-            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, targetClient);
+            const res = await createDocumentRequest(requestEmpresaId, requestWorkerId, targetClient, requestStartDate || undefined);
             const link = `${window.location.origin}/enviar-documentos/${res.token}`;
             setRequestSuccessLink(link);
             toast.success("Solicitação criada com sucesso!");
@@ -830,6 +889,8 @@ Equipo de Contratación`;
         loadClients(req.empresa_id);
         const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || 'none';
         setEditClientId(explicitClientId);
+        const explicitStartDate = (req as any).extracted_data?.start_date || (req as any).worker?.assignments?.[0]?.start_date || (req as any).worker?.assignments?.[0]?.planned_start_date || '';
+        setEditStartDate(explicitStartDate);
         setEditDialogOpen(true);
     };
 
@@ -843,7 +904,7 @@ Equipo de Contratación`;
         try {
             setUpdatingRequest(true);
             const targetClient = (editClientId && editClientId !== 'none') ? editClientId : undefined;
-            await updateDocumentRequest(editingRequest.id, editEmpresaId, targetClient);
+            await updateDocumentRequest(editingRequest.id, editEmpresaId, targetClient, editStartDate || undefined);
             toast.success("Solicitação atualizada com sucesso!");
             setEditDialogOpen(false);
             loadDocRequests();
@@ -878,8 +939,9 @@ Equipo de Contratación`;
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
-            direccion_actual: data.direccion_actual || '',
-            ubicacion_actual: data.ubicacion_actual || '',
+            direccion_actual: data.direccion_actual || req.worker?.address_line || '',
+            morada_contrato: data.morada_contrato || req.worker?.morada_contrato || '',
+            ubicacion_actual: data.ubicacion_actual || req.worker?.location || '',
             contacto_emergencia_nombre: data.contacto_emergencia_nombre || '',
             contacto_emergencia_parentesco: data.contacto_emergencia_parentesco || '',
             contacto_emergencia_telefono: data.contacto_emergencia_telefono || '',
@@ -930,6 +992,83 @@ Equipo de Contratación`;
         getSigned();
     }, [selectedRequest, activeDocTab]);
 
+    // Funções para download individual e em lote dos documentos enviados pelo trabalhador
+    const handleDownloadCurrentDoc = async () => {
+        if (!selectedRequest) return;
+        let path = '';
+        if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
+        else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
+        else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
+        else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
+
+        if (!path) {
+            toast.error("Nenhum arquivo enviado nesta aba de documento.");
+            return;
+        }
+
+        const workerName = selectedRequest.worker?.nome || 'Trabalhador';
+        try {
+            const { data, error } = await supabase.storage
+                .from('worker-incoming-docs')
+                .createSignedUrl(path, 60, { download: true });
+
+            if (error || !data?.signedUrl) throw error;
+
+            const ext = path.split('.').pop() || 'file';
+            const a = document.createElement('a');
+            a.href = data.signedUrl;
+            a.download = `${workerName}_${activeDocTab}.${ext}`;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast.success(`Download do documento (${activeDocTab.toUpperCase()}) iniciado!`);
+        } catch (err: any) {
+            console.error("Erro ao baixar documento:", err);
+            toast.error("Falha ao baixar o documento.");
+        }
+    };
+
+    const handleDownloadAllDocs = async () => {
+        if (!selectedRequest) return;
+        const workerName = selectedRequest.worker?.nome || 'Trabalhador';
+        const docs = [
+            { label: 'Identificacao_Passaporte', path: selectedRequest.passport_url },
+            { label: 'NIF', path: selectedRequest.nif_url },
+            { label: 'NISS', path: selectedRequest.niss_url },
+            { label: 'Carta_Conducao', path: selectedRequest.license_url },
+            { label: 'Selfie', path: selectedRequest.selfie_url },
+        ].filter(d => Boolean(d.path));
+
+        if (docs.length === 0) {
+            toast.error("Nenhum documento anexado para download.");
+            return;
+        }
+
+        toast.info(`Iniciando download de ${docs.length} documentos de ${workerName}...`);
+        for (const doc of docs) {
+            try {
+                const { data } = await supabase.storage
+                    .from('worker-incoming-docs')
+                    .createSignedUrl(doc.path!, 60, { download: true });
+
+                if (data?.signedUrl) {
+                    const ext = doc.path!.split('.').pop() || 'file';
+                    const a = document.createElement('a');
+                    a.href = data.signedUrl;
+                    a.download = `${workerName}_${doc.label}.${ext}`;
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            } catch (err) {
+                console.error(`Erro ao baixar ${doc.label}:`, err);
+            }
+        }
+    };
+
     // 8. Salvar aprovação de cadastro
     const handleApproveVerify = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -954,6 +1093,7 @@ Equipo de Contratación`;
                 email: verifyFormData.email || undefined,
                 location: verifyFormData.ubicacion_actual || undefined,
                 address_line: verifyFormData.direccion_actual || undefined,
+                morada_contrato: verifyFormData.morada_contrato || undefined,
                 notes: emergencyNotes || undefined,
                 nif: verifyFormData.nif,
                 niss: verifyFormData.niss,
@@ -1035,7 +1175,7 @@ Equipo de Contratación`;
                                     Solicitar Documentos
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                            <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
                                     <DialogTitle>Solicitar Documentos por Link</DialogTitle>
                                     <DialogDescription>
@@ -1057,7 +1197,7 @@ Equipo de Contratación`;
                                                     loadClients(val);
                                                 }}
                                             >
-                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                     <SelectValue placeholder="Selecione a empresa contratante..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1076,7 +1216,7 @@ Equipo de Contratación`;
                                                 value={requestClientId} 
                                                 onValueChange={setRequestClientId}
                                             >
-                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                     <SelectValue placeholder="Selecione o cliente de destino..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1086,6 +1226,16 @@ Equipo de Contratación`;
                                                     ))}
                                                 </SelectContent>
                                             </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Data de Início Previsto (Trabalho)</Label>
+                                            <Input 
+                                                type="date"
+                                                value={requestStartDate}
+                                                onChange={(e) => setRequestStartDate(e.target.value)}
+                                                className="bg-white dark:bg-black"
+                                            />
                                         </div>
 
                                         <div className="space-y-2">
@@ -1128,11 +1278,11 @@ Equipo de Contratación`;
 
                         {/* Modal de Editar Solicitação de Documentos */}
                         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-                            <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+                            <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
                                     <DialogTitle>Editar Solicitação de Documentos</DialogTitle>
                                     <DialogDescription>
-                                        Altere a Empresa Contratante e o Cliente de destino da solicitação do trabalhador <strong>{editingRequest?.worker?.nome}</strong>.
+                                        Altere a Empresa Contratante, o Cliente de destino e a Data de Início do trabalho para <strong>{editingRequest?.worker?.nome}</strong>.
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -1147,7 +1297,7 @@ Equipo de Contratación`;
                                                 loadClients(val);
                                             }}
                                         >
-                                            <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                 <SelectValue placeholder="Selecione a empresa contratante..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1166,7 +1316,7 @@ Equipo de Contratación`;
                                             value={editClientId} 
                                             onValueChange={setEditClientId}
                                         >
-                                            <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectTrigger className="bg-white dark:bg-black w-full text-left">
                                                 <SelectValue placeholder="Selecione o cliente de destino..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1176,6 +1326,16 @@ Equipo de Contratación`;
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Data de Início Previsto (Trabalho)</Label>
+                                        <Input 
+                                            type="date"
+                                            value={editStartDate}
+                                            onChange={(e) => setEditStartDate(e.target.value)}
+                                            className="bg-white dark:bg-black"
+                                        />
                                     </div>
 
                                     <div className="flex justify-end gap-2 pt-2">
@@ -1309,6 +1469,24 @@ Equipo de Contratación`;
                                                                 </div>
                                                             </div>
                                                         </>
+                                                    )}
+
+                                                    {generationSuccess.documentUrl && (
+                                                        <div className="pt-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-full flex items-center justify-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold"
+                                                                onClick={() => handleDownloadContract({
+                                                                    document_url: generationSuccess.documentUrl,
+                                                                    contract_type: generationSuccess.contractType,
+                                                                    worker: { nome: 'Contrato' }
+                                                                } as any)}
+                                                            >
+                                                                <FileText className="h-4 w-4" />
+                                                                Baixar Arquivo Gerado (.docx)
+                                                            </Button>
+                                                        </div>
                                                     )}
 
                                                     <div className="text-xs flex items-center gap-2 text-slate-500 pt-2 border-t border-slate-200 dark:border-slate-800 leading-normal">
@@ -1538,25 +1716,59 @@ Equipo de Contratación`;
                                                                    activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                                                    latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
                                                 
+                                                const rawWorkerCode = (req.worker as any)?.cod_colab || '';
+                                                const workerCode = rawWorkerCode ? (String(rawWorkerCode).startsWith('E') ? String(rawWorkerCode) : `E${rawWorkerCode}`) : '';
+
+                                                const rawClientCode = (req.client as any)?.codigo || (activeAssignment?.client as any)?.codigo || (latestAssignment?.client as any)?.codigo || '';
+                                                const clientCode = rawClientCode ? (String(rawClientCode).startsWith('C') ? String(rawClientCode) : `C${rawClientCode}`) : '';
+
                                                 const empresaName = req.empresa?.name || 'Stocco';
                                                 
-                                                const plannedStartDate = activeAssignment?.planned_start_date || activeAssignment?.start_date ||
+                                                const plannedStartDate = (req as any).extracted_data?.start_date ||
+                                                                          activeAssignment?.planned_start_date || activeAssignment?.start_date ||
                                                                           latestAssignment?.planned_start_date || latestAssignment?.start_date;
+
+                                                const formatDisplayDate = (dateStr?: string | null) => {
+                                                    if (!dateStr) return 'Não informada';
+                                                    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                    if (match) {
+                                                        return `${match[3]}/${match[2]}/${match[1]}`;
+                                                    }
+                                                    try {
+                                                        return new Date(dateStr).toLocaleDateString('pt-PT');
+                                                    } catch (_) {
+                                                        return dateStr;
+                                                    }
+                                                };
 
                                                 return (
                                                     <TableRow key={req.id}>
                                                         <TableCell>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">{req.worker?.nome}</div>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                                                <span>{req.worker?.nome}</span>
+                                                                {workerCode && (
+                                                                    <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                                        ({workerCode})
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                                             {empresaName}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                                            {clientName}
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                {clientCode && (
+                                                                    <span className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 px-1.5 py-0.5 rounded">
+                                                                        [{clientCode}]
+                                                                    </span>
+                                                                )}
+                                                                <span>{clientName}</span>
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                                            {plannedStartDate ? new Date(plannedStartDate).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                            {formatDisplayDate(plannedStartDate)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Badge className={
@@ -1618,9 +1830,15 @@ Equipo de Contratación`;
                                                             )}
                                                             {req.status === 'verified' && (
                                                                 <div className="inline-flex items-center gap-2">
-                                                                    <div className="inline-flex items-center text-xs text-emerald-500 gap-1 font-semibold pr-1">
-                                                                        <ShieldCheck className="h-4 w-4" /> Validado
-                                                                    </div>
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        variant="outline"
+                                                                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold text-xs gap-1"
+                                                                        onClick={() => handleOpenVerify(req)}
+                                                                        title="Visualizar e Baixar Documentos do Trabalhador"
+                                                                    >
+                                                                        <Eye className="h-3.5 w-3.5" /> Visualizar / Baixar Docs
+                                                                    </Button>
                                                                     <Button 
                                                                         size="sm" 
                                                                         className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
@@ -1801,6 +2019,15 @@ Equipo de Contratación`;
                                                                     </Button>
                                                                 </>
                                                             )}
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleDeleteContractItem(contract.id)}
+                                                                title="Excluir Contrato"
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
+                                                            </Button>
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -1946,13 +2173,36 @@ Equipo de Contratación`;
             <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
                 <DialogContent className="max-w-7xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                            Revisão e Validação de Documentos com OCR
-                        </DialogTitle>
-                        <DialogDescription>
-                            Compare as imagens originais enviadas pelo trabalhador com os dados lidos pela IA. Edite os campos se houver erro e aprove para salvar no cadastro.
-                        </DialogDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                    Revisão e Visualização de Documentos do Trabalhador
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Visualize e baixe os documentos originais (Identificação, NIF, NISS, Carta de Condução, Selfie) enviados pelo trabalhador.
+                                </DialogDescription>
+                            </div>
+                            {selectedRequest && (
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold gap-1.5"
+                                        onClick={handleDownloadCurrentDoc}
+                                    >
+                                        <Download className="h-4 w-4" /> Baixar Doc Atual
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
+                                        onClick={handleDownloadAllDocs}
+                                    >
+                                        <Download className="h-4 w-4" /> Baixar Todos os Anexos
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     </DialogHeader>
 
                     {selectedRequest && (
@@ -2069,7 +2319,7 @@ Equipo de Contratación`;
                                         </div>
 
                                         <div className="border-t pt-3 space-y-3">
-                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Morada Atual</h5>
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Moradas</h5>
                                             <div>
                                                 <Label className="text-xs">Correo Electrónico (E-mail)</Label>
                                                 <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
@@ -2080,9 +2330,25 @@ Equipo de Contratación`;
                                                     <Input value={verifyFormData.ubicacion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, ubicacion_actual: e.target.value })} placeholder="Ex: Madrid, España" />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">Endereço / Morada Atual</Label>
+                                                    <Label className="text-xs">Endereço / Morada Atual (Origem)</Label>
                                                     <Input value={verifyFormData.direccion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, direccion_actual: e.target.value })} placeholder="Ex: Calle Mayor 12, 3ºB" />
                                                 </div>
+                                            </div>
+
+                                            {/* Campo para Endereço Oficial do Contrato em Portugal */}
+                                            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 space-y-1.5">
+                                                <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                                                    <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Endereço para Contrato (Portugal)
+                                                </Label>
+                                                <Input 
+                                                    value={verifyFormData.morada_contrato} 
+                                                    onChange={(e) => setVerifyFormData({ ...verifyFormData, morada_contrato: e.target.value })} 
+                                                    placeholder="Ex: Rua Garrett 25, 2º Dto, 1200-203 Lisboa, Portugal" 
+                                                    className="bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 text-sm font-medium"
+                                                />
+                                                <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
+                                                    * Se preenchido, este endereço de Portugal será utilizado na morada do contrato em vez do endereço de origem.
+                                                </p>
                                             </div>
                                         </div>
 
@@ -2124,7 +2390,7 @@ Equipo de Contratación`;
                                     <Button type="button" variant="outline" className="flex-1" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
                                     <Button type="submit" disabled={verifying} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                                         {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                        Aprovar & Salvar no Cadastro
+                                        {selectedRequest?.status === 'verified' ? 'Salvar Alterações no Cadastro' : 'Aprovar & Salvar no Cadastro'}
                                     </Button>
                                 </div>
                             </form>

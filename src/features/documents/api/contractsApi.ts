@@ -285,7 +285,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
             ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
             : Promise.resolve({ data: [] }),
         uniqueClientIds.length > 0
-            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', uniqueClientIds)
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, codigo').in('id', uniqueClientIds)
             : Promise.resolve({ data: [] })
     ]);
 
@@ -311,8 +311,11 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
     }) as unknown as DocumentRequest[];
 }
 
-export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string): Promise<DocumentRequest> {
-    const extractedData = clientId ? { client_id: clientId } : {};
+export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string, startDate?: string): Promise<DocumentRequest> {
+    const extractedData: any = {};
+    if (clientId) extractedData.client_id = clientId;
+    if (startDate) extractedData.start_date = startDate;
+
     const { data, error } = await supabase
         .schema('core_personal')
         .from('document_requests')
@@ -333,7 +336,7 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
     return data as unknown as DocumentRequest;
 }
 
-export async function updateDocumentRequest(requestId: string, empresaId: string, clientId?: string): Promise<void> {
+export async function updateDocumentRequest(requestId: string, empresaId: string, clientId?: string, startDate?: string): Promise<void> {
     const { data: existing } = await supabase
         .schema('core_personal')
         .from('document_requests')
@@ -342,7 +345,11 @@ export async function updateDocumentRequest(requestId: string, empresaId: string
         .single();
 
     const currentExtracted = existing?.extracted_data || {};
-    const updatedExtracted = { ...currentExtracted, client_id: clientId || null };
+    const updatedExtracted = {
+        ...currentExtracted,
+        client_id: clientId || null,
+        start_date: startDate || null
+    };
 
     const { error } = await supabase
         .schema('core_personal')
@@ -365,6 +372,18 @@ export async function deleteDocumentRequest(requestId: string): Promise<void> {
         .from('document_requests')
         .delete()
         .eq('id', requestId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
+export async function deleteContract(contractId: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .delete()
+        .eq('id', contractId);
 
     if (error) {
         throw mapSupabaseError(error);
@@ -436,6 +455,7 @@ export async function approveDocumentRequest(
         email?: string;
         location?: string;
         address_line?: string;
+        morada_contrato?: string;
         notes?: string;
         nif?: string;
         niss?: string;

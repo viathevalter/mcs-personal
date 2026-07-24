@@ -6,6 +6,7 @@ import { getContractByToken, signContract, type Contract } from '../api/contract
 import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 function adjustDocxPreviewSpacing(container: HTMLElement | null) {
@@ -28,6 +29,26 @@ function adjustDocxPreviewSpacing(container: HTMLElement | null) {
             el.style.setProperty('line-height', '1.0', 'important');
         }
     });
+}
+
+function replaceSignatureTags(container: HTMLElement | null, signatureImgBase64: string | null) {
+    if (!container) return;
+    const inner = container.innerHTML;
+    const signatureRegex = /\[ASSINATURA\]|\[assinatura\]|\[ASSINATURA_TRABALHADOR\]|\{\{assinatura\}\}|\{\{assinatura_trabalhador\}\}/gi;
+    
+    if (!signatureRegex.test(inner)) return;
+
+    if (signatureImgBase64) {
+        container.innerHTML = inner.replace(
+            signatureRegex,
+            `<img src="${signatureImgBase64}" style="max-height: 48px; max-width: 180px; display: inline-block; vertical-align: middle; margin: 2px 4px;" alt="Assinatura" />`
+        );
+    } else {
+        container.innerHTML = inner.replace(
+            signatureRegex,
+            `<span style="display: inline-block; border-bottom: 1.5px solid #64748b; min-width: 160px; text-align: center; font-size: 11px; color: #94a3b8; padding: 2px 4px;">( Assinatura do Colaborador )</span>`
+        );
+    }
 }
 
 
@@ -54,6 +75,7 @@ export function ContractSigningPage() {
     const [typedName, setTypedName] = useState('');
     const [selectedFont, setSelectedFont] = useState('Caveat');
     const [dragActive, setDragActive] = useState(false);
+    const [mobileTab, setMobileTab] = useState<'contract' | 'signature'>('contract');
 
     // Carregar fontes do Google Fonts para assinatura digitada
     useEffect(() => {
@@ -144,12 +166,19 @@ export function ContractSigningPage() {
             })
             .then(() => {
                 adjustDocxPreviewSpacing(docContainerRef.current);
+                replaceSignatureTags(docContainerRef.current, signatureBase64);
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx:", err);
             });
         }
     }, [fileBlob]);
+
+    useEffect(() => {
+        if (docContainerRef.current && signatureBase64) {
+            replaceSignatureTags(docContainerRef.current, signatureBase64);
+        }
+    }, [signatureBase64]);
 
 
     // 2.5. Inicializar e redimensionar o canvas
@@ -652,17 +681,65 @@ export function ContractSigningPage() {
                 </div>
             </header>
 
+            {/* Mobile Tab Navigation Bar (Somente visível em telas pequenas / celular) */}
+            <div className="flex md:hidden bg-slate-900 border-b border-slate-800 p-1.5 gap-2 sticky top-0 z-30 shadow-md">
+                <button
+                    type="button"
+                    onClick={() => setMobileTab('contract')}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                        mobileTab === 'contract'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                    }`}
+                >
+                    <FileText className="h-4 w-4" />
+                    Ler Contrato
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setMobileTab('signature')}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                        mobileTab === 'signature'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                    }`}
+                >
+                    <PenTool className="h-4 w-4" />
+                    Assinar Documento
+                </button>
+            </div>
+
             {/* Layout Lateral / Principal */}
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {/* Visualizador de Contrato */}
-                <main className="flex-1 overflow-y-auto bg-slate-900 p-4 md:p-8 flex justify-center">
+                <main className={`flex-1 overflow-y-auto bg-slate-900 p-4 md:p-8 flex-col items-center justify-start ${
+                    mobileTab === 'contract' ? 'flex' : 'hidden md:flex'
+                }`}>
                     <div className="w-full max-w-4xl overflow-x-auto docx-preview-container">
                         <div ref={docContainerRef} className="docx-wrapper" />
                     </div>
+
+                    {/* Card/Botão de transição rápida no rodapé do contrato no celular */}
+                    {!success && (
+                        <div className="w-full max-w-4xl mt-6 p-4 bg-slate-950 rounded-2xl border border-indigo-500/30 flex flex-col md:hidden items-center text-center gap-3 mb-10">
+                            <p className="text-xs text-slate-300">
+                                Leu todo o documento e concorda com os termos?
+                            </p>
+                            <Button 
+                                onClick={() => setMobileTab('signature')}
+                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 flex items-center justify-center gap-2 shadow-lg"
+                            >
+                                <PenTool className="h-4 w-4" />
+                                Ir para Assinatura do Contrato
+                            </Button>
+                        </div>
+                    )}
                 </main>
 
                 {/* Sidebar com Controles de Assinatura */}
-                <aside className="w-full md:w-96 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 p-6 flex flex-col justify-between overflow-y-auto">
+                <aside className={`w-full md:w-96 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 p-6 flex-col justify-between overflow-y-auto ${
+                    mobileTab === 'signature' ? 'flex' : 'hidden md:flex'
+                }`}>
                     <div className="space-y-6">
                         <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
                             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{t('signing.registrationInfo')}</h3>

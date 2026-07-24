@@ -120,10 +120,21 @@
 .docx > section {
   box-sizing: border-box !important;
   overflow: visible !important;
+  position: relative !important;
 }
 
 .docx img {
-  max-width: none !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.docx header,
+.docx footer,
+.docx [class*="header"],
+.docx [class*="footer"] {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
 }
 
 /* Container Queries para redimensionamento dinâmico (zoom) das páginas do Word */
