@@ -350,7 +350,7 @@ export function DocumentacionTasksPage() {
                 for (const relPath of Object.keys(zip.files)) {
                     if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
                         let xml = await zip.file(relPath)!.async('text');
-                        if (relPath.startsWith('word/header')) {
+                        if (relPath.startsWith('word/header') || relPath.startsWith('word/footer')) {
                             if (xml.includes('<wp:anchor')) {
                                 xml = xml.replace(/<wp:anchor[\s\S]*?>/g, '<wp:inline distT="0" distB="0" distL="0" distR="0">');
                                 xml = xml.replace(/<\/wp:anchor>/g, '</wp:inline>');
@@ -358,6 +358,14 @@ export function DocumentacionTasksPage() {
                                 xml = xml.replace(/<wp:positionH[\s\S]*?<\/wp:positionH>/g, '');
                                 xml = xml.replace(/<wp:positionV[\s\S]*?<\/wp:positionV>/g, '');
                                 xml = xml.replace(/<wp:wrapNone\/>/g, '');
+                            }
+                            xml = xml.replace(/cx="7\d+"/g, 'cx="6600000"').replace(/cx="75\d+"/g, 'cx="6600000"');
+                            if (xml.includes('<w:pPr>')) {
+                                if (!xml.includes('<w:jc')) {
+                                    xml = xml.replace('<w:pPr>', '<w:pPr><w:jc w:val="center"/>');
+                                } else {
+                                    xml = xml.replace(/<w:jc w:val="[^"]*"\/>/g, '<w:jc w:val="center"/>');
+                                }
                             }
                         }
                         const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
