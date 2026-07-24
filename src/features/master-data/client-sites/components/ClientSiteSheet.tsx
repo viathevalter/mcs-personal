@@ -171,10 +171,13 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
                       key={`${field.value || 'none'}-${clients.length}`}
                       onValueChange={field.onChange} 
                       value={field.value} 
-                      disabled={isLoadingClients || !!preSelectedClientId}
+                      disabled={isLoadingClients}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger 
+                          className={!!preSelectedClientId ? "pointer-events-none opacity-60 bg-slate-50 dark:bg-slate-900 select-none cursor-not-allowed border-slate-200 dark:border-slate-800" : ""}
+                          tabIndex={!!preSelectedClientId ? -1 : undefined}
+                        >
                           <SelectValue placeholder={isLoadingClients ? "Carregando clientes..." : "Selecione um cliente"} />
                         </SelectTrigger>
                       </FormControl>
