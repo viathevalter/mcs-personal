@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePaymentTerms } from '../../hooks/usePaymentTerms';
 import { useMutateClient } from '../../hooks/useClients';
 import { Button } from '@/components/ui/button';
