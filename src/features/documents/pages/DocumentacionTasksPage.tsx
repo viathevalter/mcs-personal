@@ -21,7 +21,7 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send, Search, X, Pencil, Trash2
+    MessageSquare, Send, Search, X, Pencil, Trash2, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -990,6 +990,83 @@ Equipo de Contratación`;
         getSigned();
     }, [selectedRequest, activeDocTab]);
 
+    // Funções para download individual e em lote dos documentos enviados pelo trabalhador
+    const handleDownloadCurrentDoc = async () => {
+        if (!selectedRequest) return;
+        let path = '';
+        if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
+        else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
+        else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
+        else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
+
+        if (!path) {
+            toast.error("Nenhum arquivo enviado nesta aba de documento.");
+            return;
+        }
+
+        const workerName = selectedRequest.worker?.nome || 'Trabalhador';
+        try {
+            const { data, error } = await supabase.storage
+                .from('worker-incoming-docs')
+                .createSignedUrl(path, 60, { download: true });
+
+            if (error || !data?.signedUrl) throw error;
+
+            const ext = path.split('.').pop() || 'file';
+            const a = document.createElement('a');
+            a.href = data.signedUrl;
+            a.download = `${workerName}_${activeDocTab}.${ext}`;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast.success(`Download do documento (${activeDocTab.toUpperCase()}) iniciado!`);
+        } catch (err: any) {
+            console.error("Erro ao baixar documento:", err);
+            toast.error("Falha ao baixar o documento.");
+        }
+    };
+
+    const handleDownloadAllDocs = async () => {
+        if (!selectedRequest) return;
+        const workerName = selectedRequest.worker?.nome || 'Trabalhador';
+        const docs = [
+            { label: 'Identificacao_Passaporte', path: selectedRequest.passport_url },
+            { label: 'NIF', path: selectedRequest.nif_url },
+            { label: 'NISS', path: selectedRequest.niss_url },
+            { label: 'Carta_Conducao', path: selectedRequest.license_url },
+            { label: 'Selfie', path: selectedRequest.selfie_url },
+        ].filter(d => Boolean(d.path));
+
+        if (docs.length === 0) {
+            toast.error("Nenhum documento anexado para download.");
+            return;
+        }
+
+        toast.info(`Iniciando download de ${docs.length} documentos de ${workerName}...`);
+        for (const doc of docs) {
+            try {
+                const { data } = await supabase.storage
+                    .from('worker-incoming-docs')
+                    .createSignedUrl(doc.path!, 60, { download: true });
+
+                if (data?.signedUrl) {
+                    const ext = doc.path!.split('.').pop() || 'file';
+                    const a = document.createElement('a');
+                    a.href = data.signedUrl;
+                    a.download = `${workerName}_${doc.label}.${ext}`;
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            } catch (err) {
+                console.error(`Erro ao baixar ${doc.label}:`, err);
+            }
+        }
+    };
+
     // 8. Salvar aprovação de cadastro
     const handleApproveVerify = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1750,9 +1827,15 @@ Equipo de Contratación`;
                                                             )}
                                                             {req.status === 'verified' && (
                                                                 <div className="inline-flex items-center gap-2">
-                                                                    <div className="inline-flex items-center text-xs text-emerald-500 gap-1 font-semibold pr-1">
-                                                                        <ShieldCheck className="h-4 w-4" /> Validado
-                                                                    </div>
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        variant="outline"
+                                                                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold text-xs gap-1"
+                                                                        onClick={() => handleOpenVerify(req)}
+                                                                        title="Visualizar e Baixar Documentos do Trabalhador"
+                                                                    >
+                                                                        <Eye className="h-3.5 w-3.5" /> Visualizar / Baixar Docs
+                                                                    </Button>
                                                                     <Button 
                                                                         size="sm" 
                                                                         className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
@@ -2087,13 +2170,36 @@ Equipo de Contratación`;
             <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
                 <DialogContent className="max-w-7xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                            Revisão e Validação de Documentos com OCR
-                        </DialogTitle>
-                        <DialogDescription>
-                            Compare as imagens originais enviadas pelo trabalhador com os dados lidos pela IA. Edite os campos se houver erro e aprove para salvar no cadastro.
-                        </DialogDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                    Revisão e Visualização de Documentos do Trabalhador
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Visualize e baixe os documentos originais (Identificação, NIF, NISS, Carta de Condução, Selfie) enviados pelo trabalhador.
+                                </DialogDescription>
+                            </div>
+                            {selectedRequest && (
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold gap-1.5"
+                                        onClick={handleDownloadCurrentDoc}
+                                    >
+                                        <Download className="h-4 w-4" /> Baixar Doc Atual
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
+                                        onClick={handleDownloadAllDocs}
+                                    >
+                                        <Download className="h-4 w-4" /> Baixar Todos os Anexos
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     </DialogHeader>
 
                     {selectedRequest && (
