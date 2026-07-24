@@ -182,14 +182,16 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-slate-700 dark:text-slate-350 font-medium">
+                <TableCell className="text-slate-700 dark:text-slate-350 font-medium font-mono text-xs">
                   {(solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
                     <div className="flex flex-col space-y-1">
-                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm">
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
                         📅 {format(new Date(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido!), 'dd/MM/yyyy')}
                       </span>
-                      <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider">Início Adiado</span>
+                      <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider font-sans">Início Adiado</span>
                     </div>
+                  ) : (solicitud.tipo === 'replacement' || solicitud.tipo === 'relocation' || solicitud.tipo === 'technical_test' || solicitud.tipo === 'field_trial') && solicitud.due_date ? (
+                    format(new Date(solicitud.due_date), 'dd/MM/yyyy')
                   ) : solicitud.pedido?.fecha_inicio_pedido ? (
                     format(new Date(solicitud.pedido.fecha_inicio_pedido), 'dd/MM/yyyy')
                   ) : 'N/A'}
