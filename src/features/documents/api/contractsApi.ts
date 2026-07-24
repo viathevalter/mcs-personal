@@ -222,6 +222,17 @@ export interface DocumentRequest {
         email: string;
         movil: string;
         cod_colab: string;
+        address_line?: string;
+        morada_contrato?: string;
+        location?: string;
+        pasaporte?: string;
+        nif?: string;
+        niss?: string;
+        nie?: string;
+        dni?: string;
+        licencia_conducir?: string;
+        nacionalidade?: string;
+        fecha_nacimiento?: string;
         assignments?: Array<{
             id: string;
             status: string;
@@ -248,7 +259,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, cod_colab,
+                id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, licencia_conducir, nacionalidade, fecha_nacimiento,
                 assignments:worker_assignments (
                     id, status, client_id, start_date, planned_start_date
                 )
