@@ -5,12 +5,8 @@ export function usePedidoFinanceAccess() {
   const { role: memberRole, isLoading: loadingEmpresa } = useEmpresa();
   const { role: globalRole, loadingRole } = useRole();
 
-  // Permissão concedida apenas para super_admin global ou roles específicas na empresa
-  const hasFinanceAccess = 
-    globalRole === 'super_admin' || 
-    memberRole === 'admin' || 
-    memberRole === 'finance' || 
-    memberRole === 'commercial';
+  // Permissão concedida apenas para super_admin global
+  const hasFinanceAccess = globalRole === 'super_admin';
 
   return {
     hasFinanceAccess,
