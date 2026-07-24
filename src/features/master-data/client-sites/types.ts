@@ -7,7 +7,7 @@ export type SiteStatus = z.infer<typeof siteStatusSchema>;
 export const clientSiteSchema = z.object({
   id: z.string().uuid().optional(),
   empresa_id: z.string().uuid().optional(),
-  client_id: z.string().uuid({ message: 'Cliente é obrigatório' }).optional().or(z.literal('')),
+  client_id: z.string().uuid({ message: 'Cliente é obrigatório' }).optional().or(z.literal('')).nullable(),
   site_code: z.string().nullable().optional(),
   name: z.string().min(2, 'Nome do local é obrigatório'),
   country_id: z.string().uuid().nullable().optional(),
