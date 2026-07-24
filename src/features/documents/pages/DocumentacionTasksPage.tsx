@@ -340,7 +340,7 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
             if (!filePath) throw new Error("Caminho inválido");
 
-            // Sanitizar o arquivo XML (fechar tags <w:p> pendentes e escapar &) antes de subir
+            // Sanitizar e normalizar o arquivo XML (posicionamento de cabeçalho e escapar &) antes de subir
             let fileToUpload: Blob = file;
             try {
                 const arrayBuf = await file.arrayBuffer();
@@ -350,17 +350,10 @@ export function DocumentacionTasksPage() {
                 for (const relPath of Object.keys(zip.files)) {
                     if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
                         let xml = await zip.file(relPath)!.async('text');
-                        
-                        const openP = (xml.match(/<w:p[ >]/g) || []).length;
-                        const closeP = (xml.match(/<\/w:p>/g) || []).length;
-                        const diffP = openP - closeP;
-                        if (diffP > 0) {
-                            const missing = '</w:p>'.repeat(diffP);
-                            if (xml.includes('</w:body>')) {
-                                xml = xml.replace('</w:body>', missing + '</w:body>');
-                            }
+                        if (relPath.startsWith('word/header')) {
+                            xml = xml.replace(/relativeFrom="paragraph"/g, 'relativeFrom="page"');
+                            xml = xml.replace(/<wp:posOffset>-?\d+<\/wp:posOffset>/g, '<wp:posOffset>0</wp:posOffset>');
                         }
-
                         const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
                         zip.file(relPath, escaped);
                     }
@@ -748,8 +741,13 @@ Equipo de Contratación`;
                 renderHeaders: true,
                 renderFooters: true,
             })
+            .then(() => {
+                if (previewContainerRef.current?.parentElement) {
+                    previewContainerRef.current.parentElement.scrollTop = 0;
+                }
+            })
             .catch(err => {
-                console.error("Erro ao renderizar visualização do contrato gerado:", err);
+                console.error("Erro ao renderizar pré-visualização:", err);
             });
         }
     }, [previewBlob]);
@@ -1377,6 +1375,24 @@ Equipo de Contratación`;
                                                                 </div>
                                                             </div>
                                                         </>
+                                                    )}
+
+                                                    {generationSuccess.documentUrl && (
+                                                        <div className="pt-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-full flex items-center justify-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold"
+                                                                onClick={() => handleDownloadContract({
+                                                                    document_url: generationSuccess.documentUrl,
+                                                                    contract_type: generationSuccess.contractType,
+                                                                    worker: { nome: 'Contrato' }
+                                                                } as any)}
+                                                            >
+                                                                <FileText className="h-4 w-4" />
+                                                                Baixar Arquivo Gerado (.docx)
+                                                            </Button>
+                                                        </div>
                                                     )}
 
                                                     <div className="text-xs flex items-center gap-2 text-slate-500 pt-2 border-t border-slate-200 dark:border-slate-800 leading-normal">
