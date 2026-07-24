@@ -26,7 +26,7 @@ export function usePedidoDetail(pedidoId: string | undefined) {
       // Fetch related common data
       const [{ data: client }, { data: site }] = await Promise.all([
         supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', pedido.client_id).maybeSingle(),
-        supabase.schema('core_common').from('client_sites').select('id, name').eq('id', pedido.client_site_id).maybeSingle()
+        supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, province, contact_name, contact_phone, contact_email, notes').eq('id', pedido.client_site_id).maybeSingle()
       ]);
 
       // Fetch items
