@@ -24,7 +24,8 @@ import {
   Link,
   MessageSquare,
   Send,
-  X
+  X,
+  MapPin
 } from 'lucide-react';
 import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { jobFunctionQuestionsApi } from '@/features/master-data/job-functions/api/jobFunctionQuestionsApi';
@@ -34,6 +35,7 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 
 interface Props {
   estimacion: Estimacion;
@@ -127,6 +129,52 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
   // Loading for final action
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Site states
+  const { data: sites = [], isLoading: isLoadingSites } = useClientSites(estimacion.client_id || undefined);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [editSiteName, setEditSiteName] = useState('');
+  const [editSiteAddress, setEditSiteAddress] = useState('');
+  const [editSiteCity, setEditSiteCity] = useState('');
+  const [editSitePostalCode, setEditSitePostalCode] = useState('');
+  const [isCreatingNewSite, setIsCreatingNewSite] = useState(false);
+
+  // Auto-select site if client has exactly one site or use estimacion.client_site_id
+  useEffect(() => {
+    if (!open) return;
+    if (estimacion.client_site_id) {
+      setSelectedSiteId(estimacion.client_site_id);
+      setIsCreatingNewSite(false);
+    } else if (sites && sites.length === 1) {
+      setSelectedSiteId(sites[0].id || '');
+      setIsCreatingNewSite(false);
+    } else if (sites && sites.length > 1) {
+      setSelectedSiteId('');
+      setIsCreatingNewSite(false);
+    } else {
+      setSelectedSiteId('');
+      setIsCreatingNewSite(true);
+    }
+  }, [open, estimacion.client_site_id, sites]);
+
+  useEffect(() => {
+    if (selectedSiteId && selectedSiteId !== 'new') {
+      const site = sites.find(s => s.id === selectedSiteId);
+      if (site) {
+        setEditSiteName(site.name || '');
+        setEditSiteAddress(site.address_line || '');
+        setEditSiteCity(site.city || '');
+        setEditSitePostalCode(site.postal_code || '');
+        setIsCreatingNewSite(false);
+      }
+    } else if (selectedSiteId === 'new' || isCreatingNewSite) {
+      setEditSiteName('');
+      setEditSiteAddress('');
+      setEditSiteCity('');
+      setEditSitePostalCode('');
+      setIsCreatingNewSite(true);
+    }
+  }, [selectedSiteId, isCreatingNewSite, sites]);
 
 
 
@@ -237,8 +285,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
     loadWizardData();
   }, [open, estimacion.id, estimacion.current_version_id, estimacion.empresa_id]);
-
-  // Set default email template once items are loaded
+  // Set default email template once items are loaded
   useEffect(() => {
     if (items.length > 0) {
       const clientName = estimacion.client?.trade_name || estimacion.client?.legal_name || 'Cliente';
@@ -279,6 +326,10 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
           )
         : null;
 
+      const formattedAddress = editSiteAddress
+        ? `${editSiteAddress}${editSiteCity ? `, ${editSiteCity}` : ''}${editSitePostalCode ? `, ${editSitePostalCode}` : ''}`
+        : null;
+
       let bodyHtml = '';
 
       if (lang === 'es') {
@@ -288,7 +339,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 <p><strong>Resumen del Pedido:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Obra/Ubicación:</strong> ${estimacion.client_site?.address_line || 'No definido'}</li>
+  <li><strong>Obra/Ubicación:</strong> ${formattedAddress || 'No definido'}</li>
   <li><strong>Fecha de Inicio Prevista:</strong> ${expectedStartStr || 'No definida'}</li>
   <li><strong>Fecha de Fin Prevista:</strong> ${expectedEndStr || 'No definida'}</li>
 </ul>
@@ -297,7 +348,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   ${profilesList}
 </ul>
 <p>El documento de Pedido Operacional en PDF ha sido adjuntado a esta notificación para su revisión y trámites operacionales.</p>
-<p>Por favor, inicien los trámites de movilización, contratación y logística necesarios.</p>
+<p>Por favor, inicien los trámites de movilización, contratación y logística necessários.</p>
 <p>Atentamente,<br/><strong>Comercial</strong></p>
         `;
       } else if (lang === 'en') {
@@ -307,7 +358,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 <p><strong>Order Summary:</strong></p>
 <ul>
   <li><strong>Client:</strong> ${clientName}</li>
-  <li><strong>Site/Location:</strong> ${estimacion.client_site?.address_line || 'Not defined'}</li>
+  <li><strong>Site/Location:</strong> ${formattedAddress || 'Not defined'}</li>
   <li><strong>Expected Start Date:</strong> ${expectedStartStr || 'Not defined'}</li>
   <li><strong>Expected End Date:</strong> ${expectedEndStr || 'Not defined'}</li>
 </ul>
@@ -326,7 +377,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 <p><strong>Riepilogo dell'Ordine:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Cantiere/Ubicazione:</strong> ${estimacion.client_site?.address_line || 'Non definito'}</li>
+  <li><strong>Cantiere/Ubicazione:</strong> ${formattedAddress || 'Non definito'}</li>
   <li><strong>Data di Inizio Prevista:</strong> ${expectedStartStr || 'Non definita'}</li>
   <li><strong>Data di Fine Prevista:</strong> ${expectedEndStr || 'Non definita'}</li>
 </ul>
@@ -345,7 +396,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 <p><strong>Résumé de la Commande :</strong></p>
 <ul>
   <li><strong>Client :</strong> ${clientName}</li>
-  <li><strong>Chantier/Localisation :</strong> ${estimacion.client_site?.address_line || 'Non défini'}</li>
+  <li><strong>Chantier/Localisation :</strong> ${formattedAddress || 'Non défini'}</li>
   <li><strong>Date de Début Prévue :</strong> ${expectedStartStr || 'Non définie'}</li>
   <li><strong>Date de Fin Prévue :</strong> ${expectedEndStr || 'Non définie'}</li>
 </ul>
@@ -365,7 +416,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 <p><strong>Resumo do Pedido:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Obra/Localização:</strong> ${estimacion.client_site?.address_line || 'Não definido'}</li>
+  <li><strong>Obra/Localização:</strong> ${formattedAddress || 'Não definido'}</li>
   <li><strong>Data de Início Prevista:</strong> ${expectedStartStr || 'Não definida'}</li>
   <li><strong>Data de Fim Prevista:</strong> ${expectedEndStr || 'Não definida'}</li>
 </ul>
@@ -375,13 +426,13 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 </ul>
 <p>O documento de Pedido Operacional em PDF foi anexado a esta notificação para revisão e trâmites operacionais.</p>
 <p>Por favor, iniciem os trâmites de mobilização, contratação e logística necessários.</p>
-<p>Atenciosamente,<br/><strong>Comercial</strong></p>
+<p>Atentamente,<br/><strong>Comercial</strong></p>
         `;
       }
 
       setEmailBody(bodyHtml.trim());
     }
-  }, [items, estimacion, newStartDate, newEndDate, selectedLang]);
+  }, [items, estimacion, newStartDate, newEndDate, selectedLang, editSiteAddress, editSiteCity, editSitePostalCode]);
 
   // Calculate duration string
   const getDurationString = () => {
@@ -441,6 +492,30 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         return false;
       }
     }
+    
+    // Validate site selection and editing
+    if (!selectedSiteId && !isCreatingNewSite) {
+      toast.error('Por favor, selecione ou crie uma obra/local para o pedido.');
+      return false;
+    }
+    if (isCreatingNewSite && !editSiteName.trim()) {
+      toast.error('O nome da nova obra/local é obrigatório.');
+      return false;
+    }
+    if (isCreatingNewSite && !editSiteAddress.trim()) {
+      toast.error('O endereço da nova obra/local é obrigatório.');
+      return false;
+    }
+    if (!isCreatingNewSite && selectedSiteId) {
+      if (!editSiteName.trim()) {
+        toast.error('O nome da obra/local é obrigatório.');
+        return false;
+      }
+      if (!editSiteAddress.trim()) {
+        toast.error('O endereço da obra/local é obrigatório.');
+        return false;
+      }
+    }
     return true;
   };
 
@@ -471,6 +546,55 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
     try {
       setIsSubmitting(true);
+
+      // Save/Update site first
+      let finalSiteId = selectedSiteId;
+
+      if (isCreatingNewSite) {
+        const { data: newSiteData, error: createSiteErr } = await supabase
+          .schema('core_common')
+          .from('client_sites')
+          .insert({
+            empresa_id: estimacion.empresa_id,
+            client_id: estimacion.client_id,
+            name: editSiteName,
+            address_line: editSiteAddress,
+            city: editSiteCity,
+            postal_code: editSitePostalCode,
+            status: 'active'
+          })
+          .select()
+          .single();
+
+        if (createSiteErr) throw createSiteErr;
+        if (!newSiteData) throw new Error('Falha ao criar nova obra/local.');
+        finalSiteId = newSiteData.id;
+      } else if (selectedSiteId) {
+        // Update existing site record
+        const { error: updateSiteErr } = await supabase
+          .schema('core_common')
+          .from('client_sites')
+          .update({
+            name: editSiteName,
+            address_line: editSiteAddress,
+            city: editSiteCity,
+            postal_code: editSitePostalCode
+          })
+          .eq('id', selectedSiteId);
+
+        if (updateSiteErr) throw updateSiteErr;
+      }
+
+      // Update estimacion with selected site ID
+      if (finalSiteId) {
+        const { error: updateEstErr } = await supabase
+          .schema('core_comercial')
+          .from('estimaciones')
+          .update({ client_site_id: finalSiteId })
+          .eq('id', estimacion.id);
+
+        if (updateEstErr) throw updateEstErr;
+      }
 
       // 1. Convert technical questions answers to JSONB
       // Format: { questionId: { questionText, answer } }
@@ -678,6 +802,124 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                     )}
                   </div>
 
+                  {/* OBRA / LOCAL SELECTION & EDITING */}
+                  <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm animate-fade-in">
+                    <div className="flex items-center space-x-2 border-b pb-2">
+                      <span className="p-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 rounded-lg">
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">Obra / Local do Pedido</h4>
+                        <p className="text-[11px] text-muted-foreground">Selecione ou crie a obra/local onde o trabalho será executado.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="site-selector" className="text-xs font-semibold text-slate-700 dark:text-slate-350">
+                          Selecionar Obra/Local
+                        </Label>
+                        {isLoadingSites ? (
+                          <div className="text-xs text-muted-foreground flex items-center space-x-2 py-1">
+                            <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+                            <span>Carregando obras do cliente...</span>
+                          </div>
+                        ) : (
+                          <select
+                            id="site-selector"
+                            value={isCreatingNewSite ? 'new' : selectedSiteId}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'new') {
+                                setIsCreatingNewSite(true);
+                                setSelectedSiteId('new');
+                              } else {
+                                setIsCreatingNewSite(false);
+                                setSelectedSiteId(val);
+                              }
+                            }}
+                            className="flex h-9 w-full rounded-md border border-input bg-white dark:bg-slate-950 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-slate-900 dark:text-slate-100 font-medium"
+                          >
+                            <option value="" disabled>Selecione uma obra do cliente...</option>
+                            {sites.map((s: any) => (
+                              <option key={s.id} value={s.id}>{s.name} ({s.address_line || 'Sem endereço'})</option>
+                            ))}
+                            <option value="new" className="text-indigo-600 font-semibold">+ Criar Nova Obra/Local...</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {(selectedSiteId || isCreatingNewSite) && (
+                        <div className="bg-slate-50/50 dark:bg-slate-900/20 p-4 rounded-xl border border-slate-150 dark:border-slate-800 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">
+                              {isCreatingNewSite ? 'Nova Obra/Local' : 'Editar Dados da Obra Selecionada'}
+                            </span>
+                            {!isCreatingNewSite && (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                (Modificar os campos abaixo atualizará o cadastro desta obra)
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-site-name" className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                Nome da Obra/Local *
+                              </Label>
+                              <Input
+                                id="edit-site-name"
+                                value={editSiteName}
+                                onChange={(e) => setEditSiteName(e.target.value)}
+                                placeholder="Ex: Taller Principal, Obra Madrid"
+                                className="h-8 text-xs bg-white dark:bg-slate-950"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-site-address" className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                Endereço / Calle *
+                              </Label>
+                              <Input
+                                id="edit-site-address"
+                                value={editSiteAddress}
+                                onChange={(e) => setEditSiteAddress(e.target.value)}
+                                placeholder="Rua, número, andar..."
+                                className="h-8 text-xs bg-white dark:bg-slate-950"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-site-city" className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                Cidade
+                              </Label>
+                              <Input
+                                id="edit-site-city"
+                                value={editSiteCity}
+                                onChange={(e) => setEditSiteCity(e.target.value)}
+                                placeholder="Cidade"
+                                className="h-8 text-xs bg-white dark:bg-slate-950"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-site-zip" className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                Código Postal
+                              </Label>
+                              <Input
+                                id="edit-site-zip"
+                                value={editSitePostalCode}
+                                onChange={(e) => setEditSitePostalCode(e.target.value)}
+                                placeholder="Código Postal"
+                                className="h-8 text-xs bg-white dark:bg-slate-950"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {questions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <CheckCircle2 className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-3" />
@@ -824,11 +1066,11 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                             <div className="col-span-2">
                               <span className="font-semibold text-slate-500">Ubicación del Trabajo:</span>
                               <p className="font-medium text-slate-800 dark:text-slate-100">
-                                {estimacion.client_site?.address_line ? (
+                                {editSiteAddress ? (
                                   <>
-                                    {estimacion.client_site.address_line}
-                                    {estimacion.client_site.city && `, ${estimacion.client_site.city}`}
-                                    {estimacion.client_site.postal_code && `, ${estimacion.client_site.postal_code}`}
+                                    {editSiteAddress}
+                                    {editSiteCity && `, ${editSiteCity}`}
+                                    {editSitePostalCode && `, ${editSitePostalCode}`}
                                   </>
                                 ) : 'Não definida'}
                               </p>
