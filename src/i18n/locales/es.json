@@ -143,7 +143,8 @@
       "docsPt": "Documentos Portugal",
       "docsEs": "Documentos España",
       "passport": "Pasaporte",
-      "driversLicense": "Licencia de Conducir"
+      "driversLicense": "Licencia de Conducir",
+      "jobFunction": "Función"
     },
     "placeholders": {
       "name": "Nombre del trabajador",
@@ -151,14 +152,16 @@
       "mobile": "+34 900 000 000",
       "email": "correo@ejemplo.com",
       "nationality": "Nacionalidad",
-      "birthDate": "DD/MM/AAAA",
+      "birthDate": "Fecha de Nacimiento",
       "niss": "Nº NISS",
       "nif": "Nº NIF",
       "dni": "Nº DNI",
       "nie": "Nº NIE",
       "nuss": "Nº NUSS",
       "passport": "Nº Pasaporte",
-      "selectOption": "Seleccionar"
+      "selectOption": "Seleccionar",
+      "selectJobFunction": "Seleccione la función...",
+      "noJobFunction": "No informada en el perfil"
     },
     "status": {
       "active": "Activo",
