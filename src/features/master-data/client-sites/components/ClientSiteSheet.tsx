@@ -88,7 +88,7 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
     if (open) {
       if (site) {
         form.reset({
-          client_id: site.client_id,
+          client_id: preSelectedClientId || site.client_id || '',
           site_code: site.site_code || '',
           name: site.name,
           country_id: site.country_id || undefined,
@@ -167,7 +167,12 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Cliente Associado</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingClients || !!preSelectedClientId}>
+                    <Select 
+                      key={`${field.value || 'none'}-${clients.length}`}
+                      onValueChange={field.onChange} 
+                      value={field.value} 
+                      disabled={isLoadingClients || !!preSelectedClientId}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={isLoadingClients ? "Carregando clientes..." : "Selecione um cliente"} />
