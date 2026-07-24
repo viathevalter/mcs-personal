@@ -130,11 +130,22 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
 
   const onSubmit = async (data: CreateClientSiteDTO) => {
     try {
+      const finalClientId = preSelectedClientId || data.client_id || site?.client_id;
+      if (!finalClientId) {
+        toast.error('Cliente é obrigatório');
+        return;
+      }
+
+      const payload = {
+        ...data,
+        client_id: finalClientId,
+      };
+
       if (isEditing && site.id) {
-        await updateSite({ id: site.id, payload: data });
+        await updateSite({ id: site.id, payload });
         toast.success('Obra/Local atualizado com sucesso!');
       } else {
-        await createSite(data);
+        await createSite(payload);
         toast.success('Obra/Local cadastrado com sucesso!');
       }
       onOpenChange(false);
