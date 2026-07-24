@@ -21,7 +21,7 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send, Search, X, Pencil, Trash2, Download
+    MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -87,6 +87,7 @@ export function DocumentacionTasksPage() {
         nome: '',
         email: '',
         direccion_actual: '',
+        morada_contrato: '',
         ubicacion_actual: '',
         contacto_emergencia_nombre: '',
         contacto_emergencia_parentesco: '',
@@ -939,6 +940,7 @@ Equipo de Contratación`;
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
             direccion_actual: data.direccion_actual || req.worker?.address_line || '',
+            morada_contrato: data.morada_contrato || req.worker?.morada_contrato || '',
             ubicacion_actual: data.ubicacion_actual || req.worker?.location || '',
             contacto_emergencia_nombre: data.contacto_emergencia_nombre || '',
             contacto_emergencia_parentesco: data.contacto_emergencia_parentesco || '',
@@ -1091,6 +1093,7 @@ Equipo de Contratación`;
                 email: verifyFormData.email || undefined,
                 location: verifyFormData.ubicacion_actual || undefined,
                 address_line: verifyFormData.direccion_actual || undefined,
+                morada_contrato: verifyFormData.morada_contrato || undefined,
                 notes: emergencyNotes || undefined,
                 nif: verifyFormData.nif,
                 niss: verifyFormData.niss,
@@ -2316,7 +2319,7 @@ Equipo de Contratación`;
                                         </div>
 
                                         <div className="border-t pt-3 space-y-3">
-                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Morada Atual</h5>
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Moradas</h5>
                                             <div>
                                                 <Label className="text-xs">Correo Electrónico (E-mail)</Label>
                                                 <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
@@ -2327,9 +2330,25 @@ Equipo de Contratación`;
                                                     <Input value={verifyFormData.ubicacion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, ubicacion_actual: e.target.value })} placeholder="Ex: Madrid, España" />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">Endereço / Morada Atual</Label>
+                                                    <Label className="text-xs">Endereço / Morada Atual (Origem)</Label>
                                                     <Input value={verifyFormData.direccion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, direccion_actual: e.target.value })} placeholder="Ex: Calle Mayor 12, 3ºB" />
                                                 </div>
+                                            </div>
+
+                                            {/* Campo para Endereço Oficial do Contrato em Portugal */}
+                                            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 space-y-1.5">
+                                                <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                                                    <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Endereço para Contrato (Portugal)
+                                                </Label>
+                                                <Input 
+                                                    value={verifyFormData.morada_contrato} 
+                                                    onChange={(e) => setVerifyFormData({ ...verifyFormData, morada_contrato: e.target.value })} 
+                                                    placeholder="Ex: Rua Garrett 25, 2º Dto, 1200-203 Lisboa, Portugal" 
+                                                    className="bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 text-sm font-medium"
+                                                />
+                                                <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
+                                                    * Se preenchido, este endereço de Portugal será utilizado na morada do contrato em vez do endereço de origem.
+                                                </p>
                                             </div>
                                         </div>
 
@@ -2371,7 +2390,7 @@ Equipo de Contratación`;
                                     <Button type="button" variant="outline" className="flex-1" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
                                     <Button type="submit" disabled={verifying} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                                         {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                        Aprovar & Salvar no Cadastro
+                                        {selectedRequest?.status === 'verified' ? 'Salvar Alterações no Cadastro' : 'Aprovar & Salvar no Cadastro'}
                                     </Button>
                                 </div>
                             </form>

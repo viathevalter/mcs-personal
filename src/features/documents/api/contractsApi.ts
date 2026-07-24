@@ -455,6 +455,7 @@ export async function approveDocumentRequest(
         email?: string;
         location?: string;
         address_line?: string;
+        morada_contrato?: string;
         notes?: string;
         nif?: string;
         niss?: string;
