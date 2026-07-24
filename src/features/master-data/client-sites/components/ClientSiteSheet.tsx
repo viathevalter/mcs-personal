@@ -158,7 +158,10 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-xl overflow-y-auto">
         <SheetHeader className="mb-6">
-          <SheetTitle>{isEditing ? 'Editar Obra / Local' : 'Nova Obra / Local'}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <span>{isEditing ? 'Editar Obra / Local' : 'Nova Obra / Local'}</span>
+            <span className="text-[10px] font-mono font-normal text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded select-none">v1.0.3-fixed</span>
+          </SheetTitle>
           <SheetDescription>
             {isEditing 
               ? 'Edite as informações deste local de trabalho.' 
