@@ -473,9 +473,22 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
       const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
       let newList: string[];
       if (checked) {
-        newList = [...currentList, option];
+        const alreadyHas = currentList.some(item => 
+          item === option || 
+          (option === 'Otros' && item.startsWith('Otros:')) ||
+          (option === 'Otras' && item.startsWith('Otras:'))
+        );
+        if (!alreadyHas) {
+          newList = [...currentList, option];
+        } else {
+          newList = currentList;
+        }
       } else {
-        newList = currentList.filter(item => item !== option);
+        newList = currentList.filter(item => 
+          !(item === option || 
+            (option === 'Otros' && item.startsWith('Otros:')) ||
+            (option === 'Otras' && item.startsWith('Otras:')))
+        );
       }
       return {
         ...prev,
@@ -1002,23 +1015,57 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                                       onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
                                     />
                                   ) : q.questionType === 'single_choice' ? (
-                                    <select
-                                      id={`q-${q.questionId}`}
-                                      value={answers[q.questionId] || ''}
-                                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                                    >
-                                      <option value="" disabled>Selecione uma opção...</option>
-                                      {(q.options || []).map((opt, idx) => (
-                                        <option key={idx} value={opt}>{opt}</option>
-                                      ))}
-                                    </select>
+                                    <div className="space-y-2">
+                                      <select
+                                        id={`q-${q.questionId}`}
+                                        value={
+                                          answers[q.questionId]?.startsWith('Otros') ? 'Otros' :
+                                          answers[q.questionId]?.startsWith('Otras') ? 'Otras' :
+                                          answers[q.questionId] || ''
+                                        }
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        onChange={e => {
+                                          const val = e.target.value;
+                                          setAnswers(prev => ({
+                                            ...prev,
+                                            [q.questionId]: (val === 'Otros' || val === 'Otras') ? `${val} - ` : val
+                                          }));
+                                        }}
+                                      >
+                                        <option value="" disabled>Selecione uma opção...</option>
+                                        {(q.options || []).map((opt, idx) => (
+                                          <option key={idx} value={opt}>{opt}</option>
+                                        ))}
+                                      </select>
+                                      {(answers[q.questionId]?.startsWith('Otros') || answers[q.questionId]?.startsWith('Otras')) && (
+                                        <Textarea
+                                          placeholder="Especifique a outra opção..."
+                                          value={
+                                            answers[q.questionId].startsWith('Otros - ') ? answers[q.questionId].substring(8) :
+                                            answers[q.questionId].startsWith('Otras - ') ? answers[q.questionId].substring(8) : ''
+                                          }
+                                          onChange={e => {
+                                            const text = e.target.value;
+                                            const prefix = answers[q.questionId].startsWith('Otros') ? 'Otros' : 'Otras';
+                                            setAnswers(prev => ({
+                                              ...prev,
+                                              [q.questionId]: `${prefix} - ${text}`
+                                            }));
+                                          }}
+                                          className="min-h-[70px] text-sm mt-2"
+                                        />
+                                      )}
+                                    </div>
                                   ) : q.questionType === 'multi_choice' ? (
                                     <div className="space-y-2 border rounded-md p-3 bg-white dark:bg-slate-950">
                                       {(q.options || []).map((opt, idx) => {
                                         const currentVal = answers[q.questionId] || '';
                                         const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
-                                        const isChecked = currentList.includes(opt);
+                                        const isChecked = currentList.some(item => 
+                                          item === opt || 
+                                          (opt === 'Otros' && item.startsWith('Otros:')) ||
+                                          (opt === 'Otras' && item.startsWith('Otras:'))
+                                        );
                                         return (
                                           <div key={idx} className="flex items-center space-x-2">
                                             <input
@@ -1037,6 +1084,44 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                                           </div>
                                         );
                                       })}
+                                      {(() => {
+                                        const currentVal = answers[q.questionId] || '';
+                                        const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
+                                        const hasOtros = currentList.some(item => item.startsWith('Otros') || item.startsWith('Otras'));
+                                        
+                                        if (hasOtros) {
+                                          const otrosItem = currentList.find(item => item.startsWith('Otros') || item.startsWith('Otras')) || '';
+                                          let otrosText = '';
+                                          if (otrosItem.includes(':')) {
+                                            otrosText = otrosItem.split(':')[1].trim();
+                                          }
+                                          
+                                          return (
+                                            <Textarea
+                                              placeholder="Especifique a outra opção..."
+                                              value={otrosText}
+                                              onChange={e => {
+                                                const text = e.target.value;
+                                                const prefix = otrosItem.startsWith('Otros') ? 'Otros' : 'Otras';
+                                                
+                                                setAnswers(prev => {
+                                                  const cVal = prev[q.questionId] || '';
+                                                  const cList = cVal ? cVal.split(',').map(s => s.trim()) : [];
+                                                  const updatedList = cList.map(item => {
+                                                    if (item.startsWith('Otros') || item.startsWith('Otras')) {
+                                                      return text ? `${prefix}: ${text}` : prefix;
+                                                    }
+                                                    return item;
+                                                  });
+                                                  return { ...prev, [q.questionId]: updatedList.join(', ') };
+                                                });
+                                              }}
+                                              className="min-h-[70px] text-sm mt-2"
+                                            />
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                     </div>
                                   ) : (
                                     <Input
