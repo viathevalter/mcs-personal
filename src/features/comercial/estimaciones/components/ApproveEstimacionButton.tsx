@@ -222,7 +222,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
           // 3. Fetch questions
           const allQuestions: QuestionWithJobFunction[] = [];
           for (const item of itemsData) {
-            const jfQuestions = await jobFunctionQuestionsApi.getQuestions(item.job_function_id);
+            const jfQuestions = await jobFunctionQuestionsApi.getQuestions(item.job_function_id, estimacion.empresa_id);
             const jfName = item.job_function?.name || item.job_function?.title || 'Perfil';
             
             jfQuestions.forEach(q => {

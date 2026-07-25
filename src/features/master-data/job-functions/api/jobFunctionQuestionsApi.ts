@@ -2,15 +2,21 @@ import { supabase } from '@/shared/supabase/client';
 import type { CreateJobFunctionQuestionDTO, JobFunctionQuestion, UpdateJobFunctionQuestionDTO } from '../types';
 
 export const jobFunctionQuestionsApi = {
-  async getQuestions(jobFunctionId: string): Promise<JobFunctionQuestion[]> {
+  async getQuestions(jobFunctionId: string, empresaId?: string): Promise<JobFunctionQuestion[]> {
     if (!jobFunctionId) throw new Error('ID da função não fornecido');
 
-    const { data, error } = await supabase
+    let query = supabase
       .schema('core_comercial')
       .from('job_function_questions')
       .select('*')
       .eq('job_function_id', jobFunctionId)
-      .neq('status', 'archived')
+      .neq('status', 'archived');
+
+    if (empresaId) {
+      query = query.eq('empresa_id', empresaId);
+    }
+
+    const { data, error } = await query
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
 

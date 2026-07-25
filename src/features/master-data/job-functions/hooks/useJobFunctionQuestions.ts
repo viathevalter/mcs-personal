@@ -4,9 +4,11 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { CreateJobFunctionQuestionDTO, UpdateJobFunctionQuestionDTO } from '../types';
 
 export function useJobFunctionQuestions(jobFunctionId: string) {
+  const { selectedEmpresaId } = useEmpresa();
+
   return useQuery({
-    queryKey: ['jobFunctionQuestions', jobFunctionId],
-    queryFn: () => jobFunctionQuestionsApi.getQuestions(jobFunctionId),
+    queryKey: ['jobFunctionQuestions', jobFunctionId, selectedEmpresaId],
+    queryFn: () => jobFunctionQuestionsApi.getQuestions(jobFunctionId, selectedEmpresaId || undefined),
     enabled: !!jobFunctionId,
   });
 }
