@@ -159,7 +159,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { estimacion_id } = await req.json();
+    const { estimacion_id, client_email } = await req.json();
 
     if (!estimacion_id) {
       return new Response(
@@ -178,6 +178,22 @@ serve(async (req) => {
 
     if (estErr || !est) {
       throw new Error(`Estimación não encontrada: ${estErr?.message}`);
+    }
+
+    // Se um e-mail customizado foi fornecido, salvar na estimativa
+    if (client_email) {
+      console.log(`[generate-proposal] Salvando contact_email customizado: ${client_email}`);
+      const { error: updateEmailErr } = await supabase
+        .schema("core_comercial")
+        .from("estimaciones")
+        .update({ contact_email: client_email })
+        .eq("id", estimacion_id);
+
+      if (updateEmailErr) {
+        console.warn(`[generate-proposal] Erro ao salvar e-mail na estimativa: ${updateEmailErr.message}`);
+      } else {
+        est.contact_email = client_email;
+      }
     }
 
     // 2. Buscar dados da empresa remetente
@@ -228,8 +244,8 @@ serve(async (req) => {
         .single();
       
       if (!leadErr && lead) {
-        targetName = lead.name;
-        targetEmail = lead.email;
+        targetName = est.contact_name || lead.name || "";
+        targetEmail = est.contact_email || lead.email || "";
         targetPhone = lead.phone || "";
         targetCompany = lead.company_name || "";
         clientAddress = lead.notes || ""; // Fallback

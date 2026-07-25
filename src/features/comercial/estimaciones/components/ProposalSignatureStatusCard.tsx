@@ -22,6 +22,13 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const [downloadingContract, setDownloadingContract] = useState(false);
   const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
 
+  const initialEmail = estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email || '';
+  const [emailInput, setEmailInput] = useState(initialEmail);
+
+  React.useEffect(() => {
+    setEmailInput(initialEmail);
+  }, [initialEmail]);
+
   const sig = estimacion.proposal_signature;
   let status = sig?.status || 'draft';
   if (status === 'expired' || status === 'cancelled' || status === 'rejected' || estimacion.status === 'draft') {
@@ -41,7 +48,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleSendOrRecreate = () => {
-    enviarProposta.mutate(estimacion.id);
+    enviarProposta.mutate({ estimacionId: estimacion.id, email: emailInput });
   };
 
   const handleDownloadDoc = async () => {
@@ -216,14 +223,21 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm mb-4">
-            <p className="text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-indigo-500" />
-              O e-mail será disparado para: <strong className="text-slate-900 dark:text-slate-200">{estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email || 'Nenhum e-mail cadastrado'}</strong>
-            </p>
-            {!estimacion.contact_email && !estimacion.client?.email && !estimacion.lead?.email && (
-              <p className="text-rose-500 text-xs mt-2 font-medium">
-                * Cadastre um e-mail de contato nos detalhes da estimativa ou cliente para permitir o disparo.
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm mb-4 space-y-3">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-350">
+              <Mail className="h-4 w-4 text-indigo-500" />
+              <span className="font-semibold">E-mail de Envio:</span>
+            </div>
+            <input
+              type="email"
+              placeholder="E-mail do cliente (opcional para gerar apenas o link)"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded text-xs outline-none text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+            />
+            {!emailInput && (
+              <p className="text-amber-500 text-[11px] font-medium leading-relaxed">
+                * Nenhum e-mail informado. A proposta será gerada e o processo avançará, permitindo copiar o link de assinatura para enviar por WhatsApp.
               </p>
             )}
           </div>
@@ -248,7 +262,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
             <Button 
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
               onClick={handleSendOrRecreate}
-              disabled={enviarProposta.isPending || (!estimacion.contact_email && !estimacion.client?.email && !estimacion.lead?.email)}
+              disabled={enviarProposta.isPending}
             >
               {enviarProposta.isPending ? (
                 <>
@@ -314,9 +328,23 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               </div>
             </div>
 
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1.5">
-              <Mail className="h-3 w-3 text-indigo-400" />
-              E-mail de destino: <strong className="text-slate-800 dark:text-slate-200">{estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email}</strong>
+            <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+              <label className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                <Mail className="h-3.5 w-3.5 text-indigo-400" />
+                E-mail do Destinatário:
+              </label>
+              <input
+                type="email"
+                placeholder="E-mail do cliente (opcional)"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded text-xs outline-none text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              />
+              {!emailInput && (
+                <p className="text-amber-500 text-[10px] font-medium leading-relaxed">
+                  * Sem e-mail cadastrado. O reenvio atualizará o link de assinatura, mas não enviará o e-mail automático.
+                </p>
+              )}
             </div>
           </div>
 

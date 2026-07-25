@@ -75,16 +75,16 @@ export function useEstimacionMutations() {
   });
 
   const enviarProposta = useMutation({
-    mutationFn: async (estimacionId: string) => {
-      return await generateProposal(estimacionId);
+    mutationFn: async ({ estimacionId, email }: { estimacionId: string; email?: string }) => {
+      return await generateProposal(estimacionId, email);
     },
-    onSuccess: (data, estimacionId) => {
+    onSuccess: (data, variables) => {
       toast.success('Proposta comercial enviada!', {
         description: data.email_sent
           ? 'Link de assinatura enviado com sucesso para o cliente.'
           : `Proposta gerada! No entanto, o e-mail não pôde ser disparado via Microsoft Outlook (${data.email_error || 'verifique as credenciais da empresa'}).`
       });
-      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, estimacionId] });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.estimacionId] });
     },
     onError: (error: any) => {
       console.error(error);
