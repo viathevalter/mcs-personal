@@ -18,6 +18,97 @@ interface QuestionWithJobFunction {
   options: string[];
 }
 
+const translations = {
+  pt: {
+    title: 'Formulário Técnico de Requisitos',
+    proposalCode: 'Proposta Comercial',
+    hello: 'Olá',
+    introText: 'Para darmos continuidade no processo de contratação dos profissionais relacionados aos perfis solicitados, por favor, responda a este formulário técnico para que possa nos passar todas as informações necessárias.',
+    subIntroText: 'Com esses detalhes, nossa equipe de Recursos Humanos e Seleção buscará os profissionais com a qualificação perfeita para o seu projeto.',
+    projectSummary: 'Resumo do Projeto',
+    startDate: 'Data de Início Prevista',
+    endDate: 'Data de Fim Prevista',
+    profiles: 'Perfis Requeridos',
+    notSpecified: 'Não especificado',
+    profileLabel: 'Perfil',
+    otherPlaceholder: 'Especifique a outra opção...',
+    booleanDetailsPlaceholder: 'Descreva os detalhes e requisitos adicionais...',
+    submitBtn: 'Enviar Respostas do Formulário',
+    submittingBtn: 'Enviando Respostas...',
+    requiredError: 'Por favor, responda à pergunta obrigatória: "{text}"',
+    successTitle: 'Respostas Enviadas com Sucesso!',
+    successHello: 'Olá {name}, agradecemos imensamente a sua colaboração.',
+    successBody1: 'As especificações técnicas dos perfis solicitados foram salvas. Nossa equipe operacional de contratação já está trabalhando na busca dos profissionais perfeitos para o seu projeto.',
+    successBody2: 'Você já pode fechar esta aba do seu navegador.',
+    langLabel: 'Idioma',
+    technicalOfficial: 'Formulário Técnico Oficial',
+    selectDefault: 'Selecione uma opção...'
+  },
+  es: {
+    title: 'Formulario Técnico de Requisitos',
+    proposalCode: 'Propuesta Comercial',
+    hello: 'Hola',
+    introText: 'Para continuar con el proceso de contratación de los profesionales relacionados con los perfiles solicitados, por favor complete este formulario técnico para que pueda brindarnos toda la información necesaria.',
+    subIntroText: 'Con estos detalles, nuestro equipo de Recursos Humanos y Selección buscará a los profesionales con la calificación perfecta para su proyecto.',
+    projectSummary: 'Resumen del Proyecto',
+    startDate: 'Fecha de Inicio Prevista',
+    endDate: 'Fecha de Fin Prevista',
+    profiles: 'Perfiles Requeridos',
+    notSpecified: 'No especificado',
+    profileLabel: 'Perfil',
+    otherPlaceholder: 'Especifique la otra opción...',
+    booleanDetailsPlaceholder: 'Describa los detalles y requisitos adicionales...',
+    submitBtn: 'Enviar Respuestas del Formulario',
+    submittingBtn: 'Enviando Respuestas...',
+    requiredError: 'Por favor, responda a la pregunta obligatoria: "{text}"',
+    successTitle: '¡Respuestas Enviadas con Éxito!',
+    successHello: 'Hola {name}, agradecemos mucho su colaboración.',
+    successBody1: 'Las especificaciones técnicas de los perfiles solicitados han sido guardadas. Nuestro equipo operativo de contratación ya está trabajando en la búsqueda de los profesionales perfectos para su proyecto.',
+    successBody2: 'Ya puede cerrar esta pestaña de su navegador.',
+    langLabel: 'Idioma',
+    technicalOfficial: 'Formulario Técnico Oficial',
+    selectDefault: 'Seleccione una opción...'
+  },
+  en: {
+    title: 'Technical Requirements Form',
+    proposalCode: 'Commercial Proposal',
+    hello: 'Hello',
+    introText: 'To continue with the recruitment process for the professionals related to the requested profiles, please fill out this technical form so you can provide us with all the necessary details.',
+    subIntroText: 'With these details, our Human Resources and Selection team will search for professionals with the perfect qualifications for your project.',
+    projectSummary: 'Project Summary',
+    startDate: 'Expected Start Date',
+    endDate: 'Expected End Date',
+    profiles: 'Required Profiles',
+    notSpecified: 'Not specified',
+    profileLabel: 'Profile',
+    otherPlaceholder: 'Specify the other option...',
+    booleanDetailsPlaceholder: 'Describe the details and additional requirements...',
+    submitBtn: 'Submit Form Answers',
+    submittingBtn: 'Submitting Answers...',
+    requiredError: 'Please answer the required question: "{text}"',
+    successTitle: 'Answers Submitted Successfully!',
+    successHello: 'Hello {name}, thank you very much for your cooperation.',
+    successBody1: 'The technical specifications for the requested profiles have been saved. Our operational recruitment team is already working to find the perfect professionals for your project.',
+    successBody2: 'You can now close this browser tab.',
+    langLabel: 'Language',
+    technicalOfficial: 'Official Technical Form',
+    selectDefault: 'Select an option...'
+  }
+};
+
+function formatDateString(dateStr: string, lang: 'pt' | 'es' | 'en') {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  if (lang === 'en') {
+    return `${month}/${day}/${year}`;
+  }
+  return `${day}/${month}/${year}`;
+}
+
 export function PublicTechnicalFormPage() {
   const { id } = useParams<{ id: string }>();
 
@@ -31,6 +122,9 @@ export function PublicTechnicalFormPage() {
   const [lead, setLead] = useState<any>(null);
   const [questions, setQuestions] = useState<QuestionWithJobFunction[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  
+  // Set default language based on estimate or browser
+  const [lang, setLang] = useState<'es' | 'pt' | 'en'>('es');
 
   useEffect(() => {
     async function loadData() {
@@ -66,6 +160,16 @@ export function PublicTechnicalFormPage() {
         }
 
         setEstimacion(est);
+        
+        // Match default language
+        const estLang = (est.document_language || 'es').toLowerCase();
+        if (estLang === 'pt' || estLang === 'portugues') {
+          setLang('pt');
+        } else if (estLang === 'en' || estLang === 'english') {
+          setLang('en');
+        } else {
+          setLang('es');
+        }
 
         // Fetch client or lead details
         if (est.client_id) {
@@ -165,11 +269,12 @@ export function PublicTechnicalFormPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const t = translations[lang];
 
     // Validate required questions
     for (const q of questions) {
       if (q.required && (!answers[q.questionId] || answers[q.questionId].trim() === '')) {
-        toast.error(`Por favor, responda à pergunta obrigatória: "${q.questionText}"`);
+        toast.error(t.requiredError.replace('{text}', q.questionText));
         return;
       }
     }
@@ -184,10 +289,10 @@ export function PublicTechnicalFormPage() {
 
       if (error) throw error;
       setSuccess(true);
-      toast.success('Questionário técnico enviado com sucesso!');
+      toast.success(lang === 'pt' ? 'Questionário técnico enviado!' : lang === 'en' ? 'Form submitted!' : '¡Formulario enviado!');
     } catch (err: any) {
       console.error('Error submitting technical questions:', err);
-      toast.error('Erro ao enviar as respostas. Por favor, tente novamente.');
+      toast.error(lang === 'pt' ? 'Erro ao enviar respostas.' : lang === 'en' ? 'Submission error.' : 'Error al enviar.');
     } finally {
       setSubmitting(false);
     }
@@ -197,7 +302,7 @@ export function PublicTechnicalFormPage() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4">
         <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-4" />
-        <p className="text-slate-600 dark:text-slate-400 font-medium">Carregando formulário técnico...</p>
+        <p className="text-slate-600 dark:text-slate-400 font-medium">Loading form...</p>
       </div>
     );
   }
@@ -207,14 +312,14 @@ export function PublicTechnicalFormPage() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4">
         <div className="bg-white dark:bg-slate-950 p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 dark:border-slate-800 text-center">
           <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-950 dark:text-slate-50 mb-2">Ops! Ocorreu um problema</h1>
+          <h1 className="text-xl font-bold text-slate-950 dark:text-slate-50 mb-2">Error</h1>
           <p className="text-slate-600 dark:text-slate-400 mb-6">{errorMsg}</p>
-          <p className="text-xs text-slate-400">Se persistir, entre em contato com o suporte comercial.</p>
         </div>
       </div>
     );
   }
 
+  const t = translations[lang];
   const clientName = client?.trade_name || client?.legal_name || lead?.company_name || lead?.name || 'Cliente';
 
   if (success) {
@@ -224,15 +329,15 @@ export function PublicTechnicalFormPage() {
           <div className="inline-flex p-3 rounded-full bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 mb-2">
             <CheckCircle2 className="h-12 w-12" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-slate-50">Respostas Enviadas com Sucesso!</h1>
+          <h1 className="text-2xl font-bold text-slate-950 dark:text-slate-50">{t.successTitle}</h1>
           <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-            Olá <strong>{clientName}</strong>, agradecemos imensamente a sua colaboração.
+            {t.successHello.replace('{name}', clientName)}
           </p>
           <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-            As especificações técnicas dos perfis solicitados foram salvas. Nossa equipe operacional de contratação já está trabalhando na busca dos profissionais perfeitos para o seu projeto.
+            {t.successBody1}
           </p>
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
-            <p className="text-xs text-slate-400">Você já pode fechar esta aba do seu navegador.</p>
+            <p className="text-xs text-slate-400">{t.successBody2}</p>
           </div>
         </div>
       </div>
@@ -254,29 +359,80 @@ export function PublicTechnicalFormPage() {
               <span className="text-xs block text-slate-400 font-medium">GRUPO OPERACIONAL</span>
             </div>
           </div>
-          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 text-sm">
-            <Globe className="h-4 w-4" />
-            <span className="font-semibold uppercase tracking-wider text-xs">Formulário Técnico Oficial</span>
+          <div className="flex items-center space-x-4">
+            {/* Language Selector */}
+            <div className="flex bg-slate-100 dark:bg-slate-850 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+              {(['es', 'pt', 'en'] as const).map(l => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLang(l)}
+                  className={`px-2.5 py-1 text-xs font-extrabold rounded-md transition duration-150 ${
+                    lang === l 
+                      ? 'bg-indigo-600 text-white shadow-sm' 
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                  }`}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="hidden sm:flex items-center space-x-2 text-slate-500 dark:text-slate-400 text-sm">
+              <Globe className="h-4 w-4" />
+              <span className="font-semibold uppercase tracking-wider text-xs">{t.technicalOfficial}</span>
+            </div>
           </div>
         </div>
 
-        {/* Introduction Card */}
-        <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 p-6 sm:p-8 shadow-xl space-y-4 relative overflow-hidden">
+        {/* Introduction & Project Summary Card */}
+        <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 p-6 sm:p-8 shadow-xl space-y-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-2.5 h-full bg-indigo-600"></div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-slate-50">
-            Formulário Técnico de Requisitos
-          </h1>
-          <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-            Proposta Comercial: {estimacion.codigo}
-          </p>
+          
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-950 dark:text-slate-50">
+              {t.title}
+            </h1>
+            <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+              {t.proposalCode}: {estimacion.codigo}
+            </p>
+          </div>
+
+          {/* Project Summary Grid */}
+          <div className="bg-slate-50/50 dark:bg-slate-900/40 rounded-xl p-4 sm:p-5 border border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-sm">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.startDate}</span>
+              <p className="font-bold text-slate-800 dark:text-slate-200">
+                {estimacion.expected_start_date ? formatDateString(estimacion.expected_start_date, lang) : t.notSpecified}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.endDate}</span>
+              <p className="font-bold text-slate-800 dark:text-slate-200">
+                {estimacion.expected_end_date ? formatDateString(estimacion.expected_end_date, lang) : t.notSpecified}
+              </p>
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.profiles}</span>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {(() => {
+                  const activeVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id) || estimacion.versions?.[0];
+                  return (activeVersion?.items || []).map((item: any) => (
+                    <span 
+                      key={item.id} 
+                      className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50"
+                    >
+                      {item.quantity}x {item.job_function?.name}
+                    </span>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-            <p>Olá <strong>{clientName}</strong>,</p>
-            <p>
-              Para darmos continuidade no processo de contratação dos profissionais relacionados ao perfil que você solicitou, segue este formulário técnico para que possa nos passar todas as informações necessárias.
-            </p>
-            <p>
-              Com esses detalhes, nossa equipe de Recursos Humanos e Seleção buscará os profissionais com a qualificação perfeita para o seu projeto.
-            </p>
+            <p>{t.hello} <strong>{clientName}</strong>,</p>
+            <p>{t.introText}</p>
+            <p>{t.subIntroText}</p>
           </div>
         </div>
 
@@ -292,7 +448,7 @@ export function PublicTechnicalFormPage() {
                 
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 border-b pb-3 flex items-center">
                   <span className="w-3 h-3 rounded-full bg-indigo-600 mr-2.5"></span>
-                  Perfil: {jfName}
+                  {t.profileLabel}: {jfName}
                 </h3>
                 
                 <div className="space-y-6">
@@ -305,7 +461,7 @@ export function PublicTechnicalFormPage() {
                       {q.questionType === 'long_text' ? (
                         <Textarea
                           id={`q-${q.questionId}`}
-                          placeholder="Escreva sua resposta..."
+                          placeholder="..."
                           value={answers[q.questionId] || ''}
                           onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
                           className="min-h-[70px] text-sm"
@@ -338,12 +494,12 @@ export function PublicTechnicalFormPage() {
                               }));
                             }}
                           >
-                            <option value="No">Não / No</option>
-                            <option value="Si">Sim / Sí</option>
+                            <option value="No">{lang === 'pt' ? 'Não' : lang === 'en' ? 'No' : 'No'}</option>
+                            <option value="Si">{lang === 'pt' ? 'Sim' : lang === 'en' ? 'Yes' : 'Sí'}</option>
                           </select>
                           {answers[q.questionId]?.startsWith('Si') && (
                             <Textarea
-                              placeholder="Descreva os detalhes e requisitos adicionais..."
+                              placeholder={t.booleanDetailsPlaceholder}
                               value={answers[q.questionId].startsWith('Si - ') ? answers[q.questionId].substring(5) : ''}
                               onChange={e => {
                                 const text = e.target.value;
@@ -374,14 +530,14 @@ export function PublicTechnicalFormPage() {
                               }));
                             }}
                           >
-                            <option value="" disabled>Selecione uma opção...</option>
+                            <option value="" disabled>{t.selectDefault}</option>
                             {(q.options || []).map((opt, idx) => (
                               <option key={idx} value={opt}>{opt}</option>
                             ))}
                           </select>
                           {(answers[q.questionId]?.startsWith('Otros') || answers[q.questionId]?.startsWith('Otras')) && (
                             <Textarea
-                              placeholder="Especifique a outra opção..."
+                              placeholder={t.otherPlaceholder}
                               value={
                                 answers[q.questionId].startsWith('Otros - ') ? answers[q.questionId].substring(8) :
                                 answers[q.questionId].startsWith('Otras - ') ? answers[q.questionId].substring(8) : ''
@@ -440,7 +596,7 @@ export function PublicTechnicalFormPage() {
                               
                               return (
                                 <Textarea
-                                  placeholder="Especifique a outra opção..."
+                                  placeholder={t.otherPlaceholder}
                                   value={otrosText}
                                   onChange={e => {
                                     const text = e.target.value;
@@ -469,7 +625,7 @@ export function PublicTechnicalFormPage() {
                         <Input
                           id={`q-${q.questionId}`}
                           type="text"
-                          placeholder="Escreva a resposta..."
+                          placeholder="..."
                           value={answers[q.questionId] || ''}
                           onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
                         />
@@ -492,10 +648,10 @@ export function PublicTechnicalFormPage() {
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Enviando Respostas...
+                  {t.submittingBtn}
                 </>
               ) : (
-                'Enviar Respostas do Formulário'
+                t.submitBtn
               )}
             </Button>
           </div>
