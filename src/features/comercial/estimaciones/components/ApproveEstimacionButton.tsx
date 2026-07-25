@@ -948,15 +948,37 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                                   </Label>
 
                                   {q.questionType === 'boolean' ? (
-                                    <select
-                                      id={`q-${q.questionId}`}
-                                      value={answers[q.questionId] || ''}
-                                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                                    >
-                                      <option value="Si">Sim / Sí</option>
-                                      <option value="No">Não / No</option>
-                                    </select>
+                                    <div className="space-y-2">
+                                      <select
+                                        id={`q-${q.questionId}`}
+                                        value={answers[q.questionId]?.startsWith('Si') ? 'Si' : 'No'}
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        onChange={e => {
+                                          const val = e.target.value;
+                                          setAnswers(prev => ({
+                                            ...prev,
+                                            [q.questionId]: val === 'Si' ? 'Si - ' : 'No'
+                                          }));
+                                        }}
+                                      >
+                                        <option value="No">Não / No</option>
+                                        <option value="Si">Sim / Sí</option>
+                                      </select>
+                                      {answers[q.questionId]?.startsWith('Si') && (
+                                        <Textarea
+                                          placeholder="Descreva os detalhes e requisitos adicionais..."
+                                          value={answers[q.questionId].startsWith('Si - ') ? answers[q.questionId].substring(5) : ''}
+                                          onChange={e => {
+                                            const text = e.target.value;
+                                            setAnswers(prev => ({
+                                              ...prev,
+                                              [q.questionId]: `Si - ${text}`
+                                            }));
+                                          }}
+                                          className="min-h-[70px] text-sm mt-2"
+                                        />
+                                      )}
+                                    </div>
                                   ) : q.questionType === 'long_text' ? (
                                     <Textarea
                                       id={`q-${q.questionId}`}
