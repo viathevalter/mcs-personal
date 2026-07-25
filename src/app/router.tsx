@@ -35,6 +35,7 @@ import { ColetaDadosPublicaPage } from '../features/comercial/leads/ColetaDadosP
 import { SolicitarPresupuestoPage } from '../features/comercial/leads/SolicitarPresupuestoPage';
 import { TermosUsoPage } from '../features/comercial/leads/TermosUsoPage';
 import { PoliticaPrivacidadePage } from '../features/comercial/leads/PoliticaPrivacidadePage';
+import { PublicTechnicalFormPage } from '../features/comercial/leads/PublicTechnicalFormPage';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
@@ -153,6 +154,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/coleta-dados/:id',
         element: <ColetaDadosPublicaPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/formulario-tecnico/:id',
+        element: <PublicTechnicalFormPage />,
         errorElement: <RootErrorBoundary />,
     },
     {

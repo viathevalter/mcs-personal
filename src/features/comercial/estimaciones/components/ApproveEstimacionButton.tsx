@@ -241,10 +241,10 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
           }
           setQuestions(allQuestions);
 
-          // Pre-fill answers
+          // Pre-fill answers (prioritizing client responses if pre-filled)
           const initialAnswers: Record<string, string> = {};
           allQuestions.forEach(q => {
-            initialAnswers[q.questionId] = q.questionType === 'boolean' ? 'No' : '';
+            initialAnswers[q.questionId] = (estimacion as any).client_technical_answers?.[q.questionId] || (q.questionType === 'boolean' ? 'No' : '');
           });
           setAnswers(initialAnswers);
         }

@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Briefcase
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Briefcase, Link2
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
@@ -25,6 +25,9 @@ import { supabase } from '@/shared/supabase/client';
 import { calculateViability } from './utils/viabilityEngine';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+
+
 
 export function EstimacionDetailPage() {
   const { id } = useParams();
@@ -218,7 +221,19 @@ export function EstimacionDetailPage() {
                 {t('comercial.detail.btnNewVersion')}
               </Button>
             )}
-            <ApproveEstimacionButton estimacion={estimacion} />
+             <Button
+               variant="outline"
+               onClick={() => {
+                 const url = `${window.location.origin}/public/formulario-tecnico/${estimacion.id}`;
+                 navigator.clipboard.writeText(url);
+                 toast.success('Link do formulário técnico copiado com sucesso!');
+               }}
+               className="border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-indigo-650 dark:text-indigo-400 font-semibold"
+             >
+               <Link2 className="mr-2 h-4 w-4" />
+               Enviar Formulário Técnico
+             </Button>
+             <ApproveEstimacionButton estimacion={estimacion} />
           </div>
         </div>
 
