@@ -351,6 +351,45 @@ export function ColetaDadosPublicaPage() {
             postal_code: data.postal_code || '',
             address_line: data.address_line || '',
           });
+
+          // Automatically transition to 'E-mail Lido / Clicado' if lead is in a lower stage
+          try {
+            const { data: stageData } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id, order_index')
+              .eq('empresa_id', data.empresa_id)
+              .eq('name', 'E-mail Lido / Clicado')
+              .maybeSingle();
+
+            if (stageData) {
+              let currentOrderIndex = 0;
+              if (data.stage_id) {
+                const { data: curStage } = await supabase
+                  .schema('core_comercial')
+                  .from('kanban_stages')
+                  .select('order_index')
+                  .eq('id', data.stage_id)
+                  .maybeSingle();
+                if (curStage) {
+                  currentOrderIndex = curStage.order_index;
+                }
+              }
+
+              if (stageData.order_index > currentOrderIndex) {
+                await supabase
+                  .schema('core_comercial')
+                  .from('leads')
+                  .update({
+                    stage_id: stageData.id,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', id);
+              }
+            }
+          } catch (stageErr) {
+            console.warn("Failed to automatically update lead stage to read:", stageErr);
+          }
         }
       } catch (err: any) {
         console.error(err);

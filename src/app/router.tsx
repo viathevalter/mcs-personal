@@ -33,6 +33,7 @@ import { EpisPage } from '../features/master-data/epis/pages/EpisPage';
 import { PaymentTermsPage } from '../features/master-data/payment-terms/pages/PaymentTermsPage';
 import { ColetaDadosPublicaPage } from '../features/comercial/leads/ColetaDadosPublicaPage';
 import { SolicitarPresupuestoPage } from '../features/comercial/leads/SolicitarPresupuestoPage';
+import { WhatsAppRedirectPage } from '../features/comercial/leads/WhatsAppRedirectPage';
 import { TermosUsoPage } from '../features/comercial/leads/TermosUsoPage';
 import { PoliticaPrivacidadePage } from '../features/comercial/leads/PoliticaPrivacidadePage';
 import { PublicTechnicalFormPage } from '../features/comercial/leads/PublicTechnicalFormPage';
@@ -169,6 +170,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/solicitar-presupuesto',
         element: <SolicitarPresupuestoPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/whatsapp',
+        element: <WhatsAppRedirectPage />,
         errorElement: <RootErrorBoundary />,
     },
     {

@@ -1321,7 +1321,7 @@ export function CampaignsPage() {
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
                       .replace(/\*\|UNSUBSCRIBE\|\*/gi, testOptOutUrl)
                       .replace(/%UNSUBSCRIBE_URL%/gi, testOptOutUrl)
-                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, "https://wa.me/34645567401?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios");
+                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp`);
                     return html;
                   })()} 
                   title="Preview" 

@@ -315,6 +315,45 @@ export function SolicitarPresupuestoPage() {
                 .map(p => p.key);
               setSelectedPerfiles(matched);
             }
+
+            // Automatically transition to 'E-mail Lido / Clicado' if lead is in a lower stage
+            try {
+              const { data: stageData } = await supabase
+                .schema('core_comercial')
+                .from('kanban_stages')
+                .select('id, order_index')
+                .eq('empresa_id', lead.empresa_id)
+                .eq('name', 'E-mail Lido / Clicado')
+                .maybeSingle();
+
+              if (stageData) {
+                let currentOrderIndex = 0;
+                if (lead.stage_id) {
+                  const { data: curStage } = await supabase
+                    .schema('core_comercial')
+                    .from('kanban_stages')
+                    .select('order_index')
+                    .eq('id', lead.stage_id)
+                    .maybeSingle();
+                  if (curStage) {
+                    currentOrderIndex = curStage.order_index;
+                  }
+                }
+
+                if (stageData.order_index > currentOrderIndex) {
+                  await supabase
+                    .schema('core_comercial')
+                    .from('leads')
+                    .update({
+                      stage_id: stageData.id,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', leadId);
+                }
+              }
+            } catch (stageErr) {
+              console.warn("Failed to automatically update lead stage to read:", stageErr);
+            }
           }
         } catch (err: any) {
           console.error(err);
@@ -376,7 +415,48 @@ export function SolicitarPresupuestoPage() {
 
     try {
       if (leadId) {
-        // Update existing lead with budget request notes
+        // Fetch 'Orçamento Solicitado' stage ID
+        let budgetStageId = null;
+        try {
+          const { data: bStage } = await supabase
+            .schema('core_comercial')
+            .from('kanban_stages')
+            .select('id, order_index')
+            .eq('empresa_id', empresaId)
+            .eq('name', 'Orçamento Solicitado')
+            .maybeSingle();
+
+          if (bStage) {
+            let currentOrderIndex = 0;
+            // Fetch current lead's stage order index
+            const { data: leadData } = await supabase
+              .schema('core_comercial')
+              .from('leads')
+              .select('stage_id')
+              .eq('id', leadId)
+              .single();
+
+            if (leadData?.stage_id) {
+              const { data: curStage } = await supabase
+                .schema('core_comercial')
+                .from('kanban_stages')
+                .select('order_index')
+                .eq('id', leadData.stage_id)
+                .maybeSingle();
+              if (curStage) {
+                currentOrderIndex = curStage.order_index;
+              }
+            }
+
+            if (bStage.order_index > currentOrderIndex) {
+              budgetStageId = bStage.id;
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch 'Orçamento Solicitado' stage:", e);
+        }
+
+        // Update existing lead with budget request notes and stage
         const { error } = await supabase
           .schema('core_comercial')
           .from('leads')
@@ -388,6 +468,7 @@ export function SolicitarPresupuestoPage() {
             notes: finalNotes,
             sector: primarySector || null,
             address_line: projectData.workAddress || null,
+            ...(budgetStageId ? { stage_id: budgetStageId } : {}),
             updated_at: new Date().toISOString()
           })
           .eq('id', leadId);
@@ -395,7 +476,7 @@ export function SolicitarPresupuestoPage() {
         if (error) throw error;
       } else {
         // Create new lead with budget request notes
-        // Fetch default Novo stage
+        // Fetch default 'Orçamento Solicitado' stage
         let defaultStageId = null;
         try {
           const { data: stages, error: stageErr } = await supabase
@@ -403,13 +484,25 @@ export function SolicitarPresupuestoPage() {
             .from('kanban_stages')
             .select('id')
             .eq('empresa_id', empresaId)
-            .eq('name', 'Novo');
+            .eq('name', 'Orçamento Solicitado');
 
           if (!stageErr && stages && stages.length > 0) {
             defaultStageId = stages[0].id;
+          } else {
+            // Fallback to first stage
+            const { data: stages2 } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id')
+              .eq('empresa_id', empresaId)
+              .order('order_index', { ascending: true })
+              .limit(1);
+            if (stages2 && stages2.length > 0) {
+              defaultStageId = stages2[0].id;
+            }
           }
         } catch (stageErr) {
-          console.warn('Could not fetch default kanban stage for new lead', stageErr);
+          console.warn('Could not fetch stage for new lead', stageErr);
         }
 
         const { error } = await supabase
