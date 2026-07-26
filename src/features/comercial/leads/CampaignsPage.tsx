@@ -32,6 +32,10 @@ import {
   Play,
   Clock,
   CheckCircle,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  RefreshCw,
   FileCode,
   Info,
   Eye,
@@ -352,9 +356,80 @@ export function CampaignsPage() {
       try {
         await startCampaign({ campaignId });
         toast.success('Campanha iniciada! A fila de disparos começou a ser processada.');
+        
+        // Auto-invoke Edge Function to process queue immediately
+        try {
+          await supabase.functions.invoke('process-marketing-queue');
+          queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
+        } catch (e) {
+          console.warn("Auto queue invoke warning:", e);
+        }
       } catch (err: any) {
         toast.error(err.message || 'Erro ao iniciar campanha');
       }
+    }
+  };
+
+  // State: Tracking Queue & Errors Modal
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
+  const [selectedCampaignForTracking, setSelectedCampaignForTracking] = useState<any | null>(null);
+  const [trackingQueueItems, setTrackingQueueItems] = useState<any[]>([]);
+  const [loadingTrackingQueue, setLoadingTrackingQueue] = useState(false);
+  const [isTriggeringQueue, setIsTriggeringQueue] = useState(false);
+
+  const fetchTrackingQueue = async (campaignId: string) => {
+    setLoadingTrackingQueue(true);
+    try {
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('marketing_campaign_queue')
+        .select(`
+          id,
+          status,
+          sent_at,
+          error_message,
+          created_at,
+          leads:lead_id (
+            id,
+            name,
+            email,
+            company_name
+          )
+        `)
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setTrackingQueueItems(data || []);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao carregar o relatório de envios.');
+    } finally {
+      setLoadingTrackingQueue(false);
+    }
+  };
+
+  const handleOpenTrackingModal = (camp: any) => {
+    setSelectedCampaignForTracking(camp);
+    setIsTrackModalOpen(true);
+    fetchTrackingQueue(camp.id);
+  };
+
+  const handleTriggerQueueManually = async () => {
+    setIsTriggeringQueue(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-marketing-queue');
+      if (error) throw error;
+      toast.success(data?.message || 'Fila de e-mails processada com sucesso!');
+      if (selectedCampaignForTracking) {
+        await fetchTrackingQueue(selectedCampaignForTracking.id);
+        queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao processar fila de e-mails.');
+    } finally {
+      setIsTriggeringQueue(false);
     }
   };
 
@@ -788,7 +863,7 @@ export function CampaignsPage() {
                   </div>
                   
                   {/* Campaign Actions */}
-                  {camp.status === 'draft' && (
+                  {camp.status === 'draft' ? (
                     <div className="flex gap-2 mt-4 pt-3 border-t">
                       <Button 
                         size="sm" 
@@ -808,6 +883,18 @@ export function CampaignsPage() {
                       >
                         <Clock size={12} className="mr-1.5" />
                         Agendar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-4 pt-3 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenTrackingModal(camp)}
+                        className="w-full border-slate-300 dark:border-slate-800 font-semibold text-xs"
+                      >
+                        <Eye size={13} className="mr-1.5 text-blue-500" />
+                        Acompanhar Envios & Relatório
                       </Button>
                     </div>
                   )}
@@ -1932,6 +2019,178 @@ export function CampaignsPage() {
 
           <DialogFooter className="pt-3 border-t">
             <Button type="button" onClick={() => setViewLeadsAudience(null)} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      {/* Modal: Acompanhamento da Fila e Erros de Disparo */}
+      <Dialog open={isTrackModalOpen} onOpenChange={setIsTrackModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-yellow-500" />
+                Relatório da Campanha: {selectedCampaignForTracking?.title}
+              </span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Acompanhe em tempo real quais e-mails foram enviados, quais estão na fila e quais apresentaram erros no servidor.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingTrackingQueue ? (
+            <div className="py-16 flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+              <Loader2 className="h-8 w-8 text-yellow-500 animate-spin" />
+              Carregando relatório da fila...
+            </div>
+          ) : (
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+              {/* Summary KPIs */}
+              {(() => {
+                const sentCount = trackingQueueItems.filter(i => i.status === 'sent').length;
+                const pendingCount = trackingQueueItems.filter(i => i.status === 'pending').length;
+                const failedCount = trackingQueueItems.filter(i => i.status === 'failed').length;
+                const total = trackingQueueItems.length;
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Enviados com Sucesso</p>
+                          <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{sentCount} <span className="text-xs font-normal text-emerald-500">/ {total}</span></p>
+                        </div>
+                        <CheckCircle2 className="h-8 w-8 text-emerald-500 opacity-60" />
+                      </div>
+
+                      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Aguardando Envio (Fila)</p>
+                          <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{pendingCount}</p>
+                        </div>
+                        <Clock className="h-8 w-8 text-amber-500 opacity-60" />
+                      </div>
+
+                      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400">Falhas / Erros de Envio</p>
+                          <p className="text-xl font-bold text-red-700 dark:text-red-300">{failedCount}</p>
+                        </div>
+                        <XCircle className="h-8 w-8 text-red-500 opacity-60" />
+                      </div>
+                    </div>
+
+                    {/* Alert for failed items */}
+                    {failedCount > 0 && (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-600 dark:text-red-400 flex items-start gap-2.5">
+                        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold mb-0.5">Diagnóstico de Erros no Disparo:</p>
+                          <p className="leading-relaxed">
+                            Alguns e-mails falharam ao serem processados. Verifique a coluna "Detalhe do Erro" na tabela abaixo. Se a mensagem indicar <span className="font-mono bg-red-950/40 px-1 py-0.5 rounded text-[11px] text-red-300">domain not verified</span>, cadastre e verifique o domínio do remetente na sua conta da Resend.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action button to reprocess */}
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Lista de Destinatários e Status dos Envios
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={handleTriggerQueueManually}
+                        disabled={isTriggeringQueue}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold text-xs h-8"
+                      >
+                        {isTriggeringQueue ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                            Processando Fila...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                            Disparar / Reprocessar Fila Agora
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Table of Queue Items */}
+                    <div className="border rounded-xl overflow-hidden max-h-[350px] overflow-y-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-semibold border-b sticky top-0">
+                          <tr>
+                            <th className="p-3">Destinatário / Lead</th>
+                            <th className="p-3">E-mail</th>
+                            <th className="p-3">Status</th>
+                            <th className="p-3">Detalhes / Data / Motivo do Erro</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {trackingQueueItems.map((item: any) => {
+                            const lead = item.leads;
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                <td className="p-3 font-medium text-slate-800 dark:text-slate-200">
+                                  {lead?.name || 'Lead s/ nome'}
+                                  {lead?.company_name && (
+                                    <span className="block text-[10px] text-slate-500">{lead.company_name}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                  {lead?.email || 'Sem e-mail'}
+                                </td>
+                                <td className="p-3 whitespace-nowrap">
+                                  {item.status === 'sent' && (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold text-[10px]">
+                                      <CheckCircle2 size={11} /> Enviado
+                                    </span>
+                                  )}
+                                  {item.status === 'pending' && (
+                                    <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold text-[10px]">
+                                      <Clock size={11} /> Na Fila
+                                    </span>
+                                  )}
+                                  {item.status === 'failed' && (
+                                    <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-semibold text-[10px]">
+                                      <XCircle size={11} /> Erro / Falha
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-[11px]">
+                                  {item.status === 'sent' && (
+                                    <span className="text-slate-500">
+                                      Disparado em {formatDate(item.sent_at)}
+                                    </span>
+                                  )}
+                                  {item.status === 'pending' && (
+                                    <span className="text-slate-400 italic">
+                                      Aguardando próximo lote de disparo...
+                                    </span>
+                                  )}
+                                  {item.status === 'failed' && (
+                                    <div className="bg-red-500/10 border border-red-500/20 p-2 rounded text-red-600 dark:text-red-400 font-mono text-[10px] break-all leading-tight">
+                                      {item.error_message || 'Erro não detalhado pelo servidor.'}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          <DialogFooter className="pt-3 border-t">
+            <Button type="button" onClick={() => setIsTrackModalOpen(false)} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
               Fechar
             </Button>
           </DialogFooter>
