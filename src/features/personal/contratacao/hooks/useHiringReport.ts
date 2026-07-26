@@ -163,28 +163,33 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range (if specified)
+  // Filter by Date Range (if startDate or endDate is specified)
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      // If no start date specified or worker is active, keep it
-      if (item.is_active) return true;
-      if (!item.start_date) return true;
-
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
+      // If item has no start_date at all, keep it
+      if (!itemStart) return true;
+
+      // Check if start date or end date falls in range
       if (filters.startDate && filters.endDate) {
-        if (itemStart >= filters.startDate && itemStart <= filters.endDate) return true;
-        if (itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate) return true;
-      } else if (filters.startDate && itemStart >= filters.startDate) {
-        return true;
-      } else if (filters.endDate && itemStart <= filters.endDate) {
-        return true;
+        const startedInRange = itemStart >= filters.startDate && itemStart <= filters.endDate;
+        const endedInRange = !!(itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate);
+        return startedInRange || endedInRange;
+      }
+      
+      if (filters.startDate) {
+        return itemStart >= filters.startDate;
       }
 
-      return false;
+      if (filters.endDate) {
+        return itemStart <= filters.endDate;
+      }
+
+      return true;
     });
   }
 
@@ -213,7 +218,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
     }
   }
 
-  // Aggregate Metrics
+  // Aggregate Metrics for filtered set
   const totalHired = filtered.length;
   const totalActive = filtered.filter(i => i.is_active).length;
   const totalInactive = filtered.filter(i => !i.is_active).length;
