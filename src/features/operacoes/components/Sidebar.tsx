@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Activity, AlertCircle, Box, Building, CheckSquare, FileText, LayoutDashboard, ListTodo, Settings, ShoppingCart, Upload, UserCog, Users, ArrowLeft, Menu } from 'lucide-react';
+import { Activity, AlertCircle, Box, Building, CheckSquare, FileText, FileSpreadsheet, LayoutDashboard, ListTodo, Settings, ShoppingCart, Upload, UserCog, Users, ArrowLeft, Menu } from 'lucide-react';
 import { useLanguage } from '../i18n';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useRole } from '@/app/providers/RoleProvider';
@@ -87,6 +87,7 @@ export const Sidebar: React.FC = () => {
             <div className="space-y-1">
               <NavItem to="/operacoes/personal/contratacao" icon={UserCog} label="Contratação Inicial" />
               <NavItem to="/operacoes/personal/assignments" icon={Users} label="Trabalhadores Alocados" />
+              <NavItem to="/operacoes/personal/contratacoes" icon={FileSpreadsheet} label="Controle de Contratações" />
             </div>
           </>
         )}

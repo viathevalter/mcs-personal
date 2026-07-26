@@ -71,6 +71,7 @@ import { SolicitudDetailPage } from '../features/operacoes/solicitudes/Solicitud
 import { NewSolicitudPage } from '../features/operacoes/solicitudes/NewSolicitudPage';
 import { ComercialTasksPage } from '../features/comercial/pages/ComercialTasksPage';
 import { HiringDashboardPage } from '../features/personal/contratacao/HiringDashboardPage';
+import { HiringReportPage } from '../features/personal/contratacao/HiringReportPage';
 import { AssignmentsPage } from '../features/personal/assignments/AssignmentsPage';
 import { RhTasksPage } from '../features/workers/pages/RhTasksPage';
 import { LogisticaTasksPage } from '../features/logistica/pages/LogisticaTasksPage';
@@ -413,6 +414,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'personal/assignments',
                         element: <AssignmentsPage />
+                    },
+                    {
+                        path: 'personal/contratacoes',
+                        element: <HiringReportPage />
                     },
                     {
                         path: 'solicitudes/:id',
