@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useWorkerAssignments } from '@/features/operacoes/solicitudes/hooks/useWorkerAssignments';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 
 export interface HiringReportFilters {
   empresa_id?: string | null;
@@ -66,24 +66,191 @@ function parseLocalDate(dateStr: string | null): Date | null {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+const normalizeString = (str: string) => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};
+
 export function useHiringReport(filters: HiringReportFilters) {
-  // Leverage the core useWorkerAssignments hook which reliably fetches real & virtual worker allocations
-  const assignmentsQuery = useWorkerAssignments({
-    empresa_id: filters.empresa_id,
+  return useQuery({
+    queryKey: ['hiring_report', filters],
+    queryFn: async () => {
+      if (!filters.empresa_id) {
+        return {
+          items: [],
+          totalHired: 0,
+          totalActive: 0,
+          totalInactive: 0,
+          retentionRate: 0,
+          avgDaysWorked: 0,
+          functionBreakdown: [],
+          contratanteBreakdown: [],
+          uniqueClients: [],
+          uniqueContratantes: [],
+          uniquePedidos: [],
+          uniqueFunctions: [],
+        };
+      }
+
+      // Check if selected company is the Holding / Group company (e.g. GRP Login pro)
+      const { data: targetEmpresa } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('id, nome, trade_name, legal_name, codigo')
+        .eq('id', filters.empresa_id)
+        .maybeSingle();
+
+      const empName = (targetEmpresa?.trade_name || targetEmpresa?.legal_name || targetEmpresa?.nome || '').toLowerCase();
+      const empCode = (targetEmpresa?.codigo || '').toLowerCase();
+
+      const isGroupEmpresa = empName.includes('grp') || empName.includes('group') || empName.includes('login pro') || empName.includes('grupo') || empName.includes('matriz') || empCode.includes('grp');
+
+      // Query worker_assignments
+      let query = supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select(`
+          *,
+          worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
+          replaced_assignment:worker_assignments!replacement_of_assignment_id(
+            id,
+            worker:workers(id, nome)
+          )
+        `);
+
+      if (!isGroupEmpresa) {
+        query = query.eq('empresa_id', filters.empresa_id);
+      }
+
+      const { data: assignments, error: assignError } = await query.order('start_date', { ascending: false });
+
+      if (assignError) {
+        console.error('Error in useHiringReport query:', assignError);
+      }
+
+      const assignmentsData = assignments || [];
+
+      // Batch lookups
+      const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
+      const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
+      const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
+
+      if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
+        empresaIds.push(filters.empresa_id);
+      }
+
+      const now = new Date();
+      const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
+      const periodMonth = filters.startDate ? Number(filters.startDate.split('-')[1]) || (now.getMonth() + 1) : (now.getMonth() + 1);
+
+      // If group company, p_empresa_id = null so RPC fetches across ALL companies in group
+      const rpcEmpresaId = isGroupEmpresa ? null : filters.empresa_id;
+
+      const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes] = await Promise.all([
+        pedidoIds.length > 0 
+          ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
+          : Promise.resolve({ data: [] }),
+        supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
+        siteIds.length > 0
+          ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        empresaIds.length > 0
+          ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
+          : Promise.resolve({ data: [] }),
+        supabase.schema('core_personal').rpc('get_hours_control_workers', {
+          p_empresa_id: rpcEmpresaId,
+          p_period_year: periodYear,
+          p_period_month: periodMonth,
+          p_contratante: null,
+          p_cliente_nombre: null
+        }).catch((err) => {
+          console.error('Error fetching get_hours_control_workers:', err);
+          return { data: [] };
+        })
+      ]);
+
+      const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
+      const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
+      const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
+      const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+
+      const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || targetEmpresa?.nome || '';
+
+      const mappedRealAssignments = assignmentsData.map(a => ({
+        ...a,
+        pedido: pedidosMap.get(a.pedido_id) || null,
+        client: clientsMap.get(a.client_id) || null,
+        client_site: sitesMap.get(a.client_site_id) || null,
+        empresa: empresasMap.get(a.empresa_id) || null,
+      }));
+
+      // Virtual assignments for active workers from hours control without an explicit worker_assignment
+      const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
+      const allClients = allClientsRes.data || [];
+      const activeWorkers = activeWorkersRes.data || [];
+
+      const virtualAssignments = activeWorkers
+        .filter((w: any) => !existingWorkerIds.has(w.id))
+        .map((w: any) => {
+          const matchedClient = allClients.find((c: any) => {
+            const tradeNorm = normalizeString(c.trade_name);
+            const legalNorm = normalizeString(c.legal_name);
+            const workerClientNorm = normalizeString(w.cliente_nombre);
+            return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
+          });
+
+          return {
+            id: `virtual-${w.id}`,
+            empresa_id: w.empresa_id || filters.empresa_id,
+            worker_id: w.id,
+            job_function_name_snapshot: w.funcion,
+            client_id: matchedClient?.id || null,
+            client_site_id: null,
+            pedido_id: null,
+            pedido_item_id: null,
+            status: w.status_trabajador === 'Baja' ? 'completed' : 'active',
+            start_date: w.created_at || new Date().toISOString(),
+            end_date: w.data_baixa || null,
+            worker: {
+              id: w.id,
+              nome: w.nome,
+              cod_colab: w.cod_colab,
+              nif: w.nif,
+              dni: w.dni,
+              email: w.email,
+              movil: w.movil,
+              funcion: w.funcion,
+              contratante: w.contratante || targetEmpresaNome
+            },
+            client: matchedClient ? {
+              id: matchedClient.id,
+              trade_name: matchedClient.trade_name,
+              legal_name: matchedClient.legal_name
+            } : null,
+            client_site: null,
+            pedido: null,
+            empresa: {
+              id: w.empresa_id || filters.empresa_id,
+              nome: w.contratante || targetEmpresaNome
+            },
+            replaced_assignment: null
+          };
+        });
+
+      const combined = [...mappedRealAssignments, ...virtualAssignments];
+      return processAssignments(combined, filters, targetEmpresaNome);
+    },
+    enabled: !!filters.empresa_id,
+    staleTime: 1000 * 60 * 5,
   });
-
-  const processedData = useMemo(() => {
-    const rawAssignments = assignmentsQuery.data || [];
-    return processAssignments(rawAssignments, filters);
-  }, [assignmentsQuery.data, filters]);
-
-  return {
-    ...assignmentsQuery,
-    data: processedData,
-  };
 }
 
-function processAssignments(assignments: any[], filters: HiringReportFilters) {
+function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -91,7 +258,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
-    const contratante = a.worker?.contratante || a.empresa?.nome || 'Não informada';
+    const contratante = a.worker?.contratante || a.empresa?.nome || empresaNome || 'Não informada';
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
