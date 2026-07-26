@@ -341,7 +341,7 @@ BEGIN
         SET status = 'completed',
             target_worker_id = v_worker_id,
             target_assignment_id = v_new_assignment_id,
-            completed_at = now()
+            updated_at = now()
         WHERE solicitud_id = v_solicitud_id 
           AND (source_pedido_item_id = v_pedido_item_id OR source_pedido_item_id IS NULL OR v_pedido_item_id IS NULL);
         
