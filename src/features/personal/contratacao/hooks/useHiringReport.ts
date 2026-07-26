@@ -97,49 +97,43 @@ export function useHiringReport(filters: HiringReportFilters) {
         };
       }
 
-      // Determine year and month from filters or current date
-      let periodYear = new Date().getFullYear();
-      let periodMonth = new Date().getMonth() + 1;
-      if (filters.startDate) {
-        const parts = filters.startDate.split('-');
-        if (parts.length >= 2) {
-          periodYear = Number(parts[0]) || periodYear;
-          periodMonth = Number(parts[1]) || periodMonth;
-        }
+      // 1. Fetch worker_assignments with valid Postgres columns ONLY
+      let query = supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select(`
+          *,
+          worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante)
+        `)
+        .eq('empresa_id', filters.empresa_id);
+
+      const { data: assignments, error: assignError } = await query.order('start_date', { ascending: false });
+
+      if (assignError) {
+        console.error('Error in useHiringReport worker_assignments query:', assignError);
       }
 
-      // Fetch target empresa details
-      const { data: empresaData } = await supabase
-        .schema('core_common')
-        .from('empresas')
-        .select('id, nome')
-        .eq('id', filters.empresa_id)
-        .maybeSingle();
+      const assignmentsData = assignments || [];
 
-      const empresaNome = empresaData?.nome || '';
-      const empresaNorm = normalizeString(empresaNome);
+      // Collect IDs for batch lookups
+      const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
+      const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
+      const empresaIds = [filters.empresa_id, ...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
 
-      // Concurrent data fetching from worker_assignments, workers, clients, pedidos, sites, and hours control
-      const [assignmentsRes, workersRes, clientsRes, sitesRes, pedidosRes, jobFunctionsRes, hoursWorkersRes] = await Promise.all([
-        supabase
-          .schema('core_personal')
-          .from('worker_assignments')
-          .select(`
-            *,
-            worker:workers(id, nome, document, nif, dni, cod_colab, contratante, funcion, status, status_trabajador)
-          `)
-          .order('created_at', { ascending: false }),
+      const periodYear = new Date().getFullYear();
+      const periodMonth = new Date().getMonth() + 1;
 
-        supabase
-          .schema('core_personal')
-          .from('workers')
-          .select('id, nome, document, nif, dni, cod_colab, contratante, funcion, status, status_trabajador, cliente_nombre, fecha_inicio, created_at, empresa_id')
-          .order('created_at', { ascending: false }),
-
+      const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes] = await Promise.all([
+        pedidoIds.length > 0 
+          ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
+          : Promise.resolve({ data: [] }),
         supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
-        supabase.schema('core_common').from('client_sites').select('id, name'),
-        supabase.schema('core_comercial').from('pedidos').select('id, codigo'),
-        supabase.schema('core_comercial').from('job_functions').select('id, name, title'),
+        siteIds.length > 0
+          ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        empresaIds.length > 0
+          ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
+          : Promise.resolve({ data: [] }),
         supabase.schema('core_personal').rpc('get_hours_control_workers', {
           p_empresa_id: filters.empresa_id,
           p_period_year: periodYear,
@@ -149,109 +143,46 @@ export function useHiringReport(filters: HiringReportFilters) {
         }).catch(() => ({ data: [] }))
       ]);
 
-      const allClients = clientsRes.data || [];
-      const clientsMap = new Map(allClients.map(c => [c.id, c]));
-      const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
       const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
-      const jobFunctionsMap = new Map((jobFunctionsRes.data || []).map(j => [j.id, j]));
+      const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
+      const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
+      const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
 
-      // Helper to match client by name
-      const findClientByName = (clientName: string | null) => {
-        if (!clientName) return null;
-        const norm = normalizeString(clientName);
-        return allClients.find(c => {
-          const tradeNorm = normalizeString(c.trade_name);
-          const legalNorm = normalizeString(c.legal_name);
-          return (tradeNorm && tradeNorm === norm) || (legalNorm && legalNorm === norm);
-        }) || null;
-      };
+      const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || '';
 
-      // 1. Process worker_assignments
-      const rawAssignments = assignmentsRes.data || [];
-      const filteredAssignments = rawAssignments.filter(a => {
-        if (a.empresa_id === filters.empresa_id) return true;
-        const wContratante = normalizeString(a.worker?.contratante || '');
-        if (wContratante && wContratante === empresaNorm) return true;
-        if (a.worker?.empresa_id === filters.empresa_id) return true;
-        return false;
-      });
+      // Map real assignments
+      const mappedRealAssignments = assignmentsData.map(a => ({
+        ...a,
+        pedido: pedidosMap.get(a.pedido_id) || null,
+        client: clientsMap.get(a.client_id) || null,
+        client_site: sitesMap.get(a.client_site_id) || null,
+        empresa: empresasMap.get(a.empresa_id) || null,
+      }));
 
-      const processedAssignments = filteredAssignments.map(a => {
-        const p = pedidosMap.get(a.pedido_id);
-        const c = clientsMap.get(a.client_id) || findClientByName(a.worker?.cliente_nombre);
-        const s = sitesMap.get(a.client_site_id);
-        const jf = jobFunctionsMap.get(a.job_function_id);
+      // Generate virtual assignments for active workers from hours control who do not have an assignment row
+      const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
+      const allClients = allClientsRes.data || [];
+      const activeWorkers = activeWorkersRes.data || [];
 
-        return {
-          ...a,
-          pedido: p || null,
-          client: c || null,
-          client_site: s || null,
-          job_function: jf || null,
-        };
-      });
-
-      const assignedWorkerIds = new Set(processedAssignments.map(a => a.worker_id));
-
-      // 2. Process workers table for workers matching empresa that don't have explicit assignment rows
-      const rawWorkers = workersRes.data || [];
-      const companyWorkers = rawWorkers.filter(w => {
-        if (assignedWorkerIds.has(w.id)) return false;
-        if (w.empresa_id === filters.empresa_id) return true;
-        const wContratante = normalizeString(w.contratante || '');
-        if (wContratante && wContratante === empresaNorm) return true;
-        return false;
-      });
-
-      const virtualFromWorkers = companyWorkers.map(w => {
-        const matchedClient = findClientByName(w.cliente_nombre);
-        const isBaja = w.status_trabajador === 'Baja' || w.status === 'inactive';
-
-        return {
-          id: `worker-${w.id}`,
-          empresa_id: filters.empresa_id,
-          worker_id: w.id,
-          job_function_name_snapshot: w.funcion,
-          client_id: matchedClient?.id || null,
-          client_site_id: null,
-          pedido_id: null,
-          status: isBaja ? 'completed' : 'active',
-          start_date: w.fecha_inicio || w.created_at || new Date().toISOString(),
-          end_date: null,
-          worker: w,
-          client: matchedClient ? {
-            id: matchedClient.id,
-            trade_name: matchedClient.trade_name,
-            legal_name: matchedClient.legal_name
-          } : null,
-          client_site: null,
-          pedido: null,
-          job_function: null
-        };
-      });
-
-      // 3. Process hours_control RPC workers
-      const rawHoursWorkers = hoursWorkersRes.data || [];
-      const processedWorkerIds = new Set([
-        ...processedAssignments.map(a => a.worker_id),
-        ...virtualFromWorkers.map(v => v.worker_id)
-      ]);
-
-      const virtualFromHours = rawHoursWorkers
-        .filter((w: any) => !processedWorkerIds.has(w.id))
+      const virtualAssignments = activeWorkers
+        .filter((w: any) => !existingWorkerIds.has(w.id))
         .map((w: any) => {
-          const matchedClient = findClientByName(w.cliente_nombre);
-          const isBaja = w.status_trabajador === 'Baja';
+          const matchedClient = allClients.find((c: any) => {
+            const tradeNorm = normalizeString(c.trade_name);
+            const legalNorm = normalizeString(c.legal_name);
+            const workerClientNorm = normalizeString(w.cliente_nombre);
+            return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
+          });
 
           return {
-            id: `hours-${w.id}`,
+            id: `virtual-${w.id}`,
             empresa_id: filters.empresa_id,
             worker_id: w.id,
             job_function_name_snapshot: w.funcion,
             client_id: matchedClient?.id || null,
             client_site_id: null,
             pedido_id: null,
-            status: isBaja ? 'completed' : 'active',
+            status: w.status_trabajador === 'Baja' ? 'completed' : 'active',
             start_date: w.created_at || new Date().toISOString(),
             end_date: w.data_baixa || null,
             worker: {
@@ -263,7 +194,7 @@ export function useHiringReport(filters: HiringReportFilters) {
               email: w.email,
               movil: w.movil,
               funcion: w.funcion,
-              contratante: w.contratante || empresaNome
+              contratante: w.contratante || targetEmpresaNome
             },
             client: matchedClient ? {
               id: matchedClient.id,
@@ -272,12 +203,15 @@ export function useHiringReport(filters: HiringReportFilters) {
             } : null,
             client_site: null,
             pedido: null,
-            job_function: null
+            empresa: {
+              id: filters.empresa_id,
+              nome: targetEmpresaNome
+            }
           };
         });
 
-      const combined = [...processedAssignments, ...virtualFromWorkers, ...virtualFromHours];
-      return processAssignments(combined, filters, empresaNome);
+      const combined = [...mappedRealAssignments, ...virtualAssignments];
+      return processAssignments(combined, filters, targetEmpresaNome);
     },
     enabled: !!filters.empresa_id,
     staleTime: 1000 * 60 * 5,
@@ -291,12 +225,12 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   // Map raw data into standardized HiringReportItem
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
-    const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.document || '-';
+    const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
     const contratante = a.worker?.contratante || empresaNome || 'Não informada';
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
-    const jobFuncName = a.job_function_name_snapshot || a.job_function?.title || a.job_function?.name || a.worker?.funcion || 'Geral';
+    const jobFuncName = a.job_function_name_snapshot || a.worker?.funcion || 'Geral';
 
     const startDateStr = a.start_date ? a.start_date.split('T')[0] 
       : a.planned_start_date ? a.planned_start_date.split('T')[0] 
@@ -364,33 +298,25 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // 2. Filter by Date Range (start_date or active in range)
+  // 2. Filter by Date Range (include if active or started in period)
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      if (!item.start_date) return true; // Include if start date not specified
-      
+      // If worker is active or has start_date, include
+      if (item.is_active) return true;
+      if (!item.start_date) return true;
+
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
-      // 1. Started in period
       if (filters.startDate && filters.endDate) {
         if (itemStart >= filters.startDate && itemStart <= filters.endDate) return true;
+        if (itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate) return true;
       } else if (filters.startDate && itemStart >= filters.startDate) {
         return true;
       } else if (filters.endDate && itemStart <= filters.endDate) {
         return true;
-      }
-
-      // 2. Or active during period
-      if (item.is_active && filters.endDate && itemStart <= filters.endDate) {
-        return true;
-      }
-
-      // 3. Or ended during period
-      if (itemEnd && filters.startDate && filters.endDate) {
-        if (itemEnd >= filters.startDate && itemEnd <= filters.endDate) return true;
       }
 
       return false;
