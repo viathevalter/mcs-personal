@@ -337,6 +337,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         .from('worker_assignments')
         .select(`
           id,
+          solicitud_id,
           status,
           planned_start_date,
           start_date,
