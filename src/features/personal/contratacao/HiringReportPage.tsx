@@ -225,6 +225,7 @@ export const HiringReportPage: React.FC = () => {
               { id: 'last_month', label: 'Mês Anterior' },
               { id: 'last_90_days', label: 'Últimos 90 Dias' },
               { id: 'this_year', label: 'Ano Atual' },
+              { id: 'all_time', label: 'Todos os Períodos' },
               { id: 'custom', label: 'Personalizado' },
             ].map(p => (
               <button

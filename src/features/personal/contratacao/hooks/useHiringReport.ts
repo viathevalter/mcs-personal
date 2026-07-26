@@ -81,6 +81,7 @@ export function useHiringReport(filters: HiringReportFilters) {
     queryKey: ['hiring_report', filters],
     queryFn: async () => {
       if (!filters.empresa_id) {
+        console.log('--- useHiringReport: no empresa_id provided ---');
         return {
           items: [],
           totalHired: 0,
@@ -97,31 +98,43 @@ export function useHiringReport(filters: HiringReportFilters) {
         };
       }
 
-      // 1. Fetch worker_assignments with valid Postgres columns ONLY
+      console.log('--- DEBUG: useHiringReport execution start ---', filters);
+
+      // Query worker_assignments with exact PostgREST syntax as useWorkerAssignments
       let query = supabase
         .schema('core_personal')
         .from('worker_assignments')
         .select(`
           *,
-          worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante)
+          worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
+          replaced_assignment:worker_assignments!replacement_of_assignment_id(
+            id,
+            worker:workers(id, nome)
+          )
         `)
         .eq('empresa_id', filters.empresa_id);
 
       const { data: assignments, error: assignError } = await query.order('start_date', { ascending: false });
 
       if (assignError) {
-        console.error('Error in useHiringReport worker_assignments query:', assignError);
+        console.error('--- DEBUG: useHiringReport assignError ---', assignError);
       }
 
       const assignmentsData = assignments || [];
+      console.log('--- DEBUG: raw assignments count ---', assignmentsData.length);
 
-      // Collect IDs for batch lookups
+      // Batch lookups
       const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
       const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
-      const empresaIds = [filters.empresa_id, ...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
+      const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
 
-      const periodYear = new Date().getFullYear();
-      const periodMonth = new Date().getMonth() + 1;
+      if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
+        empresaIds.push(filters.empresa_id);
+      }
+
+      const now = new Date();
+      const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
+      const periodMonth = filters.startDate ? Number(filters.startDate.split('-')[1]) || (now.getMonth() + 1) : (now.getMonth() + 1);
 
       const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes] = await Promise.all([
         pedidoIds.length > 0 
@@ -140,7 +153,10 @@ export function useHiringReport(filters: HiringReportFilters) {
           p_period_month: periodMonth,
           p_contratante: null,
           p_cliente_nombre: null
-        }).catch(() => ({ data: [] }))
+        }).catch((err) => {
+          console.error('--- DEBUG: get_hours_control_workers err ---', err);
+          return { data: [] };
+        })
       ]);
 
       const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
@@ -150,7 +166,6 @@ export function useHiringReport(filters: HiringReportFilters) {
 
       const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || '';
 
-      // Map real assignments
       const mappedRealAssignments = assignmentsData.map(a => ({
         ...a,
         pedido: pedidosMap.get(a.pedido_id) || null,
@@ -159,10 +174,12 @@ export function useHiringReport(filters: HiringReportFilters) {
         empresa: empresasMap.get(a.empresa_id) || null,
       }));
 
-      // Generate virtual assignments for active workers from hours control who do not have an assignment row
+      // Virtual assignments for active workers from hours control without an explicit worker_assignment
       const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
       const allClients = allClientsRes.data || [];
       const activeWorkers = activeWorkersRes.data || [];
+
+      console.log('--- DEBUG: activeWorkers from hours_control count ---', activeWorkers.length);
 
       const virtualAssignments = activeWorkers
         .filter((w: any) => !existingWorkerIds.has(w.id))
@@ -182,6 +199,7 @@ export function useHiringReport(filters: HiringReportFilters) {
             client_id: matchedClient?.id || null,
             client_site_id: null,
             pedido_id: null,
+            pedido_item_id: null,
             status: w.status_trabajador === 'Baja' ? 'completed' : 'active',
             start_date: w.created_at || new Date().toISOString(),
             end_date: w.data_baixa || null,
@@ -206,15 +224,17 @@ export function useHiringReport(filters: HiringReportFilters) {
             empresa: {
               id: filters.empresa_id,
               nome: targetEmpresaNome
-            }
+            },
+            replaced_assignment: null
           };
         });
 
       const combined = [...mappedRealAssignments, ...virtualAssignments];
+      console.log('--- DEBUG: combined assignments count ---', combined.length);
+
       return processAssignments(combined, filters, targetEmpresaNome);
     },
     enabled: !!filters.empresa_id,
-    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -303,7 +323,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      // If worker is active or has start_date, include
+      // Include all active workers or workers without explicit dates
       if (item.is_active) return true;
       if (!item.start_date) return true;
 
