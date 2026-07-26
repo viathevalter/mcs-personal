@@ -467,7 +467,7 @@ export function DocumentacionTasksPage() {
             const [{ data: clientData }, { data: siteData }, { data: empresaData }] = await Promise.all([
                 clientId ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', clientId).maybeSingle() : Promise.resolve({ data: null }),
                 siteId ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', siteId).maybeSingle() : Promise.resolve({ data: null }),
-                empresaId ? supabase.schema('core_common').from('empresas').select('id, name').eq('id', empresaId).maybeSingle() : Promise.resolve({ data: null })
+                empresaId ? supabase.schema('core_common').from('empresas').select('id, nome, trade_name, legal_name').eq('id', empresaId).maybeSingle() : Promise.resolve({ data: null })
             ]);
 
             let clientName = 'N/A';
@@ -482,7 +482,7 @@ export function DocumentacionTasksPage() {
                 siteName = 'Instalações do Cliente';
             }
 
-            const empresaName = empresaData?.name || 'N/A';
+            const empresaName = empresaData?.trade_name || empresaData?.legal_name || empresaData?.nome || 'N/A';
 
             setTaskMetadata({ 
                 clientName, 
