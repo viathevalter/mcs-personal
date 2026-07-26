@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/shared/supabase/client';
+import { useMemo } from 'react';
+import { useWorkerAssignments } from '@/features/operacoes/solicitudes/hooks/useWorkerAssignments';
 
 export interface HiringReportFilters {
   empresa_id?: string | null;
@@ -66,179 +66,24 @@ function parseLocalDate(dateStr: string | null): Date | null {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
-const normalizeString = (str: string) => {
-  if (!str) return '';
-  return str
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-};
-
 export function useHiringReport(filters: HiringReportFilters) {
-  return useQuery({
-    queryKey: ['hiring_report', filters],
-    queryFn: async () => {
-      if (!filters.empresa_id) {
-        console.log('--- useHiringReport: no empresa_id provided ---');
-        return {
-          items: [],
-          totalHired: 0,
-          totalActive: 0,
-          totalInactive: 0,
-          retentionRate: 0,
-          avgDaysWorked: 0,
-          functionBreakdown: [],
-          contratanteBreakdown: [],
-          uniqueClients: [],
-          uniqueContratantes: [],
-          uniquePedidos: [],
-          uniqueFunctions: [],
-        };
-      }
-
-      console.log('--- DEBUG: useHiringReport execution start ---', filters);
-
-      // Query worker_assignments with exact PostgREST syntax as useWorkerAssignments
-      let query = supabase
-        .schema('core_personal')
-        .from('worker_assignments')
-        .select(`
-          *,
-          worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
-          replaced_assignment:worker_assignments!replacement_of_assignment_id(
-            id,
-            worker:workers(id, nome)
-          )
-        `)
-        .eq('empresa_id', filters.empresa_id);
-
-      const { data: assignments, error: assignError } = await query.order('start_date', { ascending: false });
-
-      if (assignError) {
-        console.error('--- DEBUG: useHiringReport assignError ---', assignError);
-      }
-
-      const assignmentsData = assignments || [];
-      console.log('--- DEBUG: raw assignments count ---', assignmentsData.length);
-
-      // Batch lookups
-      const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
-      const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
-      const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
-
-      if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
-        empresaIds.push(filters.empresa_id);
-      }
-
-      const now = new Date();
-      const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
-      const periodMonth = filters.startDate ? Number(filters.startDate.split('-')[1]) || (now.getMonth() + 1) : (now.getMonth() + 1);
-
-      const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes] = await Promise.all([
-        pedidoIds.length > 0 
-          ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
-          : Promise.resolve({ data: [] }),
-        supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
-        siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
-          : Promise.resolve({ data: [] }),
-        empresaIds.length > 0
-          ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
-          : Promise.resolve({ data: [] }),
-        supabase.schema('core_personal').rpc('get_hours_control_workers', {
-          p_empresa_id: filters.empresa_id,
-          p_period_year: periodYear,
-          p_period_month: periodMonth,
-          p_contratante: null,
-          p_cliente_nombre: null
-        }).catch((err) => {
-          console.error('--- DEBUG: get_hours_control_workers err ---', err);
-          return { data: [] };
-        })
-      ]);
-
-      const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
-      const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
-      const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
-      const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
-
-      const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || '';
-
-      const mappedRealAssignments = assignmentsData.map(a => ({
-        ...a,
-        pedido: pedidosMap.get(a.pedido_id) || null,
-        client: clientsMap.get(a.client_id) || null,
-        client_site: sitesMap.get(a.client_site_id) || null,
-        empresa: empresasMap.get(a.empresa_id) || null,
-      }));
-
-      // Virtual assignments for active workers from hours control without an explicit worker_assignment
-      const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
-      const allClients = allClientsRes.data || [];
-      const activeWorkers = activeWorkersRes.data || [];
-
-      console.log('--- DEBUG: activeWorkers from hours_control count ---', activeWorkers.length);
-
-      const virtualAssignments = activeWorkers
-        .filter((w: any) => !existingWorkerIds.has(w.id))
-        .map((w: any) => {
-          const matchedClient = allClients.find((c: any) => {
-            const tradeNorm = normalizeString(c.trade_name);
-            const legalNorm = normalizeString(c.legal_name);
-            const workerClientNorm = normalizeString(w.cliente_nombre);
-            return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
-          });
-
-          return {
-            id: `virtual-${w.id}`,
-            empresa_id: filters.empresa_id,
-            worker_id: w.id,
-            job_function_name_snapshot: w.funcion,
-            client_id: matchedClient?.id || null,
-            client_site_id: null,
-            pedido_id: null,
-            pedido_item_id: null,
-            status: w.status_trabajador === 'Baja' ? 'completed' : 'active',
-            start_date: w.created_at || new Date().toISOString(),
-            end_date: w.data_baixa || null,
-            worker: {
-              id: w.id,
-              nome: w.nome,
-              cod_colab: w.cod_colab,
-              nif: w.nif,
-              dni: w.dni,
-              email: w.email,
-              movil: w.movil,
-              funcion: w.funcion,
-              contratante: w.contratante || targetEmpresaNome
-            },
-            client: matchedClient ? {
-              id: matchedClient.id,
-              trade_name: matchedClient.trade_name,
-              legal_name: matchedClient.legal_name
-            } : null,
-            client_site: null,
-            pedido: null,
-            empresa: {
-              id: filters.empresa_id,
-              nome: targetEmpresaNome
-            },
-            replaced_assignment: null
-          };
-        });
-
-      const combined = [...mappedRealAssignments, ...virtualAssignments];
-      console.log('--- DEBUG: combined assignments count ---', combined.length);
-
-      return processAssignments(combined, filters, targetEmpresaNome);
-    },
-    enabled: !!filters.empresa_id,
+  // Leverage the core useWorkerAssignments hook which reliably fetches real & virtual worker allocations
+  const assignmentsQuery = useWorkerAssignments({
+    empresa_id: filters.empresa_id,
   });
+
+  const processedData = useMemo(() => {
+    const rawAssignments = assignmentsQuery.data || [];
+    return processAssignments(rawAssignments, filters);
+  }, [assignmentsQuery.data, filters]);
+
+  return {
+    ...assignmentsQuery,
+    data: processedData,
+  };
 }
 
-function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
+function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -246,7 +91,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
-    const contratante = a.worker?.contratante || empresaNome || 'Não informada';
+    const contratante = a.worker?.contratante || a.empresa?.nome || 'Não informada';
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
@@ -318,12 +163,12 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // 2. Filter by Date Range (include if active or started in period)
+  // Filter by Date Range (if specified)
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      // Include all active workers or workers without explicit dates
+      // If no start date specified or worker is active, keep it
       if (item.is_active) return true;
       if (!item.start_date) return true;
 
@@ -343,7 +188,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     });
   }
 
-  // 3. Additional Local Dropdown Filters
+  // Dropdown Filters
   if (filters.clientFilter && filters.clientFilter !== 'all') {
     filtered = filtered.filter(item => item.client_id === filters.clientFilter);
   }
@@ -368,7 +213,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     }
   }
 
-  // 4. Calculate Aggregate Metrics
+  // Aggregate Metrics
   const totalHired = filtered.length;
   const totalActive = filtered.filter(i => i.is_active).length;
   const totalInactive = filtered.filter(i => !i.is_active).length;
