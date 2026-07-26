@@ -45,7 +45,8 @@ import {
   FileUp,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Loader2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
