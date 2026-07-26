@@ -109,7 +109,7 @@ export function DocumentacionTasksPage() {
     const [workersDialogOpen, setWorkersDialogOpen] = useState(false);
     const [taskWorkers, setTaskWorkers] = useState<any[]>([]);
     const [loadingTaskWorkers, setLoadingTaskWorkers] = useState(false);
-    const [taskMetadata, setTaskMetadata] = useState<{ clientName: string; siteName: string; pedidoCode: string } | null>(null);
+    const [taskMetadata, setTaskMetadata] = useState<{ clientName: string; siteName: string; pedidoCode: string; empresaName: string; clientId?: string; siteId?: string; empresaId?: string } | null>(null);
 
     // States for Configuração de Modelos
     const [selectedConfigContratante, setSelectedConfigContratante] = useState<string>('STOCCO');
@@ -417,13 +417,22 @@ export function DocumentacionTasksPage() {
             setTaskMetadata(null);
 
             const solicitudId = task.solicitud_id;
-            const pedidoId = task.solicitud?.pedido_id;
 
-            // 1. Fetch metadata (client and site) using same logic as solicitud detail
-            let clientName = 'N/A';
-            let siteName = 'N/A';
-            let pedidoCode = 'N/A';
+            // Fetch full solicitud record to ensure we get client_id, client_site_id, empresa_id, codigo, tipo, title
+            const { data: solData } = await supabase
+                .schema('core_operacoes')
+                .from('solicitudes_operativas')
+                .select('id, codigo, client_id, client_site_id, empresa_id, pedido_id, tipo, title')
+                .eq('id', solicitudId)
+                .maybeSingle();
 
+            const pedidoId = solData?.pedido_id || task.solicitud?.pedido_id;
+            let clientId = solData?.client_id || task.solicitud?.client_id;
+            let siteId = solData?.client_site_id || task.solicitud?.client_site_id;
+            let empresaId = solData?.empresa_id || task.solicitud?.empresa_id || selectedEmpresaId;
+            let pedidoCode = solData?.codigo || task.solicitud?.codigo || 'N/A';
+
+            // If pedidoId is present, fetch order info to refine code/client/site
             if (pedidoId) {
                 const { data: pedidoData } = await supabase
                     .schema('core_comercial')
@@ -433,20 +442,57 @@ export function DocumentacionTasksPage() {
                     .maybeSingle();
 
                 if (pedidoData) {
-                    pedidoCode = pedidoData.codigo || 'N/A';
-                    const [{ data: clientData }, { data: siteData }] = await Promise.all([
-                        pedidoData.client_id ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', pedidoData.client_id).maybeSingle() : Promise.resolve({ data: null }),
-                        pedidoData.client_site_id ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', pedidoData.client_site_id).maybeSingle() : Promise.resolve({ data: null })
-                    ]);
-                    if (clientData) {
-                        clientName = clientData.trade_name || clientData.legal_name || 'N/A';
-                    }
-                    if (siteData) {
-                        siteName = siteData.name || 'N/A';
-                    }
+                    if (pedidoData.codigo) pedidoCode = pedidoData.codigo;
+                    if (pedidoData.client_id) clientId = pedidoData.client_id;
+                    if (pedidoData.client_site_id) siteId = pedidoData.client_site_id;
                 }
             }
-            setTaskMetadata({ clientName, siteName, pedidoCode });
+
+            // If clientId is still missing, try fetching from solicitud_targets source_client_id or target worker_assignments
+            if (!clientId) {
+                const { data: targetClientData } = await supabase
+                    .schema('core_operacoes')
+                    .from('solicitud_targets')
+                    .select('source_client_id, target_client_id')
+                    .eq('solicitud_id', solicitudId)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (targetClientData) {
+                    clientId = targetClientData.source_client_id || targetClientData.target_client_id;
+                }
+            }
+
+            // Fetch Names for Client, Site & Empresa
+            const [{ data: clientData }, { data: siteData }, { data: empresaData }] = await Promise.all([
+                clientId ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', clientId).maybeSingle() : Promise.resolve({ data: null }),
+                siteId ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', siteId).maybeSingle() : Promise.resolve({ data: null }),
+                empresaId ? supabase.schema('core_common').from('empresas').select('id, name').eq('id', empresaId).maybeSingle() : Promise.resolve({ data: null })
+            ]);
+
+            let clientName = 'N/A';
+            if (clientData) {
+                clientName = clientData.trade_name || clientData.legal_name || 'N/A';
+            }
+
+            let siteName = 'N/A';
+            if (siteData) {
+                siteName = siteData.name;
+            } else if (clientName !== 'N/A') {
+                siteName = 'Instalações do Cliente';
+            }
+
+            const empresaName = empresaData?.name || 'N/A';
+
+            setTaskMetadata({ 
+                clientName, 
+                siteName, 
+                pedidoCode,
+                empresaName,
+                clientId,
+                siteId,
+                empresaId
+            });
 
             // 2. Fetch targets first
             const { data: targets, error: targetsErr } = await supabase
@@ -2414,18 +2460,24 @@ Equipo de Contratación`;
 
                     {/* Resumo da solicitação/pedido */}
                     {taskMetadata && (
-                        <div className="grid grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-800/30 text-sm mb-2 mt-2">
+                        <div className="grid grid-cols-4 gap-3 p-3 border rounded-lg bg-slate-50 dark:bg-slate-800/30 text-sm mb-2 mt-2">
+                            <div>
+                                <span className="font-semibold text-muted-foreground block text-xs">EMPRESA DO GRUPO</span>
+                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.empresaName || 'N/A'}</span>
+                            </div>
                             <div>
                                 <span className="font-semibold text-muted-foreground block text-xs">CLIENTE</span>
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.clientName}</span>
+                                <span className="font-bold text-indigo-900 dark:text-indigo-200">{taskMetadata.clientName}</span>
                             </div>
                             <div>
                                 <span className="font-semibold text-muted-foreground block text-xs">LOCAL / OBRA</span>
                                 <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.siteName}</span>
                             </div>
                             <div>
-                                <span className="font-semibold text-muted-foreground block text-xs">PEDIDO ORIGINAL</span>
-                                <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800/50 px-2 py-0.5 rounded">{taskMetadata.pedidoCode}</span>
+                                <span className="font-semibold text-muted-foreground block text-xs">PEDIDO / SOLICITAÇÃO</span>
+                                <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800/50 px-2 py-0.5 rounded text-xs truncate block" title={taskMetadata.pedidoCode}>
+                                    {taskMetadata.pedidoCode}
+                                </span>
                             </div>
                         </div>
                     )}
@@ -2533,15 +2585,16 @@ Equipo de Contratación`;
                                                             variant="outline"
                                                             className="text-slate-600 hover:text-indigo-600"
                                                             onClick={async () => {
-                                                                try {
-                                                                    const res = await createDocumentRequest(selectedEmpresaId!, item.worker.id);
-                                                                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
-                                                                    loadDocRequests();
-                                                                    toast.success("Link cadastral criado!");
-                                                                } catch (err) {
-                                                                    toast.error("Erro ao criar link cadastral.");
-                                                                }
-                                                            }}
+                                                                 try {
+                                                                     const empId = taskMetadata?.empresaId || selectedEmpresaId!;
+                                                                     const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
+                                                                     setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                                                                     loadDocRequests();
+                                                                     toast.success("Link cadastral criado!");
+                                                                 } catch (err) {
+                                                                     toast.error("Erro ao criar link cadastral.");
+                                                                 }
+                                                             }}
                                                             title="Criar novo link de envio"
                                                         >
                                                             <Plus className="h-3.5 w-3.5 mr-1" />
@@ -2556,6 +2609,8 @@ Equipo de Contratación`;
                                                         className="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800"
                                                         onClick={() => {
                                                             setSelectedWorkerId(item.worker.id);
+                                                            if (taskMetadata?.empresaId) setSelectedEmpresaId(taskMetadata.empresaId);
+                                                            if (taskMetadata?.clientId) setRequestClientId(taskMetadata.clientId);
                                                             setWorkersDialogOpen(false);
                                                             setGenerateDialogOpen(true);
                                                         }}
