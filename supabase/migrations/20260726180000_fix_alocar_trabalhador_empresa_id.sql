@@ -352,7 +352,7 @@ BEGIN
         ) THEN
             UPDATE core_operacoes.solicitudes_operativas
             SET status = 'completed',
-                completed_at = now()
+                updated_at = now()
             WHERE id = v_solicitud_id;
         END IF;
     END IF;
