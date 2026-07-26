@@ -66,6 +66,16 @@ function parseLocalDate(dateStr: string | null): Date | null {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+const normalizeString = (str: string) => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};
+
 export function useHiringReport(filters: HiringReportFilters) {
   return useQuery({
     queryKey: ['hiring_report', filters],
@@ -87,59 +97,88 @@ export function useHiringReport(filters: HiringReportFilters) {
         };
       }
 
-      // 1. Fetch worker_assignments for company
-      const { data: rawAssignments, error: assignError } = await supabase
-        .schema('core_personal')
-        .from('worker_assignments')
-        .select(`
-          *,
-          worker:workers(id, nome, document, nif, dni, cod_colab, contratante, funcion)
-        `)
-        .eq('empresa_id', filters.empresa_id)
-        .order('created_at', { ascending: false });
-
-      if (assignError) {
-        console.error('Error fetching worker assignments:', assignError);
-        throw assignError;
+      // Determine year and month from filters or current date
+      let periodYear = new Date().getFullYear();
+      let periodMonth = new Date().getMonth() + 1;
+      if (filters.startDate) {
+        const parts = filters.startDate.split('-');
+        if (parts.length >= 2) {
+          periodYear = Number(parts[0]) || periodYear;
+          periodMonth = Number(parts[1]) || periodMonth;
+        }
       }
 
-      const assignmentsData = rawAssignments || [];
+      // Fetch target empresa details
+      const { data: empresaData } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('id, nome')
+        .eq('id', filters.empresa_id)
+        .maybeSingle();
 
-      // Collect foreign keys
-      const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
-      const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
-      const jobFunctionIds = [...new Set(assignmentsData.map(a => a.job_function_id).filter(Boolean))];
+      const empresaNome = empresaData?.nome || '';
+      const empresaNorm = normalizeString(empresaNome);
 
-      // Fetch related lookup tables concurrently
-      const [pedidosRes, allClientsRes, sitesRes, jobFunctionsRes, activeWorkersRes] = await Promise.all([
-        pedidoIds.length > 0 
-          ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
-          : Promise.resolve({ data: [] }),
+      // Concurrent data fetching from worker_assignments, workers, clients, pedidos, sites, and hours control
+      const [assignmentsRes, workersRes, clientsRes, sitesRes, pedidosRes, jobFunctionsRes, hoursWorkersRes] = await Promise.all([
+        supabase
+          .schema('core_personal')
+          .from('worker_assignments')
+          .select(`
+            *,
+            worker:workers(id, nome, document, nif, dni, cod_colab, contratante, funcion, status, status_trabajador)
+          `)
+          .order('created_at', { ascending: false }),
+
+        supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, document, nif, dni, cod_colab, contratante, funcion, status, status_trabajador, cliente_nombre, fecha_inicio, created_at, empresa_id')
+          .order('created_at', { ascending: false }),
+
         supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
-        siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
-          : Promise.resolve({ data: [] }),
-        jobFunctionIds.length > 0
-          ? supabase.schema('core_comercial').from('job_functions').select('id, name, title').in('id', jobFunctionIds)
-          : Promise.resolve({ data: [] }),
+        supabase.schema('core_common').from('client_sites').select('id, name'),
+        supabase.schema('core_comercial').from('pedidos').select('id, codigo'),
+        supabase.schema('core_comercial').from('job_functions').select('id, name, title'),
         supabase.schema('core_personal').rpc('get_hours_control_workers', {
           p_empresa_id: filters.empresa_id,
-          p_period_year: new Date().getFullYear(),
-          p_period_month: new Date().getMonth() + 1,
+          p_period_year: periodYear,
+          p_period_month: periodMonth,
           p_contratante: null,
           p_cliente_nombre: null
         }).catch(() => ({ data: [] }))
       ]);
 
-      const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
-      const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
+      const allClients = clientsRes.data || [];
+      const clientsMap = new Map(allClients.map(c => [c.id, c]));
       const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
+      const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
       const jobFunctionsMap = new Map((jobFunctionsRes.data || []).map(j => [j.id, j]));
 
-      // 2. Map real worker_assignments
-      const mappedReal = assignmentsData.map(a => {
+      // Helper to match client by name
+      const findClientByName = (clientName: string | null) => {
+        if (!clientName) return null;
+        const norm = normalizeString(clientName);
+        return allClients.find(c => {
+          const tradeNorm = normalizeString(c.trade_name);
+          const legalNorm = normalizeString(c.legal_name);
+          return (tradeNorm && tradeNorm === norm) || (legalNorm && legalNorm === norm);
+        }) || null;
+      };
+
+      // 1. Process worker_assignments
+      const rawAssignments = assignmentsRes.data || [];
+      const filteredAssignments = rawAssignments.filter(a => {
+        if (a.empresa_id === filters.empresa_id) return true;
+        const wContratante = normalizeString(a.worker?.contratante || '');
+        if (wContratante && wContratante === empresaNorm) return true;
+        if (a.worker?.empresa_id === filters.empresa_id) return true;
+        return false;
+      });
+
+      const processedAssignments = filteredAssignments.map(a => {
         const p = pedidosMap.get(a.pedido_id);
-        const c = clientsMap.get(a.client_id);
+        const c = clientsMap.get(a.client_id) || findClientByName(a.worker?.cliente_nombre);
         const s = sitesMap.get(a.client_site_id);
         const jf = jobFunctionsMap.get(a.job_function_id);
 
@@ -152,42 +191,69 @@ export function useHiringReport(filters: HiringReportFilters) {
         };
       });
 
-      // 3. Virtual assignments for active workers from hours control without an explicit worker_assignment
-      const existingWorkerIds = new Set(mappedReal.map(a => a.worker_id));
-      const allClients = allClientsRes.data || [];
-      const activeWorkers = activeWorkersRes.data || [];
+      const assignedWorkerIds = new Set(processedAssignments.map(a => a.worker_id));
 
-      const normalizeString = (str: string) => {
-        if (!str) return '';
-        return str
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, '')
-          .trim();
-      };
+      // 2. Process workers table for workers matching empresa that don't have explicit assignment rows
+      const rawWorkers = workersRes.data || [];
+      const companyWorkers = rawWorkers.filter(w => {
+        if (assignedWorkerIds.has(w.id)) return false;
+        if (w.empresa_id === filters.empresa_id) return true;
+        const wContratante = normalizeString(w.contratante || '');
+        if (wContratante && wContratante === empresaNorm) return true;
+        return false;
+      });
 
-      const mappedVirtual = activeWorkers
-        .filter((w: any) => !existingWorkerIds.has(w.id))
+      const virtualFromWorkers = companyWorkers.map(w => {
+        const matchedClient = findClientByName(w.cliente_nombre);
+        const isBaja = w.status_trabajador === 'Baja' || w.status === 'inactive';
+
+        return {
+          id: `worker-${w.id}`,
+          empresa_id: filters.empresa_id,
+          worker_id: w.id,
+          job_function_name_snapshot: w.funcion,
+          client_id: matchedClient?.id || null,
+          client_site_id: null,
+          pedido_id: null,
+          status: isBaja ? 'completed' : 'active',
+          start_date: w.fecha_inicio || w.created_at || new Date().toISOString(),
+          end_date: null,
+          worker: w,
+          client: matchedClient ? {
+            id: matchedClient.id,
+            trade_name: matchedClient.trade_name,
+            legal_name: matchedClient.legal_name
+          } : null,
+          client_site: null,
+          pedido: null,
+          job_function: null
+        };
+      });
+
+      // 3. Process hours_control RPC workers
+      const rawHoursWorkers = hoursWorkersRes.data || [];
+      const processedWorkerIds = new Set([
+        ...processedAssignments.map(a => a.worker_id),
+        ...virtualFromWorkers.map(v => v.worker_id)
+      ]);
+
+      const virtualFromHours = rawHoursWorkers
+        .filter((w: any) => !processedWorkerIds.has(w.id))
         .map((w: any) => {
-          const matchedClient = allClients.find((c: any) => {
-            const tradeNorm = normalizeString(c.trade_name);
-            const legalNorm = normalizeString(c.legal_name);
-            const workerClientNorm = normalizeString(w.cliente_nombre);
-            return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
-          });
+          const matchedClient = findClientByName(w.cliente_nombre);
+          const isBaja = w.status_trabajador === 'Baja';
 
           return {
-            id: `virtual-${w.id}`,
+            id: `hours-${w.id}`,
             empresa_id: filters.empresa_id,
             worker_id: w.id,
             job_function_name_snapshot: w.funcion,
             client_id: matchedClient?.id || null,
             client_site_id: null,
             pedido_id: null,
-            status: 'active',
-            start_date: w.created_at || w.fecha_inicio || new Date().toISOString(),
-            end_date: null,
+            status: isBaja ? 'completed' : 'active',
+            start_date: w.created_at || new Date().toISOString(),
+            end_date: w.data_baixa || null,
             worker: {
               id: w.id,
               nome: w.nome,
@@ -197,7 +263,7 @@ export function useHiringReport(filters: HiringReportFilters) {
               email: w.email,
               movil: w.movil,
               funcion: w.funcion,
-              contratante: w.contratante
+              contratante: w.contratante || empresaNome
             },
             client: matchedClient ? {
               id: matchedClient.id,
@@ -210,15 +276,15 @@ export function useHiringReport(filters: HiringReportFilters) {
           };
         });
 
-      const combined = [...mappedReal, ...mappedVirtual];
-      return processAssignments(combined, filters);
+      const combined = [...processedAssignments, ...virtualFromWorkers, ...virtualFromHours];
+      return processAssignments(combined, filters, empresaNome);
     },
     enabled: !!filters.empresa_id,
     staleTime: 1000 * 60 * 5,
   });
 }
 
-function processAssignments(assignments: any[], filters: HiringReportFilters) {
+function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -226,8 +292,8 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.document || '-';
-    const contratante = a.worker?.contratante || 'Não informada';
-    const clientName = a.client?.trade_name || a.client?.legal_name || (a.client_id ? 'Cliente' : 'Não especificado');
+    const contratante = a.worker?.contratante || empresaNome || 'Não informada';
+    const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
     const jobFuncName = a.job_function_name_snapshot || a.job_function?.title || a.job_function?.name || a.worker?.funcion || 'Geral';
@@ -298,20 +364,36 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // 2. Filter by Date Range (start_date in range)
+  // 2. Filter by Date Range (start_date or active in range)
   let filtered = allItems;
 
-  if (filters.startDate) {
+  if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
       if (!item.start_date) return true; // Include if start date not specified
-      return item.start_date >= filters.startDate!;
-    });
-  }
+      
+      const itemStart = item.start_date;
+      const itemEnd = item.end_date;
 
-  if (filters.endDate) {
-    filtered = filtered.filter(item => {
-      if (!item.start_date) return true;
-      return item.start_date <= filters.endDate!;
+      // 1. Started in period
+      if (filters.startDate && filters.endDate) {
+        if (itemStart >= filters.startDate && itemStart <= filters.endDate) return true;
+      } else if (filters.startDate && itemStart >= filters.startDate) {
+        return true;
+      } else if (filters.endDate && itemStart <= filters.endDate) {
+        return true;
+      }
+
+      // 2. Or active during period
+      if (item.is_active && filters.endDate && itemStart <= filters.endDate) {
+        return true;
+      }
+
+      // 3. Or ended during period
+      if (itemEnd && filters.startDate && filters.endDate) {
+        if (itemEnd >= filters.startDate && itemEnd <= filters.endDate) return true;
+      }
+
+      return false;
     });
   }
 

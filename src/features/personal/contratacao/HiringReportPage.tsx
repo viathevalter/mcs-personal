@@ -29,6 +29,13 @@ function formatDateBR(dateStr: string | null): string {
   return dateStr;
 }
 
+function formatYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Preset date range helpers
 function getPresetDates(preset: string) {
   const now = new Date();
@@ -36,30 +43,30 @@ function getPresetDates(preset: string) {
   const month = now.getMonth();
 
   if (preset === 'this_month') {
-    const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-    const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
-    return { startDate: firstDay, endDate: lastDay };
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
 
   if (preset === 'last_month') {
-    const firstDay = new Date(year, month - 1, 1).toISOString().split('T')[0];
-    const lastDay = new Date(year, month, 0).toISOString().split('T')[0];
-    return { startDate: firstDay, endDate: lastDay };
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
 
   if (preset === 'last_90_days') {
     const past = new Date();
     past.setDate(now.getDate() - 90);
     return {
-      startDate: past.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: formatYMD(past),
+      endDate: formatYMD(now),
     };
   }
 
   if (preset === 'this_year') {
-    const firstDay = new Date(year, 0, 1).toISOString().split('T')[0];
-    const lastDay = new Date(year, 11, 31).toISOString().split('T')[0];
-    return { startDate: firstDay, endDate: lastDay };
+    const firstDay = new Date(year, 0, 1);
+    const lastDay = new Date(year, 11, 31);
+    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
 
   // Default: All time or custom
