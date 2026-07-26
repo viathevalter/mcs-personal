@@ -2023,6 +2023,8 @@ export function CampaignsPage() {
             </Button>
           </DialogFooter>
         </DialogContent>
+      </Dialog>
+
       {/* Modal: Acompanhamento da Fila e Erros de Disparo */}
       <Dialog open={isTrackModalOpen} onOpenChange={setIsTrackModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
