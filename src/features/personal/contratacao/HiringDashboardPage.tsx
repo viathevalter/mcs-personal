@@ -274,7 +274,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         `)
         .eq('empresa_id', selectedEmpresaId)
         .in('action_type', ['replace', 'offboard'])
-        .in('status', ['pending', 'in_progress']);
+        .in('status', ['pending', 'in_progress', 'completed']);
 
       if (error) {
         console.error("Error fetching replacement targets:", error);
@@ -377,6 +377,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       let syntheticPedido = list.find(p => p.id === existingId);
       
       const itemJobFunction = t.source_worker?.funcion || 'Perfil';
+      const isTargetCompleted = t.status === 'completed' || !!t.target_assignment_id || allAllocations.some((a: any) => a.solicitud_id === (t.solicitud_id || t.id));
       const item = {
         id: `reemplazo-item-${t.id}`,
         pedido_id: existingId,
@@ -384,7 +385,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         job_function_name_snapshot: itemJobFunction,
         job_function: { name: itemJobFunction },
         quantity_requested: 1,
-        quantity_fulfilled: 0,
+        quantity_fulfilled: isTargetCompleted ? 1 : 0,
         includes_epi: false,
         includes_housing: t.requires_housing || false,
         base_cost_hour_snapshot: null,
@@ -443,7 +444,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     if (pedido.isSynthetic) {
       reqQty = pedido.pedido_items.length;
       fulQty = pedido.pedido_items.filter((item: any) => item.quantity_fulfilled > 0).length;
-      hasReplacement = true;
+      hasReplacement = false;
     } else {
       pedido.pedido_items?.forEach((item: any) => {
         reqQty += item.quantity_requested || 0;
