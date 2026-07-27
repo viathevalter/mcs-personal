@@ -335,33 +335,40 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range: Always include currently active workers, plus inactive workers active during period
+  // Filter by Date Range: Hires or Departures falling within [startDate, endDate]
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      // 1. Always include currently active workers for the company
-      if (item.is_active) return true;
-
-      // 2. For inactive/desligados, check if they were active in period
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
-      if (filters.startDate && filters.endDate) {
-        const startedOnOrBeforePeriodEnd = !itemStart || itemStart <= filters.endDate;
-        const endedOnOrAfterPeriodStart = !itemEnd || itemEnd >= filters.startDate;
-        return startedOnOrBeforePeriodEnd && endedOnOrAfterPeriodStart;
-      }
-      
-      if (filters.startDate) {
-        return !itemEnd || itemEnd >= filters.startDate;
-      }
-
-      if (filters.endDate) {
-        return !itemStart || itemStart <= filters.endDate;
+      // 1. If start_date falls in selected period: INCLUDE!
+      if (itemStart && filters.startDate && filters.endDate) {
+        if (itemStart >= filters.startDate && itemStart <= filters.endDate) {
+          return true;
+        }
+      } else if (itemStart && filters.startDate) {
+        if (itemStart >= filters.startDate) return true;
+      } else if (itemStart && filters.endDate) {
+        if (itemStart <= filters.endDate) return true;
       }
 
-      return true;
+      // 2. If end_date falls in selected period: INCLUDE!
+      if (itemEnd && filters.startDate && filters.endDate) {
+        if (itemEnd >= filters.startDate && itemEnd <= filters.endDate) {
+          return true;
+        }
+      } else if (itemEnd && filters.startDate) {
+        if (itemEnd >= filters.startDate) return true;
+      }
+
+      // 3. If item has no dates at all, keep it
+      if (!itemStart && !itemEnd) {
+        return true;
+      }
+
+      return false;
     });
   }
 
