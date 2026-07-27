@@ -197,31 +197,58 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   const allClients = allClientsRes.data || [];
   const activeWorkers = activeWorkersRes.data || [];
 
+  // Fetch latest colaborador_por_pedido allocations for virtual assignments to get exact fechainiciopedido/reemplazo start dates
+  const activeWorkerCodes = activeWorkers.map((w: any) => w.cod_colab).filter(Boolean);
+  let cppMap = new Map<string, any>();
+
+  if (activeWorkerCodes.length > 0) {
+    const { data: cppList } = await supabase
+      .from('colaborador_por_pedido')
+      .select('cod_colab, fechainiciopedido, fechafinpedido, fechasalidatrabajador, cliente_nombre, codpedido, inserted_at, contratante, funcion')
+      .in('cod_colab', activeWorkerCodes);
+
+    (cppList || []).forEach((cpp: any) => {
+      const existing = cppMap.get(cpp.cod_colab);
+      if (!existing || (cpp.fechainiciopedido && (!existing.fechainiciopedido || cpp.fechainiciopedido > existing.fechainiciopedido))) {
+        cppMap.set(cpp.cod_colab, cpp);
+      }
+    });
+  }
+
   const virtualAssignments = activeWorkers
     .filter((w: any) => !existingWorkerIds.has(w.id))
     .map((w: any) => {
+      const cpp = cppMap.get(w.cod_colab);
+
       const matchedClient = allClients.find((c: any) => {
         const tradeNorm = normalizeString(c.trade_name);
         const legalNorm = normalizeString(c.legal_name);
-        const workerClientNorm = normalizeString(w.cliente_nombre);
+        const workerClientNorm = normalizeString(w.cliente_nombre || cpp?.cliente_nombre);
         return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
       });
 
       const rawWorkerStatus = (w.status_trabajador || '').toLowerCase();
-      const isInactive = rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!w.data_baixa;
+      const isInactive = rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!w.data_baixa || !!cpp?.fechasalidatrabajador;
+
+      // Use allocation start date (fechainiciopedido or inserted_at) instead of worker profile creation date
+      const allocationStartDate = cpp?.fechainiciopedido 
+        || (cpp?.inserted_at ? cpp.inserted_at.split('T')[0] : null)
+        || (w.created_at ? w.created_at.split('T')[0] : null);
+
+      const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
       return {
         id: `virtual-${w.id}`,
         empresa_id: w.empresa_id || filters.empresa_id,
         worker_id: w.id,
-        job_function_name_snapshot: w.funcion,
+        job_function_name_snapshot: w.funcion || cpp?.funcion,
         client_id: matchedClient?.id || null,
         client_site_id: null,
         pedido_id: null,
         pedido_item_id: null,
         status: isInactive ? 'completed' : 'active',
-        start_date: w.created_at || new Date().toISOString(),
-        end_date: w.data_baixa || null,
+        start_date: allocationStartDate,
+        end_date: endDate,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -230,19 +257,19 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           dni: w.dni,
           email: w.email,
           movil: w.movil,
-          funcion: w.funcion,
-          contratante: w.contratante || targetEmpresaNome
+          funcion: w.funcion || cpp?.funcion,
+          contratante: w.contratante || cpp?.contratante || targetEmpresaNome
         },
         client: matchedClient ? {
           id: matchedClient.id,
           trade_name: matchedClient.trade_name,
           legal_name: matchedClient.legal_name
-        } : null,
+        } : (w.cliente_nombre || cpp?.cliente_nombre ? { id: null, trade_name: w.cliente_nombre || cpp?.cliente_nombre, legal_name: w.cliente_nombre || cpp?.cliente_nombre } : null),
         client_site: null,
-        pedido: null,
+        pedido: cpp?.codpedido ? { id: null, codigo: cpp.codpedido } : null,
         empresa: {
           id: w.empresa_id || filters.empresa_id,
-          nome: w.contratante || targetEmpresaNome
+          nome: w.contratante || cpp?.contratante || targetEmpresaNome
         },
         replaced_assignment: null
       };
@@ -427,7 +454,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     contrMap.set(c, current);
   });
 
-  const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contrMap.entries())
+  const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contratanteMap.entries ? contrMap.entries() : [])
     .map(([contratante, stat]) => ({ contratante, ...stat }))
     .sort((a, b) => b.total - a.total);
 
