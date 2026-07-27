@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
-import { useWorkerAssignments } from '@/features/operacoes/solicitudes/hooks/useWorkerAssignments';
 
 export interface HiringReportFilters {
   empresa_id?: string | null;
@@ -79,18 +78,42 @@ const normalizeString = (str: string) => {
 };
 
 export function useHiringReport(filters: HiringReportFilters) {
-  // 1. Primary query for specific selected empresa (works for all operational companies: Triangulo, Stocco, Wiseowe, Luminous, Rosas)
-  const primaryQuery = useWorkerAssignments({
-    empresa_id: filters.empresa_id,
-  });
-
-  // 2. Fallback query for Holding / Group company (Login Pro / GRP Login pro) when primaryQuery yields 0 items
-  const groupFallbackQuery = useQuery({
-    queryKey: ['hiring_report_group_fallback', filters],
+  return useQuery({
+    queryKey: ['hiring_report', filters],
     queryFn: async () => {
-      if (!filters.empresa_id) return [];
+      if (!filters.empresa_id) {
+        return {
+          items: [],
+          totalHired: 0,
+          totalActive: 0,
+          totalInactive: 0,
+          retentionRate: 0,
+          avgDaysWorked: 0,
+          functionBreakdown: [],
+          contratanteBreakdown: [],
+          uniqueClients: [],
+          uniqueContratantes: [],
+          uniquePedidos: [],
+          uniqueFunctions: [],
+        };
+      }
 
-      let query = supabase
+      // 1. Fetch details of the selected company
+      const { data: targetEmpresa } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('id, nome, trade_name, legal_name, codigo')
+        .eq('id', filters.empresa_id)
+        .maybeSingle();
+
+      const empName = (targetEmpresa?.trade_name || targetEmpresa?.legal_name || targetEmpresa?.nome || '').toLowerCase();
+
+      // Individual operating subsidiaries vs Holding / Group (Login Pro, GRP Login Pro, Mastercorp, etc.)
+      const isIndividualCompany = ['stocco', 'triangulo', 'luminous', 'wiseowe', 'rosas'].some(c => empName.includes(c));
+      const companyIdFilter = isIndividualCompany ? filters.empresa_id : null;
+
+      // 2. Query worker_assignments
+      let assignmentsQuery = supabase
         .schema('core_personal')
         .from('worker_assignments')
         .select(`
@@ -102,14 +125,23 @@ export function useHiringReport(filters: HiringReportFilters) {
           )
         `);
 
-      const { data: assignments, error } = await query.order('start_date', { ascending: false });
-      if (error) console.error('Error in group fallback worker_assignments:', error);
+      if (companyIdFilter) {
+        assignmentsQuery = assignmentsQuery.eq('empresa_id', companyIdFilter);
+      }
+
+      const { data: assignments, error: assignError } = await assignmentsQuery.order('start_date', { ascending: false });
+      if (assignError) console.error('Error fetching worker_assignments:', assignError);
 
       const assignmentsData = assignments || [];
 
+      // 3. Batch Lookups
       const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
       const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
       const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
+
+      if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
+        empresaIds.push(filters.empresa_id);
+      }
 
       const now = new Date();
       const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
@@ -127,13 +159,13 @@ export function useHiringReport(filters: HiringReportFilters) {
           ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
           : Promise.resolve({ data: [] }),
         supabase.schema('core_personal').rpc('get_hours_control_workers', {
-          p_empresa_id: null, // ALL companies in group
+          p_empresa_id: companyIdFilter, // null for Login Pro (holding), company UUID for subsidiaries
           p_period_year: periodYear,
           p_period_month: periodMonth,
           p_contratante: null,
           p_cliente_nombre: null
         }).catch((err) => {
-          console.error('Error fetching get_hours_control_workers for group fallback:', err);
+          console.error('Error in get_hours_control_workers:', err);
           return { data: [] };
         })
       ]);
@@ -142,6 +174,8 @@ export function useHiringReport(filters: HiringReportFilters) {
       const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
       const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
       const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+
+      const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || targetEmpresa?.nome || '';
 
       const mappedRealAssignments = assignmentsData.map(a => ({
         ...a,
@@ -186,7 +220,7 @@ export function useHiringReport(filters: HiringReportFilters) {
               email: w.email,
               movil: w.movil,
               funcion: w.funcion,
-              contratante: w.contratante || 'Grupo'
+              contratante: w.contratante || targetEmpresaNome
             },
             client: matchedClient ? {
               id: matchedClient.id,
@@ -197,39 +231,21 @@ export function useHiringReport(filters: HiringReportFilters) {
             pedido: null,
             empresa: {
               id: w.empresa_id || filters.empresa_id,
-              nome: w.contratante || 'Grupo'
+              nome: w.contratante || targetEmpresaNome
             },
             replaced_assignment: null
           };
         });
 
-      return [...mappedRealAssignments, ...virtualAssignments];
+      const combined = [...mappedRealAssignments, ...virtualAssignments];
+      return processAssignments(combined, filters, targetEmpresaNome);
     },
-    enabled: !!filters.empresa_id && !primaryQuery.isLoading && (primaryQuery.data || []).length === 0,
+    enabled: !!filters.empresa_id,
+    staleTime: 1000 * 60 * 5,
   });
-
-  const primaryAssignments = primaryQuery.data || [];
-  const fallbackAssignments = groupFallbackQuery.data || [];
-
-  const rawAssignments = primaryAssignments.length > 0 ? primaryAssignments : fallbackAssignments;
-  const isLoading = primaryQuery.isLoading || (primaryAssignments.length === 0 && groupFallbackQuery.isLoading);
-
-  const processedData = useMemo(() => {
-    return processAssignments(rawAssignments, filters);
-  }, [rawAssignments, filters]);
-
-  return {
-    isLoading,
-    data: processedData,
-    refetch: () => {
-      primaryQuery.refetch();
-      groupFallbackQuery.refetch();
-    },
-    isFetching: primaryQuery.isFetching || groupFallbackQuery.isFetching,
-  };
 }
 
-function processAssignments(assignments: any[], filters: HiringReportFilters) {
+function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -237,7 +253,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
-    const contratante = a.worker?.contratante || a.empresa?.nome || 'Não informada';
+    const contratante = a.worker?.contratante || a.empresa?.nome || empresaNome || 'Não informada';
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
@@ -314,27 +330,25 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      // 1. Always include currently active workers
-      if (item.is_active) return true;
-
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
+      // If item has no start_date at all, keep it
       if (!itemStart && !itemEnd) return true;
 
+      // Check if start date or end date falls in selected period
       if (filters.startDate && filters.endDate) {
         const startedInRange = !!(itemStart && itemStart >= filters.startDate && itemStart <= filters.endDate);
         const endedInRange = !!(itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate);
-        const activeDuringPeriod = !!(itemStart && itemStart <= filters.endDate && (!itemEnd || itemEnd >= filters.startDate));
-        return startedInRange || endedInRange || activeDuringPeriod;
+        return startedInRange || endedInRange;
       }
       
       if (filters.startDate) {
-        return (itemStart && itemStart >= filters.startDate) || (itemEnd && itemEnd >= filters.startDate);
+        return !!(itemStart && itemStart >= filters.startDate);
       }
 
       if (filters.endDate) {
-        return (itemStart && itemStart <= filters.endDate);
+        return !!(itemStart && itemStart <= filters.endDate);
       }
 
       return true;
