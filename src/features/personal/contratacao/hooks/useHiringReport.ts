@@ -334,25 +334,26 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range (Active allocation during selected period)
+  // Filter by Date Range: Always include currently active workers, plus inactive workers active during period
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
+      // 1. Always include currently active workers for the company
+      if (item.is_active) return true;
+
+      // 2. For inactive/desligados, check if they were active in period
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
       if (filters.startDate && filters.endDate) {
-        // Allocation started on or before period end
         const startedOnOrBeforePeriodEnd = !itemStart || itemStart <= filters.endDate;
-        // Allocation is active or ended on or after period start
-        const activeOrEndedOnOrAfterPeriodStart = item.is_active || !itemEnd || itemEnd >= filters.startDate;
-
-        return startedOnOrBeforePeriodEnd && activeOrEndedOnOrAfterPeriodStart;
+        const endedOnOrAfterPeriodStart = !itemEnd || itemEnd >= filters.startDate;
+        return startedOnOrBeforePeriodEnd && endedOnOrAfterPeriodStart;
       }
       
       if (filters.startDate) {
-        return item.is_active || !itemEnd || itemEnd >= filters.startDate;
+        return !itemEnd || itemEnd >= filters.startDate;
       }
 
       if (filters.endDate) {
