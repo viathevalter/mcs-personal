@@ -15,6 +15,7 @@ export const clientsApi = {
           payment_term_id,
           status,
           credit_limit,
+          billing_cycle_start_day,
           payment_term:payment_term_id ( id, name, days )
         )
       `)
@@ -33,6 +34,7 @@ export const clientsApi = {
         payment_term: settings?.payment_term || null,
         status: settings?.status || 'active',
         credit_limit: settings?.credit_limit !== undefined ? Number(settings.credit_limit) : null,
+        billing_cycle_start_day: settings?.billing_cycle_start_day || 1,
       };
     }) as Client[];
   },
@@ -44,6 +46,7 @@ export const clientsApi = {
       payment_term_id,
       status,
       credit_limit,
+      billing_cycle_start_day,
       ...globalPayload
     } = payload as any;
 
@@ -68,6 +71,7 @@ export const clientsApi = {
         payment_term_id: payment_term_id || null,
         status: status || 'active',
         credit_limit: credit_limit || 0,
+        billing_cycle_start_day: billing_cycle_start_day || 1,
       });
 
     if (settingsError) throw settingsError;
@@ -85,6 +89,7 @@ export const clientsApi = {
       payment_term_id,
       status,
       credit_limit,
+      billing_cycle_start_day,
       ...globalPayload
     } = payload as any;
 
@@ -102,6 +107,7 @@ export const clientsApi = {
     if (payment_term_id !== undefined) settingsUpdate.payment_term_id = payment_term_id;
     if (status !== undefined) settingsUpdate.status = status;
     if (credit_limit !== undefined) settingsUpdate.credit_limit = credit_limit;
+    if (billing_cycle_start_day !== undefined) settingsUpdate.billing_cycle_start_day = billing_cycle_start_day;
 
     if (Object.keys(settingsUpdate).length > 0) {
       const { error: settingsError } = await supabase

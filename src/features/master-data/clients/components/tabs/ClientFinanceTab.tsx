@@ -20,11 +20,13 @@ export function ClientFinanceTab({ client }: ClientFinanceTabProps) {
   const [paymentTermId, setPaymentTermId] = useState(client.payment_term_id || 'none');
   const [financialStatus, setFinancialStatus] = useState(client.financial_status || 'active');
   const [creditLimit, setCreditLimit] = useState(client.credit_limit?.toString() || '0');
+  const [billingCycleStartDay, setBillingCycleStartDay] = useState(client.billing_cycle_start_day?.toString() || '1');
 
   useEffect(() => {
     setPaymentTermId(client.payment_term_id || 'none');
     setFinancialStatus(client.financial_status || 'active');
     setCreditLimit(client.credit_limit?.toString() || '0');
+    setBillingCycleStartDay(client.billing_cycle_start_day?.toString() || '1');
   }, [client]);
 
   const handleSave = async () => {
@@ -35,6 +37,7 @@ export function ClientFinanceTab({ client }: ClientFinanceTabProps) {
           payment_term_id: paymentTermId === 'none' ? null : paymentTermId,
           financial_status: financialStatus as any,
           credit_limit: parseFloat(creditLimit) || 0,
+          billing_cycle_start_day: parseInt(billingCycleStartDay) || 1,
         } as any,
       });
       toast.success('Parâmetros financeiros atualizados com sucesso!');
@@ -88,6 +91,23 @@ export function ClientFinanceTab({ client }: ClientFinanceTabProps) {
             </Select>
             <p className="text-xs text-muted-foreground">
               Este prazo será utilizado como padrão ao criar propostas comerciais para este cliente.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <Label htmlFor="tab_billing_cycle_start_day">Dia de Início do Ciclo de Faturamento</Label>
+            <Input
+              id="tab_billing_cycle_start_day"
+              type="number"
+              min={1}
+              max={31}
+              placeholder="Ex: 1"
+              className="focus-visible:ring-orange-500"
+              value={billingCycleStartDay}
+              onChange={(e) => setBillingCycleStartDay(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Define o dia de corte mensal (Ex: dia 25 faz o ciclo de 25 de um mês a 24 do outro. Use 1 para mês civil padrão).
             </p>
           </div>
         </div>
