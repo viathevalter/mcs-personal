@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
-import { useWorkerAssignments } from '@/features/operacoes/solicitudes/hooks/useWorkerAssignments';
 
 export interface HiringReportFilters {
   empresa_id?: string | null;
@@ -79,40 +78,42 @@ const normalizeString = (str: string) => {
 };
 
 export function useHiringReport(filters: HiringReportFilters) {
-  // 1. Fetch details for the selected company to test if it is an operational subsidiary or a Group/Holding entry
-  const { data: targetEmpresa } = useQuery({
-    queryKey: ['empresa_details', filters.empresa_id],
+  return useQuery({
+    queryKey: ['hiring_report', filters],
     queryFn: async () => {
-      if (!filters.empresa_id) return null;
-      const { data } = await supabase
+      if (!filters.empresa_id) {
+        return {
+          items: [],
+          totalHired: 0,
+          totalActive: 0,
+          totalInactive: 0,
+          retentionRate: 0,
+          avgDaysWorked: 0,
+          functionBreakdown: [],
+          contratanteBreakdown: [],
+          uniqueClients: [],
+          uniqueContratantes: [],
+          uniquePedidos: [],
+          uniqueFunctions: [],
+        };
+      }
+
+      // 1. Fetch details for selected company
+      const { data: targetEmpresa } = await supabase
         .schema('core_common')
         .from('empresas')
         .select('id, nome, trade_name, legal_name, codigo')
         .eq('id', filters.empresa_id)
         .maybeSingle();
-      return data;
-    },
-    enabled: !!filters.empresa_id,
-  });
 
-  const empName = (targetEmpresa?.trade_name || targetEmpresa?.legal_name || targetEmpresa?.nome || '').toLowerCase();
+      const empName = (targetEmpresa?.trade_name || targetEmpresa?.legal_name || targetEmpresa?.nome || '').toLowerCase();
 
-  // Operating subsidiaries vs Holding / Group (Login Pro, GRP Login Pro, Mastercorp, etc.)
-  const isIndividualCompany = ['stocco', 'triangulo', 'luminous', 'wiseowe', 'rosas'].some(c => empName.includes(c));
-  const isGroupEmpresa = !isIndividualCompany;
+      // Individual operating subsidiaries vs Holding / Group (Login Pro, GRP Login Pro, Mastercorp, etc.)
+      const isIndividualCompany = ['stocco', 'triangulo', 'luminous', 'wiseowe', 'rosas'].some(c => empName.includes(c));
+      const companyIdFilter = isIndividualCompany ? filters.empresa_id : null;
 
-  // Normal query for individual operational companies (Triangulo, Wiseowe, Stocco, Luminous, Rosas)
-  const normalQuery = useWorkerAssignments({
-    empresa_id: !isGroupEmpresa ? filters.empresa_id : null,
-  });
-
-  // Consolidated Group query for Holding / Group company (Login Pro / GRP Login pro)
-  const groupQuery = useQuery({
-    queryKey: ['hiring_report_group_assignments', filters.empresa_id],
-    queryFn: async () => {
-      if (!filters.empresa_id || !isGroupEmpresa) return [];
-
-      let query = supabase
+      // 2. Query worker_assignments
+      let assignmentsQuery = supabase
         .schema('core_personal')
         .from('worker_assignments')
         .select(`
@@ -124,14 +125,23 @@ export function useHiringReport(filters: HiringReportFilters) {
           )
         `);
 
-      const { data: assignments, error } = await query.order('start_date', { ascending: false });
-      if (error) console.error('Error fetching group worker_assignments:', error);
+      if (companyIdFilter) {
+        assignmentsQuery = assignmentsQuery.eq('empresa_id', companyIdFilter);
+      }
+
+      const { data: assignments, error: assignError } = await assignmentsQuery.order('start_date', { ascending: false });
+      if (assignError) console.error('Error fetching worker_assignments:', assignError);
 
       const assignmentsData = assignments || [];
 
+      // 3. Batch Lookups
       const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
       const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
       const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
+
+      if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
+        empresaIds.push(filters.empresa_id);
+      }
 
       const now = new Date();
       const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
@@ -149,13 +159,13 @@ export function useHiringReport(filters: HiringReportFilters) {
           ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
           : Promise.resolve({ data: [] }),
         supabase.schema('core_personal').rpc('get_hours_control_workers', {
-          p_empresa_id: null, // ALL companies in group
+          p_empresa_id: companyIdFilter, // null for Login Pro (all companies in group)
           p_period_year: periodYear,
           p_period_month: periodMonth,
           p_contratante: null,
           p_cliente_nombre: null
         }).catch((err) => {
-          console.error('Error fetching get_hours_control_workers for group:', err);
+          console.error('Error in get_hours_control_workers:', err);
           return { data: [] };
         })
       ]);
@@ -164,6 +174,8 @@ export function useHiringReport(filters: HiringReportFilters) {
       const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
       const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
       const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+
+      const targetEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || targetEmpresa?.nome || '';
 
       const mappedRealAssignments = assignmentsData.map(a => ({
         ...a,
@@ -208,7 +220,7 @@ export function useHiringReport(filters: HiringReportFilters) {
               email: w.email,
               movil: w.movil,
               funcion: w.funcion,
-              contratante: w.contratante
+              contratante: w.contratante || targetEmpresaNome
             },
             client: matchedClient ? {
               id: matchedClient.id,
@@ -219,33 +231,20 @@ export function useHiringReport(filters: HiringReportFilters) {
             pedido: null,
             empresa: {
               id: w.empresa_id || filters.empresa_id,
-              nome: w.contratante || 'Grupo'
+              nome: w.contratante || targetEmpresaNome
             },
             replaced_assignment: null
           };
         });
 
-      return [...mappedRealAssignments, ...virtualAssignments];
+      const combined = [...mappedRealAssignments, ...virtualAssignments];
+      return processAssignments(combined, filters, targetEmpresaNome);
     },
-    enabled: !!filters.empresa_id && isGroupEmpresa,
+    enabled: !!filters.empresa_id,
   });
-
-  const rawAssignments = isGroupEmpresa ? (groupQuery.data || []) : (normalQuery.data || []);
-  const isLoading = isGroupEmpresa ? groupQuery.isLoading : normalQuery.isLoading;
-
-  const processedData = useMemo(() => {
-    return processAssignments(rawAssignments, filters);
-  }, [rawAssignments, filters]);
-
-  return {
-    isLoading,
-    data: processedData,
-    refetch: isGroupEmpresa ? groupQuery.refetch : normalQuery.refetch,
-    isFetching: isGroupEmpresa ? groupQuery.isFetching : normalQuery.isFetching,
-  };
 }
 
-function processAssignments(assignments: any[], filters: HiringReportFilters) {
+function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -253,7 +252,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
-    const contratante = a.worker?.contratante || a.empresa?.nome || 'Não informada';
+    const contratante = a.worker?.contratante || a.empresa?.nome || empresaNome || 'Não informada';
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
@@ -330,25 +329,27 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
+      // 1. Always include currently active workers
+      if (item.is_active) return true;
+
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
-      // If item has no start_date at all, keep it
-      if (!itemStart) return true;
+      if (!itemStart && !itemEnd) return true;
 
-      // Check if start date or end date falls in range
       if (filters.startDate && filters.endDate) {
-        const startedInRange = itemStart >= filters.startDate && itemStart <= filters.endDate;
+        const startedInRange = !!(itemStart && itemStart >= filters.startDate && itemStart <= filters.endDate);
         const endedInRange = !!(itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate);
-        return startedInRange || endedInRange;
+        const activeDuringPeriod = !!(itemStart && itemStart <= filters.endDate && (!itemEnd || itemEnd >= filters.startDate));
+        return startedInRange || endedInRange || activeDuringPeriod;
       }
       
       if (filters.startDate) {
-        return itemStart >= filters.startDate;
+        return (itemStart && itemStart >= filters.startDate) || (itemEnd && itemEnd >= filters.startDate);
       }
 
       if (filters.endDate) {
-        return itemStart <= filters.endDate;
+        return (itemStart && itemStart <= filters.endDate);
       }
 
       return true;
@@ -412,7 +413,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
     current.total += 1;
     if (item.is_active) current.active += 1;
     else current.inactive += 1;
-    funcMap.set(c, current);
+    contrMap.set(c, current);
   });
 
   const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contrMap.entries())
