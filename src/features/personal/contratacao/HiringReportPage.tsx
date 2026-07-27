@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  CheckCircle2
 } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
@@ -101,6 +102,10 @@ export const HiringReportPage: React.FC = () => {
   const [pedidoFilter, setPedidoFilter] = useState<string>('all');
   const [jobFunctionFilter, setJobFunctionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
+  
+  // Interactive Active KPI Card State
+  const [activeKpiCard, setActiveKpiCard] = useState<string>('total');
 
   // Sorting State
   const [sortField, setSortField] = useState<SortKey>('start_date');
@@ -114,8 +119,9 @@ export const HiringReportPage: React.FC = () => {
     contratanteFilter,
     pedidoFilter,
     jobFunctionFilter,
-    statusFilter
-  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, pedidoFilter, jobFunctionFilter, statusFilter]);
+    statusFilter,
+    seguridadFilter
+  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, pedidoFilter, jobFunctionFilter, statusFilter, seguridadFilter]);
 
   const { data: reportData, isLoading, refetch, isFetching } = useHiringReport(reportFilters);
 
@@ -126,6 +132,27 @@ export const HiringReportPage: React.FC = () => {
       const { startDate: s, endDate: e } = getPresetDates(preset);
       setStartDate(s);
       setEndDate(e);
+    }
+  };
+
+  // Interactive KPI Card Click Handler
+  const handleKpiClick = (type: 'total' | 'active' | 'inactive' | 'alta' | 'regularizacao') => {
+    setActiveKpiCard(type);
+    if (type === 'total') {
+      setStatusFilter('all');
+      setSeguridadFilter('all');
+    } else if (type === 'active') {
+      setStatusFilter('active');
+      setSeguridadFilter('all');
+    } else if (type === 'inactive') {
+      setStatusFilter('inactive');
+      setSeguridadFilter('all');
+    } else if (type === 'alta') {
+      setStatusFilter('all');
+      setSeguridadFilter('alta');
+    } else if (type === 'regularizacao') {
+      setStatusFilter('all');
+      setSeguridadFilter('regularizacao');
     }
   };
 
@@ -276,6 +303,8 @@ export const HiringReportPage: React.FC = () => {
     setPedidoFilter('all');
     setJobFunctionFilter('all');
     setStatusFilter('all');
+    setSeguridadFilter('all');
+    setActiveKpiCard('total');
   };
 
   return (
@@ -524,7 +553,12 @@ export const HiringReportPage: React.FC = () => {
             </label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                if (e.target.value === 'active') setActiveKpiCard('active');
+                else if (e.target.value === 'inactive') setActiveKpiCard('inactive');
+                else setActiveKpiCard('total');
+              }}
               className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Status</option>
@@ -536,7 +570,7 @@ export const HiringReportPage: React.FC = () => {
         </div>
 
         {/* Clear Filters Row */}
-        {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all') && (
+        {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all' || seguridadFilter !== 'all' || activeKpiCard !== 'total') && (
           <div className="pt-1 flex justify-end">
             <button
               onClick={handleClearFilters}
@@ -549,16 +583,24 @@ export const HiringReportPage: React.FC = () => {
         )}
       </div>
 
-      {/* KPI Cards Grid Compact - 7 Cards across header */}
+      {/* KPI Cards Grid Compact - Interactive Clickable Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         
-        {/* Total Contratados */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
+        {/* Total Contratados (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('total')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'total'
+              ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/40 shadow-sm'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+          }`}
+          title="Clique para listar todos os contratados no período"
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Total Contratados
             </span>
-            <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'total' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'}`}>
               <Users className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -566,17 +608,28 @@ export const HiringReportPage: React.FC = () => {
             <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">
               {reportData?.totalHired || 0} <span className="text-[10px] font-normal text-slate-500">no período</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Entradas registradas</p>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'total' && <CheckCircle2 className="h-2.5 w-2.5 text-indigo-600" />}
+              Entradas registradas
+            </p>
           </div>
         </div>
 
-        {/* Ativos Atualmente */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
+        {/* Ativos Atualmente (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('active')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'active'
+              ? 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/40 shadow-sm'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+          }`}
+          title="Clique para filtrar apenas os trabalhadores ativos"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate">
               Ativos Atualmente
             </span>
-            <div className="p-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg shrink-0">
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'active' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
               <UserCheck className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -584,17 +637,28 @@ export const HiringReportPage: React.FC = () => {
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-tight">
               {reportData?.totalActive || 0} <span className="text-[10px] font-normal text-slate-500">trabalhando</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Alocações vigentes</p>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'active' && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />}
+              Alocações vigentes
+            </p>
           </div>
         </div>
 
-        {/* Desligados / Saíram */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
+        {/* Desligados / Saíram (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('inactive')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'inactive'
+              ? 'ring-2 ring-rose-500 border-rose-400 bg-rose-50/40 dark:bg-rose-950/40 shadow-sm'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+          }`}
+          title="Clique para filtrar apenas os desligados/encerrados"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+            <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider truncate">
               Desligados / Saíram
             </span>
-            <div className="p-1 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg shrink-0">
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'inactive' ? 'bg-rose-600 text-white' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
               <UserMinus className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -602,17 +666,28 @@ export const HiringReportPage: React.FC = () => {
             <div className="text-lg font-black text-rose-600 dark:text-rose-400 leading-tight">
               {reportData?.totalInactive || 0} <span className="text-[10px] font-normal text-slate-500">encerrados</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Remanejados / baixa</p>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'inactive' && <CheckCircle2 className="h-2.5 w-2.5 text-rose-600" />}
+              Remanejados / baixa
+            </p>
           </div>
         </div>
 
-        {/* De Alta (Seguridade Social) */}
-        <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/40 rounded-xl p-2.5 shadow-2xs space-y-1">
+        {/* De Alta (Seguridade Social) (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('alta')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'alta'
+              ? 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/40 shadow-sm'
+              : 'border-emerald-200 dark:border-emerald-900/40 hover:border-emerald-300'
+          }`}
+          title="Clique para filtrar trabalhadores de alta na seguridade social"
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate">
               De Alta (Seguridade)
             </span>
-            <div className="p-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg shrink-0">
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'alta' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
               <ShieldCheck className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -620,17 +695,28 @@ export const HiringReportPage: React.FC = () => {
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-tight">
               {reportData?.totalAlta || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctAlta || 0).toFixed(1)}%)</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Alta na seguridade</p>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'alta' && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />}
+              Alta na seguridade
+            </p>
           </div>
         </div>
 
-        {/* Em Regularização */}
-        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-xl p-2.5 shadow-2xs space-y-1">
+        {/* Em Regularização (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('regularizacao')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'regularizacao'
+              ? 'ring-2 ring-amber-500 border-amber-400 bg-amber-50/40 dark:bg-amber-950/40 shadow-sm'
+              : 'border-amber-200 dark:border-amber-900/40 hover:border-amber-300'
+          }`}
+          title="Clique para filtrar trabalhadores em regularização"
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider truncate">
               Em Regularização
             </span>
-            <div className="p-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg shrink-0">
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'regularizacao' ? 'bg-amber-600 text-white' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
               <ShieldAlert className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -638,7 +724,10 @@ export const HiringReportPage: React.FC = () => {
             <div className="text-lg font-black text-amber-600 dark:text-amber-400 leading-tight">
               {reportData?.totalRegularizacao || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctRegularizacao || 0).toFixed(1)}%)</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Processo / regularização</p>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'regularizacao' && <CheckCircle2 className="h-2.5 w-2.5 text-amber-600" />}
+              Processo / regularização
+            </p>
           </div>
         </div>
 
@@ -784,6 +873,16 @@ export const HiringReportPage: React.FC = () => {
             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
               {sortedItems.length} registros
             </span>
+            {activeKpiCard !== 'total' && (
+              <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 flex items-center gap-1 shadow-2xs">
+                <Filter className="h-2.5 w-2.5" />
+                Filtro KPI: {
+                  activeKpiCard === 'active' ? 'Somente Ativos' :
+                  activeKpiCard === 'inactive' ? 'Somente Desligados' :
+                  activeKpiCard === 'alta' ? 'De Alta (Seguridade)' : 'Em Regularização'
+                }
+              </span>
+            )}
           </div>
         </div>
 
@@ -794,8 +893,8 @@ export const HiringReportPage: React.FC = () => {
           </div>
         ) : sortedItems.length === 0 ? (
           <div className="p-8 text-center text-slate-500 space-y-1">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada no período.</p>
-            <p className="text-[11px] text-slate-400">Tente alterar os filtros de data ou limpar os filtros de pesquisa.</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada com os filtros selecionados.</p>
+            <p className="text-[11px] text-slate-400">Tente clicar em outro KPI ou limpar os filtros de pesquisa.</p>
           </div>
         ) : (
           /* Isolated Scroll Container for Table Gallery Compact */
@@ -956,9 +1055,15 @@ export const HiringReportPage: React.FC = () => {
                       {formatDateBR(item.start_date)}
                     </td>
 
-                    {/* End Date */}
-                    <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
-                      {formatDateBR(item.end_date)}
+                    {/* End Date (Data de Saída / Término) */}
+                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                      {item.end_date ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                          {formatDateBR(item.end_date)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
 
                     {/* Days Worked Badge */}

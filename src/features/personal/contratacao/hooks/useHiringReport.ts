@@ -10,7 +10,8 @@ export interface HiringReportFilters {
   contratanteFilter?: string;
   pedidoFilter?: string;
   jobFunctionFilter?: string;
-  statusFilter?: string; // 'all' | 'active' | 'inactive'
+  statusFilter?: string;    // 'all' | 'active' | 'inactive'
+  seguridadFilter?: string; // 'all' | 'alta' | 'regularizacao'
 }
 
 export interface HiringReportItem {
@@ -144,7 +145,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     .from('worker_assignments')
     .select(`
       *,
-      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, status_seguridad),
+      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, status_seguridad, data_baixa),
       replaced_assignment:worker_assignments!replacement_of_assignment_id(
         id,
         worker:workers(id, nome)
@@ -212,6 +213,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     client_site: sitesMap.get(a.client_site_id) || null,
     empresa: empresasMap.get(a.empresa_id) || null,
     status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
+    end_date: a.end_date || a.worker?.data_baixa || null,
     contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome)
   }));
 
@@ -219,7 +221,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   const allClients = allClientsRes.data || [];
   const activeWorkers = activeWorkersRes.data || [];
 
-  // Fetch latest colaborador_por_pedido allocations for virtual assignments to get exact fechainiciopedido/reemplazo start dates
+  // Fetch latest colaborador_por_pedido allocations for virtual assignments to get exact fechainiciopedido/reemplazo start dates and exit dates
   const activeWorkerCodes = activeWorkers.map((w: any) => w.cod_colab).filter(Boolean);
   let cppMap = new Map<string, any>();
 
@@ -285,7 +287,8 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           movil: w.movil,
           funcion: w.funcion || cpp?.funcion,
           contratante: stdContratante,
-          status_seguridad: w.status_seguridad
+          status_seguridad: w.status_seguridad,
+          data_baixa: w.data_baixa
         },
         client: matchedClient ? {
           id: matchedClient.id,
@@ -333,7 +336,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       : (a.created_at ? a.created_at.split('T')[0] : null);
 
     const isInactiveStatus = ['completed', 'cancelled', 'replaced', 'relocated'].includes(a.status);
+    
+    // Accurately capture end date from assignment end_date or worker data_baixa
     const endDateStr = a.end_date ? a.end_date.split('T')[0]
+      : a.worker?.data_baixa ? a.worker.data_baixa.split('T')[0]
       : (isInactiveStatus && a.planned_end_date ? a.planned_end_date.split('T')[0] : null);
 
     const rawWorkerStatus = (a.worker?.status_trabajador || a.status || '').toLowerCase();
@@ -453,6 +459,14 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       filtered = filtered.filter(item => item.is_active);
     } else if (filters.statusFilter === 'inactive') {
       filtered = filtered.filter(item => !item.is_active);
+    }
+  }
+
+  if (filters.seguridadFilter && filters.seguridadFilter !== 'all') {
+    if (filters.seguridadFilter === 'alta') {
+      filtered = filtered.filter(item => item.is_seguridad_alta);
+    } else if (filters.seguridadFilter === 'regularizacao') {
+      filtered = filtered.filter(item => !item.is_seguridad_alta);
     }
   }
 
