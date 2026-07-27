@@ -13,7 +13,10 @@ import {
   Briefcase, 
   FileSpreadsheet, 
   RefreshCw,
-  X
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useHiringReport } from './hooks/useHiringReport';
@@ -73,6 +76,16 @@ function getPresetDates(preset: string) {
   return { startDate: '', endDate: '' };
 }
 
+// Helper SortIcon Component
+const SortIcon: React.FC<{ field: string; currentField: string; direction: 'asc' | 'desc' }> = ({ field, currentField, direction }) => {
+  if (field !== currentField) {
+    return <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />;
+  }
+  return direction === 'asc' 
+    ? <ArrowUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400 font-bold" />
+    : <ArrowDown className="h-3 w-3 text-indigo-600 dark:text-indigo-400 font-bold" />;
+};
+
 export const HiringReportPage: React.FC = () => {
   const { selectedEmpresaId } = useEmpresa();
 
@@ -91,6 +104,10 @@ export const HiringReportPage: React.FC = () => {
   const [pedidoFilter, setPedidoFilter] = useState<string>('all');
   const [jobFunctionFilter, setJobFunctionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Sorting State
+  const [sortField, setSortField] = useState<string>('worker_name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Handle preset change
   const handlePresetChange = (preset: string) => {
@@ -128,11 +145,73 @@ export const HiringReportPage: React.FC = () => {
     );
   }, [reportData?.items, searchQuery]);
 
+  // Column Sorting Logic
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    const items = [...filteredItems];
+    items.sort((a, b) => {
+      let valA: any = '';
+      let valB: any = '';
+
+      switch (sortField) {
+        case 'worker_name':
+          valA = (a.worker_name || '').toLowerCase();
+          valB = (b.worker_name || '').toLowerCase();
+          break;
+        case 'contratante':
+          valA = (a.contratante || '').toLowerCase();
+          valB = (b.contratante || '').toLowerCase();
+          break;
+        case 'client_name':
+          valA = (a.client_name || '').toLowerCase();
+          valB = (b.client_name || '').toLowerCase();
+          break;
+        case 'job_function_name':
+          valA = (a.job_function_name || '').toLowerCase();
+          valB = (b.job_function_name || '').toLowerCase();
+          break;
+        case 'tarifa_acordada':
+          valA = a.tarifa_acordada ?? -1;
+          valB = b.tarifa_acordada ?? -1;
+          break;
+        case 'start_date':
+          valA = a.start_date || '';
+          valB = b.start_date || '';
+          break;
+        case 'days_worked':
+          valA = a.days_worked || 0;
+          valB = b.days_worked || 0;
+          break;
+        case 'status':
+          valA = a.is_active ? 1 : 0;
+          valB = b.is_active ? 1 : 0;
+          break;
+        default:
+          valA = (a.worker_name || '').toLowerCase();
+          valB = (b.worker_name || '').toLowerCase();
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return items;
+  }, [filteredItems, sortField, sortDirection]);
+
   // Export to Excel handler
   const handleExportExcel = () => {
-    if (!filteredItems.length) return;
+    if (!sortedItems.length) return;
 
-    const exportRows = filteredItems.map((item, index) => ({
+    const exportRows = sortedItems.map((item, index) => ({
       '#': index + 1,
       'Trabalhador': item.worker_name,
       'Documento': item.worker_document,
@@ -148,15 +227,36 @@ export const HiringReportPage: React.FC = () => {
       'Status': item.is_active ? 'Ativo' : 'Desligado / Substituído',
       'Status Alocação': item.status,
       'Tipo de Entrada': item.assignment_type || 'Nova Contratação',
-      'Observações / Motivo': item.notes || '',
+      'Observações / Motivo': item.notes || '-'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
+
+    const colWidths = [
+      { wch: 5 },   // #
+      { wch: 30 },  // Trabalhador
+      { wch: 15 },  // Documento
+      { wch: 25 },  // Empresa Contratante
+      { wch: 25 },  // Cliente
+      { wch: 20 },  // Unidade
+      { wch: 18 },  // Pedido
+      { wch: 30 },  // Função
+      { wch: 16 },  // Tarifa
+      { wch: 14 },  // Data Início
+      { wch: 14 },  // Data Saída
+      { wch: 16 },  // Dias Trabalhados
+      { wch: 14 },  // Status
+      { wch: 16 },  // Status Alocação
+      { wch: 18 },  // Tipo
+      { wch: 30 }   // Observações
+    ];
+    worksheet['!cols'] = colWidths;
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Contratações');
 
-    const timestamp = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Controle_Contratacoes_${startDate || 'Geral'}_a_${endDate || 'Hoje'}_${timestamp}.xlsx`);
+    const dateSuffix = formatYMD(new Date());
+    XLSX.writeFile(workbook, `Relatorio_Contratacoes_${dateSuffix}.xlsx`);
   };
 
   const handleClearFilters = () => {
@@ -173,20 +273,20 @@ export const HiringReportPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 w-full animate-fade-in text-slate-900 dark:text-slate-100 min-h-screen">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6 pb-20">
       
-      {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+        <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-xl shadow-sm">
+            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
               <FileSpreadsheet className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                 Controle de Contratações e Permanência
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Relatório de trabalhadores contratados via terceiras/fornecedores no período selecionado.
               </p>
             </div>
@@ -197,29 +297,31 @@ export const HiringReportPage: React.FC = () => {
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             Atualizar
           </button>
           <button
             onClick={handleExportExcel}
-            disabled={!filteredItems.length}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md shadow-emerald-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!sortedItems.length}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all disabled:opacity-50"
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3.5 w-3.5" />
             Exportar Excel (.xlsx)
           </button>
         </div>
       </div>
 
-      {/* Preset & Date Range Filter Section */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
-          {/* Quick Presets */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1">Período:</span>
+      {/* Filter Controls Panel */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+        
+        {/* Preset Date Range Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-2">
+              Período:
+            </span>
             {[
               { id: 'this_month', label: 'Este Mês' },
               { id: 'last_month', label: 'Mês Anterior' },
@@ -231,10 +333,10 @@ export const HiringReportPage: React.FC = () => {
               <button
                 key={p.id}
                 onClick={() => handlePresetChange(p.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  presetFilter === p.id 
-                    ? 'bg-indigo-600 text-white shadow-sm border border-indigo-500/50 font-semibold' 
-                    : 'bg-slate-100 dark:bg-slate-950/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  presetFilter === p.id
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 {p.label}
@@ -243,232 +345,260 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Date Picker Inputs */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
-              <Calendar className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-              <span className="text-slate-500 dark:text-slate-400">De:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => {
-                  setStartDate(e.target.value);
-                  setPresetFilter('custom');
-                }}
-                className="bg-transparent text-slate-900 dark:text-white focus:outline-none text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
-              <Calendar className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-              <span className="text-slate-500 dark:text-slate-400">Até:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={e => {
-                  setEndDate(e.target.value);
-                  setPresetFilter('custom');
-                }}
-                className="bg-transparent text-slate-900 dark:text-white focus:outline-none text-xs"
-              />
-            </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <span className="text-slate-500 font-medium">De:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPresetFilter('custom');
+              }}
+              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 text-xs font-mono"
+            />
+            <span className="text-slate-500 font-medium">Até:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPresetFilter('custom');
+              }}
+              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 text-xs font-mono"
+            />
           </div>
-
         </div>
 
-        {/* Detailed Secondary Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        {/* Dropdown Filters & Search Input */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           
           {/* Worker Search */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Buscar Trabalhador</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Buscar Trabalhador
+            </label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Nome ou documento..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Contratante / Fornecedor Filter */}
+          {/* Contratante / Terceira */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Contratante / Terceira</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Contratante / Terceira
+            </label>
             <select
               value={contratanteFilter}
-              onChange={e => setContratanteFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              onChange={(e) => setContratanteFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todas as Terceiras</option>
-              {reportData?.uniqueContratantes.map(c => (
+              {reportData?.uniqueContratantes?.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
-          {/* Cliente Filter */}
+          {/* Cliente */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Cliente</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Cliente
+            </label>
             <select
               value={clientFilter}
-              onChange={e => setClientFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              onChange={(e) => setClientFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Clientes</option>
-              {reportData?.uniqueClients.map(c => (
+              {reportData?.uniqueClients?.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Pedido Filter */}
+          {/* Pedido */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Pedido</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Pedido
+            </label>
             <select
               value={pedidoFilter}
-              onChange={e => setPedidoFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              onChange={(e) => setPedidoFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Pedidos</option>
-              {reportData?.uniquePedidos.map(p => (
-                <option key={p.id} value={p.id}>{p.code}</option>
+              {reportData?.uniquePedidos?.map(p => (
+                <option key={p.id} value={p.id}>Pedido: {p.code}</option>
               ))}
             </select>
           </div>
 
-          {/* Função / Perfil Filter */}
+          {/* Função / Perfil */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Função / Perfil</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Função / Perfil
+            </label>
             <select
               value={jobFunctionFilter}
-              onChange={e => setJobFunctionFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              onChange={(e) => setJobFunctionFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todas as Funções</option>
-              {reportData?.uniqueFunctions.map(f => (
+              {reportData?.uniqueFunctions?.map(f => (
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>
           </div>
 
-          {/* Status Filter */}
+          {/* Status */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase">Status</label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Status
+            </label>
             <select
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Status</option>
               <option value="active">Somente Ativos</option>
-              <option value="inactive">Somente Desligados/Substituídos</option>
+              <option value="inactive">Somente Desligados / Encerrados</option>
             </select>
           </div>
 
         </div>
 
-        {/* Clear Filters Indicator */}
-        {(searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all') && (
-          <div className="flex justify-end pt-1">
+        {/* Clear Filters Row */}
+        {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all') && (
+          <div className="pt-2 flex justify-end">
             <button
               onClick={handleClearFilters}
-              className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
             >
-              <X className="h-3.5 w-3.5" />
-              Limpar Filtros
+              <X className="h-3 w-3" />
+              Limpar Todos os Filtros
             </button>
           </div>
         )}
       </div>
 
-      {/* Metric Cards KPI Grid */}
+      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Total Contratados */}
-        <div className="bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute right-3 top-3 p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
-            <Users className="h-5 w-5" />
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Total Contratados
+            </span>
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
+              <Users className="h-5 w-5" />
+            </div>
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Contratados</p>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-white">{reportData?.totalHired || 0}</span>
-            <span className="text-xs text-slate-500 font-normal">no período</span>
-          </div>
-          <div className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-            Entradas via terceiras registradas
+          <div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">
+              {reportData?.totalHired || 0} <span className="text-xs font-normal text-slate-500">no período</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Entradas via terceiras registradas</p>
           </div>
         </div>
 
         {/* Ativos Atualmente */}
-        <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute right-3 top-3 p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
-            <UserCheck className="h-5 w-5" />
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Ativos Atualmente
+            </span>
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
+              <UserCheck className="h-5 w-5" />
+            </div>
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ativos Atualmente</p>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{reportData?.totalActive || 0}</span>
-            <span className="text-xs text-emerald-600 dark:text-emerald-500 font-medium">trabalhando</span>
-          </div>
-          <div className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-            Alocações vigentes no cliente
+          <div>
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              {reportData?.totalActive || 0} <span className="text-xs font-normal text-slate-500">trabalhando</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Alocações vigentes no cliente</p>
           </div>
         </div>
 
-        {/* Desligados / Substituídos */}
-        <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-500/20 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute right-3 top-3 p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl">
-            <UserMinus className="h-5 w-5" />
+        {/* Desligados / Saíram */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Desligados / Saíram
+            </span>
+            <div className="p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl">
+              <UserMinus className="h-5 w-5" />
+            </div>
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Desligados / Saíram</p>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400">{reportData?.totalInactive || 0}</span>
-            <span className="text-xs text-rose-600 dark:text-rose-500 font-medium">encerrados</span>
-          </div>
-          <div className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-            Não adaptados ou remanejados
+          <div>
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
+              {reportData?.totalInactive || 0} <span className="text-xs font-normal text-slate-500">encerrados</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Não adaptados ou remanejados</p>
           </div>
         </div>
 
         {/* Taxa de Retenção */}
-        <div className="bg-white dark:bg-slate-900 border border-cyan-200 dark:border-cyan-500/20 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute right-3 top-3 p-2 bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-xl">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Taxa de Retenção</p>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-cyan-600 dark:text-cyan-300">
-              {reportData?.retentionRate ? reportData.retentionRate.toFixed(1) : 0}%
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Taxa de Retenção
             </span>
+            <div className="p-2 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-xl">
+              <TrendingUp className="h-5 w-5" />
+            </div>
           </div>
-          <div className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-            Permanência % dos contratados
+          <div>
+            <div className="text-2xl font-black text-sky-600 dark:text-sky-400">
+              {(reportData?.retentionRate || 0).toFixed(1)}%
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Permanência % dos contratados</p>
           </div>
         </div>
 
         {/* Permanência Média */}
-        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute right-3 top-3 p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
-            <Clock className="h-5 w-5" />
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Permanência Média
+            </span>
+            <div className="p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
+              <Clock className="h-5 w-5" />
+            </div>
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Permanência Média</p>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-amber-600 dark:text-amber-300">{reportData?.avgDaysWorked || 0}</span>
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">dias</span>
-          </div>
-          <div className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-            Tempo médio em atividade
+          <div>
+            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+              {reportData?.avgDaysWorked || 0} <span className="text-xs font-normal text-slate-500">dias</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Tempo médio em atividade</p>
           </div>
         </div>
 
       </div>
 
-      {/* Function Breakdown & Contratantes Summary Cards */}
-      {reportData && (reportData.functionBreakdown.length > 0 || reportData.contratanteBreakdown.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Breakdown Charts Section */}
+      {reportData && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Funções / Perfis Contratados */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+          {/* Contratações por Função / Perfil */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-indigo-500" />
@@ -478,25 +608,17 @@ export const HiringReportPage: React.FC = () => {
             </div>
             <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
               {reportData.functionBreakdown.slice(0, 6).map((item) => {
+                const pct = reportData.totalHired > 0 ? ((item.total / reportData.totalHired) * 100).toFixed(0) : '0';
                 return (
                   <div key={item.functionName} className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-slate-800 dark:text-slate-200">{item.functionName}</span>
-                      <div className="flex gap-2">
-                        <span className="text-emerald-600 dark:text-emerald-400">{item.active} ativos</span>
-                        {item.inactive > 0 && <span className="text-rose-600 dark:text-rose-400">{item.inactive} saíram</span>}
-                        <span className="text-slate-500 font-bold">({item.total})</span>
-                      </div>
+                      <span className="text-slate-500">{item.active} ativos <span className="text-slate-400">({item.total})</span></span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden flex">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-emerald-500 h-full transition-all" 
-                        style={{ width: `${(item.active / (reportData.totalHired || 1)) * 100}%` }}
-                        title={`${item.active} ativos`}
-                      />
-                      <div 
-                        className="bg-rose-500 h-full transition-all" 
-                        style={{ width: `${(item.inactive / (reportData.totalHired || 1)) * 100}%` }}
+                        className="bg-emerald-500 h-full rounded-full transition-all" 
+                        style={{ width: `${pct}%` }}
                         title={`${item.inactive} encerrados`}
                       />
                     </div>
@@ -507,7 +629,7 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Empresas Terceiras (Contratantes) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-cyan-500" />
@@ -546,7 +668,7 @@ export const HiringReportPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Data Table */}
+      {/* Main Data Table Gallery */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-2">
@@ -555,7 +677,7 @@ export const HiringReportPage: React.FC = () => {
               Relação Detalhada de Contratações
             </h2>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
-              {filteredItems.length} registros
+              {sortedItems.length} registros
             </span>
           </div>
         </div>
@@ -565,30 +687,115 @@ export const HiringReportPage: React.FC = () => {
             <RefreshCw className="h-6 w-6 animate-spin text-indigo-500" />
             <span className="text-sm">Carregando relatório de contratações...</span>
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : sortedItems.length === 0 ? (
           <div className="p-12 text-center text-slate-500 space-y-2">
             <p className="text-base font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada no período.</p>
             <p className="text-xs text-slate-400">Tente alterar os filtros de data ou limpar os filtros de pesquisa.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          /* Isolated Scroll Container for Table Gallery */
+          <div className="max-h-[600px] overflow-y-auto overflow-x-auto relative">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-200 dark:border-slate-800">
-                  <th className="py-3 px-4">Trabalhador</th>
-                  <th className="py-3 px-4">Empresa Terceira</th>
-                  <th className="py-3 px-4">Cliente / Pedido</th>
-                  <th className="py-3 px-4">Função / Perfil</th>
-                  <th className="py-3 px-4">Tarifa</th>
-                  <th className="py-3 px-4">Início Trabalho</th>
-                  <th className="py-3 px-4">Saída / Término</th>
-                  <th className="py-3 px-4 text-center">Dias Trabalhados</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Obs / Motivo</th>
+              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-xs">
+                <tr className="text-slate-500 dark:text-slate-400 uppercase text-[11px] font-bold tracking-wider">
+                  
+                  {/* Trabalhador Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('worker_name')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Trabalhador</span>
+                      <SortIcon field="worker_name" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Empresa Terceira Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('contratante')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Empresa Terceira</span>
+                      <SortIcon field="contratante" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Cliente / Pedido Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('client_name')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Cliente / Pedido</span>
+                      <SortIcon field="client_name" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Função / Perfil Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('job_function_name')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Função / Perfil</span>
+                      <SortIcon field="job_function_name" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Tarifa Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('tarifa_acordada')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Tarifa</span>
+                      <SortIcon field="tarifa_acordada" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Início Trabalho Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('start_date')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Início Trabalho</span>
+                      <SortIcon field="start_date" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Saída / Término Column */}
+                  <th className="py-3.5 px-4">Saída / Término</th>
+
+                  {/* Dias Trabalhados Column */}
+                  <th 
+                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('days_worked')}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Dias Trabalhados</span>
+                      <SortIcon field="days_worked" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Status Column */}
+                  <th 
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Status</span>
+                      <SortIcon field="status" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Obs / Motivo Column */}
+                  <th className="py-3.5 px-4">Obs / Motivo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {filteredItems.map((item) => (
+                {sortedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     
                     {/* Worker Name & Document */}
