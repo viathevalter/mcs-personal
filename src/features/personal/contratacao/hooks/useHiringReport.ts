@@ -97,7 +97,6 @@ export function useHiringReport(filters: HiringReportFilters) {
       return processAssignments(result.combined, filters, result.targetEmpresaNome);
     },
     enabled: !!filters.empresa_id,
-    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -165,13 +164,15 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresaIds.length > 0
       ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
       : Promise.resolve({ data: [] }),
-    supabase.schema('core_personal').rpc('get_hours_control_workers', {
-      p_empresa_id: empresaId,
-      p_period_year: periodYear,
-      p_period_month: periodMonth,
-      p_contratante: null,
-      p_cliente_nombre: null
-    }).catch((err) => {
+    Promise.resolve(
+      supabase.schema('core_personal').rpc('get_hours_control_workers', {
+        p_empresa_id: empresaId,
+        p_period_year: periodYear,
+        p_period_month: periodMonth,
+        p_contratante: null,
+        p_cliente_nombre: null
+      })
+    ).catch((err) => {
       console.error('Error in get_hours_control_workers:', err);
       return { data: [] };
     })
@@ -364,13 +365,17 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     });
   }
 
-  // Dropdown Filters
+  // Dropdown Filters (case-insensitive for contratante)
   if (filters.clientFilter && filters.clientFilter !== 'all') {
     filtered = filtered.filter(item => item.client_id === filters.clientFilter);
   }
 
   if (filters.contratanteFilter && filters.contratanteFilter !== 'all') {
-    filtered = filtered.filter(item => item.contratante === filters.contratanteFilter);
+    const targetContr = normalizeString(filters.contratanteFilter);
+    filtered = filtered.filter(item => {
+      const itemContr = normalizeString(item.contratante);
+      return itemContr.includes(targetContr) || targetContr.includes(itemContr);
+    });
   }
 
   if (filters.pedidoFilter && filters.pedidoFilter !== 'all') {
