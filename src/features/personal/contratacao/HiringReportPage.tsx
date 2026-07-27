@@ -273,53 +273,53 @@ export const HiringReportPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6 pb-20">
+    <div className="p-3 max-w-[1700px] mx-auto space-y-3 pb-10">
       
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
-              <FileSpreadsheet className="h-6 w-6" />
+      {/* Header Section Compact */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 px-4 shadow-2xs">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
+              <FileSpreadsheet className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
                 Controle de Contratações e Permanência
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Relatório de trabalhadores contratados via terceiras/fornecedores no período selecionado.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
             Atualizar
           </button>
           <button
             onClick={handleExportExcel}
             disabled={!sortedItems.length}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-all disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3 w-3" />
             Exportar Excel (.xlsx)
           </button>
         </div>
       </div>
 
-      {/* Filter Controls Panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+      {/* Filter Controls Panel Compact */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2.5">
         
-        {/* Preset Date Range Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-2">
+        {/* Preset Date Range Buttons Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">
               Período:
             </span>
             {[
@@ -333,9 +333,9 @@ export const HiringReportPage: React.FC = () => {
               <button
                 key={p.id}
                 onClick={() => handlePresetChange(p.id)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
                   presetFilter === p.id
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
@@ -344,9 +344,9 @@ export const HiringReportPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Date Picker Inputs */}
-          <div className="flex items-center gap-2 text-xs">
-            <Calendar className="h-4 w-4 text-slate-400" />
+          {/* Date Picker Inputs Compact */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <Calendar className="h-3.5 w-3.5 text-slate-400" />
             <span className="text-slate-500 font-medium">De:</span>
             <input
               type="date"
@@ -355,7 +355,7 @@ export const HiringReportPage: React.FC = () => {
                 setStartDate(e.target.value);
                 setPresetFilter('custom');
               }}
-              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 text-xs font-mono"
+              className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 text-[11px] font-mono"
             />
             <span className="text-slate-500 font-medium">Até:</span>
             <input
@@ -365,48 +365,48 @@ export const HiringReportPage: React.FC = () => {
                 setEndDate(e.target.value);
                 setPresetFilter('custom');
               }}
-              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 text-xs font-mono"
+              className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 text-[11px] font-mono"
             />
           </div>
         </div>
 
-        {/* Dropdown Filters & Search Input */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Dropdown Filters & Search Input Compact */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           
           {/* Worker Search */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Buscar Trabalhador
             </label>
             <div className="relative">
-              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+              <Search className="h-3 w-3 absolute left-2.5 top-2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Nome ou documento..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full pl-7 pr-2.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3 w-3" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Contratante / Terceira */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Contratante / Terceira
             </label>
             <select
               value={contratanteFilter}
               onChange={(e) => setContratanteFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todas as Terceiras</option>
               {reportData?.uniqueContratantes?.map(c => (
@@ -416,14 +416,14 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Cliente */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Cliente
             </label>
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Clientes</option>
               {reportData?.uniqueClients?.map(c => (
@@ -433,14 +433,14 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Pedido */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Pedido
             </label>
             <select
               value={pedidoFilter}
               onChange={(e) => setPedidoFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Pedidos</option>
               {reportData?.uniquePedidos?.map(p => (
@@ -450,14 +450,14 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Função / Perfil */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Função / Perfil
             </label>
             <select
               value={jobFunctionFilter}
               onChange={(e) => setJobFunctionFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todas as Funções</option>
               {reportData?.uniqueFunctions?.map(f => (
@@ -467,14 +467,14 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Status */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Status
             </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Status</option>
               <option value="active">Somente Ativos</option>
@@ -486,10 +486,10 @@ export const HiringReportPage: React.FC = () => {
 
         {/* Clear Filters Row */}
         {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all') && (
-          <div className="pt-2 flex justify-end">
+          <div className="pt-1 flex justify-end">
             <button
               onClick={handleClearFilters}
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
+              className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
             >
               <X className="h-3 w-3" />
               Limpar Todos os Filtros
@@ -498,124 +498,124 @@ export const HiringReportPage: React.FC = () => {
         )}
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* KPI Cards Grid Compact */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         
         {/* Total Contratados */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Contratados
             </span>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
-              <Users className="h-5 w-5" />
+            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
+              <Users className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">
-              {reportData?.totalHired || 0} <span className="text-xs font-normal text-slate-500">no período</span>
+            <div className="text-xl font-black text-slate-900 dark:text-white leading-tight">
+              {reportData?.totalHired || 0} <span className="text-[10px] font-normal text-slate-500">no período</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Entradas via terceiras registradas</p>
+            <p className="text-[10px] text-slate-400">Entradas via terceiras registradas</p>
           </div>
         </div>
 
         {/* Ativos Atualmente */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Ativos Atualmente
             </span>
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
-              <UserCheck className="h-5 w-5" />
+            <div className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
+              <UserCheck className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {reportData?.totalActive || 0} <span className="text-xs font-normal text-slate-500">trabalhando</span>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
+              {reportData?.totalActive || 0} <span className="text-[10px] font-normal text-slate-500">trabalhando</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Alocações vigentes no cliente</p>
+            <p className="text-[10px] text-slate-400">Alocações vigentes no cliente</p>
           </div>
         </div>
 
         {/* Desligados / Saíram */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Desligados / Saíram
             </span>
-            <div className="p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl">
-              <UserMinus className="h-5 w-5" />
+            <div className="p-1.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg">
+              <UserMinus className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
-              {reportData?.totalInactive || 0} <span className="text-xs font-normal text-slate-500">encerrados</span>
+            <div className="text-xl font-black text-rose-600 dark:text-rose-400 leading-tight">
+              {reportData?.totalInactive || 0} <span className="text-[10px] font-normal text-slate-500">encerrados</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Não adaptados ou remanejados</p>
+            <p className="text-[10px] text-slate-400">Não adaptados ou remanejados</p>
           </div>
         </div>
 
         {/* Taxa de Retenção */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Taxa de Retenção
             </span>
-            <div className="p-2 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-xl">
-              <TrendingUp className="h-5 w-5" />
+            <div className="p-1.5 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-lg">
+              <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-sky-600 dark:text-sky-400">
+            <div className="text-xl font-black text-sky-600 dark:text-sky-400 leading-tight">
               {(reportData?.retentionRate || 0).toFixed(1)}%
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Permanência % dos contratados</p>
+            <p className="text-[10px] text-slate-400">Permanência % dos contratados</p>
           </div>
         </div>
 
         {/* Permanência Média */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Permanência Média
             </span>
-            <div className="p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
-              <Clock className="h-5 w-5" />
+            <div className="p-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg">
+              <Clock className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-              {reportData?.avgDaysWorked || 0} <span className="text-xs font-normal text-slate-500">dias</span>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400 leading-tight">
+              {reportData?.avgDaysWorked || 0} <span className="text-[10px] font-normal text-slate-500">dias</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Tempo médio em atividade</p>
+            <p className="text-[10px] text-slate-400">Tempo médio em atividade</p>
           </div>
         </div>
 
       </div>
 
-      {/* Breakdown Charts Section */}
+      {/* Breakdown Charts Section Compact */}
       {reportData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           
           {/* Contratações por Função / Perfil */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-indigo-500" />
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
                 Contratações por Função / Perfil
               </h3>
-              <span className="text-xs text-slate-500">{reportData.functionBreakdown.length} perfis encontrados</span>
+              <span className="text-[10px] text-slate-500">{reportData.functionBreakdown.length} perfis encontrados</span>
             </div>
-            <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
               {reportData.functionBreakdown.slice(0, 6).map((item) => {
                 const pct = reportData.totalHired > 0 ? ((item.total / reportData.totalHired) * 100).toFixed(0) : '0';
                 return (
-                  <div key={item.functionName} className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-800 dark:text-slate-200">{item.functionName}</span>
-                      <span className="text-slate-500">{item.active} ativos <span className="text-slate-400">({item.total})</span></span>
+                  <div key={item.functionName} className="space-y-0.5">
+                    <div className="flex justify-between text-[11px] font-medium">
+                      <span className="text-slate-800 dark:text-slate-200 truncate max-w-[240px]">{item.functionName}</span>
+                      <span className="text-slate-500 shrink-0">{item.active} ativos <span className="text-slate-400">({item.total})</span></span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                       <div 
                         className="bg-emerald-500 h-full rounded-full transition-all" 
                         style={{ width: `${pct}%` }}
@@ -629,27 +629,27 @@ export const HiringReportPage: React.FC = () => {
           </div>
 
           {/* Empresas Terceiras (Contratantes) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-cyan-500" />
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-cyan-500" />
                 Desempenho por Empresa Terceira / Fornecedor
               </h3>
-              <span className="text-xs text-slate-500">{reportData.contratanteBreakdown.length} terceiras</span>
+              <span className="text-[10px] text-slate-500">{reportData.contratanteBreakdown.length} terceiras</span>
             </div>
-            <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
               {reportData.contratanteBreakdown.slice(0, 6).map((item) => {
                 const retRate = item.total > 0 ? ((item.active / item.total) * 100).toFixed(0) : '0';
                 return (
-                  <div key={item.contratante} className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-800 dark:text-slate-200 font-semibold">{item.contratante}</span>
-                      <div className="flex gap-2">
+                  <div key={item.contratante} className="space-y-0.5">
+                    <div className="flex justify-between text-[11px] font-medium">
+                      <span className="text-slate-800 dark:text-slate-200 font-semibold truncate max-w-[240px]">{item.contratante}</span>
+                      <div className="flex gap-1.5 shrink-0">
                         <span className="text-slate-500">{item.total} contratados</span>
                         <span className="text-cyan-600 dark:text-cyan-400 font-bold">({retRate}% retenção)</span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden flex">
+                    <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-1.5 overflow-hidden flex">
                       <div 
                         className="bg-cyan-500 h-full transition-all" 
                         style={{ width: `${(item.active / (item.total || 1)) * 100}%` }}
@@ -668,43 +668,43 @@ export const HiringReportPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Data Table Gallery */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+      {/* Main Data Table Gallery Compact */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
+        <div className="p-2.5 px-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Relação Detalhada de Contratações
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
               {sortedItems.length} registros
             </span>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3">
-            <RefreshCw className="h-6 w-6 animate-spin text-indigo-500" />
-            <span className="text-sm">Carregando relatório de contratações...</span>
+          <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+            <RefreshCw className="h-5 w-5 animate-spin text-indigo-500" />
+            <span className="text-xs">Carregando relatório de contratações...</span>
           </div>
         ) : sortedItems.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 space-y-2">
-            <p className="text-base font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada no período.</p>
-            <p className="text-xs text-slate-400">Tente alterar os filtros de data ou limpar os filtros de pesquisa.</p>
+          <div className="p-8 text-center text-slate-500 space-y-1">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada no período.</p>
+            <p className="text-[11px] text-slate-400">Tente alterar os filtros de data ou limpar os filtros de pesquisa.</p>
           </div>
         ) : (
-          /* Isolated Scroll Container for Table Gallery */
-          <div className="max-h-[600px] overflow-y-auto overflow-x-auto relative">
+          /* Isolated Scroll Container for Table Gallery Compact */
+          <div className="max-h-[500px] overflow-y-auto overflow-x-auto relative">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-xs">
-                <tr className="text-slate-500 dark:text-slate-400 uppercase text-[11px] font-bold tracking-wider">
+              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
+                <tr className="text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
                   
                   {/* Trabalhador Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('worker_name')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Trabalhador</span>
                       <SortIcon field="worker_name" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -712,10 +712,10 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Empresa Terceira Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('contratante')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Empresa Terceira</span>
                       <SortIcon field="contratante" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -723,10 +723,10 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Cliente / Pedido Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('client_name')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Cliente / Pedido</span>
                       <SortIcon field="client_name" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -734,10 +734,10 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Função / Perfil Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('job_function_name')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Função / Perfil</span>
                       <SortIcon field="job_function_name" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -745,10 +745,10 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Tarifa Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('tarifa_acordada')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Tarifa</span>
                       <SortIcon field="tarifa_acordada" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -756,24 +756,24 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Início Trabalho Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('start_date')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Início Trabalho</span>
                       <SortIcon field="start_date" currentField={sortField} direction={sortDirection} />
                     </div>
                   </th>
 
                   {/* Saída / Término Column */}
-                  <th className="py-3.5 px-4">Saída / Término</th>
+                  <th className="py-2.5 px-3">Saída / Término</th>
 
                   {/* Dias Trabalhados Column */}
                   <th 
-                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 text-center cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('days_worked')}
                   >
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1">
                       <span>Dias Trabalhados</span>
                       <SortIcon field="days_worked" currentField={sortField} direction={sortDirection} />
                     </div>
@@ -781,17 +781,17 @@ export const HiringReportPage: React.FC = () => {
 
                   {/* Status Column */}
                   <th 
-                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('status')}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span>Status</span>
                       <SortIcon field="status" currentField={sortField} direction={sortDirection} />
                     </div>
                   </th>
 
                   {/* Obs / Motivo Column */}
-                  <th className="py-3.5 px-4">Obs / Motivo</th>
+                  <th className="py-2.5 px-3">Obs / Motivo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -799,79 +799,79 @@ export const HiringReportPage: React.FC = () => {
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     
                     {/* Worker Name & Document */}
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900 dark:text-white">{item.worker_name}</div>
-                      <div className="text-[11px] text-slate-400">Doc: {item.worker_document}</div>
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-slate-900 dark:text-white leading-snug">{item.worker_name}</div>
+                      <div className="text-[10px] text-slate-400">Doc: {item.worker_document}</div>
                     </td>
 
                     {/* Contratante / Terceira */}
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium inline-block">
+                    <td className="py-2.5 px-3">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium inline-block text-[11px]">
                         {item.contratante}
                       </span>
                     </td>
 
                     {/* Client & Order Code */}
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-slate-800 dark:text-slate-200">{item.client_name}</div>
-                      <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-mono font-semibold">
+                    <td className="py-2.5 px-3">
+                      <div className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{item.client_name}</div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-semibold">
                         Pedido: {item.pedido_codigo}
                       </div>
                     </td>
 
                     {/* Job Function */}
-                    <td className="py-3 px-4">
-                      <span className="font-medium text-slate-700 dark:text-slate-300">{item.job_function_name}</span>
+                    <td className="py-2.5 px-3">
+                      <span className="font-medium text-slate-700 dark:text-slate-300 text-[11px]">{item.job_function_name}</span>
                     </td>
 
                     {/* Agreed Rate */}
-                    <td className="py-3 px-4">
+                    <td className="py-2.5 px-3">
                       {item.tarifa_acordada !== null ? (
-                        <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
                           €{item.tarifa_acordada.toFixed(2)}/h
                         </span>
                       ) : (
-                        <span className="text-slate-400">-</span>
+                        <span className="text-slate-400 text-[11px]">-</span>
                       )}
                     </td>
 
                     {/* Start Date */}
-                    <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
+                    <td className="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-300 text-[11px]">
                       {formatDateBR(item.start_date)}
                     </td>
 
                     {/* End Date */}
-                    <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">
+                    <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                       {formatDateBR(item.end_date)}
                     </td>
 
                     {/* Days Worked Badge */}
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold font-mono text-xs ${
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold font-mono text-[10px] ${
                         item.is_active 
                           ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
                           : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
                       }`}>
-                        <Clock className="h-3 w-3" />
+                        <Clock className="h-2.5 w-2.5" />
                         {item.days_worked} dias
                       </span>
                     </td>
 
                     {/* Status Badge */}
-                    <td className="py-3 px-4">
+                    <td className="py-2.5 px-3">
                       {item.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
                           ● Ativo
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
                           ● Desligado
                         </span>
                       )}
                     </td>
 
                     {/* Notes / Reason */}
-                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] max-w-[200px] truncate" title={item.notes || ''}>
+                    <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[10px] max-w-[180px] truncate" title={item.notes || ''}>
                       {item.notes || '-'}
                     </td>
 
