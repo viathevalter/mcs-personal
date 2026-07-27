@@ -1304,7 +1304,10 @@ Muchas gracias.`;
                                             
                                             <div className="flex gap-2">
                                                 <Input readOnly value={requestSuccessLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
-                                                <Button size="icon" variant="outline" onClick={() => handleCopyInviteLink(requestSuccessLink, workers.find(w => w.id === requestWorkerId)?.nome)} title="Copiar mensagem formatada com o link">
+                                                <Button size="icon" variant="outline" onClick={() => {
+                                                     const workerObj = requestWorkersList.find(w => w.value === requestWorkerId) || workersList.find(w => w.value === requestWorkerId);
+                                                     handleCopyInviteLink(requestSuccessLink, workerObj?.label);
+                                                 }} title="Copiar mensagem formatada com o link">
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
                                             </div>
