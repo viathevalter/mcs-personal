@@ -208,6 +208,14 @@ export function NewSolicitudPage() {
 
     // Default title based on type and selected targets
     useEffect(() => {
+        const shortTypeName = actionType === 'replacement' ? 'Reemplazo' :
+                              actionType === 'relocation' ? 'Realocação' :
+                              actionType === 'technical_test' ? 'Prueba' :
+                              actionType === 'offboarding' ? 'Desligamento' :
+                              actionType === 'order_extension' ? 'Prorrogação' :
+                              actionType === 'order_postponement' ? 'Adiamento' :
+                              actionType === 'order_termination' ? 'Finalização' : 'Operação';
+
         const typeName = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
                          actionType === 'relocation' ? 'Realocação' : 
                          actionType === 'technical_test' ? 'Prueba (Teste Técnico)' : 
@@ -216,12 +224,16 @@ export function NewSolicitudPage() {
                          actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 
                          actionType === 'order_termination' ? 'Finalização de Obra' : 'Operação';
         
-        if (selectedAssignments.length > 0) {
+        if (selectedAssignments.length === 1) {
+            const single = assignments.find(a => selectedAssignments.includes(a.id));
+            const workerName = single?.worker?.nome || single?.worker_nome;
+            setTitle(workerName ? `${workerName} - ${shortTypeName}` : `${typeName} de 1 trabalhador`);
+        } else if (selectedAssignments.length > 1) {
             setTitle(`${typeName} de ${selectedAssignments.length} trabalhador(es)`);
         } else {
             setTitle(`Nova Solicitação de ${typeName}`);
         }
-    }, [actionType, selectedAssignments.length]);
+    }, [actionType, selectedAssignments, assignments]);
 
     // Load configured notification emails when empresa or actionType changes
     useEffect(() => {
