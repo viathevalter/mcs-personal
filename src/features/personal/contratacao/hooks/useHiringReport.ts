@@ -454,7 +454,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     contrMap.set(c, current);
   });
 
-  const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contratanteMap.entries ? contrMap.entries() : [])
+  const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contrMap.entries())
     .map(([contratante, stat]) => ({ contratante, ...stat }))
     .sort((a, b) => b.total - a.total);
 
