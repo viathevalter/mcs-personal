@@ -98,23 +98,11 @@ BEGIN
         RAISE EXCEPTION 'pedido_item_id ou solicitud_id é obrigatório para realizar a alocação.';
     END IF;
 
-    -- 2. Validação de Acesso (RH, Admin, etc)
-    SELECT EXISTS (
-        SELECT 1 FROM core_common.user_memberships
-        WHERE user_id = v_user_id 
-          AND empresa_id = v_empresa_id 
-          AND is_active = true
-          AND role IN ('admin', 'rh', 'super_admin', 'admin_rh', 'operador')
-    ) INTO v_has_access;
-
-    IF NOT v_has_access THEN
-        RAISE EXCEPTION 'Acesso negado. Apenas RH ou Operação (Admin) podem alocar trabalhadores.';
-    END IF;
-
-    -- 3. Buscar dados do Pedido e Item
+    -- 3. Buscar dados do Pedido e Item (Se pedido_item_id for informado, atualiza v_empresa_id para a empresa real do pedido)
     IF v_pedido_item_id IS NOT NULL THEN
         SELECT 
             pi.pedido_id, 
+            pi.empresa_id,
             pi.job_function_id, 
             COALESCE(NULLIF(TRIM(pi.job_function_name_snapshot), ''), NULLIF(TRIM(jf.name), ''), 'Desconhecida'),
             pi.quantity_requested, 
@@ -124,6 +112,7 @@ BEGIN
             p.codigo
         INTO 
             v_pedido_id, 
+            v_empresa_id,
             v_job_function_id, 
             v_job_function_name, 
             v_qty_requested, 
@@ -134,7 +123,7 @@ BEGIN
         FROM core_comercial.pedido_items pi
         JOIN core_comercial.pedidos p ON p.id = pi.pedido_id
         LEFT JOIN core_comercial.job_functions jf ON jf.id = pi.job_function_id
-        WHERE pi.id = v_pedido_item_id AND pi.empresa_id = v_empresa_id;
+        WHERE pi.id = v_pedido_item_id;
 
         IF v_pedido_id IS NULL THEN
             RAISE EXCEPTION 'Pedido Item não encontrado.';
@@ -151,13 +140,15 @@ BEGIN
             source_client_site_id,
             source_pedido_id,
             source_pedido_item_id,
-            source_assignment_id
+            source_assignment_id,
+            empresa_id
         INTO
             v_client_id,
             v_client_site_id,
             v_pedido_id,
             v_pedido_item_id,
-            v_source_assignment_id
+            v_source_assignment_id,
+            v_empresa_id
         FROM core_operacoes.solicitud_targets
         WHERE solicitud_id = v_solicitud_id
         LIMIT 1;
@@ -198,6 +189,24 @@ BEGIN
             LEFT JOIN core_comercial.job_functions jf ON jf.id = pi.job_function_id
             WHERE pi.id = v_pedido_item_id;
         END IF;
+    END IF;
+
+    -- Validação Básica
+    IF v_empresa_id IS NULL OR v_planned_start_date IS NULL THEN
+        RAISE EXCEPTION 'empresa_id e planned_start_date são obrigatórios.';
+    END IF;
+
+    -- 2. Validação de Acesso (RH, Admin, etc) na empresa do pedido
+    SELECT EXISTS (
+        SELECT 1 FROM core_common.user_memberships
+        WHERE user_id = v_user_id 
+          AND empresa_id = v_empresa_id 
+          AND is_active = true
+          AND role IN ('admin', 'rh', 'super_admin', 'admin_rh', 'operador')
+    ) INTO v_has_access;
+
+    IF NOT v_has_access THEN
+        RAISE EXCEPTION 'Acesso negado. Apenas RH ou Operação (Admin) podem alocar trabalhadores.';
     END IF;
 
     -- Buscar nome da empresa contratante

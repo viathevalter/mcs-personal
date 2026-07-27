@@ -4,7 +4,8 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { toast } from 'sonner';
 
 interface AllocateWorkerPayload {
-  pedido_item_id: string;
+  empresa_id?: string;
+  pedido_item_id?: string;
   worker_id?: string;
   worker_name?: string;
   worker_document?: string;
@@ -25,11 +26,12 @@ export const useAllocateWorker = () => {
 
   return useMutation({
     mutationFn: async (payload: AllocateWorkerPayload) => {
-      if (!selectedEmpresaId) throw new Error('Nenhuma empresa selecionada');
+      const targetEmpresaId = payload.empresa_id || selectedEmpresaId;
+      if (!targetEmpresaId) throw new Error('Nenhuma empresa selecionada');
 
       const { data, error } = await supabase.schema('core_personal').rpc('alocar_trabalhador_em_vaga', {
         payload: {
-          empresa_id: selectedEmpresaId,
+          empresa_id: targetEmpresaId,
           ...payload
         }
       });
