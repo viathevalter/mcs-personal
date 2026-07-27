@@ -90,8 +90,8 @@ BEGIN
     END IF;
 
     -- Validação Básica
-    IF v_empresa_id IS NULL OR v_planned_start_date IS NULL THEN
-        RAISE EXCEPTION 'empresa_id e planned_start_date são obrigatórios.';
+    IF v_planned_start_date IS NULL THEN
+        RAISE EXCEPTION 'Data de início prevista é obrigatória.';
     END IF;
     
     IF v_pedido_item_id IS NULL AND v_solicitud_id IS NULL THEN

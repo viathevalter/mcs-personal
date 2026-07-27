@@ -647,7 +647,8 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       base_cost_hour_snapshot: item.base_cost_hour_snapshot,
       solicitud_id: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : (repTarget?.solicitud_id || undefined),
       replacement_due_date: repTarget?.solicitud?.due_date || undefined,
-      isSynthetic: selectedPedido.isSynthetic || false
+      isSynthetic: selectedPedido.isSynthetic || false,
+      empresa_id: selectedPedido.empresa_id
     });
     
     setIsDialogOpen(true);
