@@ -53,6 +53,20 @@ export interface ContratanteBreakdown {
   inactive: number;
 }
 
+export function formatStandardContratante(rawName: string | null | undefined): string {
+  if (!rawName) return 'Não informada';
+  const clean = rawName.trim();
+  const lower = clean.toLowerCase();
+
+  if (lower.includes('luminous')) return 'Luminous';
+  if (lower.includes('wiseowe')) return 'Wiseowe';
+  if (lower.includes('stocco')) return 'Stocco';
+  if (lower.includes('triangulo')) return 'Triangulo';
+  if (lower.includes('rosas') || lower.includes('kotrik')) return 'Kotrik & Rosas';
+
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
+
 function parseLocalDate(dateStr: string | null): Date | null {
   if (!dateStr) return null;
   const cleanStr = dateStr.split('T')[0];
@@ -197,7 +211,8 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     client: clientsMap.get(a.client_id) || null,
     client_site: sitesMap.get(a.client_site_id) || null,
     empresa: empresasMap.get(a.empresa_id) || null,
-    status_seguridad: a.worker?.status_seguridad || a.status_seguridad
+    status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
+    contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome)
   }));
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
@@ -244,6 +259,8 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
 
       const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
+      const stdContratante = formatStandardContratante(w.contratante || cpp?.contratante || targetEmpresaNome);
+
       return {
         id: `virtual-${w.id}`,
         empresa_id: w.empresa_id || filters.empresa_id,
@@ -257,6 +274,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         start_date: allocationStartDate,
         end_date: endDate,
         status_seguridad: w.status_seguridad,
+        contratante: stdContratante,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -266,7 +284,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           email: w.email,
           movil: w.movil,
           funcion: w.funcion || cpp?.funcion,
-          contratante: w.contratante || cpp?.contratante || targetEmpresaNome,
+          contratante: stdContratante,
           status_seguridad: w.status_seguridad
         },
         client: matchedClient ? {
@@ -278,7 +296,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         pedido: cpp?.codpedido ? { id: null, codigo: cpp.codpedido } : null,
         empresa: {
           id: w.empresa_id || filters.empresa_id,
-          nome: w.contratante || cpp?.contratante || targetEmpresaNome
+          nome: stdContratante
         },
         replaced_assignment: null
       };
@@ -302,7 +320,9 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const allItems: HiringReportItem[] = assignments.map((a: any) => {
     const workerName = a.worker?.nome || a.worker?.name || 'Trabalhador sem nome';
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
-    const contratante = a.worker?.contratante || a.empresa?.nome || empresaNome || 'Não informada';
+    const rawContratante = a.contratante || a.worker?.contratante || a.empresa?.nome || empresaNome;
+    const contratante = formatStandardContratante(rawContratante);
+
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
     const pedidoCodigo = a.pedido?.codigo || 'S/N';
@@ -466,10 +486,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     .map(([functionName, stat]) => ({ functionName, ...stat }))
     .sort((a, b) => b.total - a.total);
 
-  // Breakdown by Contratante
+  // Breakdown by Contratante (Standardized Name Grouping)
   const contrMap = new Map<string, { total: number; active: number; inactive: number }>();
   filtered.forEach(item => {
-    const c = item.contratante;
+    const c = formatStandardContratante(item.contratante);
     const current = contrMap.get(c) || { total: 0, active: 0, inactive: 0 };
     current.total += 1;
     if (item.is_active) current.active += 1;

@@ -20,7 +20,7 @@ import {
 
 import * as XLSX from 'xlsx';
 
-import { useHiringReport, HiringReportFilters } from './hooks/useHiringReport';
+import { useHiringReport, type HiringReportFilters } from './hooks/useHiringReport';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 type SortKey = 'worker_name' | 'contratante' | 'client_name' | 'job_function_name' | 'tarifa_acordada' | 'start_date' | 'days_worked' | 'status' | 'status_seguridad';
