@@ -207,6 +207,9 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
       });
 
+      const rawWorkerStatus = (w.status_trabajador || '').toLowerCase();
+      const isInactive = rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!w.data_baixa;
+
       return {
         id: `virtual-${w.id}`,
         empresa_id: w.empresa_id || filters.empresa_id,
@@ -216,7 +219,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         client_site_id: null,
         pedido_id: null,
         pedido_item_id: null,
-        status: w.status_trabajador === 'Baja' ? 'completed' : 'active',
+        status: isInactive ? 'completed' : 'active',
         start_date: w.created_at || new Date().toISOString(),
         end_date: w.data_baixa || null,
         worker: {
@@ -277,7 +280,9 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const endDateStr = a.end_date ? a.end_date.split('T')[0]
       : (isInactiveStatus && a.planned_end_date ? a.planned_end_date.split('T')[0] : null);
 
-    const isActive = ['active', 'planned', 'paused'].includes(a.status);
+    const rawWorkerStatus = (a.worker?.status_trabajador || a.status || '').toLowerCase();
+    const isInactive = isInactiveStatus || rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!endDateStr;
+    const isActive = !isInactive;
 
     // Calculate days worked
     let daysWorked = 0;
@@ -335,40 +340,26 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range: Hires or Departures falling within [startDate, endDate]
+  // Filter by Date Range: Include workers who STARTED work within [startDate, endDate]
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
       const itemStart = item.start_date;
-      const itemEnd = item.end_date;
 
-      // 1. If start_date falls in selected period: INCLUDE!
-      if (itemStart && filters.startDate && filters.endDate) {
-        if (itemStart >= filters.startDate && itemStart <= filters.endDate) {
-          return true;
-        }
-      } else if (itemStart && filters.startDate) {
-        if (itemStart >= filters.startDate) return true;
-      } else if (itemStart && filters.endDate) {
-        if (itemStart <= filters.endDate) return true;
+      if (!itemStart) return true;
+
+      if (filters.startDate && filters.endDate) {
+        return itemStart >= filters.startDate && itemStart <= filters.endDate;
+      }
+      if (filters.startDate) {
+        return itemStart >= filters.startDate;
+      }
+      if (filters.endDate) {
+        return itemStart <= filters.endDate;
       }
 
-      // 2. If end_date falls in selected period: INCLUDE!
-      if (itemEnd && filters.startDate && filters.endDate) {
-        if (itemEnd >= filters.startDate && itemEnd <= filters.endDate) {
-          return true;
-        }
-      } else if (itemEnd && filters.startDate) {
-        if (itemEnd >= filters.startDate) return true;
-      }
-
-      // 3. If item has no dates at all, keep it
-      if (!itemStart && !itemEnd) {
-        return true;
-      }
-
-      return false;
+      return true;
     });
   }
 
