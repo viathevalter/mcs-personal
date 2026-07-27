@@ -325,7 +325,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range (if startDate or endDate is specified)
+  // Filter by Date Range (Active allocation during selected period)
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
@@ -333,22 +333,21 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       const itemStart = item.start_date;
       const itemEnd = item.end_date;
 
-      // If item has no start_date at all, keep it
-      if (!itemStart && !itemEnd) return true;
-
-      // Check if start date or end date falls in selected period
       if (filters.startDate && filters.endDate) {
-        const startedInRange = !!(itemStart && itemStart >= filters.startDate && itemStart <= filters.endDate);
-        const endedInRange = !!(itemEnd && itemEnd >= filters.startDate && itemEnd <= filters.endDate);
-        return startedInRange || endedInRange;
+        // Allocation started on or before period end
+        const startedOnOrBeforePeriodEnd = !itemStart || itemStart <= filters.endDate;
+        // Allocation is active or ended on or after period start
+        const activeOrEndedOnOrAfterPeriodStart = item.is_active || !itemEnd || itemEnd >= filters.startDate;
+
+        return startedOnOrBeforePeriodEnd && activeOrEndedOnOrAfterPeriodStart;
       }
       
       if (filters.startDate) {
-        return !!(itemStart && itemStart >= filters.startDate);
+        return item.is_active || !itemEnd || itemEnd >= filters.startDate;
       }
 
       if (filters.endDate) {
-        return !!(itemStart && itemStart <= filters.endDate);
+        return !itemStart || itemStart <= filters.endDate;
       }
 
       return true;
