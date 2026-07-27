@@ -79,7 +79,7 @@ const normalizeString = (str: string) => {
 };
 
 export function useHiringReport(filters: HiringReportFilters) {
-  // 1. Fetch details for the selected company to test if it is a Group/Holding company
+  // 1. Fetch details for the selected company to test if it is an operational subsidiary or a Group/Holding entry
   const { data: targetEmpresa } = useQuery({
     queryKey: ['empresa_details', filters.empresa_id],
     queryFn: async () => {
@@ -96,22 +96,17 @@ export function useHiringReport(filters: HiringReportFilters) {
   });
 
   const empName = (targetEmpresa?.trade_name || targetEmpresa?.legal_name || targetEmpresa?.nome || '').toLowerCase();
-  const empCode = (targetEmpresa?.codigo || '').toLowerCase();
 
+  // Operating subsidiaries vs Holding / Group (Login Pro, GRP Login Pro, Mastercorp, etc.)
   const isIndividualCompany = ['stocco', 'triangulo', 'luminous', 'wiseowe', 'rosas'].some(c => empName.includes(c));
-  const isGroupEmpresa = !isIndividualCompany && (
-    empName.startsWith('grp') ||
-    empName.includes('grp login pro') ||
-    empName.includes('grupo login pro') ||
-    empCode === 'grp'
-  );
+  const isGroupEmpresa = !isIndividualCompany;
 
-  // Normal query for individual operational companies (Triangulo, Wiseowe, Stocco, Luminous)
+  // Normal query for individual operational companies (Triangulo, Wiseowe, Stocco, Luminous, Rosas)
   const normalQuery = useWorkerAssignments({
     empresa_id: !isGroupEmpresa ? filters.empresa_id : null,
   });
 
-  // Consolidated Group query for Holding / Group company (GRP Login pro)
+  // Consolidated Group query for Holding / Group company (Login Pro / GRP Login pro)
   const groupQuery = useQuery({
     queryKey: ['hiring_report_group_assignments', filters.empresa_id],
     queryFn: async () => {
@@ -417,7 +412,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters) {
     current.total += 1;
     if (item.is_active) current.active += 1;
     else current.inactive += 1;
-    contrMap.set(c, current);
+    funcMap.set(c, current);
   });
 
   const contratanteBreakdown: ContratanteBreakdown[] = Array.from(contrMap.entries())
