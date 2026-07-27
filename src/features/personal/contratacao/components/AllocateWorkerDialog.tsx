@@ -232,48 +232,48 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
     e.preventDefault();
     
     if (mode === 'new' && !workerName) {
-      alert('O nome completo é obrigatório para novo trabalhador.');
+      toast.error('O nome completo é obrigatório para novo trabalhador.');
       return;
     }
     
     if (mode === 'existing' && !selectedWorkerId) {
-      alert('Selecione um trabalhador inativo.');
+      toast.error('Selecione um trabalhador inativo.');
       return;
     }
 
     if (!camiseta) {
-      alert('O tamanho de camisa (camiseta) é obrigatório.');
+      toast.error('O tamanho de camisa (camiseta) é obrigatório.');
       return;
     }
 
     if (!pantalones) {
-      alert('O tamanho de calça (pantalones) é obrigatório.');
+      toast.error('O tamanho de calça (pantalones) é obrigatório.');
       return;
     }
 
     if (!licenciaConducir) {
-      alert('A informação de CNH (carta de condução) é obrigatória.');
+      toast.error('A informação de CNH (carta de condução) é obrigatória.');
       return;
     }
 
     if (!movil) {
-      alert('O telefone móvel (móvel) é obrigatório.');
+      toast.error('O telefone móvel (móvel) é obrigatório.');
       return;
     }
 
     if (!plannedStartDate) {
-      alert('Data de Início Prevista é obrigatória.');
+      toast.error('Data de Início Prevista é obrigatória.');
       return;
     }
 
     if (!tarifaAcordada) {
-      alert('A tarifa acordada é obrigatória.');
+      toast.error('A tarifa acordada é obrigatória.');
       return;
     }
 
     const isTarifaSuperior = position.base_cost_hour_snapshot && Number(tarifaAcordada) > Number(position.base_cost_hour_snapshot);
-    if (isTarifaSuperior && (!notes || notes.trim().length < 5)) {
-      alert('A tarifa acordada é superior à tarifa orçada. Por favor, insira uma justificativa nas "Observações de Alocação" detalhando o motivo antes de confirmar.');
+    if (isTarifaSuperior && (!notes || notes.trim().length === 0)) {
+      toast.error('A tarifa acordada é superior à orçada. Por favor, digite uma breve justificativa nas "Observações de Alocação".');
       return;
     }
 
