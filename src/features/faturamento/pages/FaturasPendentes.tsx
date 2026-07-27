@@ -48,6 +48,60 @@ import { Textarea } from '@/components/ui/textarea';
 import { useEmpresa } from '../../../app/providers/EmpresaProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+export const getBillingCycleDays = (startDay: number, year: number, monthIndex: number) => {
+  const days: Array<{ day: number; month: number; year: number; dateStr: string; label: string; monthLabel: string }> = [];
+  const getMonthAbbr = (mIndex: number) => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return months[mIndex] || '';
+  };
+
+  if (startDay === 1) {
+    const numDays = new Date(year, monthIndex + 1, 0).getDate();
+    for (let d = 1; d <= numDays; d++) {
+      const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        day: d,
+        month: monthIndex + 1,
+        year,
+        dateStr,
+        label: String(d).padStart(2, '0'),
+        monthLabel: getMonthAbbr(monthIndex)
+      });
+    }
+  } else {
+    let prevYear = year;
+    let prevMonthIndex = monthIndex - 1;
+    if (prevMonthIndex < 0) {
+      prevMonthIndex = 11;
+      prevYear = year - 1;
+    }
+    const prevMonthDays = new Date(prevYear, prevMonthIndex + 1, 0).getDate();
+    for (let d = startDay; d <= prevMonthDays; d++) {
+      const dateStr = `${prevYear}-${String(prevMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        day: d,
+        month: prevMonthIndex + 1,
+        year: prevYear,
+        dateStr,
+        label: String(d).padStart(2, '0'),
+        monthLabel: getMonthAbbr(prevMonthIndex)
+      });
+    }
+    for (let d = 1; d < startDay; d++) {
+      const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        day: d,
+        month: monthIndex + 1,
+        year,
+        dateStr,
+        label: String(d).padStart(2, '0'),
+        monthLabel: getMonthAbbr(monthIndex)
+      });
+    }
+  }
+  return days;
+};
+
 export function FaturasPendentes() {
   const [faturamentos, setFaturamentos] = useState<ClientBillingSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -635,8 +689,8 @@ MCS - Gestão Comercial`;
       }
     ];
 
-    const numDays = new Date(f.year, f.month + 1, 0).getDate();
-    const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
+    const cycleStartDay = f.billingCycleStartDay || 1;
+    const daysArray = getBillingCycleDays(cycleStartDay, f.year, f.month);
 
     tablesToRender.forEach((table) => {
       let tableHtml = `
@@ -650,8 +704,8 @@ MCS - Gestão Comercial`;
                 <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">${labels.worker}</th>
       `;
 
-      daysArray.forEach(day => {
-        const cellDate = new Date(f.year, f.month, day);
+      daysArray.forEach(dInfo => {
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
         const dayOfWeek = cellDate.getDay();
         const isSunday = dayOfWeek === 0;
         const isSaturday = dayOfWeek === 6;
@@ -671,7 +725,7 @@ MCS - Gestão Comercial`;
         tableHtml += `
           <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
             <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
-            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(day).padStart(2, '0')}</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
           </th>
         `;
       });
@@ -690,12 +744,12 @@ MCS - Gestão Comercial`;
             <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
         `;
 
-        daysArray.forEach(day => {
-          const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        daysArray.forEach(dInfo => {
+          const dateKey = dInfo.dateStr;
           const hourObj = w.horasDiarias[dateKey] as any;
           const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
           
-          const cellDate = new Date(f.year, f.month, day);
+          const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
           const dayOfWeek = cellDate.getDay();
           const isSunday = dayOfWeek === 0;
           const isSaturday = dayOfWeek === 6;
@@ -1062,8 +1116,8 @@ MCS - Gestão Comercial`;
       });
     }
 
-    const numDays = new Date(f.year, f.month + 1, 0).getDate();
-    const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
+    const cycleStartDay = f.billingCycleStartDay || 1;
+    const daysArray = getBillingCycleDays(cycleStartDay, f.year, f.month);
 
     // Generate HTML for each table in tablesToRender
     tablesToRender.forEach((table) => {
@@ -1079,8 +1133,8 @@ MCS - Gestão Comercial`;
       `;
 
       // Header days
-      daysArray.forEach(day => {
-        const cellDate = new Date(f.year, f.month, day);
+      daysArray.forEach(dInfo => {
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
         const dayOfWeek = cellDate.getDay();
         const isSunday = dayOfWeek === 0;
         const isSaturday = dayOfWeek === 6;
@@ -1100,7 +1154,7 @@ MCS - Gestão Comercial`;
         tableHtml += `
           <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
             <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
-            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(day).padStart(2, '0')}</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
           </th>
         `;
       });
@@ -1120,12 +1174,12 @@ MCS - Gestão Comercial`;
             <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
         `;
 
-        daysArray.forEach(day => {
-          const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        daysArray.forEach(dInfo => {
+          const dateKey = dInfo.dateStr;
           const hourObj = w.horasDiarias[dateKey] as any;
           const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
           
-          const cellDate = new Date(f.year, f.month, day);
+          const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
           const dayOfWeek = cellDate.getDay();
           const isSunday = dayOfWeek === 0;
           const isSaturday = dayOfWeek === 6;
@@ -1626,8 +1680,8 @@ MCS - Gestão Comercial`;
             const isProcessing = processingClient === f.clientId;
             const isExpanded = expandedClients[cardId];
             
-            const numDays = new Date(f.year, f.month + 1, 0).getDate();
-            const daysArray = Array.from({ length: numDays }, (_, i) => i + 1);
+            const cycleStartDay = f.billingCycleStartDay || 1;
+            const daysArray = getBillingCycleDays(cycleStartDay, f.year, f.month);
 
             const isBlocked = f.statusBilling === 'waiting_validation';
             const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
@@ -2149,12 +2203,12 @@ MCS - Gestão Comercial`;
                                         
                                         {/* Contêiner de rolagem horizontal */}
                                         <div className="flex gap-1 md:gap-1.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
-                                          {daysArray.map(d => {
-                                            const targetDateStr = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                          {daysArray.map(dInfo => {
+                                            const targetDateStr = dInfo.dateStr;
                                             const record = worker.horasDiarias[targetDateStr];
                                             const hoursVal = record ? Number(record.horas_totais) : 0;
                                             
-                                            const date = new Date(f.year, f.month, d);
+                                            const date = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                                             const dayOfWeek = date.getDay();
                                             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                                             const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -2162,7 +2216,7 @@ MCS - Gestão Comercial`;
 
                                             return (
                                               <div 
-                                                key={d} 
+                                                key={dInfo.dateStr} 
                                                 className={`flex-1 flex flex-col items-center p-1.5 rounded-md min-w-[38px] max-w-[50px] transition-colors ${
                                                   isWeekend 
                                                     ? 'bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40' 
@@ -2170,7 +2224,7 @@ MCS - Gestão Comercial`;
                                                 }`}
                                               >
                                                 <span className={`text-[10px] md:text-xs font-extrabold leading-none mb-1 ${isWeekend ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                  {String(d).padStart(2, '0')}
+                                                  {String(dInfo.day).padStart(2, '0')}
                                                 </span>
                                                 <span className={`text-[8px] md:text-[9.5px] font-bold leading-normal mb-1.5 ${isWeekend ? 'text-amber-500/70' : 'text-slate-400/70'}`}>
                                                   {weekdayLabel}
@@ -2231,8 +2285,8 @@ MCS - Gestão Comercial`;
                           <TableHeader className="bg-slate-50 dark:bg-slate-900">
                             <TableRow>
                               <TableHead className="font-bold text-xs pl-4">Trabalhador</TableHead>
-                              {daysArray.map(day => {
-                                const cellDate = new Date(f.year, f.month, day);
+                              {daysArray.map(dInfo => {
+                                const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                                 const dayOfWeek = cellDate.getDay();
                                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                                 const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -2240,7 +2294,7 @@ MCS - Gestão Comercial`;
 
                                 return (
                                   <TableHead 
-                                    key={day} 
+                                    key={dInfo.dateStr} 
                                     className={`text-center p-1 min-w-[32px] max-w-[38px] transition-colors ${
                                       isWeekend 
                                         ? 'bg-amber-50/50 dark:bg-amber-950/20' 
@@ -2249,7 +2303,7 @@ MCS - Gestão Comercial`;
                                   >
                                     <div className="flex flex-col items-center">
                                       <span className={`text-[10px] font-extrabold leading-none ${isWeekend ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                        {String(day).padStart(2, '0')}
+                                        {String(dInfo.day).padStart(2, '0')}
                                       </span>
                                       <span className={`text-[8px] font-bold leading-normal mt-0.5 ${isWeekend ? 'text-amber-500/70' : 'text-slate-400/70'}`}>
                                         {weekdayLabel}
@@ -2267,18 +2321,18 @@ MCS - Gestão Comercial`;
                               return (
                                 <TableRow key={worker.workerId} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                   <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200 pl-4 py-3">{worker.workerName}</TableCell>
-                                  {daysArray.map(day => {
-                                    const dateKey = `${f.year}-${String(f.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                  {daysArray.map(dInfo => {
+                                    const dateKey = dInfo.dateStr;
                                     const hourObj = worker.horasDiarias[dateKey] as any;
                                     const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
                                     
-                                    const cellDate = new Date(f.year, f.month, day);
+                                    const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                                     const dayOfWeek = cellDate.getDay();
                                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                                     return (
                                       <TableCell 
-                                        key={day} 
+                                        key={dInfo.dateStr} 
                                         className={`text-center text-xs p-1 transition-colors ${
                                           isWeekend 
                                             ? 'bg-amber-50/15 dark:bg-amber-950/5 border-x border-x-amber-100/20 dark:border-x-amber-900/10' 

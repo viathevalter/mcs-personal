@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { QRCodeSVG } from 'qrcode.react';
+import { getBillingCycleDays } from './FaturasPendentes';
 
 // Format helpers
 const formatHours = (decimalHours: number) => {
@@ -277,9 +278,9 @@ export function PortalCliente() {
   }, [horas]);
 
   const daysArray = React.useMemo(() => {
-    const numDays = new Date(year, month + 1, 0).getDate();
-    return Array.from({ length: numDays }, (_, i) => i + 1);
-  }, [year, month]);
+    const cycleStartDay = fatura?.client?.billingCycleStartDay || 1;
+    return getBillingCycleDays(cycleStartDay, year, month);
+  }, [year, month, fatura]);
 
   const { finalTotalVal, adjustments, dataEmissaoStr, dataVencimentoStr, totalBaseVal } = React.useMemo(() => {
     const totalBaseVal = groupedWorkers.reduce((sum, w) => sum + w.totalValor, 0);
@@ -525,13 +526,16 @@ export function PortalCliente() {
                   <TableHeader className="bg-slate-50">
                     <TableRow>
                       <TableHead className="font-bold pl-4">Trabalhador</TableHead>
-                      {daysArray.map(day => {
-                        const wDay = getWeekDayLabel(day, year, month);
-                        const isWk = isWeekend(day, year, month);
+                      {daysArray.map(dInfo => {
+                        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+                        const dayOfWeek = cellDate.getDay();
+                        const isWk = dayOfWeek === 0 || dayOfWeek === 6;
+                        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                        const wDay = weekdays[dayOfWeek];
                         return (
-                          <TableHead key={day} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
+                          <TableHead key={dInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
                             <div className="flex flex-col items-center gap-0.5">
-                              <span>{String(day).padStart(2, '0')}</span>
+                              <span>{String(dInfo.day).padStart(2, '0')}</span>
                               <span className="text-[6.5px] md:text-[7.5px] text-slate-400 font-normal uppercase tracking-tight">{wDay}</span>
                             </div>
                           </TableHead>
@@ -542,8 +546,8 @@ export function PortalCliente() {
                   </TableHeader>
                   <TableBody>
                     {groupedWorkers.map(worker => {
-                      const workerTotal = daysArray.reduce((sum, day) => {
-                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const workerTotal = daysArray.reduce((sum, dInfo) => {
+                        const dateKey = dInfo.dateStr;
                         const proposedVal = disputedHours[worker.workerId]?.[dateKey];
                         if (proposedVal !== undefined) return sum + proposedVal;
                         const hourObj = worker.horasDiarias[dateKey] as any;
@@ -553,8 +557,8 @@ export function PortalCliente() {
                       return (
                         <TableRow key={worker.workerId} className="hover:bg-slate-50 transition-colors">
                           <TableCell className="font-semibold text-slate-800 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
-                          {daysArray.map(day => {
-                            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                          {daysArray.map(dInfo => {
+                            const dateKey = dInfo.dateStr;
                             const hourObj = worker.horasDiarias[dateKey] as any;
                             const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
 
@@ -562,11 +566,14 @@ export function PortalCliente() {
                             const proposedVal = disputedHours[worker.workerId]?.[dateKey];
                             const hasDispute = proposedVal !== undefined;
                             const displayVal = hasDispute ? proposedVal : hoursVal;
-                            const isWk = isWeekend(day, year, month);
+                            
+                            const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+                            const dayOfWeek = cellDate.getDay();
+                            const isWk = dayOfWeek === 0 || dayOfWeek === 6;
 
                             if (isEditing) {
                               return (
-                                <TableCell key={day} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
+                                <TableCell key={dInfo.dateStr} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
                                   <input 
                                     type="number" 
                                     step="0.5"
@@ -590,7 +597,7 @@ export function PortalCliente() {
 
                             return (
                               <TableCell 
-                                key={day} 
+                                key={dInfo.dateStr} 
                                 onClick={() => !isResolved && setEditingCell({ workerId: worker.workerId, dateKey })}
                                 className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 ${
                                   isResolved 

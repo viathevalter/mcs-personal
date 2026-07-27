@@ -237,7 +237,8 @@ export async function getHorasPendentesFaturamento(
         client_company_settings (
           empresa_id,
           payment_term_id,
-          status
+          status,
+          billing_cycle_start_day
         )
       `);
 
@@ -249,7 +250,8 @@ export async function getHorasPendentesFaturamento(
         ...c,
         empresa_id: settings?.empresa_id || null,
         payment_term_id: settings?.payment_term_id || null,
-        status: settings?.status || 'active'
+        status: settings?.status || 'active',
+        billing_cycle_start_day: settings?.billing_cycle_start_day || 1
       };
     });
 
@@ -314,7 +316,8 @@ export async function getHorasPendentesFaturamento(
             ...newClient,
             empresa_id: empresaId,
             status: 'active',
-            payment_term_id: null
+            payment_term_id: null,
+            billing_cycle_start_day: 1
           });
         }
       }
@@ -336,8 +339,35 @@ export async function getHorasPendentesFaturamento(
     const workerHoursList = whData || [];
     const workerHoursMap = new Map(workerHoursList.map(wh => [wh.worker_id, { status: wh.status, observacoes: wh.observacoes }]));
 
-    // 5. Fetch validated hours in core_finance.horas_trabalhadas for the period
-    const startDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-01`;
+    // Helper to get exact dynamic date range for a given client billing cycle start day
+    const getClientDateRange = (startDay: number, year: number, month: number) => {
+      if (startDay === 1) {
+        const start = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        return { start, end };
+      } else {
+        let prevYear = year;
+        let prevMonth = month - 1;
+        if (prevMonth === 0) {
+          prevMonth = 12;
+          prevYear = year - 1;
+        }
+        const start = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+        // The cycle ends on the day before the start day of the current faturamento month
+        const end = `${year}-${String(month).padStart(2, '0')}-${String(startDay - 1).padStart(2, '0')}`;
+        return { start, end };
+      }
+    };
+
+    // 5. Fetch validated hours in core_finance.horas_trabalhadas for a 2-month span to support custom cycles (e.g. 25-to-25)
+    let prevYear = periodYear;
+    let prevMonth = periodMonth - 1;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear = periodYear - 1;
+    }
+    const startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
     const endDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${new Date(periodYear, periodMonth, 0).getDate()}`;
 
     // Note: We do not filter by clientIds here because that list has 2000+ IDs and would exceed URL size limits
@@ -378,8 +408,15 @@ export async function getHorasPendentesFaturamento(
       return uw ? uw.empresa_id === empresaId : false;
     };
 
-    // Filter hours to only keep those belonging to the company's workers
-    const hoursList = horasTrabalhadasList.filter(h => belongsToCompany(h.worker_id));
+    // Filter hours to keep those belonging to the company's workers AND falling within their client's custom cycle
+    const hoursList = horasTrabalhadasList.filter(h => {
+      if (!belongsToCompany(h.worker_id)) return false;
+      const client = clientsList.find(c => c.id === h.client_id);
+      if (!client) return false;
+      const cycleStartDay = client.billing_cycle_start_day || 1;
+      const { start: clientStart, end: clientEnd } = getClientDateRange(cycleStartDay, periodYear, periodMonth);
+      return h.data_trabalho >= clientStart && h.data_trabalho <= clientEnd;
+    });
 
     // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company)
     const relevantClients = clientsList.filter(client => {
@@ -728,6 +765,7 @@ export async function getHorasPendentesFaturamento(
         viesLastCheckedAt: client.vies_last_checked_at || null,
         taxId: client.tax_id || null,
         countryId: client.country_id || null,
+        billingCycleStartDay: client.billing_cycle_start_day || 1,
         obras: obrasSummary,
         workers: workersSummary
       });
