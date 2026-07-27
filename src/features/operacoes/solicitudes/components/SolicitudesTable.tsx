@@ -8,6 +8,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { format } from 'date-fns';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 import type { SolicitudDetail } from '../types';
 import { SolicitudTypeBadge } from './SolicitudTypeBadge';
 import { ArrowRight } from 'lucide-react';
@@ -186,28 +187,28 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
                   {(solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
-                        📅 {format(new Date(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido!), 'dd/MM/yyyy')}
+                        📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido)}
                       </span>
                       <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider font-sans">Início Adiado</span>
                     </div>
                   ) : (solicitud.tipo === 'replacement' || solicitud.tipo === 'relocation' || solicitud.tipo === 'technical_test' || solicitud.tipo === 'field_trial') && solicitud.due_date ? (
-                    format(new Date(solicitud.due_date), 'dd/MM/yyyy')
+                    formatDateClean(solicitud.due_date)
                   ) : solicitud.pedido?.fecha_inicio_pedido ? (
-                    format(new Date(solicitud.pedido.fecha_inicio_pedido), 'dd/MM/yyyy')
+                    formatDateClean(solicitud.pedido.fecha_inicio_pedido)
                   ) : 'N/A'}
                 </TableCell>
                 <TableCell>
                   {(solicitud.tipo === 'order_extension' || solicitud.has_extension) && (solicitud.due_date || solicitud.pedido?.fecha_fin_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-955/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50 w-max flex items-center gap-1 shadow-sm">
-                        📅 {format(new Date(solicitud.due_date || solicitud.pedido!.fecha_fin_pedido!), 'dd/MM/yyyy')}
+                        📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_fin_pedido)}
                       </span>
                       <span className="text-[9px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">Prazo Prorrogado</span>
                     </div>
                   ) : solicitud.pedido?.fecha_fin_pedido ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-mono font-medium text-slate-700 dark:text-slate-350">
-                        {format(new Date(solicitud.pedido.fecha_fin_pedido), 'dd/MM/yyyy')}
+                        {formatDateClean(solicitud.pedido.fecha_fin_pedido)}
                       </span>
                       {(() => {
                         const remaining = getDaysRemainingStr(solicitud.pedido.fecha_fin_pedido, solicitud.pedido.status_pedido);
