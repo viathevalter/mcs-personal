@@ -25,6 +25,7 @@ export function WorkerDocCapturePage() {
     const [nifUrl, setNifUrl] = useState<string | null>(null);
     const [nissUrl, setNissUrl] = useState<string | null>(null);
     const [licenseUrl, setLicenseUrl] = useState<string | null>(null);
+    const [ibanUrl, setIbanUrl] = useState<string | null>(null);
     const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
 
     // OCR Loading states
@@ -46,6 +47,8 @@ export function WorkerDocCapturePage() {
         dni: '',
         pasaporte: '',
         licencia_conducir: '',
+        banco: '',
+        iban: '',
         nacionalidade: '',
         fecha_nacimiento: '',
         direccion_actual: '',
@@ -63,6 +66,7 @@ export function WorkerDocCapturePage() {
         nif: useRef<HTMLInputElement>(null),
         niss: useRef<HTMLInputElement>(null),
         license: useRef<HTMLInputElement>(null),
+        iban: useRef<HTMLInputElement>(null),
         selfie: useRef<HTMLInputElement>(null)
     };
 
@@ -84,6 +88,7 @@ export function WorkerDocCapturePage() {
                 setNifUrl(reqData.nif_url);
                 setNissUrl(reqData.niss_url);
                 setLicenseUrl(reqData.license_url);
+                setIbanUrl(reqData.iban_url);
                 setSelfieUrl(reqData.selfie_url);
 
                 const existingData = reqData.extracted_data || {};
@@ -101,6 +106,8 @@ export function WorkerDocCapturePage() {
                         contacto_emergencia_telefono: existingData.contacto_emergencia_telefono || '',
                         talla_camisa: existingData.talla_camisa || '',
                         talla_pantalon: existingData.talla_pantalon || '',
+                        banco: existingData.banco || '',
+                        iban: existingData.iban || reqData.worker?.iban || '',
                         nif: existingData.nif || '',
                         niss: existingData.niss || '',
                         pasaporte: existingData.pasaporte || '',
@@ -119,7 +126,7 @@ export function WorkerDocCapturePage() {
     }, [token]);
 
     // 2. Upload de arquivo e execução do OCR
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'nif' | 'niss' | 'license' | 'selfie') => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
         const file = e.target.files?.[0];
         if (!file || !token) return;
 
@@ -131,7 +138,7 @@ export function WorkerDocCapturePage() {
 
         try {
             // Setar carregamento
-            if (docType !== 'selfie') {
+            if (docType !== 'selfie' && docType !== 'iban') {
                 setOcrLoading(prev => ({ ...prev, [docType]: true }));
             }
 
@@ -153,13 +160,18 @@ export function WorkerDocCapturePage() {
             if (docType === 'nif') setNifUrl(filePath);
             if (docType === 'niss') setNissUrl(filePath);
             if (docType === 'license') setLicenseUrl(filePath);
+            if (docType === 'iban') {
+                setIbanUrl(filePath);
+                toast.success("Comprobante de IBAN cargado!");
+                return;
+            }
             if (docType === 'selfie') {
                 setSelfieUrl(filePath);
                 toast.success("Foto de perfil carregada!");
                 return;
             }
 
-            // Chamar IA OCR se não for selfie
+            // Chamar IA OCR se não for selfie ou iban
             toast.info("Processando documento com IA...");
             try {
                 const ocrRes = await processDocumentOcr({
@@ -207,7 +219,7 @@ export function WorkerDocCapturePage() {
             console.error(`Erro ao processar upload de ${docType}:`, err);
             toast.error(`Falha no upload do documento: ${err.message || err}`);
         } finally {
-            if (docType !== 'selfie') {
+            if (docType !== 'selfie' && docType !== 'iban') {
                 setOcrLoading(prev => ({ ...prev, [docType]: false }));
             }
         }
@@ -230,8 +242,12 @@ export function WorkerDocCapturePage() {
                 nif_url: nifUrl,
                 niss_url: nissUrl,
                 license_url: licenseUrl,
+                iban_url: ibanUrl,
                 selfie_url: selfieUrl,
-                extracted_data: formData
+                extracted_data: {
+                    ...formData,
+                    iban_url: ibanUrl
+                }
             });
 
             toast.success("Documentos enviados com sucesso!");
@@ -540,6 +556,86 @@ export function WorkerDocCapturePage() {
                                         <option value="XXXL(56)">XXXL(56)</option>
                                     </select>
                                 </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Información Bancaria / IBAN */}
+                    <Card className="bg-slate-900 border-slate-800">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-100">
+                                    <CreditCard className="h-5 w-5 text-indigo-400" />
+                                    Información Bancaria / IBAN
+                                </CardTitle>
+                                <Badge variant="secondary" className="bg-indigo-950 text-indigo-300 border border-indigo-800">Requerido</Badge>
+                            </div>
+                            <CardDescription className="text-slate-400 text-xs mt-1">
+                                Proporcione los datos de la cuenta bancaria donde se realizarán los pagos de su salario.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {/* Aviso informativo solicitado pelo usuário */}
+                            <div className="p-3 bg-indigo-950/60 border border-indigo-800/80 rounded-lg text-xs text-indigo-200 flex items-start gap-2">
+                                <Sparkles className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
+                                <span>
+                                    <strong>El IBAN es el número internacional de tu cuenta bancaria. La cuenta debe estar en euros.</strong>
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Nombre del Banco / Entidad</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.banco} 
+                                        onChange={(e) => setFormData({ ...formData, banco: e.target.value })} 
+                                        placeholder="Ej: Santander, CaixaBank, Revolut, BBVA" 
+                                        className="w-full h-10 px-3 py-2 border border-slate-800 rounded-lg bg-slate-950 text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Número de IBAN</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.iban} 
+                                        onChange={(e) => setFormData({ ...formData, iban: e.target.value.toUpperCase() })} 
+                                        placeholder="Ej: ES91 2100 0418 4502 0005 1234" 
+                                        className="w-full h-10 px-3 py-2 border border-slate-800 rounded-lg bg-slate-950 text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-300 block mb-1">Comprobante de Titularidad del IBAN / Justificante Bancario</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*,application/pdf" 
+                                    ref={inputRefs.iban}
+                                    onChange={(e) => handleFileUpload(e, 'iban')}
+                                    className="hidden"
+                                />
+                                {!ibanUrl ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => inputRefs.iban.current?.click()}
+                                        className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                    >
+                                        <UploadCloud className="h-6 w-6 text-slate-500" />
+                                        <span className="text-sm font-medium">Adjuntar Comprobante del IBAN (Foto o PDF)</span>
+                                    </button>
+                                ) : (
+                                    <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-9 w-9 rounded bg-emerald-500/10 flex items-center justify-center"><CheckCircle2 className="h-5 w-5 text-emerald-500" /></div>
+                                            <div>
+                                                <span className="text-xs text-slate-400 block font-medium">Comprobante de IBAN Cargado</span>
+                                                <span className="text-xs text-emerald-400 font-semibold">{formData.banco || 'Documento bancario listo'}</span>
+                                            </div>
+                                        </div>
+                                        <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.iban.current?.click()}>Alterar</Button>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

@@ -81,7 +81,7 @@ export function DocumentacionTasksPage() {
     const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
     const [verifying, setVerifying] = useState(false);
-    const [activeDocTab, setActiveDocTab] = useState<'identity' | 'nif' | 'niss' | 'license' | 'selfie'>('identity');
+    const [activeDocTab, setActiveDocTab] = useState<'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie'>('identity');
     const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
     const [verifyFormData, setVerifyFormData] = useState({
         nome: '',
@@ -94,6 +94,8 @@ export function DocumentacionTasksPage() {
         contacto_emergencia_telefono: '',
         talla_camisa: '',
         talla_pantalon: '',
+        banco: '',
+        iban: '',
         nif: '',
         niss: '',
         nie: '',
@@ -993,6 +995,8 @@ Equipo de Contratación`;
             contacto_emergencia_telefono: data.contacto_emergencia_telefono || '',
             talla_camisa: data.talla_camisa || '',
             talla_pantalon: data.talla_pantalon || '',
+            banco: data.banco || '',
+            iban: data.iban || req.worker?.iban || '',
             nif: data.nif || '',
             niss: data.niss || '',
             nie: data.nie || '',
@@ -1015,6 +1019,7 @@ Equipo de Contratación`;
         else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
         else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
         else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'iban') path = selectedRequest.iban_url || (selectedRequest.extracted_data?.iban_url) || '';
         else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
 
         if (!path) {
@@ -1046,6 +1051,7 @@ Equipo de Contratación`;
         else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
         else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
         else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'iban') path = selectedRequest.iban_url || (selectedRequest.extracted_data?.iban_url) || '';
         else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
 
         if (!path) {
@@ -1084,6 +1090,7 @@ Equipo de Contratación`;
             { label: 'NIF', path: selectedRequest.nif_url },
             { label: 'NISS', path: selectedRequest.niss_url },
             { label: 'Carta_Conducao', path: selectedRequest.license_url },
+            { label: 'Comprovativo_IBAN', path: selectedRequest.iban_url || selectedRequest.extracted_data?.iban_url },
             { label: 'Selfie', path: selectedRequest.selfie_url },
         ].filter(d => Boolean(d.path));
 
@@ -1141,6 +1148,7 @@ Equipo de Contratación`;
                 address_line: verifyFormData.direccion_actual || undefined,
                 morada_contrato: verifyFormData.morada_contrato || undefined,
                 notes: emergencyNotes || undefined,
+                iban: verifyFormData.iban || undefined,
                 nif: verifyFormData.nif,
                 niss: verifyFormData.niss,
                 nie: verifyFormData.nie,
@@ -2287,6 +2295,13 @@ Equipo de Contratación`;
                                     </button>
                                     <button 
                                         type="button"
+                                        onClick={() => setActiveDocTab('iban')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'iban' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        IBAN
+                                    </button>
+                                    <button 
+                                        type="button"
                                         onClick={() => setActiveDocTab('selfie')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'selfie' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
@@ -2320,6 +2335,17 @@ Equipo de Contratación`;
                                         <div>
                                             <Label className="text-xs">Nome Completo</Label>
                                             <Input required value={verifyFormData.nome} onChange={(e) => setVerifyFormData({ ...verifyFormData, nome: e.target.value })} />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <Label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Banco / Entidade</Label>
+                                                <Input value={verifyFormData.banco} onChange={(e) => setVerifyFormData({ ...verifyFormData, banco: e.target.value })} placeholder="Ex: Santander, Revolut" />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Número de IBAN</Label>
+                                                <Input value={verifyFormData.iban} onChange={(e) => setVerifyFormData({ ...verifyFormData, iban: e.target.value })} placeholder="Ex: ES91 2100..." className="font-mono text-xs" />
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">

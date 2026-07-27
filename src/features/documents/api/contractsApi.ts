@@ -211,6 +211,7 @@ export interface DocumentRequest {
     nif_url: string | null;
     niss_url: string | null;
     license_url: string | null;
+    iban_url: string | null;
     selfie_url: string | null;
     extracted_data: any;
     expires_at: string;
@@ -233,6 +234,7 @@ export interface DocumentRequest {
         licencia_conducir?: string;
         nacionalidade?: string;
         fecha_nacimiento?: string;
+        iban?: string;
         assignments?: Array<{
             id: string;
             status: string;
@@ -476,6 +478,7 @@ export async function approveDocumentRequest(
         licencia_conducir?: string;
         nacionalidade?: string;
         fecha_nacimiento?: string;
+        iban?: string;
         foto?: string;
     }
 ): Promise<void> {
