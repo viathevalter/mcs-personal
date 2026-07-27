@@ -153,6 +153,11 @@ export function ProposalSigningPage() {
                         console.warn("Contrato não encontrado ou erro no download:", contractErr);
                     }
                 }
+
+                // Definir a aba inicial ativa dinamicamente
+                if (!data.document_url && data.contract_document_url) {
+                    setActiveTab('contract');
+                }
             } catch (err: any) {
                 console.error("Erro ao carregar proposta:", err);
                 toast.error(t('signing.errorDescProposal'));
@@ -752,16 +757,18 @@ export function ProposalSigningPage() {
                 <main className="flex-1 flex flex-col overflow-hidden bg-slate-900/40 border-r border-slate-900">
                     {/* Seletor de Abas Premium */}
                     <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 flex gap-4">
-                        <button
-                            onClick={() => setActiveTab('proposal')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide transition duration-150 ${
-                                activeTab === 'proposal'
-                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/10'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                            }`}
-                        >
-                            <FileText className="h-4 w-4" /> {t('signing.tabProposal')}
-                        </button>
+                        {proposalBlob && (
+                            <button
+                                onClick={() => setActiveTab('proposal')}
+                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide transition duration-150 ${
+                                    activeTab === 'proposal'
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/10'
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                                }`}
+                            >
+                                <FileText className="h-4 w-4" /> {t('signing.tabProposal')}
+                            </button>
+                        )}
                         {contractBlob && (
                             <button
                                 onClick={() => setActiveTab('contract')}

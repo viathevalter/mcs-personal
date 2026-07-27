@@ -129,7 +129,12 @@ export async function signProposal(payload: SignProposalPayload): Promise<{ succ
     return data;
 }
 
-export async function generateProposal(estimacionId: string, email?: string): Promise<{
+export async function generateProposal(
+    estimacionId: string, 
+    email?: string,
+    includeProposal: boolean = true,
+    includeContract: boolean = true
+): Promise<{
     success: boolean;
     proposal_signature_id: string;
     signature_token: string;
@@ -138,7 +143,12 @@ export async function generateProposal(estimacionId: string, email?: string): Pr
     email_sent: boolean;
 }> {
     const { data, error } = await supabase.functions.invoke('generate-proposal', {
-        body: { estimacion_id: estimacionId, client_email: email },
+        body: { 
+            estimacion_id: estimacionId, 
+            client_email: email,
+            include_proposal: includeProposal,
+            include_contract: includeContract
+        },
     });
 
     if (error) {

@@ -75,8 +75,18 @@ export function useEstimacionMutations() {
   });
 
   const enviarProposta = useMutation({
-    mutationFn: async ({ estimacionId, email }: { estimacionId: string; email?: string }) => {
-      return await generateProposal(estimacionId, email);
+    mutationFn: async ({ 
+      estimacionId, 
+      email, 
+      includeProposal = true, 
+      includeContract = true 
+    }: { 
+      estimacionId: string; 
+      email?: string; 
+      includeProposal?: boolean; 
+      includeContract?: boolean;
+    }) => {
+      return await generateProposal(estimacionId, email, includeProposal, includeContract);
     },
     onSuccess: (data, variables) => {
       toast.success('Proposta comercial enviada!', {

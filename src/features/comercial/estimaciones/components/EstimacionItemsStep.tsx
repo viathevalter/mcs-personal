@@ -14,6 +14,7 @@ import { useClientSites } from '@/features/master-data/client-sites/hooks/useCli
 import { useCountries } from '@/features/master-data/locations/hooks/useLocations';
 import { useLodgingRates } from '../hooks/useLodgingRates';
 import { useCountryTaxParameters } from '../hooks/useCountryTaxParameters';
+import { useClientTariffs } from '@/features/master-data/clients/hooks/useClients';
 
 interface Props {
   data: any;
@@ -290,6 +291,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   const { data: countries = [] } = useCountries();
   const { data: lodgingRates = [] } = useLodgingRates();
   const { data: taxParams = [] } = useCountryTaxParameters();
+  const { data: clientTariffs = [] } = useClientTariffs(data.client_id);
 
   let postalCode = '';
   if (data.lead_id) {
@@ -457,7 +459,25 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
 
     if (rateToUse) {
       setNewBaseCost(Number(rateToUse.base_cost_hour));
-      setNewSellRate(Number(rateToUse.recommended_sell_rate_hour));
+      
+      // Procurar tarifa acordada do cliente (específica da obra ou global)
+      let clientRate = null;
+      if (data.client_id && clientTariffs && clientTariffs.length > 0) {
+        if (data.client_site_id) {
+          const siteTariff = clientTariffs.find(
+            (t: any) => t.job_function_id === val && t.client_site_id === data.client_site_id
+          );
+          if (siteTariff) clientRate = Number(siteTariff.valor_tarifa);
+        }
+        if (clientRate === null) {
+          const globalTariff = clientTariffs.find(
+            (t: any) => t.job_function_id === val && (!t.client_site_id || t.client_site_id === 'global')
+          );
+          if (globalTariff) clientRate = Number(globalTariff.valor_tarifa);
+        }
+      }
+
+      setNewSellRate(clientRate !== null ? clientRate : Number(rateToUse.recommended_sell_rate_hour));
     } else {
       setNewBaseCost(0);
       setNewSellRate(0);
@@ -884,6 +904,23 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     .filter((c: any) => c.id === 'auto-zentralcom')
     .reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
 
+  // Obter tarifa acordada para a função selecionada no formulário de adição
+  let matchedClientTariff: number | null = null;
+  if (data.client_id && clientTariffs && clientTariffs.length > 0 && newJobFunctionId) {
+    if (data.client_site_id) {
+      const siteTariff = clientTariffs.find(
+        (t: any) => t.job_function_id === newJobFunctionId && t.client_site_id === data.client_site_id
+      );
+      if (siteTariff) matchedClientTariff = Number(siteTariff.valor_tarifa);
+    }
+    if (matchedClientTariff === null) {
+      const globalTariff = clientTariffs.find(
+        (t: any) => t.job_function_id === newJobFunctionId && (!t.client_site_id || t.client_site_id === 'global')
+      );
+      if (globalTariff) matchedClientTariff = Number(globalTariff.valor_tarifa);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1135,6 +1172,11 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
               />
               <span className="absolute right-2 text-xs text-slate-450 font-mono">€</span>
             </div>
+            {matchedClientTariff !== null && (
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mt-1">
+                Tarifa acordada: €{matchedClientTariff.toFixed(2)}/h
+              </span>
+            )}
           </div>
 
           {/* Seguridade Social */}
@@ -1203,6 +1245,22 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                     || jfRates.find((r: any) => r.country_id === data.country_id)
                     || jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId)
                     || jfRates.find((r: any) => r.country_id === null || !r.country_id);
+
+                  let itemClientTariff = null;
+                  if (data.client_id && clientTariffs && clientTariffs.length > 0) {
+                    if (data.client_site_id) {
+                      const siteTariff = clientTariffs.find(
+                        (t: any) => t.job_function_id === item.job_function_id && t.client_site_id === data.client_site_id
+                      );
+                      if (siteTariff) itemClientTariff = Number(siteTariff.valor_tarifa);
+                    }
+                    if (itemClientTariff === null) {
+                      const globalTariff = clientTariffs.find(
+                        (t: any) => t.job_function_id === item.job_function_id && (!t.client_site_id || t.client_site_id === 'global')
+                      );
+                      if (globalTariff) itemClientTariff = Number(globalTariff.valor_tarifa);
+                    }
+                  }
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors duration-150">
@@ -1291,14 +1349,24 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                           />
                           <span className="absolute right-2 text-[10px] text-slate-450 font-mono">€</span>
                         </div>
-                        {rateToUse && (
-                          <div className="text-[9px] text-slate-400 pl-0.5 leading-normal max-w-[110px]">
-                            {Number(item.base_cost_hour) === Number(rateToUse.base_cost_hour) && Number(item.sell_rate_hour) === Number(rateToUse.recommended_sell_rate_hour) ? (
-                              <span className="text-blue-500 font-medium">{t('comercial.stepItems.sellRateDefault', { defaultValue: '✓ Padrão' })}</span>
+                        {itemClientTariff !== null ? (
+                          <div className="text-[9.5px] font-semibold text-emerald-600 dark:text-emerald-400 pl-0.5 leading-normal max-w-[110px]">
+                            {Number(item.sell_rate_hour) === itemClientTariff ? (
+                              <span>✓ Acordado</span>
                             ) : (
-                              <span>{t('comercial.stepItems.sellRateStandard', { rate: Number(rateToUse.recommended_sell_rate_hour).toFixed(1), defaultValue: 'Padrão Venda: €{{rate}}/h' })}</span>
+                              <span>Acordado: €{itemClientTariff.toFixed(2)}/h</span>
                             )}
                           </div>
+                        ) : (
+                          rateToUse && (
+                            <div className="text-[9px] text-slate-400 pl-0.5 leading-normal max-w-[110px]">
+                              {Number(item.base_cost_hour) === Number(rateToUse.base_cost_hour) && Number(item.sell_rate_hour) === Number(rateToUse.recommended_sell_rate_hour) ? (
+                                <span className="text-blue-500 font-medium">{t('comercial.stepItems.sellRateDefault', { defaultValue: '✓ Padrão' })}</span>
+                              ) : (
+                                <span>{t('comercial.stepItems.sellRateStandard', { rate: Number(rateToUse.recommended_sell_rate_hour).toFixed(1), defaultValue: 'Padrão Venda: €{{rate}}/h' })}</span>
+                              )}
+                            </div>
+                          )
                         )}
                       </td>
 

@@ -146,7 +146,6 @@ async function sendMailViaGraph(
     return { success: false, error: `Exception: ${err.message || err}` };
   }
 }
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -159,11 +158,18 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { estimacion_id, client_email } = await req.json();
+    const { estimacion_id, client_email, include_proposal = true, include_contract = true } = await req.json();
 
     if (!estimacion_id) {
       return new Response(
         JSON.stringify({ error: "Parâmetro estimacion_id é obrigatório." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!include_proposal && !include_contract) {
+      return new Response(
+        JSON.stringify({ error: "Pelo menos um documento (proposta ou contrato) deve ser selecionado." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -345,14 +351,6 @@ serve(async (req) => {
       throw new Error(`Template padrão fallback ${fallbackName} não encontrado em proposal-templates. Por favor faça upload.`);
     }
 
-    // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
-    console.log(`Iniciando carregamento do template de proposta no idioma: ${docLang}`);
-    const templateBlob = await loadTemplate('proposta', docLang);
-    let templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
-    templateBuffer = await normalizeDocxTemplates(templateBuffer);
-
-
-
     // 6. Mesclar os dados usando docx-templates
     const mergeData = {
       empresa_nome: empresa.legal_name || empresa.trade_name || "",
@@ -406,7 +404,7 @@ serve(async (req) => {
       CLIENTE_MORADA: clientAddress || "",
       PRESTADORA_NIF: empresa.tax_id || empresa.vat_id || "",
       PRESTADORA_MORADA: empresa.address_line || "",
-      EPI_DESCRIPCION: "EPI básicos (calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco).",
+      EPI_DESCRIPCION: "EPI básicos (calzado de seguridad, uniforme de trabalho, protectores auditivos, gafas de protección y casco).",
       NOTA_EPI: "Cualquier equipo especial o protección específica para a obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
       EPI_NOTA: "Cualquier equipo especial o protección específica para la obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
       
@@ -426,69 +424,22 @@ serve(async (req) => {
       WEB_EMPRESA: "www.stoco.es",
     };
 
-    console.log("Gerando proposta preenchida...");
-    const generatedDoc = await createReport({
-      template: templateBuffer,
-      data: mergeData,
-      cmdDelimiter: ["{{", "}}"],
-      noSandbox: true,
-      errorHandler: (err, command_code) => {
-        console.error(`Erro ao processar tag proposta "${command_code}":`, err);
-        let code = command_code;
-        if ((!code || code === "undefined") && err && err.message) {
-          const matchSpace = err.message.match(/Error executing command '(IMAGE\s+([^']+))'/i) || 
-                             err.message.match(/Invalid command syntax: (IMAGE\s+([^']+))/i);
-          if (matchSpace) {
-            code = matchSpace[1];
-          } else {
-            const matchColon = err.message.match(/Error executing command '(IMAGE:([^']+))'/i) || 
-                               err.message.match(/Invalid command syntax: (IMAGE:([^']+))/i);
-            if (matchColon) {
-              code = `IMAGE ${matchColon[2]}`;
-            } else {
-              const matchGeneral = err.message.match(/Invalid command syntax: (.*)/);
-              if (matchGeneral) {
-                code = matchGeneral[1];
-              }
-            }
-          }
-        }
-        if (!code) return "";
-        const codeUpper = code.toUpperCase();
-        if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
-          const cleanCode = code.replace("IMAGE:", "IMAGE ");
-          return `{{${cleanCode}}}`;
-        }
-        return "";
-      }
-    });
+    let generatedDoc;
+    if (include_proposal) {
+      // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
+      console.log(`Iniciando carregamento do template de proposta no idioma: ${docLang}`);
+      const templateBlob = await loadTemplate('proposta', docLang);
+      let templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
+      templateBuffer = await normalizeDocxTemplates(templateBuffer);
 
-    let generatedContractDoc;
-    if (est.custom_contract_url) {
-      console.log(`Buscando contrato personalizado carregado em: ${est.custom_contract_url}`);
-      const { data: customBlob, error: customErr } = await supabase.storage
-        .from("proposal-templates")
-        .download(est.custom_contract_url);
-        
-      if (customErr || !customBlob) {
-        throw new Error(`Falha ao carregar o contrato personalizado do storage: ${customErr?.message || 'Arquivo não encontrado'}`);
-      }
-      generatedContractDoc = new Uint8Array(await customBlob.arrayBuffer());
-    } else {
-      // Baixar o template DOCX do contrato do storage 'proposal-templates'
-      console.log(`Iniciando carregamento do template de contrato no idioma: ${docLang}`);
-      const contractTemplateBlob = await loadTemplate('contrato', docLang);
-      let contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
-      contractTemplateBuffer = await normalizeDocxTemplates(contractTemplateBuffer);
-
-      console.log("Gerando contrato preenchido...");
-      generatedContractDoc = await createReport({
-        template: contractTemplateBuffer,
+      console.log("Gerando proposta preenchida...");
+      generatedDoc = await createReport({
+        template: templateBuffer,
         data: mergeData,
         cmdDelimiter: ["{{", "}}"],
         noSandbox: true,
         errorHandler: (err, command_code) => {
-          console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+          console.error(`Erro ao processar tag proposta "${command_code}":`, err);
           let code = command_code;
           if ((!code || code === "undefined") && err && err.message) {
             const matchSpace = err.message.match(/Error executing command '(IMAGE\s+([^']+))'/i) || 
@@ -519,29 +470,93 @@ serve(async (req) => {
       });
     }
 
-    // 7. Salvar ambos no bucket 'proposal-signatures'
-    const docPath = `${est.id}/proposta_${Date.now()}.docx`;
-    const { error: uploadErr } = await supabase.storage
-      .from("proposal-signatures")
-      .upload(docPath, generatedDoc, {
-        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        upsert: true,
-      });
+    let generatedContractDoc;
+    if (include_contract) {
+      if (est.custom_contract_url) {
+        console.log(`Buscando contrato personalizado carregado em: ${est.custom_contract_url}`);
+        const { data: customBlob, error: customErr } = await supabase.storage
+          .from("proposal-templates")
+          .download(est.custom_contract_url);
+          
+        if (customErr || !customBlob) {
+          throw new Error(`Falha ao carregar o contrato personalizado do storage: ${customErr?.message || 'Arquivo não encontrado'}`);
+        }
+        generatedContractDoc = new Uint8Array(await customBlob.arrayBuffer());
+      } else {
+        // Baixar o template DOCX do contrato do storage 'proposal-templates'
+        console.log(`Iniciando carregamento do template de contrato no idioma: ${docLang}`);
+        const contractTemplateBlob = await loadTemplate('contrato', docLang);
+        let contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
+        contractTemplateBuffer = await normalizeDocxTemplates(contractTemplateBuffer);
 
-    if (uploadErr) {
-      throw new Error(`Falha ao salvar proposta gerada no storage: ${uploadErr.message}`);
+        console.log("Gerando contrato preenchido...");
+        generatedContractDoc = await createReport({
+          template: contractTemplateBuffer,
+          data: mergeData,
+          cmdDelimiter: ["{{", "}}"],
+          noSandbox: true,
+          errorHandler: (err, command_code) => {
+            console.error(`Erro ao processar tag contrato "${command_code}":`, err);
+            let code = command_code;
+            if ((!code || code === "undefined") && err && err.message) {
+              const matchSpace = err.message.match(/Error executing command '(IMAGE\s+([^']+))'/i) || 
+                                 err.message.match(/Invalid command syntax: (IMAGE\s+([^']+))/i);
+              if (matchSpace) {
+                code = matchSpace[1];
+              } else {
+                const matchColon = err.message.match(/Error executing command '(IMAGE:([^']+))'/i) || 
+                                   err.message.match(/Invalid command syntax: (IMAGE:([^']+))/i);
+                if (matchColon) {
+                  code = `IMAGE ${matchColon[2]}`;
+                } else {
+                  const matchGeneral = err.message.match(/Invalid command syntax: (.*)/);
+                  if (matchGeneral) {
+                    code = matchGeneral[1];
+                  }
+                }
+              }
+            }
+            if (!code) return "";
+            const codeUpper = code.toUpperCase();
+            if (codeUpper.includes("FIRMA") || codeUpper.includes("SIGNATURE")) {
+              const cleanCode = code.replace("IMAGE:", "IMAGE ");
+              return `{{${cleanCode}}}`;
+            }
+            return "";
+          }
+        });
+      }
     }
 
-    const contractDocPath = `${est.id}/contrato_${Date.now()}.docx`;
-    const { error: uploadContractErr } = await supabase.storage
-      .from("proposal-signatures")
-      .upload(contractDocPath, generatedContractDoc, {
-        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        upsert: true,
-      });
+    // 7. Salvar no bucket 'proposal-signatures'
+    let docPath = null;
+    if (include_proposal && generatedDoc) {
+      docPath = `${est.id}/proposta_${Date.now()}.docx`;
+      const { error: uploadErr } = await supabase.storage
+        .from("proposal-signatures")
+        .upload(docPath, generatedDoc, {
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: true,
+        });
 
-    if (uploadContractErr) {
-      throw new Error(`Falha ao salvar contrato gerado no storage: ${uploadContractErr.message}`);
+      if (uploadErr) {
+        throw new Error(`Falha ao salvar proposta gerada no storage: ${uploadErr.message}`);
+      }
+    }
+
+    let contractDocPath = null;
+    if (include_contract && generatedContractDoc) {
+      contractDocPath = `${est.id}/contrato_${Date.now()}.docx`;
+      const { error: uploadContractErr } = await supabase.storage
+        .from("proposal-signatures")
+        .upload(contractDocPath, generatedContractDoc, {
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: true,
+        });
+
+      if (uploadContractErr) {
+        throw new Error(`Falha ao salvar contrato gerado no storage: ${uploadContractErr.message}`);
+      }
     }
 
     // 8. Gerar OTP e signature token
@@ -603,49 +618,114 @@ serve(async (req) => {
       let subject = "";
       let htmlContent = "";
 
+      let docsDescriptionPt = "";
+      let docsDescriptionEs = "";
+      let docsDescriptionEn = "";
+      let docsDescriptionIt = "";
+      let docsDescriptionFr = "";
+
+      let linkTextPt = "";
+      let linkTextEs = "";
+      let linkTextEn = "";
+      let linkTextIt = "";
+      let linkTextFr = "";
+
+      if (include_proposal && include_contract) {
+        subject = lang === "es" ? `Propuesta y Contrato Comercial ${est.codigo} - ${empresa.trade_name}`
+                : lang === "en" ? `Commercial Proposal and Contract ${est.codigo} - ${empresa.trade_name}`
+                : lang === "it" ? `Proposta Commerciale e Contratto ${est.codigo} - ${empresa.trade_name}`
+                : lang === "fr" ? `Proposition Commerciale et Contrat ${est.codigo} - ${empresa.trade_name}`
+                : `Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+
+        docsDescriptionPt = "enviou a proposta comercial e o respectivo contrato para sua análise. Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica de ambos os documentos de forma unificada";
+        docsDescriptionEs = "ha enviado la propuesta comercial y el contrato correspondiente para su revisión. Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica de ambos documentos de forma unificada";
+        docsDescriptionEn = "has sent the commercial proposal and the respective contract for your review. Please click on the link below to read the terms and complete the electronic signature of both documents in a unified way";
+        docsDescriptionIt = "ha inviato la proposta commerciale e il relativo contratto per la tua revisione. Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica di entrambi i documenti in modo unificato";
+        docsDescriptionFr = "a envoyé la proposition commerciale et le contrat respectif pour votre examen. Veuillez cliquer sur le link ci-dessous pour lire les termes et procéder à la signature électronique des dos documents de manière unifiée";
+
+        linkTextPt = "Visualizar e Assinar Documentos";
+        linkTextEs = "Visualizar y Firmar Documentos";
+        linkTextEn = "View and Sign Documents";
+        linkTextIt = "Visualizza e Firma Documenti";
+        linkTextFr = "Visualiser et Signer les Documents";
+      } else if (include_contract) {
+        subject = lang === "es" ? `Contrato Comercial ${est.codigo} - ${empresa.trade_name}`
+                : lang === "en" ? `Commercial Contract ${est.codigo} - ${empresa.trade_name}`
+                : lang === "it" ? `Contratto Commerciale ${est.codigo} - ${empresa.trade_name}`
+                : lang === "fr" ? `Contrat Comercial ${est.codigo} - ${empresa.trade_name}`
+                : `Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
+
+        docsDescriptionPt = "enviou o contrato comercial para sua análise. Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica do documento";
+        docsDescriptionEs = "ha enviado el contrato correspondiente para su revisión. Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica del documento";
+        docsDescriptionEn = "has sent the contract for your review. Please click on the link below to read the terms and complete the electronic signature of the document";
+        docsDescriptionIt = "ha inviato il relativo contratto per la tua revisione. Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica del documento";
+        docsDescriptionFr = "a envoyé le contrat respectif pour votre examen. Veuillez cliquer sur le link ci-dessous pour lire les termes et procéder à la signature électronique du document";
+
+        linkTextPt = "Visualizar e Assinar Contrato";
+        linkTextEs = "Visualizar y Firmar Contrato";
+        linkTextEn = "View and Sign Contract";
+        linkTextIt = "Visualizza e Firma Contratto";
+        linkTextFr = "Visualiser et Signer le Contrat";
+      } else {
+        // Only proposal
+        subject = lang === "es" ? `Propuesta Comercial ${est.codigo} - ${empresa.trade_name}`
+                : lang === "en" ? `Commercial Proposal ${est.codigo} - ${empresa.trade_name}`
+                : lang === "it" ? `Proposta Comercial ${est.codigo} - ${empresa.trade_name}`
+                : lang === "fr" ? `Proposition Commerciale ${est.codigo} - ${empresa.trade_name}`
+                : `Proposta Comercial ${est.codigo} - ${empresa.trade_name}`;
+
+        docsDescriptionPt = "enviou a proposta comercial para sua análise. Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica do documento";
+        docsDescriptionEs = "ha enviado la propuesta comercial para su revisión. Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica del documento";
+        docsDescriptionEn = "has sent the commercial proposal for your review. Please click on the link below to read the terms and complete the electronic signature of the document";
+        docsDescriptionIt = "ha inviato la proposta commerciale per la tua revisione. Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica del documento";
+        docsDescriptionFr = "a envoyé la proposition commerciale pour votre examen. Veuillez cliquer sur le link ci-dessous pour lire les termes et procéder à la signature électronique du document";
+
+        linkTextPt = "Visualizar e Assinar Proposta";
+        linkTextEs = "Visualizar y Firmar Propuesta";
+        linkTextEn = "View and Sign Proposal";
+        linkTextIt = "Visualizza e Firma Proposta";
+        linkTextFr = "Visualiser et Signer la Proposition";
+      }
+
       if (lang === "es") {
-        subject = `Propuesta y Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>¡Hola, ${targetName}!</h2>
-          <p>La empresa <strong>${empresa.trade_name}</strong> ha enviado la propuesta comercial y el contrato correspondiente para su revisión.</p>
-          <p>Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica de ambos documentos de forma unificada:</p>
-          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar y Firmar Documentos</a></p>
+          <p>La empresa <strong>${empresa.trade_name}</strong> ${docsDescriptionEs}.</p>
+          <p>Por favor, haga clic en el enlace a continuación para leer los términos y realizar la firma electrónica del documento:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">${linkTextEs}</a></p>
           <br/>
           <p>Su código de validación OTP es: <strong>${otpCode}</strong></p>
           <p>Este enlace y el código expiran en 48 horas.</p>
           <p>Si tiene alguna duda, responda directamente a este correo electrónico.</p>
         `;
       } else if (lang === "en") {
-        subject = `Commercial Proposal and Contract ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>Hello, ${targetName}!</h2>
-          <p>The company <strong>${empresa.trade_name}</strong> has sent the commercial proposal and the respective contract for your review.</p>
-          <p>Please click on the link below to read the terms and complete the electronic signature of both documents in a unified way:</p>
-          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">View and Sign Documents</a></p>
+          <p>The company <strong>${empresa.trade_name}</strong> ${docsDescriptionEn}.</p>
+          <p>Please click on the link below to read the terms and complete the electronic signature of the document:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">${linkTextEn}</a></p>
           <br/>
           <p>Your OTP validation code is: <strong>${otpCode}</strong></p>
           <p>This link and code expire in 48 hours.</p>
           <p>If you have any questions, please reply directly to this email.</p>
         `;
       } else if (lang === "it") {
-        subject = `Proposta Commerciale e Contratto ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>Ciao, ${targetName}!</h2>
-          <p>La società <strong>${empresa.trade_name}</strong> ha inviato la proposta commerciale e il relativo contratto per la tua revisione.</p>
-          <p>Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica di entrambi i documenti in modo unificato:</p>
-          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizza e Firma Documenti</a></p>
+          <p>La società <strong>${empresa.trade_name}</strong> ${docsDescriptionIt}.</p>
+          <p>Per favore, clicca sul link sottostante per leggere i termini ed effettuare la firma elettronica del documento:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">${linkTextIt}</a></p>
           <br/>
           <p>Il tuo codice di validazione OTP è: <strong>${otpCode}</strong></p>
           <p>Questo link e il codice scadono tra 48 ore.</p>
           <p>Se hai domande, rispondi direttamente a questa email.</p>
         `;
       } else if (lang === "fr") {
-        subject = `Proposition Commerciale et Contrat ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>Bonjour, ${targetName}!</h2>
-          <p>L'entreprise <strong>${empresa.trade_name}</strong> a envoyé la proposition commerciale et le contrat respectif pour votre examen.</p>
-          <p>Veuillez cliquer sur le lien ci-dessous pour lire les termes et procéder à la signature électronique des deux documents de manière unifiée :</p>
-          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualiser et Signer les Documents</a></p>
+          <p>L'entreprise <strong>${empresa.trade_name}</strong> ${docsDescriptionFr}.</p>
+          <p>Veuillez cliquer sur le lien ci-dessous pour lire les termes et procéder à la signature électronique du document :</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">${linkTextFr}</a></p>
           <br/>
           <p>Votre code de validation OTP est : <strong>${otpCode}</strong></p>
           <p>Ce lien et le code expirent dans 48 heures.</p>
@@ -653,12 +733,11 @@ serve(async (req) => {
         `;
       } else {
         // Default: pt
-        subject = `Proposta e Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>Olá, ${targetName}!</h2>
-          <p>A empresa <strong>${empresa.trade_name}</strong> enviou a proposta comercial e o respectivo contrato para sua análise.</p>
-          <p>Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica de ambos os documentos de forma unificada:</p>
-          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Documentos</a></p>
+          <p>A empresa <strong>${empresa.trade_name}</strong> ${docsDescriptionPt}.</p>
+          <p>Por favor, clique no link abaixo para ler os termos e realizar a assinatura eletrônica do documento:</p>
+          <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">${linkTextPt}</a></p>
           <br/>
           <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
           <p>Este link e o código expiram em 48 horas.</p>

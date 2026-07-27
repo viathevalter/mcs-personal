@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/shared/supabase/client';
 import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { 
@@ -29,6 +30,9 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     setEmailInput(initialEmail);
   }, [initialEmail]);
 
+  const [includeProposal, setIncludeProposal] = useState(true);
+  const [includeContract, setIncludeContract] = useState(true);
+
   const sig = estimacion.proposal_signature;
   let status = sig?.status || 'draft';
   if (status === 'expired' || status === 'cancelled' || status === 'rejected' || estimacion.status === 'draft') {
@@ -48,7 +52,12 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleSendOrRecreate = () => {
-    enviarProposta.mutate({ estimacionId: estimacion.id, email: emailInput });
+    enviarProposta.mutate({ 
+      estimacionId: estimacion.id, 
+      email: emailInput,
+      includeProposal,
+      includeContract
+    });
   };
 
   const handleDownloadDoc = async () => {
@@ -222,8 +231,8 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               : 'Gere a proposta em formato Microsoft Word baseada neste orçamento e envie o link de assinatura para o cliente.'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-2">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm mb-4 space-y-3">
+        <CardContent className="pt-2 space-y-4">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm space-y-3">
             <div className="flex items-center gap-2 text-slate-700 dark:text-slate-350">
               <Mail className="h-4 w-4 text-indigo-500" />
               <span className="font-semibold">E-mail de Envio:</span>
@@ -240,6 +249,46 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 * Nenhum e-mail informado. A proposta será gerada e o processo avançará, permitindo copiar o link de assinatura para enviar por WhatsApp.
               </p>
             )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm space-y-3">
+            <div className="text-xs font-semibold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+              Documentos a Incluir:
+            </div>
+            <div className="flex flex-col gap-2.5 pt-1">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="include-proposal-draft" 
+                  checked={includeProposal} 
+                  onCheckedChange={(checked: boolean) => {
+                    if (!checked && !includeContract) return;
+                    setIncludeProposal(checked);
+                  }}
+                />
+                <label
+                  htmlFor="include-proposal-draft"
+                  className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  Propuesta Comercial (Pressuposto)
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="include-contract-draft" 
+                  checked={includeContract} 
+                  onCheckedChange={(checked: boolean) => {
+                    if (!checked && !includeProposal) return;
+                    setIncludeContract(checked);
+                  }}
+                />
+                <label
+                  htmlFor="include-contract-draft"
+                  className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  Contrato Comercial
+                </label>
+              </div>
+            </div>
           </div>
           
           {isUnderReview ? (
@@ -346,19 +395,61 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 </p>
               )}
             </div>
+
+            <div className="space-y-2 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[11px] font-semibold text-slate-500">
+                Documentos a Incluir no Reenvio:
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="include-proposal-pending" 
+                    checked={includeProposal} 
+                    onCheckedChange={(checked: boolean) => {
+                      if (!checked && !includeContract) return;
+                      setIncludeProposal(checked);
+                    }}
+                  />
+                  <label
+                    htmlFor="include-proposal-pending"
+                    className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                  >
+                    Propuesta Comercial (Pressuposto)
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="include-contract-pending" 
+                    checked={includeContract} 
+                    onCheckedChange={(checked: boolean) => {
+                      if (!checked && !includeProposal) return;
+                      setIncludeContract(checked);
+                    }}
+                  />
+                  <label
+                    htmlFor="include-contract-pending"
+                    className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                  >
+                    Contrato Comercial
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2.5">
             <div className="flex space-x-3">
-              <Button 
-                variant="outline"
-                className="flex-1"
-                onClick={handleDownloadDoc}
-                disabled={downloading}
-              >
-                {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Baixar Proposta
-              </Button>
+              {sig?.document_url && (
+                <Button 
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleDownloadDoc}
+                  disabled={downloading}
+                >
+                  {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Baixar Proposta
+                </Button>
+              )}
               {sig?.contract_document_url && (
                 <Button 
                   variant="outline"
@@ -446,15 +537,17 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </div>
 
           <div className="flex flex-col gap-2.5">
-            <Button 
-              variant="outline"
-              className="w-full"
-              onClick={handleDownloadDoc}
-              disabled={downloading}
-            >
-              {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Baixar Cópia da Proposta Assinada (PDF)
-            </Button>
+            {sig?.document_url && (
+              <Button 
+                variant="outline"
+                className="w-full"
+                onClick={handleDownloadDoc}
+                disabled={downloading}
+              >
+                {downloading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Baixar Cópia da Proposta Assinada (PDF)
+              </Button>
+            )}
             {(sig?.contract_document_url || sig?.contract_signed_document_url) && (
               <Button 
                 variant="outline"
