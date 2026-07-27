@@ -76,7 +76,7 @@ import { WorkersPage } from '@/features/personal/workers/WorkersPage';
 import { WorkerProfilePage } from '@/features/personal/workers/WorkerProfilePage';
 import { AssignmentsPage } from '@/features/personal/assignments/AssignmentsPage';
 import { HiringDashboardPage } from '@/features/personal/hiring/HiringDashboardPage';
-import { HiringReportPage } from '../features/personal/contratacao/HiringReportPage';
+import { HiringReportPage } from '@/features/personal/contratacao/HiringReportPage';
 
 // Holerites (Folhas de Pagamento)
 import { HoleritesPage } from '@/features/holerites/pages/HoleritesPage';
