@@ -11,7 +11,7 @@ interface UseSolicitudesFilters {
 }
 
 export function useSolicitudes(filters?: UseSolicitudesFilters) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
     queryKey: ['solicitudes', selectedEmpresaId, filters],
@@ -22,8 +22,11 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
         .schema('core_operacoes')
         .from('solicitudes_operativas')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
+
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
+      }
 
       if (filters?.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);

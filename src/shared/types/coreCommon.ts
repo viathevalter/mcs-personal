@@ -26,6 +26,7 @@ export interface Empresa {
     latitude?: number | null;
     longitude?: number | null;
     bank_details?: string | null;
+    is_holding?: boolean | null;
 }
 
 // Re-using or extending the existing UserMembership if needed, 

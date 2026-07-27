@@ -12,7 +12,7 @@ interface UseEstimacionesFilters {
 }
 
 export function useEstimaciones(filters?: UseEstimacionesFilters) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
     queryKey: ['estimaciones', selectedEmpresaId, filters],
@@ -34,11 +34,13 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
         `)
         .order('created_at', { ascending: false });
 
-      if (filters?.empresa_id && filters.empresa_id !== 'all') {
-        query = query.eq('empresa_id', filters.empresa_id);
-      } else if (!filters?.empresa_id || filters.empresa_id === 'default') {
-        query = query.eq('empresa_id', selectedEmpresaId);
-      } // Se filters.empresa_id for 'all', não aplicamos o filtro e deixamos a RLS filtrar
+      const targetEmpresaId = (filters?.empresa_id && filters.empresa_id !== 'all' && filters.empresa_id !== 'default') 
+        ? filters.empresa_id 
+        : activeEmpresaId;
+
+      if (targetEmpresaId) {
+        query = query.eq('empresa_id', targetEmpresaId);
+      }
 
       if (filters?.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);

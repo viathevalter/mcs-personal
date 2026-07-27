@@ -42,6 +42,8 @@ export interface Contract {
     } | null;
 }
 
+import { isHoldingId } from '@/shared/utils/empresaUtils';
+
 export interface ListContractsParams {
     empresaId: string;
     workerId?: string;
@@ -64,7 +66,7 @@ export async function listContracts({ empresaId, workerId, status, contractType 
             )
         `);
 
-    if (empresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+    if (!isHoldingId(empresaId)) {
         query = query.eq('empresa_id', empresaId);
     }
 
@@ -268,7 +270,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
             )
         `);
 
-    if (empresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+    if (!isHoldingId(empresaId)) {
         query = query.eq('empresa_id', empresaId);
     }
 

@@ -4,7 +4,7 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudTareaDetail } from '../types';
 
 export function useDepartmentTasks(departmentCodes: string[]) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
     queryKey: ['department-tasks', selectedEmpresaId, departmentCodes],
@@ -43,8 +43,8 @@ export function useDepartmentTasks(departmentCodes: string[]) {
           blocked_by_task:solicitud_tareas!blocked_by_task_id(id, title)
         `);
 
-      if (selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
-        query = query.eq('empresa_id', selectedEmpresaId);
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
       }
 
       const { data, error } = await query

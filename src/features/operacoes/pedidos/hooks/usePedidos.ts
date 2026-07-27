@@ -11,7 +11,7 @@ interface UsePedidosFilters {
 }
 
 export function usePedidos(filters?: UsePedidosFilters) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
     queryKey: ['pedidos', selectedEmpresaId, filters],
@@ -22,8 +22,11 @@ export function usePedidos(filters?: UsePedidosFilters) {
         .schema('core_comercial')
         .from('pedidos')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
+
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
+      }
 
       if (filters?.commercial_status && filters.commercial_status !== 'all') {
         query = query.eq('commercial_status', filters.commercial_status);

@@ -3,6 +3,7 @@ import { useMyMemberships } from '@/shared/hooks/useMyMemberships';
 import { useEmpresas } from '@/shared/hooks/useEmpresas';
 import type { Empresa } from '@/shared/types/coreCommon';
 import type { AppRole, UserMembership } from '@/shared/rbac/roles';
+import { isHoldingId, getEffectiveEmpresaId } from '@/shared/utils/empresaUtils';
 
 interface EmpresaContextType {
     selectedEmpresaId: string | null;
@@ -11,6 +12,8 @@ interface EmpresaContextType {
     role: AppRole | null;
     empresas: Empresa[];
     isLoading: boolean;
+    isHolding: boolean;
+    activeEmpresaId: string | null;
 }
 
 const EmpresaContext = createContext<EmpresaContextType | undefined>(undefined);
@@ -46,12 +49,15 @@ export function EmpresaProvider({ children }: { children: React.ReactNode }) {
         }
     }, [empresas]);
 
+    const isHolding = isHoldingId(selectedEmpresaId, empresas);
+    const activeEmpresaId = getEffectiveEmpresaId(selectedEmpresaId, empresas);
+
     const currentMembership = memberships?.find(m => m.empresa_id === selectedEmpresaId) || null;
     const role = currentMembership?.role || null;
     const isLoading = membershipLoading || empresasLoading;
 
     return (
-        <EmpresaContext.Provider value={{ selectedEmpresaId, setSelectedEmpresaId, currentMembership, role, empresas, isLoading }}>
+        <EmpresaContext.Provider value={{ selectedEmpresaId, setSelectedEmpresaId, currentMembership, role, empresas, isLoading, isHolding, activeEmpresaId }}>
             {children}
         </EmpresaContext.Provider>
     );

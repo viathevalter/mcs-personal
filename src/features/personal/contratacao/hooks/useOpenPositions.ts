@@ -26,7 +26,7 @@ export interface OpenPosition {
 }
 
 export const useOpenPositions = () => {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
     queryKey: ['open_positions', selectedEmpresaId],
@@ -56,8 +56,8 @@ export const useOpenPositions = () => {
           )
         `);
 
-      if (selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
-        queryBuilder = queryBuilder.eq('empresa_id', selectedEmpresaId);
+      if (activeEmpresaId) {
+        queryBuilder = queryBuilder.eq('empresa_id', activeEmpresaId);
       }
 
       const { data: itemsData, error } = await queryBuilder

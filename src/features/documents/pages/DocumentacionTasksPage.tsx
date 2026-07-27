@@ -26,7 +26,7 @@ import {
 import { toast } from 'sonner';
 
 export function DocumentacionTasksPage() {
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
     
     // Contratos state
     const [contracts, setContracts] = useState<Contract[]>([]);
@@ -682,9 +682,7 @@ Muchas gracias.`;
     };
 
     const loadWorkers = async () => {
-        const targetEmpresa = (selectedEmpresaId && selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') 
-            ? selectedEmpresaId 
-            : requestEmpresaId;
+        const targetEmpresa = activeEmpresaId || requestEmpresaId;
         await loadWorkersForEmpresa(targetEmpresa);
     };
 

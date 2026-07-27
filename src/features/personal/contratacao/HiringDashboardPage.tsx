@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/tooltip';
 
 export const HiringDashboardPage: React.FC = () => {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -186,13 +186,18 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       if (!selectedEmpresaId) return [];
       
       // Fetch pedidos
-      const { data: pedidos, error: pedidosErr } = await supabase
+      let query = supabase
         .schema('core_comercial')
         .from('pedidos')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .neq('operational_status', 'cancelled')
         .order('created_at', { ascending: false });
+        
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
+      }
+
+      const { data: pedidos, error: pedidosErr } = await query;
         
       if (pedidosErr) throw pedidosErr;
       if (!pedidos || pedidos.length === 0) return [];
@@ -253,7 +258,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     queryKey: ['active_replacement_targets', selectedEmpresaId],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_operacoes')
         .from('solicitud_targets')
         .select(`
@@ -272,9 +277,14 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           solicitud_id, 
           solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id)
         `)
-        .eq('empresa_id', selectedEmpresaId)
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress', 'completed']);
+
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching replacement targets:", error);
@@ -332,7 +342,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_personal')
         .from('worker_assignments')
         .select(`
@@ -356,8 +366,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
             cod_colab
           )
         `)
-        .eq('empresa_id', selectedEmpresaId)
         .in('status', ['planned', 'active', 'paused', 'replaced', 'relocated', 'terminated']);
+
+      if (activeEmpresaId) {
+        query = query.eq('empresa_id', activeEmpresaId);
+      }
+        
+      const { data, error } = await query;
         
       if (error) throw error;
       return data || [];
