@@ -605,38 +605,12 @@ export function DocumentacionTasksPage() {
         }
 
         // Constrói a mensagem personalizada
-        const msg = `Hola *${workerName}*,
+        const msg = `Hola ${workerName}
+A continuación se compartirá un link, donde proporcionarás la documentación e información requerida para poder continuar con el proceso de gestión de contrato.
  
-Para poder formalizar tu contratación, necesitamos que nos envíes tu documentación a través del siguiente enlace seguro desde tu móvil:
-🔗 *${inviteLink}*
+*LINK: ${inviteLink}
  
-📄 *Documentos requeridos* (en formato imagen o PDF):
-* Pasaporte
-* Certificado bancario (cuenta europea a tu nombre, donde se vea claramente el IBAN)
-* NISS o NIF (si ya lo tienes)
-* DNI o NIE (si aplica)
-* Dirección personal (solo si resides en España o Portugal)
-* Permiso de conducir (si tienes)
-* Una foto tuya con fondo blanco, tipo documento (mirando a la cámara, bien iluminada y nítida)
-* Correo electrónico
-* Ubicación actual
- 
-*Talla de uniforme:*
-* Camisa: _
-* Pantalón: _
- 
-* Teléfono de uno o dos familiares (incluir nombre y parentesco)
-* Ciudad y país donde te encuentras actualmente
- 
-❓*Dudas frecuentes:*
-* El IBAN es el número internacional de tu cuenta bancaria. La cuenta debe estar en euros.
-* The dirección personal solo es necesaria si resides en España o Portugal.
-* El permiso de conducir no es obligatorio, solo envíalo si dispones de uno.
-* La foto debe parecerse a una de documento oficial: mirando de frente, fondo blanco, buena luz y sin filtros.
-* Quedamos atentos a tu documentación para avanzar con el proceso.
- 
-Saludos cordiales,
-Equipo de Contratación`;
+Muchas gracias.`;
 
         // Copia a mensagem para a área de transferência
         try {
@@ -1200,6 +1174,18 @@ Equipo de Contratación`;
         toast.success("Link copiado para a área de transferência!");
     };
 
+    const handleCopyInviteLink = (link: string, workerName?: string) => {
+        const greeting = workerName ? `Hola ${workerName}` : 'Hola';
+        const msg = `${greeting} 
+A continuación se compartirá un link, donde proporcionarás la documentación e información requerida para poder continuar con el proceso de gestión de contrato.
+ 
+*LINK: ${link}
+ 
+Muchas gracias.`;
+        navigator.clipboard.writeText(msg);
+        toast.success("Mensagem padrão com o link copiada!");
+    };
+
     return (
         <Layout>
             <div className="flex flex-col h-[calc(100vh-115px)] overflow-hidden space-y-6 p-4">
@@ -1320,7 +1306,7 @@ Equipo de Contratación`;
                                             
                                             <div className="flex gap-2">
                                                 <Input readOnly value={requestSuccessLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
-                                                <Button size="icon" variant="outline" onClick={() => handleCopyLink(requestSuccessLink)}>
+                                                <Button size="icon" variant="outline" onClick={() => handleCopyInviteLink(requestSuccessLink, workers.find(w => w.id === requestWorkerId)?.nome)} title="Copiar mensagem formatada com o link">
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -1867,7 +1853,7 @@ Equipo de Contratación`;
                                                                 <Button 
                                                                     size="sm" 
                                                                     variant="outline" 
-                                                                    onClick={() => handleCopyLink(inviteLink)}
+                                                                    onClick={() => handleCopyInviteLink(inviteLink, req.worker?.nome)}
                                                                     title="Copiar Link de Envio"
                                                                 >
                                                                     <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
@@ -2594,39 +2580,39 @@ Equipo de Contratación`;
                                                     </Button>
 
                                                     {/* Copiar Link Button */}
-                                                    {item.docRequest ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                                                            onClick={() => handleCopyLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`)}
-                                                            title="Copiar link de envio seguro"
-                                                        >
-                                                            <Copy className="h-3.5 w-3.5 mr-1" />
-                                                            Link
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="text-slate-600 hover:text-indigo-600"
-                                                            onClick={async () => {
-                                                                 try {
-                                                                     const empId = taskMetadata?.empresaId || selectedEmpresaId!;
-                                                                     const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
-                                                                     setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
-                                                                     loadDocRequests();
-                                                                     toast.success("Link cadastral criado!");
-                                                                 } catch (err) {
-                                                                     toast.error("Erro ao criar link cadastral.");
-                                                                 }
-                                                             }}
-                                                            title="Criar novo link de envio"
-                                                        >
-                                                            <Plus className="h-3.5 w-3.5 mr-1" />
-                                                            Criar Link
-                                                        </Button>
-                                                    )}
+                                                     {item.docRequest ? (
+                                                         <Button
+                                                             size="sm"
+                                                             variant="outline"
+                                                             className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                                             onClick={() => handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome)}
+                                                             title="Copiar mensagem com link formatado"
+                                                         >
+                                                             <Copy className="h-3.5 w-3.5 mr-1" />
+                                                             Link
+                                                         </Button>
+                                                     ) : (
+                                                         <Button
+                                                             size="sm"
+                                                             variant="outline"
+                                                             className="text-slate-600 hover:text-indigo-600"
+                                                             onClick={async () => {
+                                                                  try {
+                                                                      const empId = taskMetadata?.empresaId || selectedEmpresaId!;
+                                                                      const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
+                                                                      setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                                                                      loadDocRequests();
+                                                                      handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${res.token}`, item.worker?.nome);
+                                                                  } catch (err) {
+                                                                      toast.error("Erro ao criar link cadastral.");
+                                                                  }
+                                                              }}
+                                                             title="Criar e copiar mensagem com link"
+                                                         >
+                                                             <Plus className="h-3.5 w-3.5 mr-1" />
+                                                             Criar Link
+                                                         </Button>
+                                                     )}
 
                                                     {/* Gerar Contrato Button */}
                                                     <Button
