@@ -35,6 +35,8 @@ export interface HiringReportItem {
   assignment_type: string | null;
   notes: string | null;
   created_at: string;
+  status_seguridad: string;
+  is_seguridad_alta: boolean;
 }
 
 export interface FunctionBreakdown {
@@ -106,6 +108,10 @@ function emptyReport() {
     totalHired: 0,
     totalActive: 0,
     totalInactive: 0,
+    totalAlta: 0,
+    totalRegularizacao: 0,
+    pctAlta: 0,
+    pctRegularizacao: 0,
     retentionRate: 0,
     avgDaysWorked: 0,
     functionBreakdown: [],
@@ -124,7 +130,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     .from('worker_assignments')
     .select(`
       *,
-      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
+      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, status_seguridad),
       replaced_assignment:worker_assignments!replacement_of_assignment_id(
         id,
         worker:workers(id, nome)
@@ -191,6 +197,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     client: clientsMap.get(a.client_id) || null,
     client_site: sitesMap.get(a.client_site_id) || null,
     empresa: empresasMap.get(a.empresa_id) || null,
+    status_seguridad: a.worker?.status_seguridad || a.status_seguridad
   }));
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
@@ -249,6 +256,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         status: isInactive ? 'completed' : 'active',
         start_date: allocationStartDate,
         end_date: endDate,
+        status_seguridad: w.status_seguridad,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -258,7 +266,8 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           email: w.email,
           movil: w.movil,
           funcion: w.funcion || cpp?.funcion,
-          contratante: w.contratante || cpp?.contratante || targetEmpresaNome
+          contratante: w.contratante || cpp?.contratante || targetEmpresaNome,
+          status_seguridad: w.status_seguridad
         },
         client: matchedClient ? {
           id: matchedClient.id,
@@ -311,6 +320,12 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const isInactive = isInactiveStatus || rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!endDateStr;
     const isActive = !isInactive;
 
+    // Social Security Status Mapping (Alta vs Regularização)
+    const rawSeg = a.status_seguridad || a.worker?.status_seguridad || '';
+    const normSeg = normalizeString(rawSeg);
+    const isSeguridadAlta = (normSeg.includes('alta') && !normSeg.includes('pendent')) || normSeg === 'alta';
+    const statusSeguridadDisplay = isSeguridadAlta ? 'Alta' : 'Em Regularização';
+
     // Calculate days worked
     let daysWorked = 0;
     const startDateObj = parseLocalDate(startDateStr);
@@ -346,6 +361,8 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       assignment_type: a.assignment_type || null,
       notes: a.notes || null,
       created_at: a.created_at,
+      status_seguridad: statusSeguridadDisplay,
+      is_seguridad_alta: isSeguridadAlta,
     };
   });
 
@@ -423,8 +440,14 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const totalHired = filtered.length;
   const totalActive = filtered.filter(i => i.is_active).length;
   const totalInactive = filtered.filter(i => !i.is_active).length;
-  const retentionRate = totalHired > 0 ? (totalActive / totalHired) * 100 : 0;
   
+  // Social Security Metrics
+  const totalAlta = filtered.filter(i => i.is_seguridad_alta).length;
+  const totalRegularizacao = totalHired - totalAlta;
+  const pctAlta = totalHired > 0 ? Math.round((totalAlta / totalHired) * 1000) / 10 : 0;
+  const pctRegularizacao = totalHired > 0 ? Math.round((totalRegularizacao / totalHired) * 1000) / 10 : 0;
+
+  const retentionRate = totalHired > 0 ? Math.round((totalActive / totalHired) * 1000) / 10 : 0;
   const sumDaysWorked = filtered.reduce((acc, curr) => acc + curr.days_worked, 0);
   const avgDaysWorked = totalHired > 0 ? Math.round(sumDaysWorked / totalHired) : 0;
 
@@ -463,6 +486,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     totalHired,
     totalActive,
     totalInactive,
+    totalAlta,
+    totalRegularizacao,
+    pctAlta,
+    pctRegularizacao,
     retentionRate,
     avgDaysWorked,
     functionBreakdown,

@@ -1,31 +1,34 @@
 import React, { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 import { 
   Users, 
   UserCheck, 
   UserMinus, 
-  Clock, 
   TrendingUp, 
-  Download, 
-  Search, 
+  Clock, 
   Calendar, 
-  Building2, 
-  Briefcase, 
+  Filter, 
+  X, 
   FileSpreadsheet, 
+  ArrowUp, 
+  ArrowDown, 
+  ArrowUpDown, 
   RefreshCw,
-  X,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown
+  Search,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
-import { useEmpresa } from '@/app/providers/EmpresaProvider';
-import { useHiringReport } from './hooks/useHiringReport';
 
-// Helper to format date strings YYYY-MM-DD to DD/MM/YYYY
+import * as XLSX from 'xlsx';
+
+import { useHiringReport, HiringReportFilters } from './hooks/useHiringReport';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+
+type SortKey = 'worker_name' | 'contratante' | 'client_name' | 'job_function_name' | 'tarifa_acordada' | 'start_date' | 'days_worked' | 'status' | 'status_seguridad';
+
 function formatDateBR(dateStr: string | null): string {
   if (!dateStr) return '-';
-  const clean = dateStr.split('T')[0];
-  const parts = clean.split('-');
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
   if (parts.length === 3) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
@@ -33,13 +36,12 @@ function formatDateBR(dateStr: string | null): string {
 }
 
 function formatYMD(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-// Preset date range helpers
 function getPresetDates(preset: string) {
   const now = new Date();
   const year = now.getFullYear();
@@ -50,54 +52,49 @@ function getPresetDates(preset: string) {
     const lastDay = new Date(year, month + 1, 0);
     return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
-
   if (preset === 'last_month') {
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
     return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
-
   if (preset === 'last_90_days') {
-    const past = new Date();
-    past.setDate(now.getDate() - 90);
-    return {
-      startDate: formatYMD(past),
-      endDate: formatYMD(now),
-    };
+    const start = new Date();
+    start.setDate(now.getDate() - 90);
+    return { startDate: formatYMD(start), endDate: formatYMD(now) };
   }
-
   if (preset === 'this_year') {
     const firstDay = new Date(year, 0, 1);
     const lastDay = new Date(year, 11, 31);
     return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
-
-  // Default: All time or custom
   return { startDate: '', endDate: '' };
 }
 
-// Helper SortIcon Component
-const SortIcon: React.FC<{ field: string; currentField: string; direction: 'asc' | 'desc' }> = ({ field, currentField, direction }) => {
+const SortIcon: React.FC<{ field: SortKey; currentField: SortKey; direction: 'asc' | 'desc' }> = ({
+  field,
+  currentField,
+  direction,
+}) => {
   if (field !== currentField) {
-    return <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />;
+    return <ArrowUpDown className="h-3 w-3 text-slate-300 dark:text-slate-600 group-hover:text-slate-500" />;
   }
-  return direction === 'asc' 
-    ? <ArrowUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400 font-bold" />
-    : <ArrowDown className="h-3 w-3 text-indigo-600 dark:text-indigo-400 font-bold" />;
+  return direction === 'asc' ? (
+    <ArrowUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+  ) : (
+    <ArrowDown className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+  );
 };
 
 export const HiringReportPage: React.FC = () => {
   const { selectedEmpresaId } = useEmpresa();
 
-  // Preset Selection
+  // Filters State
   const [presetFilter, setPresetFilter] = useState<string>('this_month');
   
-  // Custom Date Range
-  const initialPreset = getPresetDates('this_month');
-  const [startDate, setStartDate] = useState<string>(initialPreset.startDate);
-  const [endDate, setEndDate] = useState<string>(initialPreset.endDate);
+  const initialDates = useMemo(() => getPresetDates('this_month'), []);
+  const [startDate, setStartDate] = useState<string>(initialDates.startDate);
+  const [endDate, setEndDate] = useState<string>(initialDates.endDate);
 
-  // Dropdown Filters
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [contratanteFilter, setContratanteFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
@@ -106,21 +103,10 @@ export const HiringReportPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Sorting State
-  const [sortField, setSortField] = useState<string>('worker_name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState<SortKey>('start_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Handle preset change
-  const handlePresetChange = (preset: string) => {
-    setPresetFilter(preset);
-    if (preset !== 'custom') {
-      const dates = getPresetDates(preset);
-      setStartDate(dates.startDate);
-      setEndDate(dates.endDate);
-    }
-  };
-
-  // Fetch Report Data
-  const { data: reportData, isLoading, refetch, isFetching } = useHiringReport({
+  const reportFilters: HiringReportFilters = useMemo(() => ({
     empresa_id: selectedEmpresaId,
     startDate,
     endDate,
@@ -128,25 +114,39 @@ export const HiringReportPage: React.FC = () => {
     contratanteFilter,
     pedidoFilter,
     jobFunctionFilter,
-    statusFilter,
-  });
+    statusFilter
+  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, pedidoFilter, jobFunctionFilter, statusFilter]);
 
-  // Local Worker Search Filtering
+  const { data: reportData, isLoading, refetch, isFetching } = useHiringReport(reportFilters);
+
+  // Preset Date Filter Handler
+  const handlePresetChange = (preset: string) => {
+    setPresetFilter(preset);
+    if (preset !== 'custom') {
+      const { startDate: s, endDate: e } = getPresetDates(preset);
+      setStartDate(s);
+      setEndDate(e);
+    }
+  };
+
+  // Client-side Filter by Search Query
   const filteredItems = useMemo(() => {
     if (!reportData?.items) return [];
     if (!searchQuery.trim()) return reportData.items;
 
-    const query = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     return reportData.items.filter(item => 
-      item.worker_name.toLowerCase().includes(query) ||
-      item.worker_document.toLowerCase().includes(query) ||
-      item.pedido_codigo.toLowerCase().includes(query) ||
-      item.contratante.toLowerCase().includes(query)
+      item.worker_name.toLowerCase().includes(q) ||
+      item.worker_document.toLowerCase().includes(q) ||
+      item.contratante.toLowerCase().includes(q) ||
+      item.client_name.toLowerCase().includes(q) ||
+      item.pedido_codigo.toLowerCase().includes(q) ||
+      item.job_function_name.toLowerCase().includes(q)
     );
   }, [reportData?.items, searchQuery]);
 
-  // Column Sorting Logic
-  const handleSort = (field: string) => {
+  // Client-side Sort Handler
+  const handleSort = (field: SortKey) => {
     if (sortField === field) {
       setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -194,6 +194,10 @@ export const HiringReportPage: React.FC = () => {
           valA = a.is_active ? 1 : 0;
           valB = b.is_active ? 1 : 0;
           break;
+        case 'status_seguridad':
+          valA = a.is_seguridad_alta ? 1 : 0;
+          valB = b.is_seguridad_alta ? 1 : 0;
+          break;
         default:
           valA = (a.worker_name || '').toLowerCase();
           valB = (b.worker_name || '').toLowerCase();
@@ -224,7 +228,8 @@ export const HiringReportPage: React.FC = () => {
       'Data de Início': formatDateBR(item.start_date),
       'Data de Saída / Fim': formatDateBR(item.end_date),
       'Dias Trabalhados': item.days_worked,
-      'Status': item.is_active ? 'Ativo' : 'Desligado / Substituído',
+      'Status Trabalhador': item.is_active ? 'Ativo' : 'Desligado / Substituído',
+      'Seguridade Social': item.status_seguridad,
       'Status Alocação': item.status,
       'Tipo de Entrada': item.assignment_type || 'Nova Contratação',
       'Observações / Motivo': item.notes || '-'
@@ -246,6 +251,7 @@ export const HiringReportPage: React.FC = () => {
       { wch: 14 },  // Data Saída
       { wch: 16 },  // Dias Trabalhados
       { wch: 14 },  // Status
+      { wch: 18 },  // Seguridade Social
       { wch: 16 },  // Status Alocação
       { wch: 18 },  // Tipo
       { wch: 30 }   // Observações
@@ -298,82 +304,127 @@ export const HiringReportPage: React.FC = () => {
             onClick={() => refetch()}
             disabled={isFetching}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+            title="Atualizar Dados"
           >
-            <RefreshCw className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
-            Atualizar
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <span>Atualizar</span>
           </button>
+
           <button
             onClick={handleExportExcel}
             disabled={!sortedItems.length}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500 rounded-lg shadow-2xs transition-colors disabled:opacity-50"
           >
-            <Download className="h-3 w-3" />
-            Exportar Excel (.xlsx)
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Exportar Excel (.xlsx)</span>
           </button>
         </div>
       </div>
 
-      {/* Filter Controls Panel Compact */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2.5">
+      {/* Filter Control Bar Compact */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
         
-        {/* Preset Date Range Buttons Row */}
+        {/* Preset Date Selector */}
         <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">
-              Período:
+              PERÍODO:
             </span>
-            {[
-              { id: 'this_month', label: 'Este Mês' },
-              { id: 'last_month', label: 'Mês Anterior' },
-              { id: 'last_90_days', label: 'Últimos 90 Dias' },
-              { id: 'this_year', label: 'Ano Atual' },
-              { id: 'all_time', label: 'Todos os Períodos' },
-              { id: 'custom', label: 'Personalizado' },
-            ].map(p => (
-              <button
-                key={p.id}
-                onClick={() => handlePresetChange(p.id)}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
-                  presetFilter === p.id
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+            <button
+              onClick={() => handlePresetChange('this_month')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'this_month'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Este Mês
+            </button>
+            <button
+              onClick={() => handlePresetChange('last_month')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'last_month'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Mês Anterior
+            </button>
+            <button
+              onClick={() => handlePresetChange('last_90_days')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'last_90_days'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Últimos 90 Dias
+            </button>
+            <button
+              onClick={() => handlePresetChange('this_year')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'this_year'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Ano Atual
+            </button>
+            <button
+              onClick={() => handlePresetChange('all')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'all'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Todos os Períodos
+            </button>
+            <button
+              onClick={() => setPresetFilter('custom')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'custom'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Personalizado
+            </button>
           </div>
 
-          {/* Date Picker Inputs Compact */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-slate-500 font-medium">De:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setPresetFilter('custom');
-              }}
-              className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 text-[11px] font-mono"
-            />
-            <span className="text-slate-500 font-medium">Até:</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setPresetFilter('custom');
-              }}
-              className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 text-[11px] font-mono"
-            />
+          {/* Custom Date Inputs */}
+          <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-medium">De:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPresetFilter('custom');
+                }}
+                className="px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[11px]"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-medium">Até:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPresetFilter('custom');
+                }}
+                className="px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[11px]"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Dropdown Filters & Search Input Compact */}
+        {/* Dropdown Filters Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           
-          {/* Worker Search */}
+          {/* Search Input */}
           <div className="space-y-0.5">
             <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
               Buscar Trabalhador
@@ -498,96 +549,132 @@ export const HiringReportPage: React.FC = () => {
         )}
       </div>
 
-      {/* KPI Cards Grid Compact */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      {/* KPI Cards Grid Compact - 7 Cards across header */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         
         {/* Total Contratados */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Total Contratados
             </span>
-            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
-              <Users className="h-4 w-4" />
+            <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+              <Users className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-xl font-black text-slate-900 dark:text-white leading-tight">
+            <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">
               {reportData?.totalHired || 0} <span className="text-[10px] font-normal text-slate-500">no período</span>
             </div>
-            <p className="text-[10px] text-slate-400">Entradas via terceiras registradas</p>
+            <p className="text-[9px] text-slate-400 truncate">Entradas registradas</p>
           </div>
         </div>
 
         {/* Ativos Atualmente */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Ativos Atualmente
             </span>
-            <div className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
-              <UserCheck className="h-4 w-4" />
+            <div className="p-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg shrink-0">
+              <UserCheck className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
+            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-tight">
               {reportData?.totalActive || 0} <span className="text-[10px] font-normal text-slate-500">trabalhando</span>
             </div>
-            <p className="text-[10px] text-slate-400">Alocações vigentes no cliente</p>
+            <p className="text-[9px] text-slate-400 truncate">Alocações vigentes</p>
           </div>
         </div>
 
         {/* Desligados / Saíram */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Desligados / Saíram
             </span>
-            <div className="p-1.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg">
-              <UserMinus className="h-4 w-4" />
+            <div className="p-1 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg shrink-0">
+              <UserMinus className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-xl font-black text-rose-600 dark:text-rose-400 leading-tight">
+            <div className="text-lg font-black text-rose-600 dark:text-rose-400 leading-tight">
               {reportData?.totalInactive || 0} <span className="text-[10px] font-normal text-slate-500">encerrados</span>
             </div>
-            <p className="text-[10px] text-slate-400">Não adaptados ou remanejados</p>
+            <p className="text-[9px] text-slate-400 truncate">Remanejados / baixa</p>
+          </div>
+        </div>
+
+        {/* De Alta (Seguridade Social) */}
+        <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/40 rounded-xl p-2.5 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate">
+              De Alta (Seguridade)
+            </span>
+            <div className="p-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg shrink-0">
+              <ShieldCheck className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-tight">
+              {reportData?.totalAlta || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctAlta || 0).toFixed(1)}%)</span>
+            </div>
+            <p className="text-[9px] text-slate-400 truncate">Alta na seguridade</p>
+          </div>
+        </div>
+
+        {/* Em Regularização */}
+        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-xl p-2.5 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider truncate">
+              Em Regularização
+            </span>
+            <div className="p-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg shrink-0">
+              <ShieldAlert className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-black text-amber-600 dark:text-amber-400 leading-tight">
+              {reportData?.totalRegularizacao || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctRegularizacao || 0).toFixed(1)}%)</span>
+            </div>
+            <p className="text-[9px] text-slate-400 truncate">Processo / regularização</p>
           </div>
         </div>
 
         {/* Taxa de Retenção */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Taxa de Retenção
             </span>
-            <div className="p-1.5 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-lg">
-              <TrendingUp className="h-4 w-4" />
+            <div className="p-1 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-lg shrink-0">
+              <TrendingUp className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-xl font-black text-sky-600 dark:text-sky-400 leading-tight">
+            <div className="text-lg font-black text-sky-600 dark:text-sky-400 leading-tight">
               {(reportData?.retentionRate || 0).toFixed(1)}%
             </div>
-            <p className="text-[10px] text-slate-400">Permanência % dos contratados</p>
+            <p className="text-[9px] text-slate-400 truncate">Permanência total</p>
           </div>
         </div>
 
         {/* Permanência Média */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Permanência Média
             </span>
-            <div className="p-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg">
-              <Clock className="h-4 w-4" />
+            <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+              <Clock className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-xl font-black text-amber-600 dark:text-amber-400 leading-tight">
+            <div className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-tight">
               {reportData?.avgDaysWorked || 0} <span className="text-[10px] font-normal text-slate-500">dias</span>
             </div>
-            <p className="text-[10px] text-slate-400">Tempo médio em atividade</p>
+            <p className="text-[9px] text-slate-400 truncate">Média em atividade</p>
           </div>
         </div>
 
@@ -599,27 +686,38 @@ export const HiringReportPage: React.FC = () => {
           
           {/* Contratações por Função / Perfil */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
-                Contratações por Função / Perfil
-              </h3>
-              <span className="text-[10px] text-slate-500">{reportData.functionBreakdown.length} perfis encontrados</span>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+                <span>Contratações por Função / Perfil</span>
+              </h2>
+              <span className="text-[10px] text-slate-400">
+                {reportData.functionBreakdown.length} perfis encontrados
+              </span>
             </div>
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {reportData.functionBreakdown.slice(0, 6).map((item) => {
-                const pct = reportData.totalHired > 0 ? ((item.total / reportData.totalHired) * 100).toFixed(0) : '0';
+
+            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {reportData.functionBreakdown.map((item) => {
+                const percentage = reportData.totalHired > 0 ? (item.total / reportData.totalHired) * 100 : 0;
                 return (
-                  <div key={item.functionName} className="space-y-0.5">
-                    <div className="flex justify-between text-[11px] font-medium">
-                      <span className="text-slate-800 dark:text-slate-200 truncate max-w-[240px]">{item.functionName}</span>
-                      <span className="text-slate-500 shrink-0">{item.active} ativos <span className="text-slate-400">({item.total})</span></span>
+                  <div key={item.functionName} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[240px]">
+                        {item.functionName}
+                      </span>
+                      <span className="text-slate-500 font-mono">
+                        {item.active} ativos ({item.total})
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
                       <div 
-                        className="bg-emerald-500 h-full rounded-full transition-all" 
-                        style={{ width: `${pct}%` }}
-                        title={`${item.inactive} encerrados`}
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${(item.active / (reportData.totalHired || 1)) * 100}%` }}
+                        title={`${item.active} ativos`}
+                      />
+                      <div 
+                        className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
+                        style={{ width: `${(item.inactive / (reportData.totalHired || 1)) * 100}%` }}
+                        title={`${item.inactive} inativos`}
                       />
                     </div>
                   </div>
@@ -628,35 +726,40 @@ export const HiringReportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Empresas Terceiras (Contratantes) */}
+          {/* Desempenho por Empresa Terceira / Fornecedor */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5 text-cyan-500" />
-                Desempenho por Empresa Terceira / Fornecedor
-              </h3>
-              <span className="text-[10px] text-slate-500">{reportData.contratanteBreakdown.length} terceiras</span>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+                <span>Desempenho por Empresa Terceira / Fornecedor</span>
+              </h2>
+              <span className="text-[10px] text-slate-400">
+                {reportData.contratanteBreakdown.length} terceiras
+              </span>
             </div>
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {reportData.contratanteBreakdown.slice(0, 6).map((item) => {
-                const retRate = item.total > 0 ? ((item.active / item.total) * 100).toFixed(0) : '0';
+
+            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {reportData.contratanteBreakdown.map((item) => {
+                const retention = item.total > 0 ? (item.active / item.total) * 100 : 0;
                 return (
-                  <div key={item.contratante} className="space-y-0.5">
-                    <div className="flex justify-between text-[11px] font-medium">
-                      <span className="text-slate-800 dark:text-slate-200 font-semibold truncate max-w-[240px]">{item.contratante}</span>
-                      <div className="flex gap-1.5 shrink-0">
-                        <span className="text-slate-500">{item.total} contratados</span>
-                        <span className="text-cyan-600 dark:text-cyan-400 font-bold">({retRate}% retenção)</span>
-                      </div>
+                  <div key={item.contratante} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[240px]">
+                        {item.contratante}
+                      </span>
+                      <span className="text-slate-500 font-mono">
+                        {item.total} contratados ({retention.toFixed(0)}% retenção)
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-1.5 overflow-hidden flex">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
                       <div 
-                        className="bg-cyan-500 h-full transition-all" 
-                        style={{ width: `${(item.active / (item.total || 1)) * 100}%` }}
+                        className="bg-sky-500 h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${(item.active / (reportData.totalHired || 1)) * 100}%` }}
+                        title={`${item.active} ativos`}
                       />
                       <div 
-                        className="bg-rose-500/80 h-full transition-all" 
-                        style={{ width: `${(item.inactive / (item.total || 1)) * 100}%` }}
+                        className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
+                        style={{ width: `${(item.inactive / (reportData.totalHired || 1)) * 100}%` }}
+                        title={`${item.inactive} desligados`}
                       />
                     </div>
                   </div>
@@ -668,15 +771,17 @@ export const HiringReportPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Data Table Gallery Compact */}
+      {/* Main Table Gallery Section Compact */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
-        <div className="p-2.5 px-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+        
+        {/* Table Header */}
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Relação Detalhada de Contratações
-            </h2>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
+            </h3>
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
               {sortedItems.length} registros
             </span>
           </div>
@@ -790,6 +895,17 @@ export const HiringReportPage: React.FC = () => {
                     </div>
                   </th>
 
+                  {/* Seguridade Social Column */}
+                  <th 
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('status_seguridad')}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Seguridade Social</span>
+                      <SortIcon field="status_seguridad" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
                   {/* Obs / Motivo Column */}
                   <th className="py-2.5 px-3">Obs / Motivo</th>
                 </tr>
@@ -866,6 +982,19 @@ export const HiringReportPage: React.FC = () => {
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
                           ● Desligado
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Seguridade Social Badge */}
+                    <td className="py-2.5 px-3">
+                      {item.is_seguridad_alta ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                          ● De Alta
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                          ● Regularização
                         </span>
                       )}
                     </td>
