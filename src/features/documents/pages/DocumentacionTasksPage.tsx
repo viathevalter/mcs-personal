@@ -772,7 +772,7 @@ Muchas gracias.`;
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
-                useBase64URL: false,
+                useBase64URL: true,
                 renderHeaders: true,
                 renderFooters: true,
             })
