@@ -75,7 +75,8 @@ serve(async (req) => {
           ),
           core_common_empresas:empresa_id (
             trade_name,
-            proposal_sender_email
+            proposal_sender_email,
+            marketing_sender_email
           )
         ),
         core_comercial_leads:lead_id (
@@ -160,7 +161,9 @@ serve(async (req) => {
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
       
-      const senderEmail = company.proposal_sender_email || "comercial@mastercorp.pt";
+      const senderEmail = company.marketing_sender_email || company.proposal_sender_email || "comercial@mastercorp.pt";
+      const senderName = company.trade_name || "Mastercorp";
+      const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
       const senderName = company.trade_name || "Mastercorp";
       const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
 

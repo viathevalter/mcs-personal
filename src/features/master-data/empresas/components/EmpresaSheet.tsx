@@ -109,6 +109,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       billing_email: '',
       cobranca_email: '',
       proposal_sender_email: '',
+      marketing_sender_email: '',
       iban: '',
       latitude: undefined,
       longitude: undefined,
@@ -153,6 +154,7 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           billing_email: empresa.billing_email || '',
           cobranca_email: (empresa as any).cobranca_email || '',
           proposal_sender_email: empresa.proposal_sender_email || '',
+          marketing_sender_email: (empresa as any).marketing_sender_email || '',
           iban: empresa.iban || '',
           latitude: empresa.latitude || undefined,
           longitude: empresa.longitude || undefined,
@@ -526,6 +528,20 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                       <FormLabel>E-mail Remetente de Propostas (Outlook)</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="Ex: vendas@stoco.es" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="marketing_sender_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-mail Remetente de Campanhas / Marketing (Resend)</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: mkt@gestaologinpro.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
