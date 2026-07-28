@@ -343,42 +343,8 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
             if (!filePath) throw new Error("Caminho inválido");
 
-            // Sanitizar e normalizar o arquivo XML (posicionamento de cabeçalho e escapar &) antes de subir
-            let fileToUpload: Blob = file;
-            try {
-                const arrayBuf = await file.arrayBuffer();
-                const zip = new JSZip();
-                await zip.loadAsync(arrayBuf);
-
-                for (const relPath of Object.keys(zip.files)) {
-                    if (relPath.endsWith('.xml') && relPath.startsWith('word/')) {
-                        let xml = await zip.file(relPath)!.async('text');
-                        if (relPath.startsWith('word/header') || relPath.startsWith('word/footer')) {
-                            if (xml.includes('<wp:anchor')) {
-                                xml = xml.replace(/<wp:anchor[\s\S]*?>/g, '<wp:inline distT="0" distB="0" distL="0" distR="0">');
-                                xml = xml.replace(/<\/wp:anchor>/g, '</wp:inline>');
-                                xml = xml.replace(/<wp:simplePos[\s\S]*?\/>/g, '');
-                                xml = xml.replace(/<wp:positionH[\s\S]*?<\/wp:positionH>/g, '');
-                                xml = xml.replace(/<wp:positionV[\s\S]*?<\/wp:positionV>/g, '');
-                                xml = xml.replace(/<wp:wrapNone\/>/g, '');
-                            }
-                            xml = xml.replace(/cx="7\d+"/g, 'cx="6600000"').replace(/cx="75\d+"/g, 'cx="6600000"');
-                            if (xml.includes('<w:pPr>')) {
-                                if (!xml.includes('<w:jc')) {
-                                    xml = xml.replace('<w:pPr>', '<w:pPr><w:jc w:val="center"/>');
-                                } else {
-                                    xml = xml.replace(/<w:jc w:val="[^"]*"\/>/g, '<w:jc w:val="center"/>');
-                                }
-                            }
-                        }
-                        const escaped = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
-                        zip.file(relPath, escaped);
-                    }
-                }
-                fileToUpload = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-            } catch (zipErr) {
-                console.warn("Erro na sanitização JSZip do upload:", zipErr);
-            }
+            // Fazer upload do arquivo exatamente como foi enviado pelo usuário, sem alterar seu XML
+            const fileToUpload: Blob = file;
 
             const { error } = await supabase.storage
                 .from('contract-templates')
