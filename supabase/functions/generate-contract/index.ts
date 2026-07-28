@@ -345,6 +345,21 @@ serve(async (req) => {
           let content = await file.async("text");
           const originalContent = content;
 
+          // 0. Converter objetos flutuantes <wp:anchor> em cabeçalhos/rodapés para <wp:inline> alinhado à direita para compatibilidade total
+          if (relativePath.includes("header") || relativePath.includes("footer")) {
+            if (content.includes("<wp:anchor")) {
+              content = content.replace(/<wp:anchor[\s\S]*?>/g, '<wp:inline distT="0" distB="0" distL="0" distR="0">');
+              content = content.replace(/<\/wp:anchor>/g, '</wp:inline>');
+              content = content.replace(/<wp:simplePos[\s\S]*?\/>/g, '');
+              content = content.replace(/<wp:positionH[\s\S]*?<\/wp:positionH>/g, '');
+              content = content.replace(/<wp:positionV[\s\S]*?<\/wp:positionV>/g, '');
+              content = content.replace(/<wp:wrapNone\/>/g, '');
+              if (!content.includes('<w:jc')) {
+                content = content.replace('<w:pPr>', '<w:pPr><w:jc w:val="right"/>');
+              }
+            }
+          }
+
           // 1. Desfazer embrulhos de campos de formulário SDT (<w:sdt>...)
           content = content.replace(/<w:sdt\b[^>]*>[\s\S]*?<w:sdtContent\b[^>]*>([\s\S]*?)<\/w:sdtContent>\s*<\/w:sdt>/gi, '$1');
           
