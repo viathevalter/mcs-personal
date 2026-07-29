@@ -5,6 +5,17 @@ import { Badge } from '@/components/ui/badge';
 import { useSolicitudTargets } from '../hooks/useSolicitudTargets';
 import { useWorkerAssignments } from '../hooks/useWorkerAssignments';
 
+function formatLocalDate(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    const cleanStr = dateStr.split('T')[0].split(' ')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const [year, month, day] = parts;
+        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    return dateStr;
+}
+
 export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
     const solicitudId = solicitud?.id;
     const { data: targets = [], isLoading: isLoadingTargets } = useSolicitudTargets(solicitudId);
@@ -102,7 +113,7 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                             </span>
                                                             {target.housing_start_date && (
                                                                 <span className="text-slate-500 font-medium">
-                                                                    {new Date(target.housing_start_date).toLocaleDateString('pt-PT')} a {target.housing_end_date ? new Date(target.housing_end_date).toLocaleDateString('pt-PT') : 'Fim Indefinido'}
+                                                                    {formatLocalDate(target.housing_start_date)} a {target.housing_end_date ? formatLocalDate(target.housing_end_date) : 'Fim Indefinido'}
                                                                 </span>
                                                             )}
                                                         </div>

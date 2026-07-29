@@ -21,6 +21,17 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const DRAFT_STORAGE_KEY = 'mcs:new_solicitud_draft';
 
+export function formatLocalDate(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    const cleanStr = dateStr.split('T')[0].split(' ')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const [year, month, day] = parts;
+        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    return dateStr;
+}
+
 export function NewSolicitudPage() {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -81,6 +92,7 @@ export function NewSolicitudPage() {
 
     // Form Persistence / Draft state
     const isDraftLoadedRef = useRef(false);
+    const isRestoringDraftRef = useRef(false);
     const [isDraftRestored, setIsDraftRestored] = useState(false);
 
     const { data: assignments = [] } = useWorkerAssignments({
@@ -151,10 +163,10 @@ export function NewSolicitudPage() {
         return true;
     });
 
-    // Reset site and pedido when client changes (but skip the first initialization if from URL)
+    // Reset site and pedido when client changes (but skip the first initialization if from URL or when restoring draft)
     const isFirstRender = React.useRef(true);
     useEffect(() => {
-        if (isFirstRender.current) {
+        if (isFirstRender.current || isRestoringDraftRef.current) {
             isFirstRender.current = false;
             return;
         }
@@ -164,11 +176,14 @@ export function NewSolicitudPage() {
 
     // Reset target site when target client changes
     useEffect(() => {
+        if (isRestoringDraftRef.current) return;
         setTargetClientSiteId('all');
     }, [targetClientId]);
 
     // Auto-select workers from selected Pedido for order-level operations
     useEffect(() => {
+        if (isRestoringDraftRef.current) return;
+
         if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') && selectedPedidoId !== 'all') {
             const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
             if (selectedPedido) {
@@ -185,8 +200,6 @@ export function NewSolicitudPage() {
                     return nextIds;
                 });
             }
-        } else {
-            setSelectedAssignments(prev => prev.length === 0 ? prev : []);
         }
     }, [selectedPedidoId, actionType, assignments, pedidos]);
 
@@ -250,6 +263,8 @@ export function NewSolicitudPage() {
             const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
             if (saved) {
                 const draft = JSON.parse(saved);
+                isRestoringDraftRef.current = true;
+
                 if (draft.reason !== undefined && draft.reason !== '') setReason(draft.reason);
                 if (draft.notes !== undefined && draft.notes !== '') setNotes(draft.notes);
                 if (draft.priority !== undefined) setPriority(draft.priority);
@@ -266,8 +281,16 @@ export function NewSolicitudPage() {
                 if (Array.isArray(draft.selectedEmails) && draft.selectedEmails.length > 0) setSelectedEmails(draft.selectedEmails);
                 if (draft.emailLanguage !== undefined) setEmailLanguage(draft.emailLanguage);
 
+                if (draft.workerSearch !== undefined) setWorkerSearch(draft.workerSearch);
+                if (draft.pedidoSearch !== undefined) setPedidoSearch(draft.pedidoSearch);
+
+                if (draft.emailSubject !== undefined && draft.emailSubject !== '') setEmailSubject(draft.emailSubject);
+                if (draft.emailBody !== undefined && draft.emailBody !== '') setEmailBody(draft.emailBody);
+                if (draft.isSubjectEdited !== undefined) setIsSubjectEdited(draft.isSubjectEdited);
+                if (draft.isBodyEdited !== undefined) setIsBodyEdited(draft.isBodyEdited);
+
                 const urlTipo = searchParams.get('tipo');
-                if (draft.actionType && (!urlTipo || urlTipo === 'replacement')) {
+                if (draft.actionType && (!urlTipo || urlTipo === draft.actionType || urlTipo === 'replacement')) {
                     setActionType(draft.actionType);
                 }
 
@@ -290,24 +313,31 @@ export function NewSolicitudPage() {
                     setSelectedAssignments(draft.selectedAssignments);
                 }
 
-                if (draft.reason || draft.notes || draft.dueDate || (draft.selectedAssignments && draft.selectedAssignments.length > 0)) {
+                if (draft.reason || draft.notes || draft.dueDate || (draft.selectedAssignments && draft.selectedAssignments.length > 0) || (draft.selectedClientId && draft.selectedClientId !== 'all') || (draft.selectedPedidoId && draft.selectedPedidoId !== 'all')) {
                     setIsDraftRestored(true);
                 }
+
+                setTimeout(() => {
+                    isRestoringDraftRef.current = false;
+                }, 100);
             }
         } catch (err) {
             console.error("Failed to restore draft from localStorage:", err);
+            isRestoringDraftRef.current = false;
         }
     }, [searchParams]);
 
     // Save draft to localStorage on state changes
     useEffect(() => {
-        if (!isDraftLoadedRef.current) return;
+        if (!isDraftLoadedRef.current || isRestoringDraftRef.current) return;
         const draft = {
             actionType,
             selectedClientId,
             selectedClientSiteId,
             selectedPedidoId,
             selectedAssignments,
+            workerSearch,
+            pedidoSearch,
             title,
             priority,
             dueDate,
@@ -323,15 +353,20 @@ export function NewSolicitudPage() {
             additionalEmails,
             selectedEmails,
             emailLanguage,
+            emailSubject,
+            emailBody,
+            isSubjectEdited,
+            isBodyEdited,
             updatedAt: Date.now()
         };
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
     }, [
         actionType, selectedClientId, selectedClientSiteId, selectedPedidoId,
-        selectedAssignments, title, priority, dueDate, reason, notes,
-        requiresReplacement, targetClientId, targetClientSiteId, requiresHousing,
-        housingStartDate, housingEndDate, sendEmailNotification, additionalEmails,
-        selectedEmails, emailLanguage
+        selectedAssignments, workerSearch, pedidoSearch, title, priority, dueDate,
+        reason, notes, requiresReplacement, targetClientId, targetClientSiteId,
+        requiresHousing, housingStartDate, housingEndDate, sendEmailNotification,
+        additionalEmails, selectedEmails, emailLanguage, emailSubject, emailBody,
+        isSubjectEdited, isBodyEdited
     ]);
 
     const handleClearDraft = () => {
@@ -343,10 +378,17 @@ export function NewSolicitudPage() {
         setPriority('normal');
         setRequiresReplacement(false);
         setSelectedAssignments([]);
+        setSelectedClientId('all');
+        setSelectedClientSiteId('all');
+        setSelectedPedidoId('all');
+        setWorkerSearch('');
+        setPedidoSearch('');
         setRequiresHousing(false);
         setHousingStartDate('');
         setHousingEndDate('');
         setAdditionalEmails('');
+        setIsSubjectEdited(false);
+        setIsBodyEdited(false);
         setIsDraftRestored(false);
         toast.success('Rascunho limpo com sucesso.');
     };
@@ -396,18 +438,22 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         
-        const clientName = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-            ? (selectedPedido?.client?.trade_name || selectedPedido?.client?.legal_name || 'Cliente')
-            : (firstAssignment?.client?.trade_name || firstAssignment?.client?.legal_name || 'Cliente');
+        const clientName = selectedPedido?.client?.trade_name 
+            || selectedPedido?.client?.legal_name 
+            || firstAssignment?.client?.trade_name 
+            || firstAssignment?.client?.legal_name 
+            || selectedClientName 
+            || 'Cliente';
 
-        const pedidoCodigo = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-            ? (selectedPedido?.codigo || 'N/A')
-            : (firstAssignment?.pedido?.codigo || firstAssignment?.pedido_codigo || 'N/A');
+        const pedidoCodigo = selectedPedido?.codigo 
+            || firstAssignment?.pedido?.codigo 
+            || firstAssignment?.pedido_codigo 
+            || 'N/A';
 
         const workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
 
         const expectedStartStr = dueDate 
-            ? new Date(dueDate).toLocaleDateString('pt-PT')
+            ? formatLocalDate(dueDate)
             : (emailLanguage === 'en' ? 'Not informed' : 'Não informado');
 
         let dateLabel = '';
@@ -900,7 +946,7 @@ export function NewSolicitudPage() {
                                                         <span className={`font-extrabold text-sm ${
                                                             actionType === 'order_postponement' ? 'text-amber-900 dark:text-amber-300' : 'text-slate-750 dark:text-slate-300'
                                                         }`}>
-                                                            {p.expected_start_date ? new Date(p.expected_start_date).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                            {p.expected_start_date ? formatLocalDate(p.expected_start_date) : 'Não informada'}
                                                         </span>
                                                     </div>
                                                     
@@ -917,7 +963,7 @@ export function NewSolicitudPage() {
                                                         <span className={`font-extrabold text-sm ${
                                                             actionType === 'order_extension' ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-750 dark:text-slate-300'
                                                         }`}>
-                                                            {p.expected_end_date ? new Date(p.expected_end_date).toLocaleDateString('pt-PT') : 'Não informada'}
+                                                            {p.expected_end_date ? formatLocalDate(p.expected_end_date) : 'Não informada'}
                                                         </span>
                                                     </div>
                                                     {parentSolicitud && (
@@ -1120,14 +1166,13 @@ export function NewSolicitudPage() {
                                                                
                                         if (!originalDateStr) return null;
                                         
-                                        const originalDate = new Date(originalDateStr);
-                                        originalDate.setHours(0,0,0,0);
+                                        const [y1, m1, d1] = originalDateStr.split('T')[0].split('-').map(Number);
+                                        const [y2, m2, d2] = dueDate.split('T')[0].split('-').map(Number);
+                                        if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return null;
                                         
-                                        const newDate = new Date(dueDate);
-                                        newDate.setHours(0,0,0,0);
-                                        
-                                        const diffTime = newDate.getTime() - originalDate.getTime();
-                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        const origTime = Date.UTC(y1, m1 - 1, d1);
+                                        const newTime = Date.UTC(y2, m2 - 1, d2);
+                                        const diffDays = Math.round((newTime - origTime) / (1000 * 60 * 60 * 24));
                                         
                                         if (isNaN(diffDays)) return null;
                                         
@@ -1137,7 +1182,7 @@ export function NewSolicitudPage() {
                                                     <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-955/20 border border-amber-250 dark:border-amber-900/40 rounded-lg text-xs text-amber-800 dark:text-amber-400 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
                                                         <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                                                         <span>
-                                                            O início da obra será adiado em <strong className="underline decoration-2 decoration-amber-500">{diffDays} dia(s)</strong> (de {new Date(originalDateStr).toLocaleDateString('pt-PT')} para {new Date(dueDate).toLocaleDateString('pt-PT')}).
+                                                            O início da obra será adiado em <strong className="underline decoration-2 decoration-amber-500">{diffDays} dia(s)</strong> (de {formatLocalDate(originalDateStr)} para {formatLocalDate(dueDate)}).
                                                         </span>
                                                     </div>
                                                 );
@@ -1164,7 +1209,7 @@ export function NewSolicitudPage() {
                                                     <div className="mt-2 p-2.5 bg-emerald-50 dark:bg-emerald-955/20 border border-emerald-250 dark:border-emerald-900/40 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
                                                         <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                                                         <span>
-                                                            A obra será estendida por mais <strong className="underline decoration-2 decoration-emerald-500">{diffDays} dia(s)</strong> (de {new Date(originalDateStr).toLocaleDateString('pt-PT')} para {new Date(dueDate).toLocaleDateString('pt-PT')}).
+                                                            A obra será estendida por mais <strong className="underline decoration-2 decoration-emerald-500">{diffDays} dia(s)</strong> (de {formatLocalDate(originalDateStr)} para {formatLocalDate(dueDate)}).
                                                         </span>
                                                     </div>
                                                 );
