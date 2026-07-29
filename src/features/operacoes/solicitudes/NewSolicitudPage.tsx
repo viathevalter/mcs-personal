@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail } from 'lucide-react';
+import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail, RotateCcw } from 'lucide-react';
 import { useWorkerAssignments } from './hooks/useWorkerAssignments';
 import { useCreateSolicitud } from './hooks/useCreateSolicitud';
 import { AssignmentsSelectionTable } from './components/AssignmentsSelectionTable';
@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 
 import { useQueryClient } from '@tanstack/react-query';
+
+const DRAFT_STORAGE_KEY = 'mcs:new_solicitud_draft';
 
 export function NewSolicitudPage() {
     const queryClient = useQueryClient();
@@ -76,6 +78,10 @@ export function NewSolicitudPage() {
     const [housingStartDate, setHousingStartDate] = useState<string>('');
     const [housingEndDate, setHousingEndDate] = useState<string>('');
     const [requiresReplacement, setRequiresReplacement] = useState<boolean>(false);
+
+    // Form Persistence / Draft state
+    const isDraftLoadedRef = useRef(false);
+    const [isDraftRestored, setIsDraftRestored] = useState(false);
 
     const { data: assignments = [] } = useWorkerAssignments({
         empresa_id: selectedEmpresaId,
@@ -235,6 +241,116 @@ export function NewSolicitudPage() {
         }
     }, [actionType, selectedAssignments, assignments]);
 
+    // Load draft from localStorage on mount
+    useEffect(() => {
+        if (isDraftLoadedRef.current) return;
+        isDraftLoadedRef.current = true;
+
+        try {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+            if (saved) {
+                const draft = JSON.parse(saved);
+                if (draft.reason !== undefined && draft.reason !== '') setReason(draft.reason);
+                if (draft.notes !== undefined && draft.notes !== '') setNotes(draft.notes);
+                if (draft.priority !== undefined) setPriority(draft.priority);
+                if (draft.dueDate !== undefined && draft.dueDate !== '') setDueDate(draft.dueDate);
+                if (draft.title !== undefined && draft.title !== '') setTitle(draft.title);
+                if (draft.requiresReplacement !== undefined) setRequiresReplacement(draft.requiresReplacement);
+                if (draft.targetClientId !== undefined) setTargetClientId(draft.targetClientId);
+                if (draft.targetClientSiteId !== undefined) setTargetClientSiteId(draft.targetClientSiteId);
+                if (draft.requiresHousing !== undefined) setRequiresHousing(draft.requiresHousing);
+                if (draft.housingStartDate !== undefined) setHousingStartDate(draft.housingStartDate);
+                if (draft.housingEndDate !== undefined) setHousingEndDate(draft.housingEndDate);
+                if (draft.sendEmailNotification !== undefined) setSendEmailNotification(draft.sendEmailNotification);
+                if (draft.additionalEmails !== undefined) setAdditionalEmails(draft.additionalEmails);
+                if (Array.isArray(draft.selectedEmails) && draft.selectedEmails.length > 0) setSelectedEmails(draft.selectedEmails);
+                if (draft.emailLanguage !== undefined) setEmailLanguage(draft.emailLanguage);
+
+                const urlTipo = searchParams.get('tipo');
+                if (draft.actionType && (!urlTipo || urlTipo === 'replacement')) {
+                    setActionType(draft.actionType);
+                }
+
+                const urlClient = searchParams.get('client_id');
+                if (draft.selectedClientId && (!urlClient || urlClient === 'all')) {
+                    setSelectedClientId(draft.selectedClientId);
+                }
+
+                const urlSite = searchParams.get('site_id');
+                if (draft.selectedClientSiteId && (!urlSite || urlSite === 'all')) {
+                    setSelectedClientSiteId(draft.selectedClientSiteId);
+                }
+
+                const urlPedido = searchParams.get('pedido_id');
+                if (draft.selectedPedidoId && (!urlPedido || urlPedido === 'all')) {
+                    setSelectedPedidoId(draft.selectedPedidoId);
+                }
+
+                if (Array.isArray(draft.selectedAssignments) && draft.selectedAssignments.length > 0) {
+                    setSelectedAssignments(draft.selectedAssignments);
+                }
+
+                if (draft.reason || draft.notes || draft.dueDate || (draft.selectedAssignments && draft.selectedAssignments.length > 0)) {
+                    setIsDraftRestored(true);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to restore draft from localStorage:", err);
+        }
+    }, [searchParams]);
+
+    // Save draft to localStorage on state changes
+    useEffect(() => {
+        if (!isDraftLoadedRef.current) return;
+        const draft = {
+            actionType,
+            selectedClientId,
+            selectedClientSiteId,
+            selectedPedidoId,
+            selectedAssignments,
+            title,
+            priority,
+            dueDate,
+            reason,
+            notes,
+            requiresReplacement,
+            targetClientId,
+            targetClientSiteId,
+            requiresHousing,
+            housingStartDate,
+            housingEndDate,
+            sendEmailNotification,
+            additionalEmails,
+            selectedEmails,
+            emailLanguage,
+            updatedAt: Date.now()
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    }, [
+        actionType, selectedClientId, selectedClientSiteId, selectedPedidoId,
+        selectedAssignments, title, priority, dueDate, reason, notes,
+        requiresReplacement, targetClientId, targetClientSiteId, requiresHousing,
+        housingStartDate, housingEndDate, sendEmailNotification, additionalEmails,
+        selectedEmails, emailLanguage
+    ]);
+
+    const handleClearDraft = () => {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        setReason('');
+        setNotes('');
+        setDueDate('');
+        setTitle('');
+        setPriority('normal');
+        setRequiresReplacement(false);
+        setSelectedAssignments([]);
+        setRequiresHousing(false);
+        setHousingStartDate('');
+        setHousingEndDate('');
+        setAdditionalEmails('');
+        setIsDraftRestored(false);
+        toast.success('Rascunho limpo com sucesso.');
+    };
+
     // Load configured notification emails when empresa or actionType changes
     useEffect(() => {
         const fetchEmails = async () => {
@@ -294,6 +410,24 @@ export function NewSolicitudPage() {
             ? new Date(dueDate).toLocaleDateString('pt-PT')
             : (emailLanguage === 'en' ? 'Not informed' : 'Não informado');
 
+        let dateLabel = '';
+        if (emailLanguage === 'es') {
+            dateLabel = actionType === 'offboarding' ? 'Fecha Efectiva de Baja (Salida)' :
+                        actionType === 'order_extension' ? 'Nueva Fecha de Término' :
+                        actionType === 'order_termination' ? 'Fecha de Cierre' :
+                        actionType === 'relocation' ? 'Fecha de Inicio de Reubicación' : 'Fecha de Inicio';
+        } else if (emailLanguage === 'en') {
+            dateLabel = actionType === 'offboarding' ? 'Effective Termination Date' :
+                        actionType === 'order_extension' ? 'New End Date' :
+                        actionType === 'order_termination' ? 'Completion Date' :
+                        actionType === 'relocation' ? 'Relocation Start Date' : 'Start Date';
+        } else {
+            dateLabel = actionType === 'offboarding' ? 'Data Efetiva da Baixa (Saída)' :
+                        actionType === 'order_extension' ? 'Nova Data de Término' :
+                        actionType === 'order_termination' ? 'Data de Encerramento' :
+                        actionType === 'relocation' ? 'Data de Início da Realocação' : 'Data de Início';
+        }
+
         let typeLabel = '';
         if (emailLanguage === 'es') {
             typeLabel = actionType === 'replacement' ? 'Sustitución (Reemplazo)' : 
@@ -336,7 +470,7 @@ export function NewSolicitudPage() {
   <li><strong>Cliente:</strong> ${clientName}</li>
   <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
   <li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || 'Ninguno seleccionado'}</li>
-  <li><strong>Fecha de Inicio:</strong> ${expectedStartStr}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
   <li><strong>Motivo:</strong> ${reason || 'No informado'}</li>
   <li><strong>Observaciones Extras:</strong> ${notes || 'Ninguna'}</li>
 </ul>
@@ -350,7 +484,7 @@ export function NewSolicitudPage() {
   <li><strong>Client:</strong> ${clientName}</li>
   <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
   <li><strong>Affected Worker(s):</strong> ${workerNames || 'None selected'}</li>
-  <li><strong>Start Date:</strong> ${expectedStartStr}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
   <li><strong>Reason:</strong> ${reason || 'Not provided'}</li>
   <li><strong>Extra Observations:</strong> ${notes || 'None'}</li>
 </ul>
@@ -364,7 +498,7 @@ export function NewSolicitudPage() {
   <li><strong>Cliente:</strong> ${clientName}</li>
   <li><strong>Código do Pedido:</strong> ${pedidoCodigo}</li>
   <li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || 'Nenhum selecionado'}</li>
-  <li><strong>Data de Início:</strong> ${expectedStartStr}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
   <li><strong>Motivo:</strong> ${reason || 'Não informado'}</li>
   <li><strong>Observações Extras:</strong> ${notes || 'Nenhuma'}</li>
 </ul>
@@ -480,7 +614,7 @@ export function NewSolicitudPage() {
             title: title,
             description: reason || `Solicitação gerada para ${selectedAssignments.length} alvo(s)`,
             priority: priority,
-            due_date: (actionType === 'offboarding' && !requiresReplacement) ? null : (dueDate ? new Date(dueDate).toISOString() : null),
+            due_date: dueDate ? new Date(dueDate).toISOString() : null,
             origin_pedido_id: originPedidoId,
             client_id: clientId,
             client_site_id: clientSiteId,
@@ -632,6 +766,10 @@ export function NewSolicitudPage() {
                 console.error("Failed to send operational notification email", emailErr);
             }
 
+            // Clear draft from storage on successful creation
+            localStorage.removeItem(DRAFT_STORAGE_KEY);
+            setIsDraftRestored(false);
+
             await queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
             await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
             navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
@@ -642,16 +780,33 @@ export function NewSolicitudPage() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-104px)] md:h-[calc(100vh-120px)] lg:h-[calc(100vh-136px)] overflow-hidden space-y-4 md:space-y-6 p-1 md:p-2 lg:p-3 w-full max-w-[1920px] mx-auto">
-            <div className="flex items-center space-x-4 shrink-0">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/operacoes/solicitudes')}>
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Nova Operação sobre Alocações</h1>
-                    <p className="text-muted-foreground">
-                        Selecione os trabalhadores ativos e inicie processos de substituição, realocação ou desligamento.
-                    </p>
+            <div className="flex items-center justify-between shrink-0">
+                <div className="flex items-center space-x-4">
+                    <Button variant="ghost" size="icon" onClick={() => navigate('/operacoes/solicitudes')}>
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Nova Operação sobre Alocações</h1>
+                        <p className="text-muted-foreground">
+                            Selecione os trabalhadores ativos e inicie processos de substituição, realocação ou desligamento.
+                        </p>
+                    </div>
                 </div>
+
+                {isDraftRestored && (
+                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 shadow-xs">
+                        <span>ℹ️ <strong>Rascunho mantido:</strong> Seus dados digitados anteriormente foram restaurados.</span>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleClearDraft} 
+                            className="h-6 text-xs text-amber-800 hover:text-amber-955 dark:text-amber-300 dark:hover:text-amber-100 underline p-0 font-medium flex items-center gap-1 ml-2"
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                            Limpar formulário
+                        </Button>
+                    </div>
+                )}
             </div>
 
 
@@ -923,7 +1078,6 @@ export function NewSolicitudPage() {
                                         checked={requiresReplacement}
                                         onChange={e => {
                                             setRequiresReplacement(e.target.checked);
-                                            if (!e.target.checked) setDueDate('');
                                         }}
                                         className="h-4.5 w-4.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-0.5"
                                     />
@@ -938,24 +1092,25 @@ export function NewSolicitudPage() {
                                 </div>
                             )}
 
-                            {((actionType !== 'offboarding') || (actionType === 'offboarding' && requiresReplacement)) && (
-                                 <div className="space-y-1.5">
-                                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                         {actionType === 'relocation' ? 'Data de Início da Realocação' : 
-                                          actionType === 'order_postponement' ? 'Nova Data de Início da Obra' : 
-                                          actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
-                                          actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
-                                          'Data de Início da Nova Contratação'}
-                                     </label>
-                                    <Input 
-                                        type="date"
-                                        value={dueDate} 
-                                        onChange={e => setDueDate(e.target.value)}
-                                        className={`h-10 text-sm transition-all duration-250 ${
-                                            actionType === 'order_postponement' ? 'border-amber-300 dark:border-amber-900/60 focus-visible:ring-amber-500 bg-amber-50/5 dark:bg-amber-955/5 shadow-inner' :
-                                            actionType === 'order_extension' ? 'border-emerald-300 dark:border-emerald-900/60 focus-visible:ring-emerald-500 bg-emerald-50/5 dark:bg-emerald-955/5 shadow-inner' : ''
-                                        }`}
-                                    />
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    {actionType === 'offboarding' ? 'Data Efetiva da Baixa (Data de Saída)' : 
+                                     actionType === 'relocation' ? 'Data de Início da Realocação' : 
+                                     actionType === 'order_postponement' ? 'Nova Data de Início da Obra' : 
+                                     actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
+                                     actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
+                                     'Data de Início da Nova Contratação'}
+                                </label>
+                                <Input 
+                                    type="date"
+                                    value={dueDate} 
+                                    onChange={e => setDueDate(e.target.value)}
+                                    className={`h-10 text-sm transition-all duration-250 ${
+                                        actionType === 'offboarding' ? 'border-blue-300 dark:border-blue-900/60 focus-visible:ring-blue-500 bg-blue-50/5 dark:bg-blue-955/5 shadow-inner' :
+                                        actionType === 'order_postponement' ? 'border-amber-300 dark:border-amber-900/60 focus-visible:ring-amber-500 bg-amber-50/5 dark:bg-amber-955/5 shadow-inner' :
+                                        actionType === 'order_extension' ? 'border-emerald-300 dark:border-emerald-900/60 focus-visible:ring-emerald-500 bg-emerald-50/5 dark:bg-emerald-955/5 shadow-inner' : ''
+                                    }`}
+                                />
                                     {dueDate && (() => {
                                         const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
                                         if (!p) return null;
@@ -1034,7 +1189,6 @@ export function NewSolicitudPage() {
                                         return null;
                                     })()}
                                 </div>
-                            )}
 
                             {actionType === 'relocation' && (
                                 <>
