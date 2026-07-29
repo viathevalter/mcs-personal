@@ -1404,6 +1404,7 @@ Muchas gracias.`;
                                                     <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
                                                     <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                                     <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="TRIANGULO">Triangulo</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
