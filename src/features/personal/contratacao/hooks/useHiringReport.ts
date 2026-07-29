@@ -19,7 +19,8 @@ export interface HiringReportItem {
   worker_id: string;
   worker_name: string;
   worker_document: string;
-  contratante: string;
+  contratante: string; // Empresa do Grupo
+  contratador: string; // Recrutador / Usuário que contratou
   client_id: string;
   client_name: string;
   client_site_name: string;
@@ -145,7 +146,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     .from('worker_assignments')
     .select(`
       *,
-      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, status_seguridad, data_baixa),
+      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, contractor, status_seguridad, data_baixa),
       replaced_assignment:worker_assignments!replacement_of_assignment_id(
         id,
         worker:workers(id, nome)
@@ -214,7 +215,8 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresa: empresasMap.get(a.empresa_id) || null,
     status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
     end_date: a.end_date || a.worker?.data_baixa || null,
-    contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome)
+    contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
+    contratador: a.contractor || a.worker?.contractor || a.worker?.contratante || a.contratante || targetEmpresaNome
   }));
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
@@ -228,7 +230,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   if (activeWorkerCodes.length > 0) {
     const { data: cppList } = await supabase
       .from('colaborador_por_pedido')
-      .select('cod_colab, fechainiciopedido, fechafinpedido, fechasalidatrabajador, cliente_nombre, codpedido, inserted_at, contratante, funcion')
+      .select('cod_colab, fechainiciopedido, fechafinpedido, fechasalidatrabajador, cliente_nombre, codpedido, inserted_at, contratante, funcion, sp_created_by')
       .in('cod_colab', activeWorkerCodes);
 
     (cppList || []).forEach((cpp: any) => {
@@ -262,6 +264,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
       const stdContratante = formatStandardContratante(w.contratante || cpp?.contratante || targetEmpresaNome);
+      const rawContratador = w.contractor || cpp?.sp_created_by || w.contratante || cpp?.contratante || targetEmpresaNome;
 
       return {
         id: `virtual-${w.id}`,
@@ -277,6 +280,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         end_date: endDate,
         status_seguridad: w.status_seguridad,
         contratante: stdContratante,
+        contratador: rawContratador,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -287,6 +291,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           movil: w.movil,
           funcion: w.funcion || cpp?.funcion,
           contratante: stdContratante,
+          contractor: rawContratador,
           status_seguridad: w.status_seguridad,
           data_baixa: w.data_baixa
         },
@@ -325,6 +330,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const workerDoc = a.worker?.nif || a.worker?.dni || a.worker?.cod_colab || '-';
     const rawContratante = a.contratante || a.worker?.contratante || a.empresa?.nome || empresaNome;
     const contratante = formatStandardContratante(rawContratante);
+    
+    // Contratador / Recrutador responsable
+    const rawContratador = a.contratador || a.contractor || a.worker?.contractor || a.worker?.contratante || rawContratante;
+    const contratador = formatStandardContratante(rawContratador);
 
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
@@ -371,6 +380,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       worker_name: workerName,
       worker_document: workerDoc,
       contratante,
+      contratador,
       client_id: a.client_id,
       client_name: clientName,
       client_site_name: siteName,

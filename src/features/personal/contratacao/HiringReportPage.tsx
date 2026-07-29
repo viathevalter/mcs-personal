@@ -16,7 +16,9 @@ import {
   Search,
   ShieldCheck,
   ShieldAlert,
-  CheckCircle2
+  CheckCircle2,
+  Building2,
+  UserCog
 } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
@@ -24,7 +26,7 @@ import * as XLSX from 'xlsx';
 import { useHiringReport, type HiringReportFilters } from './hooks/useHiringReport';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
-type SortKey = 'worker_name' | 'contratante' | 'client_name' | 'job_function_name' | 'tarifa_acordada' | 'start_date' | 'days_worked' | 'status' | 'status_seguridad';
+type SortKey = 'worker_name' | 'contratante' | 'contratador' | 'client_name' | 'job_function_name' | 'tarifa_acordada' | 'start_date' | 'days_worked' | 'status' | 'status_seguridad';
 
 function formatDateBR(dateStr: string | null): string {
   if (!dateStr) return '-';
@@ -51,6 +53,11 @@ function getPresetDates(preset: string) {
   if (preset === 'this_month') {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
+    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
+  }
+  if (preset === 'next_month') {
+    const firstDay = new Date(year, month + 1, 1);
+    const lastDay = new Date(year, month + 2, 0);
     return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
   }
   if (preset === 'last_month') {
@@ -166,6 +173,7 @@ export const HiringReportPage: React.FC = () => {
       item.worker_name.toLowerCase().includes(q) ||
       item.worker_document.toLowerCase().includes(q) ||
       item.contratante.toLowerCase().includes(q) ||
+      item.contratador.toLowerCase().includes(q) ||
       item.client_name.toLowerCase().includes(q) ||
       item.pedido_codigo.toLowerCase().includes(q) ||
       item.job_function_name.toLowerCase().includes(q)
@@ -196,6 +204,10 @@ export const HiringReportPage: React.FC = () => {
         case 'contratante':
           valA = (a.contratante || '').toLowerCase();
           valB = (b.contratante || '').toLowerCase();
+          break;
+        case 'contratador':
+          valA = (a.contratador || '').toLowerCase();
+          valB = (b.contratador || '').toLowerCase();
           break;
         case 'client_name':
           valA = (a.client_name || '').toLowerCase();
@@ -246,7 +258,8 @@ export const HiringReportPage: React.FC = () => {
       '#': index + 1,
       'Trabalhador': item.worker_name,
       'Documento': item.worker_document,
-      'Empresa Contratante (Terceira)': item.contratante,
+      'Empresa do Grupo': item.contratante,
+      'Contratador / Recrutador': item.contratador,
       'Cliente': item.client_name,
       'Unidade / Obra': item.client_site_name,
       'Número do Pedido': item.pedido_codigo,
@@ -268,7 +281,8 @@ export const HiringReportPage: React.FC = () => {
       { wch: 5 },   // #
       { wch: 30 },  // Trabalhador
       { wch: 15 },  // Documento
-      { wch: 25 },  // Empresa Contratante
+      { wch: 22 },  // Empresa do Grupo
+      { wch: 22 },  // Contratador
       { wch: 25 },  // Cliente
       { wch: 20 },  // Unidade
       { wch: 18 },  // Pedido
@@ -322,7 +336,7 @@ export const HiringReportPage: React.FC = () => {
                 Controle de Contratações e Permanência
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Relatório de trabalhadores contratados via terceiras/fornecedores no período selecionado.
+                Relatório de trabalhadores contratados pelas empresas do grupo no período selecionado.
               </p>
             </div>
           </div>
@@ -368,6 +382,16 @@ export const HiringReportPage: React.FC = () => {
               }`}
             >
               Este Mês
+            </button>
+            <button
+              onClick={() => handlePresetChange('next_month')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                presetFilter === 'next_month'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Próximo Mês
             </button>
             <button
               onClick={() => handlePresetChange('last_month')}
@@ -478,17 +502,17 @@ export const HiringReportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Contratante / Terceira */}
+          {/* Empresa do Grupo */}
           <div className="space-y-0.5">
             <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
-              Contratante / Terceira
+              Empresa do Grupo
             </label>
             <select
               value={contratanteFilter}
               onChange={(e) => setContratanteFilter(e.target.value)}
               className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
-              <option value="all">Todas as Terceiras</option>
+              <option value="all">Todas as Empresas</option>
               {reportData?.uniqueContratantes?.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
@@ -815,14 +839,15 @@ export const HiringReportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Desempenho por Empresa Terceira / Fornecedor */}
+          {/* Desempenho por Empresa do Grupo */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-                <span>Desempenho por Empresa Terceira / Fornecedor</span>
+                <Building2 className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Desempenho por Empresa do Grupo</span>
               </h2>
               <span className="text-[10px] text-slate-400">
-                {reportData.contratanteBreakdown.length} terceiras
+                {reportData.contratanteBreakdown.length} empresas
               </span>
             </div>
 
@@ -914,14 +939,25 @@ export const HiringReportPage: React.FC = () => {
                     </div>
                   </th>
 
-                  {/* Empresa Terceira Column */}
+                  {/* Empresa do Grupo Column */}
                   <th 
                     className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('contratante')}
                   >
                     <div className="flex items-center gap-1">
-                      <span>Empresa Terceira</span>
+                      <span>Empresa do Grupo</span>
                       <SortIcon field="contratante" currentField={sortField} direction={sortDirection} />
+                    </div>
+                  </th>
+
+                  {/* Contratador Column */}
+                  <th 
+                    className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
+                    onClick={() => handleSort('contratador')}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Contratador</span>
+                      <SortIcon field="contratador" currentField={sortField} direction={sortDirection} />
                     </div>
                   </th>
 
@@ -1019,10 +1055,17 @@ export const HiringReportPage: React.FC = () => {
                       <div className="text-[10px] text-slate-400">Doc: {item.worker_document}</div>
                     </td>
 
-                    {/* Contratante / Terceira */}
+                    {/* Empresa do Grupo */}
                     <td className="py-2.5 px-3">
                       <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium inline-block text-[11px]">
                         {item.contratante}
+                      </span>
+                    </td>
+
+                    {/* Contratador */}
+                    <td className="py-2.5 px-3">
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-semibold inline-block text-[11px]">
+                        {item.contratador}
                       </span>
                     </td>
 
