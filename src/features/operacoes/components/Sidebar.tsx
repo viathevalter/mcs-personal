@@ -98,7 +98,6 @@ export const Sidebar: React.FC = () => {
             <div className="space-y-1">
               <NavItem to="/operacoes/operacao/tarefas" icon={ListTodo} label={t('menu.minhas_tarefas')} />
               <NavItem to="/operacoes/incidencias" icon={AlertCircle} label={t('menu.incidencias')} />
-              {isSystemAdmin && <NavItem to="/operacoes/admin/comissoes" icon={FileText} label={t('menu.comissoes')} />}
             </div>
           </>
         )}

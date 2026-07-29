@@ -4,7 +4,7 @@ import { supabaseLogService } from './db/SupabaseLogService';
 import { supabaseDepartmentService } from './db/SupabaseDepartmentService'; // NEW
 import { playbookService } from './mock/playbooks.service';
 import { playbookStepService } from './mock/playbookSteps.service';
-// import { departmentService } from './mock/departments.service'; // REMOVED
+import { supabase } from './supabaseClient';
 import { contextFactory } from './contextFactory';
 import type { Incidencia, IncidenciaTarefa, Playbook, PlaybookTarefa } from './types';
 import type { IncidentContext, OriginType } from '../types/models';
@@ -14,6 +14,39 @@ const incidentService = supabaseIncidentService;
 const incidentTaskService = supabaseTaskService;
 const logsService = supabaseLogService;
 const departmentService = supabaseDepartmentService; // SWITCHED
+
+export const notifyTaskCreated = async (title: string, deptName?: string, assignedEmail?: string, incidentId?: string) => {
+    try {
+        const { data: mcsUsers } = await supabase
+            .from('mcs_users')
+            .select('id, email, department_id');
+
+        const schemaClient = (supabase as any).schema ? (supabase as any).schema('core_common') : supabase;
+
+        const targetUsers = (mcsUsers || []).filter(u => {
+            if (assignedEmail && u.email?.toLowerCase() === assignedEmail.toLowerCase()) return true;
+            if (deptName && (u.department_id === deptName || u.department_id === deptName.toLowerCase())) return true;
+            return false;
+        });
+
+        const userIdsToNotify = targetUsers.length > 0
+            ? targetUsers.map(u => u.id)
+            : (mcsUsers || []).slice(0, 5).map(u => u.id);
+
+        for (const userId of userIdsToNotify) {
+            await schemaClient.from('notifications').insert({
+                user_id: userId,
+                title: `Nova Tarefa: ${deptName || 'Setor'}`,
+                message: title,
+                type: 'incident',
+                severity: 'info',
+                link_url: incidentId ? `/operacoes/incidencias/${incidentId}` : '/operacoes/operacao/tarefas'
+            });
+        }
+    } catch (e) {
+        console.warn("Notification insert fallback:", e);
+    }
+};
 
 // Adapters to convert new Models to old UI Types (for compatibility during refactor)
 
@@ -167,6 +200,8 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
             assigned_to: payload.responsavel_email,
             created_by: payload.created_by
         } as any);
+
+        await notifyTaskCreated(payload.titulo, payload.departamento, payload.responsavel_email, newInc.id);
     }
 
     // --- PLAYBOOK TASKS LOGIC ---
@@ -181,20 +216,6 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
             const offsetMs = unit === 'hours' ? slaVal * 3600000 : slaVal * 86400000;
             const dueDate = new Date(Date.now() + offsetMs).toISOString();
 
-            // Find Department ID (already enriched name is in step, but we need ID for Supabase)
-            // Actually step has override_department_id or template default.
-            // But listByPlaybook returns ExpandedPlaybookStep which has department_name.
-            // We need the ID. listByPlaybook map function has access to it but didn't expose it in top level.
-            // But `step` extends `PlaybookStep` so it has `override_department_id` and `task_template_id`.
-            // We can re-resolve or just trust the `override_department_id`.
-            // Wait, if override is null, we need template default.
-            // `listByPlaybook` logic: `const deptId = step.override_department_id || tpl?.default_department_id;`
-            // But `ExpandedPlaybookStep` spreads `...step`. `step` (PlaybookStep) has `override_department_id`.
-            // It DOES NOT have `tpl?.default_department_id` merged into it.
-            // So we need to re-fetch template or...
-            // Actually, I can update `playbookSteps.service.ts` to return `department_id` as well?
-            // Or I can just lookup department by name (since `department_name` is returned)?
-            // Looking up by name is safer if I trust `department_name` is correct.
             const deptId = depts.find(d => d.name === step.department_name)?.id;
 
             await incidentTaskService.create({
@@ -204,10 +225,10 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
                 step_order: step.step_order,
                 status: 'Pendente',
                 due_at: dueDate,
-                sla_days: slaVal // Store value. Unit is implicit in due_at, but we might want to store unit in task?
-                // `IncidentTask` model doesn't have `sla_unit`.
-                // For now, we store `due_at` correctly.
+                sla_days: slaVal
             } as any);
+
+            await notifyTaskCreated(step.task_title, step.department_name, undefined, newInc.id);
         }
     }
 

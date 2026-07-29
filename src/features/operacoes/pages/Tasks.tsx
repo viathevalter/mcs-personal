@@ -6,7 +6,7 @@ import {
     AlertCircle, Layers, ArrowUpRight, X, Play, Clock, AlertTriangle, Trash2, Edit
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllTarefas, updateTarefa, assignTarefa, deleteTarefa } from '../services/incidencias';
+import { getAllTarefas, updateTarefa, assignTarefa, deleteTarefa, listDepartments } from '../services/incidencias';
 import { incidentTaskService } from '../services/mock/incidentTasks.service';
 import { useAuth } from '../contexts/AuthContext';
 import type { IncidenciaTarefaExpandida } from '../services/types';
@@ -24,6 +24,7 @@ export const Tasks: React.FC = () => {
 
     // Data State
     const [allTasks, setAllTasks] = useState<IncidenciaTarefaExpandida[]>([]);
+    const [departments, setDepartments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Filters State
@@ -43,7 +44,9 @@ export const Tasks: React.FC = () => {
         try {
             await incidentTaskService.checkForOverdueTasks();
             const data = await getAllTarefas();
+            const depts = await listDepartments();
             setAllTasks(data);
+            setDepartments(depts);
         } catch (error) {
             console.error(error);
         } finally {
@@ -123,14 +126,18 @@ export const Tasks: React.FC = () => {
     }, [allTasks]);
 
     const filteredData = useMemo(() => {
+        const userDeptVal = currentUser.profile?.department_id || '';
+        const foundDept = departments.find(d => d.id === userDeptVal || d.name?.toLowerCase() === userDeptVal?.toLowerCase());
+        const userDeptName = foundDept?.name || userDeptVal;
+        const managed = currentUser.profile?.managed_departments || [];
+
         return allTasks.filter(t => {
             // --- ADMIN / SUPER ADMIN DATA ISOLATION ---
             if (currentUser && !currentUser.isSuperAdmin && currentUser.isAdmin) {
-                const managed = currentUser.profile?.managed_departments || [];
                 const isMine = t.responsavel_email === currentUser.email;
                 const isManaged = managed.includes(t.departamento);
 
-                if (!isMine && !isManaged) {
+                if (!isMine && !isManaged && userDeptName && t.departamento?.toLowerCase() !== userDeptName.toLowerCase()) {
                     return false;
                 }
             }
@@ -138,10 +145,18 @@ export const Tasks: React.FC = () => {
             if (activeTab === 'minhas') {
                 if (t.responsavel_email !== currentUser.email) return false;
             } else if (activeTab === 'setor') {
-                const userDeptName = currentUser.profile?.department_id || '';
-                if (t.departamento !== userDeptName) return false;
+                if (!userDeptName && managed.length === 0 && !currentUser.isSuperAdmin) {
+                    return false;
+                }
+                const matchesDeptName = userDeptName && t.departamento?.toLowerCase() === userDeptName.toLowerCase();
+                const matchesDeptId = userDeptVal && t.department_id === userDeptVal;
+                const matchesManaged = managed.includes(t.departamento);
+
+                if (!matchesDeptName && !matchesDeptId && !matchesManaged && !currentUser.isSuperAdmin) {
+                    return false;
+                }
             }
-            // 'todas' shows everything that passes the isolation check above
+            // 'todas' shows everything that passes isolation check above
 
             if (statusFilter && statusFilter !== 'Todos') {
                 if (statusFilter === 'Ativas') {
@@ -172,7 +187,7 @@ export const Tasks: React.FC = () => {
             }
             return true;
         });
-    }, [allTasks, activeTab, statusFilter, searchTerm, onlyOverdue, currentUser, assigneeFilter]);
+    }, [allTasks, activeTab, statusFilter, searchTerm, onlyOverdue, currentUser, assigneeFilter, departments]);
 
     const myTasks = allTasks.filter(t => t.responsavel_email === currentUser.email && t.status !== 'Concluida');
     const myPendingCount = myTasks.length;
