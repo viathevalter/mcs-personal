@@ -618,13 +618,13 @@ export function NewSolicitudPage() {
             : (firstAssignment?.pedido_id || null);
 
         const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-            ? (selectedPedido?.client_id || null)
+            ? (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
             : (actionType === 'relocation')
                 ? (targetClientId !== 'all' ? targetClientId : null)
                 : (firstAssignment?.client_id || null);
 
         const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-            ? (selectedPedido?.client_site_id || null)
+            ? (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
             : (actionType === 'relocation')
                 ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
                 : (firstAssignment?.client_site_id || null);
@@ -1385,7 +1385,7 @@ export function NewSolicitudPage() {
                                 size="lg"
                                 disabled={
                                     ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-                                        ? (selectedPedidoId === 'all')
+                                        ? (selectedPedidoId === 'all' && selectedAssignments.length === 0)
                                         : (selectedAssignments.length === 0)) ||
                                     !reason.trim() ||
                                     createSolicitudWithTargets.isPending
@@ -1396,11 +1396,11 @@ export function NewSolicitudPage() {
                                 {createSolicitudWithTargets.isPending ? 'Criando...' : 'Iniciar Operação'}
                             </Button>
                             {((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-                                ? (selectedPedidoId === 'all')
+                                ? (selectedPedidoId === 'all' && selectedAssignments.length === 0)
                                 : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-                                        ? 'Selecione um Pedido (Obra) para continuar.'
+                                        ? 'Selecione um Pedido (Obra) ou pelo menos um trabalhador para continuar.'
                                         : 'Selecione pelo menos um trabalhador na tabela.'}
                                 </p>
                             )}
