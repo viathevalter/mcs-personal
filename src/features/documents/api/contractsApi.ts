@@ -31,6 +31,8 @@ export interface Contract {
         dni: string;
         nie: string;
         pasaporte: string;
+        cliente?: string;
+        cod_cliente?: string;
     };
     assignment?: {
         id: string;
@@ -58,7 +60,7 @@ export async function listContracts({ empresaId, workerId, status, contractType 
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, nif, niss, dni, nie, pasaporte
+                id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente
             ),
             assignment:worker_assignments (
                 id,
@@ -236,6 +238,8 @@ export interface DocumentRequest {
         licencia_conducir?: string;
         nacionalidade?: string;
         fecha_nacimiento?: string;
+        cliente?: string;
+        cod_cliente?: string;
         iban?: string;
         assignments?: Array<{
             id: string;
@@ -263,7 +267,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, licencia_conducir, nacionalidade, fecha_nacimiento,
+                id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, licencia_conducir, nacionalidade, fecha_nacimiento, cliente, cod_cliente,
                 assignments:worker_assignments (
                     id, status, client_id, start_date, planned_start_date
                 )

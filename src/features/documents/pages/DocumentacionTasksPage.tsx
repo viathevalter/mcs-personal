@@ -147,8 +147,10 @@ export function DocumentacionTasksPage() {
         docRequests.forEach(req => {
             const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
             const latestAssignment = req.worker?.assignments?.[0];
-            const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
-                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+            const clientName = req.client?.trade_name || req.client?.legal_name ||
+                               activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
+                               req.worker?.cliente || 'Sem Alocação';
             set.add(clientName);
         });
         return Array.from(set).sort();
@@ -169,8 +171,10 @@ export function DocumentacionTasksPage() {
         const filtered = docRequests.filter(req => {
             const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
             const latestAssignment = req.worker?.assignments?.[0];
-            const clientName = activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
-                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+            const clientName = req.client?.trade_name || req.client?.legal_name ||
+                               activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
+                               req.worker?.cliente || 'Sem Alocação';
             
             const empresaName = req.empresa?.name || 'Stocco';
             const workerName = req.worker?.nome || '';
@@ -221,13 +225,17 @@ export function DocumentacionTasksPage() {
             } else if (sortFieldRequests === 'client') {
                 const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssA = a.worker?.assignments?.[0];
-                valA = activeAssA?.client?.trade_name || activeAssA?.client?.legal_name ||
-                       latestAssA?.client?.trade_name || latestAssA?.client?.legal_name || 'Sem Alocação';
+                valA = a.client?.trade_name || a.client?.legal_name ||
+                       activeAssA?.client?.trade_name || activeAssA?.client?.legal_name ||
+                       latestAssA?.client?.trade_name || latestAssA?.client?.legal_name ||
+                       a.worker?.cliente || 'Sem Alocação';
 
                 const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssB = b.worker?.assignments?.[0];
-                valB = activeAssB?.client?.trade_name || activeAssB?.client?.legal_name ||
-                       latestAssB?.client?.trade_name || latestAssB?.client?.legal_name || 'Sem Alocação';
+                valB = b.client?.trade_name || b.client?.legal_name ||
+                       activeAssB?.client?.trade_name || activeAssB?.client?.legal_name ||
+                       latestAssB?.client?.trade_name || latestAssB?.client?.legal_name ||
+                       b.worker?.cliente || 'Sem Alocação';
             } else if (sortFieldRequests === 'planned_start_date') {
                 const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
                 const latestAssA = a.worker?.assignments?.[0];
@@ -254,7 +262,7 @@ export function DocumentacionTasksPage() {
     // Filtrar contratos localmente
     const filteredContracts = useMemo(() => {
         return contracts.filter(contract => {
-            const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || 'Sem Alocação';
+            const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sem Alocação';
             const empresaName = contract.contratante || '';
             const workerName = contract.worker?.nome || '';
             const workerEmail = contract.worker?.email || '';
@@ -1722,7 +1730,8 @@ Muchas gracias.`;
                                                 const latestAssignment = req.worker?.assignments?.[0];
                                                 const clientName = req.client?.trade_name || req.client?.legal_name ||
                                                                    activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
-                                                                   latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name || 'Sem Alocação';
+                                                                   latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
+                                                                   req.worker?.cliente || 'Sem Alocação';
                                                 
                                                 const rawWorkerCode = (req.worker as any)?.cod_colab || '';
                                                 const workerCode = rawWorkerCode ? (String(rawWorkerCode).startsWith('E') ? String(rawWorkerCode) : `E${rawWorkerCode}`) : '';
@@ -1954,7 +1963,7 @@ Muchas gracias.`;
                                         <TableBody>
                                             {filteredContracts.map((contract) => {
                                                 const signLink = `${window.location.origin}/assinar/${contract.signature_token}`;
-                                                const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || 'Sem Alocação';
+                                                const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sem Alocação';
                                                 
                                                 return (
                                                     <TableRow key={contract.id}>
