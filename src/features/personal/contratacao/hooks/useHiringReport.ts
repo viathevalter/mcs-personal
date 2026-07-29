@@ -8,6 +8,7 @@ export interface HiringReportFilters {
   endDate?: string;   // YYYY-MM-DD
   clientFilter?: string;
   contratanteFilter?: string;
+  contratadorFilter?: string;
   pedidoFilter?: string;
   jobFunctionFilter?: string;
   statusFilter?: string;    // 'all' | 'active' | 'inactive'
@@ -20,7 +21,7 @@ export interface HiringReportItem {
   worker_name: string;
   worker_document: string;
   contratante: string; // Empresa do Grupo
-  contratador: string; // Recrutador / Usuário que contratou
+  contratador: string; // Recrutador / Usuário que contratou (Wolmer / Contratação)
   client_id: string;
   client_name: string;
   client_site_name: string;
@@ -67,6 +68,22 @@ export function formatStandardContratante(rawName: string | null | undefined): s
   if (lower.includes('rosas') || lower.includes('kotrik')) return 'Kotrik & Rosas';
 
   return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
+
+export function formatStandardContratador(rawName: string | null | undefined): string {
+  if (!rawName) return 'Wolmer';
+  const clean = rawName.trim();
+  const lower = clean.toLowerCase();
+
+  if (lower.includes('wolmer')) return 'Wolmer';
+  if (lower.includes('contratacao') || lower.includes('wolters')) return 'Contratação';
+
+  if (clean.includes('@')) {
+    const user = clean.split('@')[0];
+    return user.charAt(0).toUpperCase() + user.slice(1);
+  }
+
+  return clean;
 }
 
 function parseLocalDate(dateStr: string | null): Date | null {
@@ -134,6 +151,7 @@ function emptyReport() {
     contratanteBreakdown: [],
     uniqueClients: [],
     uniqueContratantes: [],
+    uniqueContratadores: [],
     uniquePedidos: [],
     uniqueFunctions: [],
   };
@@ -216,7 +234,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
     end_date: a.end_date || a.worker?.data_baixa || null,
     contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
-    contratador: a.contractor || a.worker?.contractor || a.worker?.contratante || a.contratante || targetEmpresaNome
+    contratador: formatStandardContratador(a.contractor || a.worker?.contractor || a.sp_created_by)
   }));
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
@@ -264,7 +282,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
       const stdContratante = formatStandardContratante(w.contratante || cpp?.contratante || targetEmpresaNome);
-      const rawContratador = w.contractor || cpp?.sp_created_by || w.contratante || cpp?.contratante || targetEmpresaNome;
+      const stdContratador = formatStandardContratador(w.contractor || cpp?.sp_created_by);
 
       return {
         id: `virtual-${w.id}`,
@@ -280,7 +298,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         end_date: endDate,
         status_seguridad: w.status_seguridad,
         contratante: stdContratante,
-        contratador: rawContratador,
+        contratador: stdContratador,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -291,7 +309,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           movil: w.movil,
           funcion: w.funcion || cpp?.funcion,
           contratante: stdContratante,
-          contractor: rawContratador,
+          contractor: stdContratador,
           status_seguridad: w.status_seguridad,
           data_baixa: w.data_baixa
         },
@@ -331,9 +349,9 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const rawContratante = a.contratante || a.worker?.contratante || a.empresa?.nome || empresaNome;
     const contratante = formatStandardContratante(rawContratante);
     
-    // Contratador / Recrutador responsable
-    const rawContratador = a.contratador || a.contractor || a.worker?.contractor || a.worker?.contratante || rawContratante;
-    const contratador = formatStandardContratante(rawContratador);
+    // Contratador / Recrutador responsável (Wolmer / Contratação)
+    const rawContratador = a.contratador || a.contractor || a.worker?.contractor || a.sp_created_by;
+    const contratador = formatStandardContratador(rawContratador);
 
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
     const siteName = a.client_site?.name || '-';
@@ -405,18 +423,21 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   // Extract unique filter dropdown values BEFORE date filtering so drop downs don't collapse
   const uniqueClientsMap = new Map<string, string>();
   const uniqueContratantesSet = new Set<string>();
+  const uniqueContratadoresSet = new Set<string>();
   const uniquePedidosMap = new Map<string, string>();
   const uniqueFunctionsSet = new Set<string>();
 
   allItems.forEach(item => {
     if (item.client_id) uniqueClientsMap.set(item.client_id, item.client_name);
     if (item.contratante) uniqueContratantesSet.add(item.contratante);
+    if (item.contratador) uniqueContratadoresSet.add(item.contratador);
     if (item.pedido_id) uniquePedidosMap.set(item.pedido_id, item.pedido_codigo);
     if (item.job_function_name) uniqueFunctionsSet.add(item.job_function_name);
   });
 
   const uniqueClients = Array.from(uniqueClientsMap.entries()).map(([id, name]) => ({ id, name }));
   const uniqueContratantes = Array.from(uniqueContratantesSet).sort();
+  const uniqueContratadores = Array.from(uniqueContratadoresSet).sort();
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
@@ -454,6 +475,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       const itemContr = normalizeString(item.contratante);
       return itemContr.includes(targetContr) || targetContr.includes(itemContr);
     });
+  }
+
+  if (filters.contratadorFilter && filters.contratadorFilter !== 'all') {
+    filtered = filtered.filter(item => item.contratador === filters.contratadorFilter);
   }
 
   if (filters.pedidoFilter && filters.pedidoFilter !== 'all') {
@@ -540,6 +565,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     contratanteBreakdown,
     uniqueClients,
     uniqueContratantes,
+    uniqueContratadores,
     uniquePedidos,
     uniqueFunctions,
   };

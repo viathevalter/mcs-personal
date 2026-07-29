@@ -105,6 +105,7 @@ export const HiringReportPage: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [contratanteFilter, setContratanteFilter] = useState<string>('all');
+  const [contratadorFilter, setContratadorFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [pedidoFilter, setPedidoFilter] = useState<string>('all');
   const [jobFunctionFilter, setJobFunctionFilter] = useState<string>('all');
@@ -124,11 +125,12 @@ export const HiringReportPage: React.FC = () => {
     endDate,
     clientFilter,
     contratanteFilter,
+    contratadorFilter,
     pedidoFilter,
     jobFunctionFilter,
     statusFilter,
     seguridadFilter
-  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, pedidoFilter, jobFunctionFilter, statusFilter, seguridadFilter]);
+  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, contratadorFilter, pedidoFilter, jobFunctionFilter, statusFilter, seguridadFilter]);
 
   const { data: reportData, isLoading, refetch, isFetching } = useHiringReport(reportFilters);
 
@@ -313,6 +315,7 @@ export const HiringReportPage: React.FC = () => {
     setEndDate(dates.endDate);
     setSearchQuery('');
     setContratanteFilter('all');
+    setContratadorFilter('all');
     setClientFilter('all');
     setPedidoFilter('all');
     setJobFunctionFilter('all');
@@ -475,7 +478,7 @@ export const HiringReportPage: React.FC = () => {
         </div>
 
         {/* Dropdown Filters Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2">
           
           {/* Search Input */}
           <div className="space-y-0.5">
@@ -514,6 +517,25 @@ export const HiringReportPage: React.FC = () => {
             >
               <option value="all">Todas as Empresas</option>
               {reportData?.uniqueContratantes?.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Contratador / Recrutador */}
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              Contratador
+            </label>
+            <select
+              value={contratadorFilter}
+              onChange={(e) => setContratadorFilter(e.target.value)}
+              className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="all">Todos os Contratadores</option>
+              <option value="Wolmer">Wolmer</option>
+              <option value="Contratação">Contratação</option>
+              {reportData?.uniqueContratadores?.filter(c => c !== 'Wolmer' && c !== 'Contratação').map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -594,7 +616,7 @@ export const HiringReportPage: React.FC = () => {
         </div>
 
         {/* Clear Filters Row */}
-        {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all' || seguridadFilter !== 'all' || activeKpiCard !== 'total') && (
+        {(presetFilter !== 'this_month' || searchQuery || contratanteFilter !== 'all' || contratadorFilter !== 'all' || clientFilter !== 'all' || pedidoFilter !== 'all' || jobFunctionFilter !== 'all' || statusFilter !== 'all' || seguridadFilter !== 'all' || activeKpiCard !== 'total') && (
           <div className="pt-1 flex justify-end">
             <button
               onClick={handleClearFilters}
@@ -1062,9 +1084,10 @@ export const HiringReportPage: React.FC = () => {
                       </span>
                     </td>
 
-                    {/* Contratador */}
+                    {/* Contratador (Wolmer / Contratação) */}
                     <td className="py-2.5 px-3">
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-semibold inline-block text-[11px]">
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-semibold inline-flex items-center gap-1 text-[11px]">
+                        <UserCog className="h-3 w-3 text-indigo-500" />
                         {item.contratador}
                       </span>
                     </td>
