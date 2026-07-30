@@ -105,14 +105,33 @@ export const getBillingCycleDays = (startDay: number, year: number, monthIndex: 
 export function FaturasPendentes() {
   const [faturamentos, setFaturamentos] = useState<ClientBillingSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedObraByClient, setSelectedObraByClient] = useState<Record<string, string | null>>({});
+  
+  const [selectedObraByClient, setSelectedObraByClient] = useState<Record<string, string | null>>(() => {
+    try {
+      const saved = sessionStorage.getItem('mcs:selectedObraByClient');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
   const [processingClient, setProcessingClient] = useState<string | null>(null);
-  const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
+
+  const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = sessionStorage.getItem('mcs:expandedClients');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
   const [expandedWorkers, setExpandedWorkers] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const { selectedEmpresaId } = useEmpresa();
 
-  const [clientActiveTabs, setClientActiveTabs] = useState<Record<string, 'edicao' | 'datas_trabalhadas' | 'importe' | 'informe' | 'factura'>>({});
+  const [clientActiveTabs, setClientActiveTabs] = useState<Record<string, 'edicao' | 'datas_trabalhadas' | 'importe' | 'informe' | 'factura'>>(() => {
+    try {
+      const saved = sessionStorage.getItem('mcs:clientActiveTabs');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
 
   interface ClientAdjustments {
     incrementos: number;
@@ -126,7 +145,29 @@ export function FaturasPendentes() {
     condicoesPagamento: string;
     descricaoServico: string;
   }
-  const [clientAdjustments, setClientAdjustments] = useState<Record<string, ClientAdjustments>>({});
+  const [clientAdjustments, setClientAdjustments] = useState<Record<string, ClientAdjustments>>(() => {
+    try {
+      const saved = sessionStorage.getItem('mcs:clientAdjustments');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  // Sync state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('mcs:selectedObraByClient', JSON.stringify(selectedObraByClient));
+  }, [selectedObraByClient]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:expandedClients', JSON.stringify(expandedClients));
+  }, [expandedClients]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:clientActiveTabs', JSON.stringify(clientActiveTabs));
+  }, [clientActiveTabs]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:clientAdjustments', JSON.stringify(clientAdjustments));
+  }, [clientAdjustments]);
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -445,10 +486,13 @@ MCS - Gestão Comercial`;
       const data = await getHorasPendentesFaturamento(selectedEmpresaId, selectedYear, selectedMonth + 1);
       setFaturamentos(data);
 
-      // Initialize adjustments state
+      // Initialize adjustments state, keeping user changes from session state if present
       const initialAdjustments: Record<string, ClientAdjustments> = {};
+      const saved = sessionStorage.getItem('mcs:clientAdjustments');
+      const savedAdjustments = saved ? JSON.parse(saved) : {};
+      
       data.forEach(f => {
-        initialAdjustments[f.clientId] = initAdjustments(f);
+        initialAdjustments[f.clientId] = savedAdjustments[f.clientId] || clientAdjustments[f.clientId] || initAdjustments(f);
       });
       setClientAdjustments(initialAdjustments);
     } catch (error: any) {
@@ -934,6 +978,13 @@ MCS - Gestão Comercial`;
           id: toastId
         });
       }
+
+      // Remove this client's adjustments from our persisted states so they get recalculated for the next billing cycle
+      setClientAdjustments(prev => {
+        const next = { ...prev };
+        delete next[emailData.clientId];
+        return next;
+      });
 
       setIsEmailModalOpen(false);
       fetchHoras();
@@ -1689,10 +1740,36 @@ MCS - Gestão Comercial`;
             const selectedObraId = selectedObraByClient[cardId];
             const hasObraFilter = selectedObraId !== undefined;
 
-            // Filter workers and their hours based on the selected Obra
-            const filteredWorkers = f.workers.map(w => {
+            // 1. All workers for the monthly grid (Aba 1)
+            const allWorkers = f.workers.map(w => {
               const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
                 if (!hasObraFilter || h.obra_id === selectedObraId) {
+                  acc[date] = h;
+                }
+                return acc;
+              }, {} as Record<string, any>);
+
+              const wTotalHorasMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+              const wTotalValorMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+              return {
+                ...w,
+                horasDiarias: filteredHorasDiarias,
+                totalHoras: wTotalHorasMes,
+                totalValor: wTotalValorMes,
+                totalHorasMes: wTotalHorasMes,
+                totalValorMes: wTotalValorMes
+              };
+            }).filter(w => w.totalHorasMes > 0);
+
+            // 2. Active billing session workers (for invoicing, previews, and PDFs)
+            const filteredWorkers = f.workers.map(w => {
+              const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+                const belongsToActiveSession = f.activeFaturaId
+                  ? h.fatura_id === f.activeFaturaId
+                  : h.fatura_id === null;
+
+                if (belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId)) {
                   acc[date] = h;
                 }
                 return acc;
@@ -1724,6 +1801,11 @@ MCS - Gestão Comercial`;
             const unbilledWorkersList = filteredWorkers.filter(w => !w.isBilled);
             const totalUnbilled = unbilledWorkersList.length;
             const validatedUnbilled = unbilledWorkersList.filter(w => w.isValidated).length;
+
+            const totalMonthHours = f.workers.reduce((sum, w) => sum + (w.totalHorasMes ?? w.totalHoras), 0);
+            const totalMonthValor = f.workers.reduce((sum, w) => sum + (w.totalValorMes ?? w.totalValor), 0);
+            const totalBilledHours = Math.max(0, totalMonthHours - f.totalHoras);
+            const totalBilledValor = Math.max(0, totalMonthValor - f.totalValor);
 
             return (
               <Card 
@@ -1806,10 +1888,15 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <Clock size={16} className="text-slate-400 shrink-0" />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Horas Validadas</p>
-                        <p className={`font-bold ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Horas a Faturar</p>
+                        <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
                           {f.totalHoras.toFixed(2)}h
                         </p>
+                        {totalBilledHours > 0 && (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                            Já fat: {totalBilledHours.toFixed(1)}h | Total: {totalMonthHours.toFixed(1)}h
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1817,10 +1904,15 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <DollarSign size={16} className={isBlocked ? 'text-slate-400' : 'text-emerald-500'} />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Faturamento</p>
-                        <p className={`font-bold ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Faturamento Pendente</p>
+                        <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
                           € {f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
+                        {totalBilledValor > 0 && (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                            Já fat: € {totalBilledValor.toLocaleString('pt-PT', { maximumFractionDigits: 0 })} | Total: € {totalMonthValor.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2070,7 +2162,7 @@ MCS - Gestão Comercial`;
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredWorkers.map(worker => {
+                          {allWorkers.map(worker => {
                             const workerKey = `${f.clientId}-${worker.workerId}`;
                             const isWorkerExpanded = expandedWorkers[workerKey];
 
@@ -2157,7 +2249,7 @@ MCS - Gestão Comercial`;
                                   </TableCell>
 
                                   <TableCell className="text-right font-bold text-slate-800 dark:text-slate-200 align-top pt-4">
-                                    {worker.isValidated || worker.isBilled ? `${worker.totalHoras.toFixed(2)}h` : '--'}
+                                    {worker.isValidated || worker.isBilled ? `${(worker.totalHorasMes ?? worker.totalHoras).toFixed(2)}h` : '--'}
                                   </TableCell>
                                   <TableCell className="text-right font-semibold align-top pt-4">
                                     {worker.isValidated || worker.isBilled ? (
@@ -2183,7 +2275,7 @@ MCS - Gestão Comercial`;
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right pr-6 font-bold text-emerald-600 dark:text-emerald-500 align-top pt-4">
-                                    {worker.isValidated ? `€ ${worker.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+                                    {worker.isValidated || worker.isBilled ? `€ ${(worker.totalValorMes ?? worker.totalValor).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
                                   </TableCell>
                                 </TableRow>
 
@@ -2497,6 +2589,34 @@ MCS - Gestão Comercial`;
                                 value={adj.condicoesPagamento || ''} 
                               />
                             </div>
+
+                            {totalBilledHours > 0 && (
+                              <div className="mt-4 p-4 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 space-y-2">
+                                <h5 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <FileText size={14} /> Resumo do Ciclo de Faturamento
+                                </h5>
+                                <div className="grid grid-cols-2 gap-4 text-xs">
+                                  <div>
+                                    <p className="text-slate-400 font-medium">Faturamento Total do Ciclo</p>
+                                    <p className="font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
+                                      € {totalMonthValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-500 font-normal">({totalMonthHours.toFixed(1)}h)</span>
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-400 font-medium">Já Faturado (Parcial)</p>
+                                    <p className="font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
+                                      € {totalBilledValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-500 font-normal">({totalBilledHours.toFixed(1)}h)</span>
+                                    </p>
+                                  </div>
+                                  <div className="col-span-2 pt-1.5 border-t border-indigo-100/50 dark:border-indigo-900/40">
+                                    <p className="text-slate-400 font-medium">Pendente a Faturar (Nesta Fatura)</p>
+                                    <p className="font-extrabold text-emerald-600 dark:text-emerald-500 mt-0.5">
+                                      € {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-500 font-normal">({f.totalHoras.toFixed(1)}h)</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
                             <div className="pt-2 flex justify-end">
                               <Button 

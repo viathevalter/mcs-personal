@@ -123,6 +123,7 @@ export interface ClientBillingSummary {
   clientCountryName?: string | null;
 
   faturaNumero?: string | null;
+  activeFaturaId?: string | null;
   atcud?: string | null;
 
   year: number;
@@ -160,6 +161,8 @@ export interface ClientBillingSummary {
     tarifa: number;
     totalHoras: number;
     totalValor: number;
+    totalHorasMes?: number;
+    totalValorMes?: number;
     isValidated: boolean;
     isBilled: boolean;
     funcaoId?: string;
@@ -496,10 +499,34 @@ export async function getHorasPendentesFaturamento(
       const clientHours = hoursList.filter(h => h.client_id === client.id);
       if (clientWorkers.length === 0 && clientHours.length === 0) continue;
 
-      // Calculate Obras totals for the client
+      // Calculate Obras totals for the client based on active session hours
+      const unbilledHours = clientHours.filter(h => !h.fatura_id);
+      
+      let activeSessionHours: any[] = [];
+      let activeFatura: any = null;
+
+      if (unbilledHours.length > 0) {
+        activeSessionHours = unbilledHours;
+      } else {
+        const clientFaturas = Array.from(faturasMap.values()).filter(f => f.client_id === client.id);
+        const pendingFaturas = clientFaturas.filter(f => f.status === 'pending_client_approval' || f.status === 'disputed');
+        
+        if (pendingFaturas.length > 0) {
+          const latestPending = pendingFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
+          activeFatura = latestPending;
+          activeSessionHours = clientHours.filter(h => h.fatura_id === latestPending.id);
+        } else if (clientFaturas.length > 0) {
+          const latestFinalized = clientFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
+          activeFatura = latestFinalized;
+          activeSessionHours = clientHours.filter(h => h.fatura_id === latestFinalized.id);
+        } else {
+          activeSessionHours = [];
+        }
+      }
+
       const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
       
-      clientHours.forEach(h => {
+      activeSessionHours.forEach(h => {
         const oId = h.obra_id || null;
         if (!obrasMap.has(oId)) {
           const siteName = oId ? (clientSitesMap.get(oId) || 'Obra Desconhecida') : 'Sem Obra';
@@ -538,6 +565,15 @@ export async function getHorasPendentesFaturamento(
         hoursByWorker.get(h.worker_id)!.push(h);
       });
 
+      // Group active session hours by worker
+      const activeHoursByWorker = new Map<string, any[]>();
+      activeSessionHours.forEach(h => {
+        if (!activeHoursByWorker.has(h.worker_id)) {
+          activeHoursByWorker.set(h.worker_id, []);
+        }
+        activeHoursByWorker.get(h.worker_id)!.push(h);
+      });
+
       // Build workers summary list
       const workersSummary = [];
       const resolvedWorkerIds = new Set<string>();
@@ -554,8 +590,13 @@ export async function getHorasPendentesFaturamento(
         }
 
         const wHours = hoursByWorker.get(w.id) || [];
-        const wTotalHoras = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wActiveHours = activeHoursByWorker.get(w.id) || [];
+
+        const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+        const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
 
         totalHoras += wTotalHoras;
         totalValor += wTotalValor;
@@ -582,6 +623,8 @@ export async function getHorasPendentesFaturamento(
           (e.client_site_id === hourlyObraId || e.client_site_id === null)
         );
 
+        const isBilled = wHours.length > 0 && wHours.every(h => h.fatura_id !== null);
+
         workersSummary.push({
           workerId: w.id,
           workerName: w.nome || 'Trabalhador Desconhecido',
@@ -590,8 +633,10 @@ export async function getHorasPendentesFaturamento(
           tarifa,
           totalHoras: wTotalHoras,
           totalValor: wTotalValor,
+          totalHorasMes: wTotalHorasMes,
+          totalValorMes: wTotalValorMes,
           isValidated,
-          isBilled: wHours.length > 0 && wHours.every(h => h.fatura_id !== null),
+          isBilled,
           funcaoId: hourlyFuncaoId || w.funcao_id,
           workerStatus: w.status_trabajador || 'Ativo',
           dataBaixa: w.data_baixa || null,
@@ -615,8 +660,12 @@ export async function getHorasPendentesFaturamento(
         const wDataBaixa = uw?.data_baixa || null;
         const wFuncaoId = sampleHour.funcao_id || null;
 
-        const wTotalHoras = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wActiveHours = activeHoursByWorker.get(wId) || [];
+        const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+        const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
 
         totalHoras += wTotalHoras;
         totalValor += wTotalValor;
@@ -635,6 +684,8 @@ export async function getHorasPendentesFaturamento(
           (e.client_site_id === sampleHour.obra_id || e.client_site_id === null)
         );
 
+        const isBilled = wHours.length > 0 && wHours.every(h => h.fatura_id !== null);
+
         workersSummary.push({
           workerId: wId,
           workerName: wName,
@@ -643,8 +694,10 @@ export async function getHorasPendentesFaturamento(
           tarifa: tariff,
           totalHoras: wTotalHoras,
           totalValor: wTotalValor,
+          totalHorasMes: wTotalHorasMes,
+          totalValorMes: wTotalValorMes,
           isValidated: true,
-          isBilled: wHours.length > 0 && wHours.every(h => h.fatura_id !== null),
+          isBilled,
           workerStatus: wStatus,
           dataBaixa: wDataBaixa,
           observacoes: null,
@@ -673,37 +726,22 @@ export async function getHorasPendentesFaturamento(
       let faturaNumero: string | null = null;
       let faturaAtcud: string | null = null;
 
-      const latestFaturaId = clientHours.find(h => h.fatura_id)?.fatura_id;
-      if (latestFaturaId) {
-        const fatura = faturasMap.get(latestFaturaId);
-        if (fatura) {
-          magicLinkToken = fatura.magic_link_token;
-          dataEmissaoFatura = fatura.data_emissao || null;
-          ajustesJson = fatura.ajustes_json || null;
-          faturaNumero = fatura.fatura_numero || null;
-          faturaAtcud = fatura.atcud || null;
-          if (fatura.status === 'pending_client_approval') {
-            statusBilling = 'invoiced_pending';
-          } else if (fatura.status === 'approved') {
-            statusBilling = 'invoiced_approved';
-          } else if (fatura.status === 'disputed') {
-            statusBilling = 'invoiced_disputed';
-          }
+      if (activeFatura) {
+        magicLinkToken = activeFatura.magic_link_token;
+        dataEmissaoFatura = activeFatura.data_emissao || null;
+        ajustesJson = activeFatura.ajustes_json || null;
+        faturaNumero = activeFatura.fatura_numero || null;
+        faturaAtcud = activeFatura.atcud || null;
+        if (activeFatura.status === 'pending_client_approval') {
+          statusBilling = 'invoiced_pending';
+        } else if (activeFatura.status === 'approved') {
+          statusBilling = 'invoiced_approved';
+        } else if (activeFatura.status === 'disputed') {
+          statusBilling = 'invoiced_disputed';
         }
       }
 
-      if (!magicLinkToken) {
-        const existingFaturaForClient = Array.from(faturasMap.values()).find(f => f.client_id === client.id);
-        if (existingFaturaForClient) {
-          magicLinkToken = existingFaturaForClient.magic_link_token;
-          dataEmissaoFatura = existingFaturaForClient.data_emissao || null;
-          ajustesJson = existingFaturaForClient.ajustes_json || null;
-          faturaNumero = existingFaturaForClient.fatura_numero || null;
-          faturaAtcud = existingFaturaForClient.atcud || null;
-        }
-      }
-
-      if (hasUnbilled) {
+      if (hasUnbilled && (!activeFatura || activeFatura.status === 'approved' || activeFatura.status === 'invoiced')) {
         // Active billing session: there are unbilled hours/workers
         if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
           statusBilling = 'ready';
@@ -744,6 +782,7 @@ export async function getHorasPendentesFaturamento(
         clientProvince: client.province || null,
         clientCountryName: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
         faturaNumero: faturaNumero,
+        activeFaturaId: activeFatura ? activeFatura.id : null,
         atcud: faturaAtcud,
         year: periodYear,
         month: periodMonth - 1, // 0-indexed
