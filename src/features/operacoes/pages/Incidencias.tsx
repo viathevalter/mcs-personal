@@ -12,6 +12,8 @@ import { useLanguage } from '../i18n';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Card } from '../components/ui/Card';
 import { AsyncSelect } from '../components/ui/AsyncSelect';
+import { RichTextEditor } from '../components/ui/RichTextEditor';
+import { FileAttachmentUploader, TaskAttachment } from '../components/ui/FileAttachmentUploader';
 import { useAuth } from '../contexts/AuthContext';
 
 import { supabaseEmployeeService } from '../services/db/SupabaseEmployeeService';
@@ -61,7 +63,8 @@ export const Incidencias: React.FC = () => {
         sla: 1, // Default for Quick Task
         slaUnit: 'days' as 'hours' | 'days',
         scheduled_for: '', // Agendado Para (opcional)
-        responsavel_email: '' // Responsável pela tarefa
+        responsavel_email: '', // Responsável pela tarefa
+        attachments: [] as TaskAttachment[]
     });
 
     // Mode A: Manual Selections
@@ -245,9 +248,13 @@ export const Incidencias: React.FC = () => {
             const isQuickTask = modalType === 'task';
             const finalTipo = isQuickTask ? 'Task' : baseForm.tipo;
 
+            const finalDescricaoPayload = isQuickTask
+                ? JSON.stringify({ description: baseForm.descricao, attachments: baseForm.attachments })
+                : baseForm.descricao;
+
             await createIncidencia({
                 titulo: baseForm.titulo,
-                descricao: baseForm.descricao,
+                descricao: finalDescricaoPayload,
                 prioridade: baseForm.impacto as any,
                 impacto: baseForm.impacto,
                 tipo: finalTipo,
@@ -280,7 +287,7 @@ export const Incidencias: React.FC = () => {
     };
 
     const resetModal = () => {
-        setBaseForm({ titulo: '', descricao: '', impacto: 'Médio', tipo: 'Geral', playbook_id: '', departamento: 'Operações', sla: 1, slaUnit: 'days', scheduled_for: '', responsavel_email: '' });
+        setBaseForm({ titulo: '', descricao: '', impacto: 'Médio', tipo: 'Geral', playbook_id: '', departamento: 'Operações', sla: 1, slaUnit: 'days', scheduled_for: '', responsavel_email: '', attachments: [] });
         setManualSel({ client: null, pedido: null, worker: null, obra: null });
         setOriginItem(null);
         setPreviewContext(null);
@@ -696,14 +703,17 @@ export const Incidencias: React.FC = () => {
                                                 </select>
                                             </div>
 
-                                            <div className="col-span-12">
-                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Descrição Detalhada</label>
-                                                <textarea
-                                                    rows={3}
-                                                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 focus:border-blue-400 dark:focus:border-blue-500 transition-all resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                                    placeholder="Descreva o ocorrido com detalhes..."
+                                            <div className="col-span-12 space-y-4">
+                                                <RichTextEditor
+                                                    label="Descrição Detalhada / Instruções"
                                                     value={baseForm.descricao}
-                                                    onChange={e => setBaseForm({ ...baseForm, descricao: e.target.value })}
+                                                    onChange={val => setBaseForm({ ...baseForm, descricao: val })}
+                                                    placeholder="Descreva o ocorrido com detalhes, passos e instruções..."
+                                                    minHeight="180px"
+                                                />
+                                                <FileAttachmentUploader
+                                                    attachments={baseForm.attachments}
+                                                    onChange={atts => setBaseForm({ ...baseForm, attachments: atts })}
                                                 />
                                             </div>
 
@@ -911,14 +921,17 @@ export const Incidencias: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('incidencias.modal_nova_tarefa.additional_details')}</label>
-                                            <textarea
-                                                rows={2}
-                                                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900 focus:border-emerald-400 dark:focus:border-emerald-500 transition-all resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                                placeholder={t('incidencias.modal_nova_tarefa.additional_details_placeholder')}
+                                        <div className="space-y-4 pt-2">
+                                            <RichTextEditor
+                                                label={t('incidencias.modal_nova_tarefa.additional_details') || "Detalhes Adicionais / Instruções"}
                                                 value={baseForm.descricao}
-                                                onChange={e => setBaseForm({ ...baseForm, descricao: e.target.value })}
+                                                onChange={val => setBaseForm({ ...baseForm, descricao: val })}
+                                                placeholder={t('incidencias.modal_nova_tarefa.additional_details_placeholder') || "Digite as instruções e observações..."}
+                                                minHeight="180px"
+                                            />
+                                            <FileAttachmentUploader
+                                                attachments={baseForm.attachments}
+                                                onChange={atts => setBaseForm({ ...baseForm, attachments: atts })}
                                             />
                                         </div>
                                     </div>

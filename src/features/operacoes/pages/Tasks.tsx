@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     CheckCircle, Calendar, Filter, Search, Briefcase, User as UserIcon,
-    AlertCircle, Layers, ArrowUpRight, X, Play, Clock, AlertTriangle, Trash2, Edit
+    AlertCircle, Layers, ArrowUpRight, X, Play, Clock, AlertTriangle, Trash2, Edit, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllTarefas, updateTarefa, assignTarefa, deleteTarefa, listDepartments } from '../services/incidencias';
@@ -14,6 +14,7 @@ import { useLanguage } from '../i18n';
 import { ContextCard } from '../components/ContextCard';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { CalendarView } from '../components/CalendarView';
+import { TaskDetailsModal } from '../components/TaskDetailsModal';
 
 export const Tasks: React.FC = () => {
     const navigate = useNavigate();
@@ -38,6 +39,7 @@ export const Tasks: React.FC = () => {
     // Edit Task State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<{ id: string, titulo: string, prazo: string, scheduled_for: string }>({ id: '', titulo: '', prazo: '', scheduled_for: '' });
+    const [selectedTaskForModal, setSelectedTaskForModal] = useState<IncidenciaTarefaExpandida | null>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -411,7 +413,12 @@ export const Tasks: React.FC = () => {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <div className={`font-medium ${isDone ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-900 dark:text-slate-100'}`}>{task.titulo}</div>
+                                                                <div
+                                                                    onClick={() => setSelectedTaskForModal(task)}
+                                                                    className={`font-medium cursor-pointer hover:underline ${isDone ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-900 dark:text-slate-100'}`}
+                                                                >
+                                                                    {task.titulo}
+                                                                </div>
                                                                 {task.evidencia && <div className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1"><CheckCircle size={12} /> {task.evidencia}</div>}
                                                             </div>
                                                         </div>
@@ -459,6 +466,13 @@ export const Tasks: React.FC = () => {
                                                     </td>
                                                     <td className="px-6 py-4 align-top text-right">
                                                         <div className="flex justify-end gap-2 items-center">
+                                                            <button
+                                                                onClick={() => setSelectedTaskForModal(task)}
+                                                                className="text-slate-400 hover:text-blue-600 transition-colors p-1"
+                                                                title="Ver Detalhes da Tarefa"
+                                                            >
+                                                                <Eye size={16} />
+                                                            </button>
                                                             {(user?.id === task.created_by || user?.isAdmin) && (
                                                                 <>
                                                                     <button
@@ -581,6 +595,16 @@ export const Tasks: React.FC = () => {
                     </div>
                 )
             }
+            {/* Task Details Modal */}
+            <TaskDetailsModal
+                task={selectedTaskForModal}
+                isOpen={!!selectedTaskForModal}
+                onClose={() => setSelectedTaskForModal(null)}
+                onStatusChange={handleAdvanceStatus}
+                onAssignMe={handleAssignToMe}
+                onTaskUpdated={loadData}
+                currentUserEmail={currentUser.email}
+            />
         </div >
     );
 };
