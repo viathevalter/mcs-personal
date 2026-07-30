@@ -441,7 +441,7 @@ export const Incidencias: React.FC = () => {
                                         const impactDisplay = t(`incidencias.impacto.${row.impacto}` as any) || row.impacto;
 
                                         return (
-                                            <tr key={row.id} onClick={() => navigate(`/incidencias/${row.id}`)} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group border-b border-slate-100 dark:border-slate-800/50 last:border-0">
+                                            <tr key={row.id} onClick={() => navigate(`/operacoes/incidencias/${row.id}`)} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group border-b border-slate-100 dark:border-slate-800/50 last:border-0">
                                                 <td className="px-6 py-4 font-mono text-slate-500 text-xs">#{row.id.substring(0, 6)}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col gap-1.5 items-start">

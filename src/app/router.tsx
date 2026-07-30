@@ -45,7 +45,12 @@ import { HoursControlPage } from '../features/hours-control/HoursControlPage';
 import { ClientHoursDetail } from '../features/hours-control/ClientHoursDetail';
 import { GlobalHubPage } from '../features/hub/GlobalHubPage';
 import { ComingSoonPage } from '../shared/components/ComingSoonPage';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
+
+const RedirectIncidenciaDetail = () => {
+    const { id } = useParams();
+    return <Navigate to={`/operacoes/incidencias/${id}`} replace />;
+};
 
 import { OperacoesLayout } from '../features/operacoes/layout/OperacoesLayout';
 import { Dashboard as OperacoesDashboard } from '../features/operacoes/pages/Dashboard';
@@ -214,6 +219,14 @@ export const router = createBrowserRouter([
             {
                 path: '/hub',
                 element: <GlobalHubPage />,
+            },
+            {
+                path: '/incidencias',
+                element: <Navigate to="/operacoes/incidencias" replace />,
+            },
+            {
+                path: '/incidencias/:id',
+                element: <RedirectIncidenciaDetail />,
             },
             {
                 path: '/cadastro',

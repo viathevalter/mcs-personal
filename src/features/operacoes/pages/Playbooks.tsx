@@ -221,7 +221,7 @@ export const Playbooks: React.FC = () => {
         <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col font-inter">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('/incidencias')} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+                    <button onClick={() => navigate('/operacoes/incidencias')} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
                         <ArrowLeft size={20} />
                     </button>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Gerenciador de Playbooks</h2>

@@ -417,7 +417,7 @@ export const Tasks: React.FC = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 align-top">
-                                                        <div onClick={() => navigate(`/incidencias/${task.incidencia_id}`)} className="cursor-pointer group/link mb-2">
+                                                        <div onClick={() => navigate(`/operacoes/incidencias/${task.incidencia_id}`)} className="cursor-pointer group/link mb-2">
                                                             <div className="text-blue-600 font-medium group-hover/link:underline text-xs flex items-center gap-1 mb-1">
                                                                 {task.incidencia_titulo} <ArrowUpRight size={10} className="opacity-0 group-hover/link:opacity-100 transition-opacity" />
                                                             </div>
@@ -523,7 +523,7 @@ export const Tasks: React.FC = () => {
             ) : (
                 <CalendarView
                     tasks={filteredData}
-                    onTaskClick={(task) => navigate(`/incidencias/${task.incidencia_id}`)}
+                    onTaskClick={(task) => navigate(`/operacoes/incidencias/${task.incidencia_id}`)}
                     currentUserId={user?.id}
                     onAssignMe={handleAssignToMe}
                     onEditClick={(task) => {
