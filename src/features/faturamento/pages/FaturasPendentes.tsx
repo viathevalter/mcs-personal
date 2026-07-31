@@ -485,6 +485,7 @@ MCS - Gestão Comercial`;
   const [newTariffValue, setNewTariffValue] = useState('');
   const [updatingTariff, setUpdatingTariff] = useState(false);
   const [selectedPaymentTermFilter, setSelectedPaymentTermFilter] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
 
   const fetchHoras = async () => {
     try {
@@ -1712,9 +1713,9 @@ MCS - Gestão Comercial`;
     );
   }
 
-  // Filtrar faturamentos por prazo de pagamento e busca de cliente
+  // Filtrar faturamentos por prazo de pagamento, status e busca de cliente
   const filteredFaturamentos = faturamentos.filter(f => {
-    // Aplicar filtro de busca textual por cliente (nome ou código)
+    // 1. Filtro de Busca Textual
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const clientName = (f.clientName || '').toLowerCase();
@@ -1724,15 +1725,26 @@ MCS - Gestão Comercial`;
       }
     }
 
-    if (selectedPaymentTermFilter === 'all') return true;
-    if (selectedPaymentTermFilter === 'priority') {
-      return f.paymentTermDays !== null && f.paymentTermDays <= 15;
+    // 2. Filtro de Prazo de Pagamento
+    if (selectedPaymentTermFilter !== 'all') {
+      if (selectedPaymentTermFilter === 'priority') {
+        if (f.paymentTermDays === null || f.paymentTermDays > 15) return false;
+      } else if (selectedPaymentTermFilter === 'other') {
+        if (f.paymentTermDays !== null && (f.paymentTermDays === 0 || f.paymentTermDays === 10 || f.paymentTermDays === 15 || f.paymentTermDays === 30 || f.paymentTermDays === 60)) {
+          return false;
+        }
+      } else {
+        const daysVal = parseInt(selectedPaymentTermFilter);
+        if (f.paymentTermDays !== daysVal) return false;
+      }
     }
-    if (selectedPaymentTermFilter === 'other') {
-      return f.paymentTermDays === null || (f.paymentTermDays !== 0 && f.paymentTermDays !== 10 && f.paymentTermDays !== 15 && f.paymentTermDays !== 30 && f.paymentTermDays !== 60);
+
+    // 3. Filtro de Status
+    if (selectedStatusFilter !== 'all') {
+      if (f.statusBilling !== selectedStatusFilter) return false;
     }
-    const daysVal = parseInt(selectedPaymentTermFilter);
-    return f.paymentTermDays === daysVal;
+
+    return true;
   });
 
   // Resumos do Topo
@@ -1884,6 +1896,23 @@ MCS - Gestão Comercial`;
                 <SelectItem value="30">30 dias</SelectItem>
                 <SelectItem value="60">60 dias</SelectItem>
                 <SelectItem value="other">Outros / Não Definidos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</span>
+            <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+              <SelectTrigger className="w-[180px] bg-slate-50 dark:bg-slate-950 font-medium">
+                <SelectValue placeholder="Filtrar por status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="waiting_validation">Coleta de Horas</SelectItem>
+                <SelectItem value="ready">Pendente Faturamento</SelectItem>
+                <SelectItem value="invoiced_pending">Aguardando Cliente</SelectItem>
+                <SelectItem value="invoiced_approved">Aprovado</SelectItem>
+                <SelectItem value="invoiced_disputed">Contestado</SelectItem>
               </SelectContent>
             </Select>
           </div>
