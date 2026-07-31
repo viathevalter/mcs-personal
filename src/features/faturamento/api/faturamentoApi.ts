@@ -1027,85 +1027,90 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
     const clientIds = Array.from(new Set(faturas.map(f => f.client_id).filter(Boolean)));
     let clients: any[] = [];
     if (clientIds.length > 0) {
-      const { data: clientsData, error: clientsError } = await supabase
-        .schema('core_common')
-        .from('clients')
-        .select(`
-          id, codigo, trade_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
-          client_company_settings (
-            empresa_id,
-            payment_term_id,
-            status
-          )
-        `)
-        .in('id', clientIds);
-      if (clientsError) console.error('Erro ao buscar clientes para tracking:', clientsError);
-      else clients = clientsData || [];
-    }
-    const clientsMap = new Map(clients.map(c => {
-      const settings = c.client_company_settings?.find((s: any) => !empresaId || s.empresa_id === empresaId);
-      return [c.id, {
-        ...c,
-        payment_term_id: settings?.payment_term_id || null,
-        status: settings?.status || 'active'
-      }];
-    }));
-
-    // Fetch all payment terms metadata
-    const { data: ptData } = await supabase
-      .schema('core_common')
-      .from('payment_terms')
-      .select('id, name, days');
-    const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
-
-    // 4. Fetch hours totals and tariff for each fatura
-    const faturaIds = faturas.map(f => f.id);
-    let hoursSums: any[] = [];
-    if (faturaIds.length > 0) {
-      const { data: horas, error: horasError } = await supabase
-        .schema('core_finance')
-        .from('horas_trabalhadas')
-        .select('fatura_id, horas_totais, tarifa_faturada')
-        .in('fatura_id', faturaIds);
-      
-      if (horasError) console.error('Erro ao buscar horas para tracking:', horasError);
-      else hoursSums = horas || [];
-    }
-
-    const hoursMap = new Map<string, number>();
-    const valueMap = new Map<string, number>();
-    hoursSums.forEach(h => {
-      if (h.fatura_id) {
-        const currentHours = hoursMap.get(h.fatura_id) || 0;
-        hoursMap.set(h.fatura_id, currentHours + Number(h.horas_totais || 0));
-
-        const currentValue = valueMap.get(h.fatura_id) || 0;
-        const itemValue = Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
-        valueMap.set(h.fatura_id, currentValue + itemValue);
+        const { data: clientsData, error: clientsError } = await supabase
+          .schema('core_common')
+          .from('clients')
+          .select(`
+            id, codigo, trade_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+            address_line, postal_code, city, province,
+            client_company_settings (
+              empresa_id,
+              payment_term_id,
+              status
+            )
+          `)
+          .in('id', clientIds);
+        if (clientsError) console.error('Erro ao buscar clientes para tracking:', clientsError);
+        else clients = clientsData || [];
       }
-    });
-
-    return faturas.map(f => {
-      const client = clientsMap.get(f.client_id);
-      const termName = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
-      const termDays = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null) : null;
-
-      return {
-        ...f,
-        client: client ? { 
-          nombre_comercial: client.trade_name,
-          codigo: client.codigo || null,
-          paymentTermName: termName,
-          paymentTermDays: termDays,
-          billingEmail: client.billing_email || null,
-          clientEmail: client.email || null,
-          viesApplicable: client.vies_applicable || false,
-          viesStatus: client.vies_status || 'not_checked',
-          viesValid: client.vies_valid || false,
-          viesLastCheckedAt: client.vies_last_checked_at || null,
-          taxId: client.tax_id || null,
-          countryId: client.country_id || null
-        } : undefined,
+      const clientsMap = new Map(clients.map(c => {
+        const settings = c.client_company_settings?.find((s: any) => !empresaId || s.empresa_id === empresaId);
+        return [c.id, {
+          ...c,
+          payment_term_id: settings?.payment_term_id || null,
+          status: settings?.status || 'active'
+        }];
+      }));
+  
+      // Fetch all payment terms metadata
+      const { data: ptData } = await supabase
+        .schema('core_common')
+        .from('payment_terms')
+        .select('id, name, days');
+      const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
+  
+      // 4. Fetch hours totals and tariff for each fatura
+      const faturaIds = faturas.map(f => f.id);
+      let hoursSums: any[] = [];
+      if (faturaIds.length > 0) {
+        const { data: horas, error: horasError } = await supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('fatura_id, horas_totais, tarifa_faturada')
+          .in('fatura_id', faturaIds);
+        
+        if (horasError) console.error('Erro ao buscar horas para tracking:', horasError);
+        else hoursSums = horas || [];
+      }
+  
+      const hoursMap = new Map<string, number>();
+      const valueMap = new Map<string, number>();
+      hoursSums.forEach(h => {
+        if (h.fatura_id) {
+          const currentHours = hoursMap.get(h.fatura_id) || 0;
+          hoursMap.set(h.fatura_id, currentHours + Number(h.horas_totais || 0));
+  
+          const currentValue = valueMap.get(h.fatura_id) || 0;
+          const itemValue = Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+          valueMap.set(h.fatura_id, currentValue + itemValue);
+        }
+      });
+  
+      return faturas.map(f => {
+        const client = clientsMap.get(f.client_id);
+        const termName = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
+        const termDays = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null) : null;
+  
+        return {
+          ...f,
+          client: client ? { 
+            nombre_comercial: client.trade_name,
+            codigo: client.codigo || null,
+            paymentTermName: termName,
+            paymentTermDays: termDays,
+            billingEmail: client.billing_email || null,
+            clientEmail: client.email || null,
+            viesApplicable: client.vies_applicable || false,
+            viesStatus: client.vies_status || 'not_checked',
+            viesValid: client.vies_valid || false,
+            viesLastCheckedAt: client.vies_last_checked_at || null,
+            taxId: client.tax_id || null,
+            countryId: client.country_id || null,
+            address_line: client.address_line || null,
+            postal_code: client.postal_code || null,
+            city: client.city || null,
+            province: client.province || null
+          } : undefined,
         total_horas: hoursMap.get(f.id) || 0,
         total_valor: valueMap.get(f.id) || 0
       };

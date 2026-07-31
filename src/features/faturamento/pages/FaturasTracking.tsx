@@ -14,6 +14,7 @@ import { supabase } from '@/shared/supabase/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { getBillingCycleDays } from './FaturasPendentes';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Helper to calculate expected due date and remaining/overdue days
 const getDueDateAndRemaining = (emissaoStr: string | null, days: number | null) => {
@@ -95,6 +96,11 @@ export function FaturasTracking() {
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [sendEmailCheckbox, setSendEmailCheckbox] = useState(true);
+  const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+  const [isEmailAcceptance, setIsEmailAcceptance] = useState<boolean>(false);
+  const [currentEmailFatura, setCurrentEmailFatura] = useState<any | null>(null);
+  const [emailHours, setEmailHours] = useState<any[]>([]);
+
   const [emailData, setEmailData] = useState<{
     faturaId: string;
     clientId: string;
@@ -109,6 +115,7 @@ export function FaturasTracking() {
     dataEmissao: string;
     paymentTermName: string;
     paymentTermDays: number;
+    fatura: any;
   } | null>(null);
 
   const [cobroConfirmFatura, setCobroConfirmFatura] = useState<any | null>(null);
@@ -410,6 +417,291 @@ export function FaturasTracking() {
     }
   };
 
+  const generatePDFAttachmentTracking = async (faturaId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    const elementId = `${type}-sheet-tracking-${faturaId}`;
+    let element = document.getElementById(elementId);
+    if (!element) {
+      console.warn(`Element not found for PDF capture: ${elementId}`);
+      return null;
+    }
+
+    const parentWrapper = element.closest('.hidden');
+    const wasHidden = !!parentWrapper;
+
+    if (wasHidden && parentWrapper) {
+      parentWrapper.classList.remove('hidden');
+      parentWrapper.classList.add('block');
+      (parentWrapper as HTMLElement).style.position = 'absolute';
+      (parentWrapper as HTMLElement).style.left = '-9999px';
+      (parentWrapper as HTMLElement).style.top = '0';
+      (parentWrapper as HTMLElement).style.width = '800px';
+    }
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 1.5,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.82);
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
+
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('block');
+        parentWrapper.classList.add('hidden');
+        (parentWrapper as HTMLElement).style.position = '';
+        (parentWrapper as HTMLElement).style.left = '';
+        (parentWrapper as HTMLElement).style.top = '';
+        (parentWrapper as HTMLElement).style.width = '';
+      }
+
+      return {
+        name: filename,
+        contentType: 'application/pdf',
+        contentBytes: pdfBase64
+      };
+    } catch (err) {
+      console.error(`Error generating ${type} PDF:`, err);
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('block');
+        parentWrapper.classList.add('hidden');
+        (parentWrapper as HTMLElement).style.position = '';
+        (parentWrapper as HTMLElement).style.left = '';
+        (parentWrapper as HTMLElement).style.top = '';
+        (parentWrapper as HTMLElement).style.width = '';
+      }
+      return null;
+    }
+  };
+
+  const generateHoursPDFAttachmentTracking = async (fatura: any, hours: any[], lang: 'pt' | 'es' | 'en'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px';
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    
+    const getTranslatedMonth = (mIndex: number, l: string) => {
+      const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+      const esMonths = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const enMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      if (l === 'es') return esMonths[mIndex] || '';
+      if (l === 'en') return enMonths[mIndex] || '';
+      return ptMonths[mIndex] || '';
+    };
+
+    const periodMonth = fatura.created_at ? new Date(fatura.created_at).getMonth() : new Date().getMonth();
+    const periodYear = fatura.created_at ? new Date(fatura.created_at).getFullYear() : new Date().getFullYear();
+    const monthStr = getTranslatedMonth(periodMonth, lang);
+    const periodStr = lang === 'en' ? `${monthStr} ${periodYear}` : `${monthStr} de ${periodYear}`;
+    
+    const labels = {
+      title: lang === 'pt' ? 'Relatório de Horas' : lang === 'es' ? 'Informe de Horas' : 'Timesheet Report',
+      client: lang === 'pt' ? 'Cliente' : lang === 'es' ? 'Cliente' : 'Client',
+      period: lang === 'pt' ? 'Período' : lang === 'es' ? 'Período' : 'Period',
+      totalHours: lang === 'pt' ? 'Total de Horas' : lang === 'es' ? 'Total de Horas' : 'Total Hours',
+      baseBilling: lang === 'pt' ? 'Faturamento Base' : lang === 'es' ? 'Facturación Base' : 'Base Billing',
+      worker: lang === 'pt' ? 'Trabalhador' : lang === 'es' ? 'Trabajador' : 'Worker'
+    };
+
+    const totalHorasVal = hours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+    const totalTarifaVal = hours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 27.00)), 0);
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">${labels.title}</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.client}: <strong>${clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">${labels.totalHours}: <strong style="color: #1e293b; font-size: 16px;">${totalHorasVal.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.baseBilling}: <strong style="color: #1e293b; font-size: 16px;">€ ${totalTarifaVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    const workersMap = new Map<string, {
+      workerId: string;
+      workerName: string;
+      horasDiarias: Record<string, number>;
+    }>();
+
+    hours.forEach(h => {
+      const wId = h.worker_id;
+      if (!wId) return;
+      if (!workersMap.has(wId)) {
+        workersMap.set(wId, {
+          workerId: wId,
+          workerName: h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador',
+          horasDiarias: {}
+        });
+      }
+      const wObj = workersMap.get(wId)!;
+      const dateKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      wObj.horasDiarias[dateKey] = h.horas_totais;
+    });
+
+    const groupedWorkers = Array.from(workersMap.values());
+    const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
+    const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
+
+    let tableHtml = `
+      <div style="margin-bottom: 40px; page-break-inside: avoid;">
+        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+          OBRA: TODAS AS OBRAS
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">${labels.worker}</th>
+    `;
+
+    daysArray.forEach(dInfo => {
+      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+      const dayOfWeek = cellDate.getDay();
+      const isSunday = dayOfWeek === 0;
+      const isSaturday = dayOfWeek === 6;
+      const weekdays = lang === 'pt' ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] : lang === 'es' ? ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const label = weekdays[dayOfWeek];
+      
+      let headerColor = '#64748b';
+      let headerBg = '';
+      if (isSunday) {
+        headerColor = '#e11d48';
+        headerBg = 'background-color: #ffe4e6;';
+      } else if (isSaturday) {
+        headerColor = '#d97706';
+        headerBg = 'background-color: #fef3c7;';
+      }
+
+      tableHtml += `
+        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
+        </th>
+      `;
+    });
+
+    tableHtml += `
+              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    groupedWorkers.forEach(w => {
+      const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+      tableHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+      `;
+
+      daysArray.forEach(dInfo => {
+        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
+        
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+
+        let cellStyle = 'color: #94a3b8;';
+        let cellBg = '';
+        if (hoursVal > 0) {
+          cellStyle = 'color: #2563eb; font-weight: 700;';
+        }
+        if (isSunday) {
+          cellBg = 'background-color: #fff1f2;';
+        } else if (isSaturday) {
+          cellBg = 'background-color: #fffbeb;';
+        }
+
+        tableHtml += `
+          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+            ${hoursVal > 0 ? hoursVal : '-'}
+          </td>
+        `;
+      });
+
+      tableHtml += `
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    container.innerHTML += tableHtml;
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 1.5,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.82);
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= 210;
+      }
+      
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      return {
+        name: 'Relatorio_Datas_Trabalhadas.pdf',
+        contentType: 'application/pdf',
+        contentBytes: pdfBase64
+      };
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      return null;
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
   const handleAdminCellEdit = (workerId: string, dateKey: string, hours: number, originalHours: number) => {
     if (isNaN(hours) || hours < 0) return;
 
@@ -518,15 +810,22 @@ export function FaturasTracking() {
     toast.success('Link de aprovação copiado para a área de transferência!');
   };
 
-  const handleTriggerResendEmail = (fatura: any, isAcceptance?: boolean) => {
+  const generateEmailContent = (fatura: any, isAcceptance: boolean, lang: 'pt' | 'es' | 'en') => {
     const periodMonth = fatura.created_at ? new Date(fatura.created_at).getMonth() : new Date().getMonth();
     const periodYear = fatura.created_at ? new Date(fatura.created_at).getFullYear() : new Date().getFullYear();
     
-    const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    const periodStr = `${months[periodMonth]} de ${periodYear}`;
+    const getTranslatedMonth = (mIndex: number, l: string) => {
+      const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+      const esMonths = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const enMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      
+      if (l === 'es') return esMonths[mIndex] || '';
+      if (l === 'en') return enMonths[mIndex] || '';
+      return ptMonths[mIndex] || '';
+    };
+
+    const monthStr = getTranslatedMonth(periodMonth, lang);
+    const periodStr = lang === 'en' ? `${monthStr} ${periodYear}` : `${monthStr} de ${periodYear}`;
     
     const adj = fatura.ajustes_json || {};
     const incrementos = Number(adj.incrementos || 0);
@@ -536,11 +835,88 @@ export function FaturasTracking() {
 
     const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || fatura.client?.legal_name || 'Cliente';
     const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
-
-    let subject = `MCS - Solicitação de Aprovação de Horas - ${clientName} - ${periodStr}`;
     const link = `${window.location.origin}/aprovacao-cliente/${fatura.magic_link_token}`;
-    
-    let body = `Olá,
+
+    let subject = '';
+    let body = '';
+
+    if (isAcceptance) {
+      if (lang === 'es') {
+        subject = `MCS - Envío de Factura y Registro de Horas - ${clientName} - ${periodStr}`;
+        body = `Estimado cliente,
+
+Muchas gracias por su aprobación. Adjunto a este correo encontrará la factura oficial, el archivo pro-forma y el registro de horas del faturamento correspondiente al mes de ${periodStr}.
+
+Si tiene alguna duda o necesita soporte, póngase en contacto respondiendo a este correo.
+
+Atentamente,
+MCS - Gestión Comercial`;
+      } else if (lang === 'en') {
+        subject = `MCS - Invoice & Timesheet Delivery - ${clientName} - ${periodStr}`;
+        body = `Dear Customer,
+
+Thank you for your approval. Attached to this email you will find the official invoice, the pro-forma file, and the detailed timesheet report for the billing period of ${periodStr}.
+
+If you have any questions or require support, please contact us by replying to this email.
+
+Best regards,
+MCS - Commercial Management`;
+      } else {
+        subject = `MCS - Aprovação de Ponto & Faturamento Ajustado - ${clientName} - ${periodStr}`;
+        body = `Olá,
+
+Informamos que aceitamos as correções propostas na contestação de horas referente ao período de ${periodStr}.
+
+Os documentos de faturamento foram atualizados com sucesso e estão anexados a este e-mail para a sua conferência e arquivo:
+1. Folha de ponto detalhada com as datas trabalhadas retificadas
+2. Informe de Facturación (${docNumber}) atualizado
+3. Fatura Pró-forma correspondente retificada no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Qualquer dúvida ou necessidade de suporte, entre em contato respondendo a este e-mail.
+
+Atenciosamente,
+MCS - Gestão Comercial`;
+      }
+    } else {
+      if (lang === 'es') {
+        subject = `MCS - Solicitud de Aprobación de Horas - ${clientName} - ${periodStr}`;
+        body = `Estimado cliente,
+
+Le solicitamos su aprobación para el informe de facturación correspondiente al período de ${periodStr}.
+
+Adjunto a este correo encontrará los siguientes documentos para su análisis:
+1. Informe de Facturación (${docNumber})
+2. Control de presencia detalhado con las fechas trabajadas
+3. Factura Pro-forma correspondiente por el valor de € ${finalTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Por favor, utilice el siguiente enlace para visualizar los documentos de forma interactiva y aprobar o disputar las horas:
+${link}
+
+Si tiene alguna duda, póngase en contacto respondiendo a este correo.
+
+Atentamente,
+MCS - Gestión Comercial`;
+      } else if (lang === 'en') {
+        subject = `MCS - Timesheet Approval Request - ${clientName} - ${periodStr}`;
+        body = `Dear Customer,
+
+We would like to request your approval for the billing report corresponding to the period of ${periodStr}.
+
+Attached to this email you will find the following documents for your analysis:
+1. Billing Report (${docNumber})
+2. Detailed timesheet with dates worked
+3. Corresponding Pro-forma Invoice in the amount of € ${finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Please use the link below to view the documents interactively and approve or dispute the hours:
+${link}
+
+If you have any questions, please contact us by replying to this email.
+
+Best regards,
+MCS - Commercial Management`;
+      } else {
+        subject = `MCS - Solicitação de Aprovação de Horas - ${clientName} - ${periodStr}`;
+        body = `Olá,
 
 Gostaríamos de solicitar a sua aprovação para o relatório de faturamento referente ao período de ${periodStr}.
 
@@ -556,55 +932,105 @@ Se tiver alguma dúvida, entre em contato respondendo a este e-mail.
 
 Atenciosamente,
 MCS - Gestão Comercial`;
-
-    if (isAcceptance) {
-      subject = `MCS - Aprovação de Ponto & Faturamento Ajustado - ${clientName} - ${periodStr}`;
-      body = `Olá,
-
-Informamos que aceitamos as correções propostas na contestação de horas referente ao período de ${periodStr}.
-
-Os documentos de faturamento foram atualizados com sucesso e estão anexados a este e-mail para a sua conferência e arquivo:
-1. Folha de ponto detalhada com as datas trabalhadas retificadas
-2. Informe de Facturación (${docNumber}) atualizado
-3. Fatura Pró-forma correspondente retificada no valor de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-
-Qualquer dúvida ou necessidade de suporte, entre em contato respondendo a este e-mail.
-
-Atenciosamente,
-MCS - Gestão Comercial`;
+      }
     }
 
-    const defaultEmails: string[] = [];
-    const clientEmail = fatura.client?.billingEmail || fatura.client?.clientEmail || fatura.client?.email || fatura.client?.billing_email;
-    if (clientEmail) {
-      defaultEmails.push(clientEmail);
+    return { subject, body };
+  };
+
+  const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
+    setEmailLanguage(lang);
+    if (currentEmailFatura) {
+      const { subject, body } = generateEmailContent(currentEmailFatura, isEmailAcceptance, lang);
+      setEmailData(prev => prev ? { ...prev, subject, body } : null);
     }
-    
-    // Check some operations emails by default
-    defaultEmails.push("valter@kr-industrial.com");
-    defaultEmails.push("valter@gestaologinpro.com");
+  };
 
-    setSelectedEmails(defaultEmails);
-    setAdditionalEmails("");
-    setSendEmailCheckbox(true);
+  const handleTriggerResendEmail = async (fatura: any, isAcceptance?: boolean) => {
+    const toastId = toast.loading('Carregando dados das horas da fatura...');
+    try {
+      // 1. Fetch hours associated with this invoice
+      const { data: horasData, error: horasError } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .select('*')
+        .eq('fatura_id', fatura.id);
 
-    setEmailData({
-      faturaId: fatura.id,
-      clientId: fatura.client_id,
-      clientName: clientName,
-      recipientEmail: defaultEmails.join(", "),
-      subject,
-      body,
-      token: fatura.magic_link_token,
-      totalHoras: fatura.total_horas,
-      totalValor: fatura.total_valor,
-      ajustesJson: adj,
-      dataEmissao: fatura.data_emissao,
-      paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
-      paymentTermDays: fatura.client?.paymentTermDays || 0
-    });
-    
-    setIsEmailModalOpen(true);
+      if (horasError) throw horasError;
+
+      // 2. Fetch worker profiles for these hours
+      const workerIds = Array.from(new Set((horasData || []).map((h: any) => h.worker_id).filter(Boolean)));
+      let workersMap = new Map();
+      if (workerIds.length > 0) {
+        const { data: wData } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, codColab, perfil, nombrecompleto')
+          .in('id', workerIds);
+        workersMap = new Map((wData || []).map(w => [w.id, w]));
+      }
+      
+      const mappedHours = (horasData || []).map(h => ({
+        ...h,
+        worker: workersMap.get(h.worker_id)
+      }));
+
+      setEmailHours(mappedHours);
+      setCurrentEmailFatura(fatura);
+      setIsEmailAcceptance(!!isAcceptance);
+
+      // 3. Determine default language
+      const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
+      const isSpainClient = clientName.toLowerCase().includes('norcal') || 
+                            clientName.toLowerCase().includes('reverter') || 
+                            clientName.toLowerCase().includes('sinfines') || 
+                            (fatura.client?.countryId === 'country_es_id'); // standard match
+      const defaultLang = isSpainClient ? 'es' : 'pt';
+      setEmailLanguage(defaultLang);
+
+      const { subject, body } = generateEmailContent(fatura, !!isAcceptance, defaultLang);
+
+      // 4. Resolve default recipient emails
+      const defaultEmails: string[] = [];
+      const bEmail = fatura.client?.billingEmail || fatura.client?.billing_email;
+      const cEmail = fatura.client?.clientEmail || fatura.client?.email;
+      
+      if (bEmail) {
+        defaultEmails.push(bEmail);
+      }
+      if (cEmail && cEmail !== bEmail) {
+        defaultEmails.push(cEmail);
+      }
+
+      setSelectedEmails(defaultEmails);
+      setAdditionalEmails("");
+      setSendEmailCheckbox(true);
+
+      const adj = fatura.ajustes_json || {};
+
+      setEmailData({
+        faturaId: fatura.id,
+        clientId: fatura.client_id,
+        clientName: clientName,
+        recipientEmail: defaultEmails.join(", "),
+        subject,
+        body,
+        token: fatura.magic_link_token,
+        totalHoras: fatura.total_horas,
+        totalValor: fatura.total_valor,
+        ajustesJson: adj,
+        dataEmissao: fatura.data_emissao,
+        paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
+        paymentTermDays: fatura.client?.paymentTermDays || 0,
+        fatura
+      });
+      
+      toast.dismiss(toastId);
+      setIsEmailModalOpen(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao carregar detalhes da fatura: ' + err.message, { id: toastId });
+    }
   };
 
   const handleCancelFaturaTracking = async (faturaId: string) => {
@@ -644,10 +1070,21 @@ MCS - Gestão Comercial`;
       return;
     }
 
+    const toastId = toast.loading('Compilando relatórios e gerando anexos em PDF de alta qualidade. Por favor, aguarde...');
     try {
       setSendingEmail(true);
+
+      // Generate actual PDFs
+      const relatorioAttachment = await generateHoursPDFAttachmentTracking(emailData.fatura, emailHours, emailLanguage);
+      const informeAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'informe');
+      const facturaAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'factura');
+
+      const custom_attachments = [];
+      if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
+      if (informeAttachment) custom_attachments.push(informeAttachment);
+      if (facturaAttachment) custom_attachments.push(facturaAttachment);
       
-      // Detectar URL e converter em um link HTML clicável
+      // Detect URL and convert to a clickable HTML link
       const linkRegex = /(https?:\/\/[^\s]+)/g;
       const htmlBody = emailData.body
         .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
@@ -655,26 +1092,27 @@ MCS - Gestão Comercial`;
 
       const { error: functionErr } = await supabase.functions.invoke('send-order-notification', {
         body: {
-          empresa_id: selectedEmpresaId,
+          empresa_id: emailData.fatura?.empresa_id || selectedEmpresaId,
           to_emails: toEmails,
           email_subject: emailData.subject,
           email_body: htmlBody,
           is_faturamento: true,
           fatura_code: emailData.faturaId.substring(0, 8).toUpperCase(),
-          client_name: emailData.clientName
+          client_name: emailData.clientName,
+          custom_attachments
         }
       });
 
       if (functionErr) {
         console.error('Error invoking send-order-notification for billing tracking:', functionErr);
-        toast.error('Falhou ao reenviar o e-mail: ' + functionErr.message);
+        toast.error('Falhou ao enviar o e-mail: ' + functionErr.message, { id: toastId });
       } else {
-        toast.success(`E-mail com portal de aprovação reenviado com sucesso para ${toEmails.join(', ')}!`);
+        toast.success(`E-mail enviado com sucesso para ${toEmails.join(', ')}!`, { id: toastId });
         setIsEmailModalOpen(false);
       }
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao reenviar e-mail: ' + err.message);
+      toast.error('Erro ao enviar e-mail: ' + err.message, { id: toastId });
     } finally {
       setSendingEmail(false);
     }
@@ -900,7 +1338,7 @@ MCS - Gestão Comercial`;
                                   onClick={() => handleTriggerResendEmail(fatura, true)}
                                   className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors"
                                 >
-                                  <Mail className="w-3.5 h-3.5" /> Reenviar E-mail
+                                  <Mail className="w-3.5 h-3.5" /> Enviar Fatura
                                 </button>
 
                                 <button
@@ -1604,31 +2042,29 @@ MCS - Gestão Comercial`;
             const currentAdj = emailData.ajustesJson || {};
             const currentTotalBase = emailData.totalValor;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.iva_pct || 0)/100);
+            const currentEmpresa = empresas.find(e => e.id === emailData.fatura?.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
 
             // Available emails list
             const emailOptions: Array<{ id: string; email: string; label: string }> = [];
+            const bEmail = emailData.fatura?.client?.billingEmail || emailData.fatura?.client?.billing_email;
+            const cEmail = emailData.fatura?.client?.clientEmail || emailData.fatura?.client?.email;
+
+            if (bEmail) {
+              emailOptions.push({
+                id: 'billing_email',
+                email: bEmail,
+                label: `E-mail de Faturamento (${bEmail})`
+              });
+            }
+            if (cEmail && cEmail !== bEmail) {
+              emailOptions.push({
+                id: 'client_email',
+                email: cEmail,
+                label: `E-mail Geral (${cEmail})`
+              });
+            }
             
-            // Fixed operations copy emails
-            emailOptions.push({
-              id: 'valter_kr',
-              email: 'valter@kr-industrial.com',
-              label: 'valter@kr-industrial.com (Cópia Operações)'
-            });
-            emailOptions.push({
-              id: 'thevalter',
-              email: 'thevalter@gmail.com',
-              label: 'thevalter@gmail.com'
-            });
-            emailOptions.push({
-              id: 'valter_loginpro',
-              email: 'valter@gestaologinpro.com',
-              label: 'valter@gestaologinpro.com (Gestão)'
-            });
-            emailOptions.push({
-              id: 'valtencir_loginpro',
-              email: 'valtencir@gestaologinpro.com',
-              label: 'valtencir@gestaologinpro.com'
-            });
+
 
             return (
               <>
@@ -1647,7 +2083,7 @@ MCS - Gestão Comercial`;
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Empresa</span>
-                        <span className="font-medium">Stocco</span>
+                        <span className="font-medium">{currentEmpresa?.trade_name || currentEmpresa?.nome || 'Stocco'}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">Total de Horas</span>
@@ -1740,6 +2176,24 @@ MCS - Gestão Comercial`;
 
                   {sendEmailCheckbox && (
                     <div className="space-y-4">
+                      {/* Idioma do E-mail */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Idioma do E-mail</label>
+                        <Select 
+                          value={emailLanguage} 
+                          onValueChange={(val: 'pt' | 'es' | 'en') => handleLanguageChange(val)}
+                        >
+                          <SelectTrigger className="h-9 text-xs dark:bg-slate-950 dark:border-slate-800 font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <SelectValue placeholder="Selecione o idioma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 Português (Padrão)</SelectItem>
+                            <SelectItem value="es" className="text-xs font-semibold">🇪🇸 Espanhol (Spanish)</SelectItem>
+                            <SelectItem value="en" className="text-xs font-semibold">🇬🇧 Inglês (English)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {/* Recipients checklists */}
                       <div className="space-y-2">
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Destinatários do E-mail</label>
@@ -1805,8 +2259,269 @@ MCS - Gestão Comercial`;
                     </Button>
                     <Button onClick={handleSendEmail} disabled={sendingEmail} className="bg-blue-600 hover:bg-blue-700 text-white border-none">
                       {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                      Confirmar e Reenviar E-mail
+                      {isEmailAcceptance ? 'Confirmar e Enviar Fatura' : 'Confirmar e Reenviar E-mail'}
                     </Button>
+                  </div>
+                </div>
+
+                {/* Hidden PDF Templates container */}
+                <div className="hidden" style={{ position: 'absolute', left: '-9999px', top: 0, width: '800px' }}>
+                  {/* Informe Sheet Template */}
+                  <div id={`informe-sheet-tracking-${emailData.faturaId}`} className="w-full max-w-[800px] bg-white p-8 border border-slate-200 text-slate-800 text-left">
+                    <div className="flex justify-between items-start border-b-2 border-slate-100 pb-6 mb-6">
+                      <div className="space-y-2">
+                        {currentEmpresa?.invoice_logo_url ? (
+                          <div className="h-14 flex items-center mb-2">
+                            <img src={currentEmpresa.invoice_logo_url} alt={currentEmpresa.nome} className="max-h-full max-w-[220px] object-contain" />
+                          </div>
+                        ) : (
+                          <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                            {(currentEmpresa?.trade_name || currentEmpresa?.nome || 'STOCCO').toUpperCase()}
+                          </h3>
+                        )}
+                        <p className="text-xs font-bold text-indigo-605 uppercase tracking-widest">Informe de Facturación</p>
+                        <p className="text-[10px] text-muted-foreground">MCS - Gestão Comercial</p>
+                      </div>
+                      <div className="text-right text-xs space-y-1">
+                        <p className="font-bold text-slate-500 uppercase text-[10px]">Documento</p>
+                        <p className="font-bold text-slate-900">IF-{new Date(emailData.fatura.created_at || emailData.fatura.data_emissao).getFullYear()}/{String(emailData.fatura.fatura_numero || currentEmpresa?.next_invoice_number || '0001').padStart(4, '0')}</p>
+                        <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                        <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700">{(() => {
+                          const emission = new Date(emailData.fatura.data_emissao || new Date());
+                          emission.setDate(emission.getDate() + (emailData.fatura.client?.paymentTermDays || 30));
+                          return emission.toLocaleDateString('pt-PT');
+                        })()}</span></p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-8 mb-8 text-xs">
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
+                        <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Emissor</p>
+                        <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'STOCCO LDA'}</p>
+                        <p className="text-muted-foreground">NIF: {currentEmpresa?.tax_id || 'PT517834747'}</p>
+                        <p className="text-muted-foreground">{currentEmpresa?.address_line || 'R. São Tomé e Príncipe, 287'}</p>
+                        <p className="text-muted-foreground">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
+                        <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Cliente</p>
+                        <p className="font-bold text-slate-900">{emailData.clientName}</p>
+                        <p className="text-muted-foreground">NIF: {emailData.fatura.client?.taxId || 'N/A'}</p>
+                        <p className="text-muted-foreground">{emailData.fatura.client?.address_line || 'N/A'}</p>
+                        <p className="text-muted-foreground">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(', ')}</p>
+                      </div>
+                    </div>
+
+                    <h5 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-2">Resumen de Importe</h5>
+                    <table className="w-full border border-slate-150 rounded mb-6 text-xs text-left border-collapse">
+                      <thead className="bg-slate-50 font-bold text-slate-500 uppercase border-b border-slate-200">
+                        <tr>
+                          <th className="p-2 pl-3">Concepto</th>
+                          <th className="p-2 text-right w-28 font-bold">Valor (€)</th>
+                          <th className="p-2 font-bold">Descripción</th>
+                          <th className="p-2 text-right w-32 font-bold pr-3">Total (€)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-slate-100">
+                          <td className="p-2.5 pl-3 font-medium">Importe total</td>
+                          <td className="p-2.5 text-right font-semibold">€ {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 text-muted-foreground">{currentAdj.descricao_servico || 'Serviços Prestados'}</td>
+                          <td className="p-2.5 text-right font-semibold font-mono pr-3">€ {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                        {Number(currentAdj.incrementos) > 0 && (
+                          <tr className="border-b border-slate-100 text-emerald-600">
+                            <td className="p-2.5 pl-3 font-medium">Incrementos</td>
+                            <td className="p-2.5 text-right font-semibold">€ {Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2.5 text-muted-foreground">{currentAdj.incrementos_desc || 'Adicional'}</td>
+                            <td className="p-2.5 text-right font-semibold font-mono pr-3">€ {Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        )}
+                        {Number(currentAdj.reducoes) > 0 && (
+                          <tr className="border-b border-slate-100 text-rose-600">
+                            <td className="p-2.5 pl-3 font-medium">Reducciones</td>
+                            <td className="p-2.5 text-right font-semibold">€ -{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2.5 text-muted-foreground">{currentAdj.reducoes_desc || 'Desconto'}</td>
+                            <td className="p-2.5 text-right font-semibold font-mono pr-3">€ -{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        )}
+                        <tr className="bg-slate-50 font-extrabold border-t border-slate-200">
+                          <td className="p-2.5 text-slate-800 pl-3" colSpan={3}>Total a facturar</td>
+                          <td className="p-2.5 text-right font-extrabold text-slate-900 text-sm font-mono pr-3">
+                            € {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <h5 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-2">Relación de Trabajadores</h5>
+                    <table className="w-full border border-slate-150 rounded text-xs mb-8 text-left border-collapse">
+                      <thead className="bg-slate-50 font-bold text-slate-500 uppercase border-b border-slate-200">
+                        <tr>
+                          <th className="p-2 pl-4 font-bold">Trabajador</th>
+                          <th className="p-2 text-right font-bold w-40">Cantidad de horas</th>
+                          <th className="p-2 text-right font-bold w-40">Precio hora (€)</th>
+                          <th className="p-2 text-right font-bold w-40 pr-4 font-bold">Total (€)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const workerSummary: Record<string, { name: string; hours: number; rate: number; total: number }> = {};
+                          emailHours.forEach(h => {
+                            const wId = h.worker_id;
+                            if (!wId) return;
+                            const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
+                            const rate = Number(h.tarifa_faturada || 27.00);
+                            const hours = Number(h.horas_totais || 0);
+                            if (!workerSummary[wId]) {
+                              workerSummary[wId] = { name, hours: 0, rate, total: 0 };
+                            }
+                            workerSummary[wId].hours += hours;
+                            workerSummary[wId].total += hours * rate;
+                          });
+
+                          return Object.values(workerSummary).map((w, idx) => (
+                            <tr key={idx} className="border-b border-slate-100">
+                              <td className="p-2.5 pl-4 font-medium">{w.name}</td>
+                              <td className="p-2.5 text-right font-semibold">{w.hours.toFixed(2)}h</td>
+                              <td className="p-2.5 text-right">€ {w.rate.toFixed(2)}</td>
+                              <td className="p-2.5 text-right font-bold pr-4 font-mono">€ {w.total.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Factura Pró-forma Template */}
+                  <div id={`factura-sheet-tracking-${emailData.faturaId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                    <div>
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <h3 className="text-base font-extrabold text-slate-900">
+                            Factura Pró-forma FP-{new Date(emailData.fatura.created_at || emailData.fatura.data_emissao).getFullYear()}/{String(emailData.fatura.fatura_numero || currentEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                          </h3>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">PRÓ-FORMA</p>
+                        </div>
+                        {currentEmpresa?.invoice_logo_url && (
+                          <div className="h-10 flex items-center">
+                            <img src={currentEmpresa.invoice_logo_url} alt={currentEmpresa.nome} className="max-h-full max-w-[180px] object-contain" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                        <div>
+                          <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                          <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'STOCCO LDA'}</p>
+                          <p className="text-muted-foreground">{currentEmpresa?.address_line || 'Rua Padre António Maria Pinho, n.º 353'}</p>
+                          <p className="text-muted-foreground">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
+                          <p className="text-muted-foreground">NIF: {currentEmpresa?.tax_id || 'PT517834747'}</p>
+                          <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
+                          <p className="text-muted-foreground font-mono text-[9px]">{currentEmpresa?.iban || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                          <p className="font-bold text-slate-900">{emailData.clientName}</p>
+                          <p className="text-muted-foreground">{emailData.fatura.client?.address_line || 'N/A'}</p>
+                          <p className="text-muted-foreground">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city, emailData.fatura.client?.province].filter(Boolean).join(', ')}</p>
+                          <p className="text-muted-foreground">NIF: {emailData.fatura.client?.taxId || 'N/A'}</p>
+                          <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                          <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700">{(() => {
+                            const emission = new Date(emailData.fatura.data_emissao || new Date());
+                            emission.setDate(emission.getDate() + (emailData.fatura.client?.paymentTermDays || 30));
+                            return emission.toLocaleDateString('pt-PT');
+                          })()}</span></p>
+                        </div>
+                      </div>
+
+                      <table className="w-full text-[9px] text-left border-collapse mb-6">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-500 uppercase font-bold border-b text-[7px] tracking-wider">
+                            <th className="p-2 pl-3">Código</th>
+                            <th className="p-2">Descrição</th>
+                            <th className="p-2 text-right">Qtd</th>
+                            <th className="p-2 text-center">Un.</th>
+                            <th className="p-2 text-right">Preço (€)</th>
+                            <th className="p-2 text-right pr-3">Total (€)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="p-2 pl-3 font-semibold text-indigo-650">SERV-HORAS</td>
+                            <td className="p-2 text-muted-foreground">{currentAdj.descricao_servico || 'Serviços Prestados'}</td>
+                            <td className="p-2 text-right">{emailData.totalHoras.toFixed(2)}</td>
+                            <td className="p-2 text-center">UN</td>
+                            <td className="p-2 text-right">€ {(emailData.totalHoras > 0 ? (currentTotalBase / emailData.totalHoras) : 0).toFixed(2)}</td>
+                            <td className="p-2 text-right font-semibold pr-3 font-mono">€ {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                          {Number(currentAdj.incrementos) > 0 && (
+                            <tr className="border-b text-emerald-600">
+                              <td className="p-2 pl-3 font-semibold">INC-OBRA</td>
+                              <td className="p-2 text-muted-foreground">{currentAdj.incrementos_desc || 'Incremento Adicional'}</td>
+                              <td className="p-2 text-right">1.00</td>
+                              <td className="p-2 text-center">UN</td>
+                              <td className="p-2 text-right">€ {Number(currentAdj.incrementos).toFixed(2)}</td>
+                              <td className="p-2 text-right font-bold pr-3 font-mono">€ {Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          )}
+                          {Number(currentAdj.reducoes) > 0 && (
+                            <tr className="border-b text-rose-600">
+                              <td className="p-2 pl-3 font-semibold">DESC-COM</td>
+                              <td className="p-2 text-muted-foreground">{currentAdj.reducoes_desc || 'Redução Comercial'}</td>
+                              <td className="p-2 text-right">1.00</td>
+                              <td className="p-2 text-center">UN</td>
+                              <td className="p-2 text-right">€ -{Number(currentAdj.reducoes).toFixed(2)}</td>
+                              <td className="p-2 text-right font-bold pr-3 font-mono">€ -{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+
+                      <div className="bg-slate-800 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                        Resumo Financeiro
+                      </div>
+                      <table className="w-full border border-slate-200 rounded-b mb-6 text-[10px] text-left border-collapse">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="p-2 font-bold" colSpan={3}>Subtotal</td>
+                            <td className="p-2 text-right font-bold w-40 pr-3 font-mono">€ {(currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="p-2 font-bold" colSpan={3}>IVA {currentAdj.iva_pct || 0}%</td>
+                            <td className="p-2 text-right font-bold w-40 pr-3 font-mono">€ {((currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * Number(currentAdj.iva_pct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                          <tr className="bg-slate-50 font-extrabold text-blue-900 border-t">
+                            <td className="p-2 text-blue-900 font-extrabold" colSpan={3}>Total FP</td>
+                            <td className="p-2 text-right font-extrabold text-blue-950 text-[11px] pr-3 font-mono">
+                              € {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                        Condições de Enquadramento de IVA:<br/>
+                        (1) Autoliquidação de IVA
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="border-t border-slate-100 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                        <div>
+                          <p className="font-bold uppercase mb-0.5">Local de Carga</p>
+                          <p>{currentEmpresa?.address_line || 'Rua Conselheiro Fonseca, n.º 157'}</p>
+                          <p>{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
+                          <p>{emailData.fatura.client?.address_line || 'N/A'}</p>
+                          <p>{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(' ')}</p>
+                        </div>
+                      </div>
+                      <div className="text-center text-[7px] text-muted-foreground italic font-semibold">
+                        {currentEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </>
