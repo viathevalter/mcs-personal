@@ -1978,9 +1978,9 @@ MCS - Gestão Comercial`;
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-430px)] pr-2 scrollbar-thin overscroll-contain">
-          {/* Cabeçalho da Galeria */}
-          <div className="hidden lg:flex flex-row justify-between items-center px-5 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 dark:text-slate-500 font-extrabold text-[11px] uppercase tracking-wider shadow-sm mb-1.5 select-none mr-2">
+        <div className="space-y-3 flex flex-col w-full">
+          {/* Cabeçalho da Galeria (Fixo) */}
+          <div className="hidden lg:flex flex-row justify-between items-center px-5 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 dark:text-slate-500 font-extrabold text-[11px] uppercase tracking-wider shadow-sm select-none mr-[18px]">
             <div className="grid grid-cols-5 gap-4 w-full flex-1 items-center">
               <span className="col-span-2 pl-[72px]">Cliente</span>
               <span>Status</span>
@@ -1989,7 +1989,10 @@ MCS - Gestão Comercial`;
             </div>
             <div className="w-[320px] text-right pr-[52px]">Ações</div>
           </div>
-          {filteredFaturamentos.map(f => {
+
+          {/* Galeria Rolável */}
+          <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-430px)] pr-2 scrollbar-thin overscroll-contain w-full">
+            {filteredFaturamentos.map(f => {
             const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
             const isProcessing = processingClient === f.clientId;
             const isExpanded = expandedClients[cardId];
@@ -3345,6 +3348,7 @@ MCS - Gestão Comercial`;
               </Card>
             );
           })}
+          </div>
         </div>
       )}
 
