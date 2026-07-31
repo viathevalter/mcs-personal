@@ -241,9 +241,9 @@ export async function getHorasPendentesFaturamento(
           empresa_id,
           payment_term_id,
           status,
-          billing_cycle_start_day
-        )
-      `);
+          billing_cycle_start_day        )
+      `)
+      .range(0, 9999);
 
     if (clientsError) throw mapSupabaseError(clientsError);
 
@@ -312,7 +312,7 @@ export async function getHorasPendentesFaturamento(
             });
 
           if (settingsError) {
-             console.error(`Error auto-creating client settings for ${name}:`, settingsError);
+              console.error(`Error auto-creating client settings for ${name}:`, settingsError);
           }
 
           clientsList.push({
@@ -327,19 +327,35 @@ export async function getHorasPendentesFaturamento(
     }
 
     if (clientsList.length === 0) return [];
-    const clientIds = clientsList.map(c => c.id);
+
+    // Filter candidate clients that belong to the current company or match active workers
+    const candidateClients = clientsList.filter(c => {
+      if (c.empresa_id === empresaId) return true;
+      const normC = normalizeName(c.trade_name);
+      return uniqueClientNames.some(name => {
+        const normN = normalizeName(name);
+        return normC === normN || (normC.length > 3 && normN.includes(normC)) || (normN.length > 3 && normC.includes(normN));
+      });
+    });
+    const candidateClientIds = candidateClients.map(c => c.id);
 
     // 4. Fetch validation status of sheet records (worker_hours)
-    // We filter only by period to avoid HTTP Header Overflow errors with large arrays of worker IDs (e.g., 600+)
-    const { data: whData, error: whError } = await supabase
-      .schema('core_personal')
-      .from('worker_hours')
-      .select('worker_id, status, observacoes')
-      .eq('period_year', periodYear)
-      .eq('period_month', periodMonth);
-
-    if (whError) throw mapSupabaseError(whError);
-    const workerHoursList = whData || [];
+    // We query worker_hours in chunks for the active workers only to optimize query size and avoid truncation
+    let workerHoursList: any[] = [];
+    const activeWorkerIds = activeWorkers.map(w => w.id);
+    if (activeWorkerIds.length > 0) {
+      workerHoursList = await fetchInChunks(activeWorkerIds, 30, async (chunk) => {
+        const { data: whData, error: whError } = await supabase
+          .schema('core_personal')
+          .from('worker_hours')
+          .select('worker_id, status, observacoes')
+          .in('worker_id', chunk)
+          .eq('period_year', periodYear)
+          .eq('period_month', periodMonth);
+        if (whError) throw mapSupabaseError(whError);
+        return whData || [];
+      });
+    }
     const workerHoursMap = new Map(workerHoursList.map(wh => [wh.worker_id, { status: wh.status, observacoes: wh.observacoes }]));
 
     // Helper to get exact dynamic date range for a given client billing cycle start day
@@ -373,16 +389,21 @@ export async function getHorasPendentesFaturamento(
     const startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
     const endDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${new Date(periodYear, periodMonth, 0).getDate()}`;
 
-    // Note: We do not filter by clientIds here because that list has 2000+ IDs and would exceed URL size limits
-    const { data: horasTrabalhadas, error: htError } = await supabase
-      .schema('core_finance')
-      .from('horas_trabalhadas')
-      .select('*')
-      .gte('data_trabalho', startDateStr)
-      .lte('data_trabalho', endDateStr);
-
-    if (htError) throw mapSupabaseError(htError);
-    const horasTrabalhadasList = horasTrabalhadas || [];
+    // We query hours only for the candidate client IDs of this company to avoid Supabase's default 1,000 limit truncation
+    let horasTrabalhadasList: any[] = [];
+    if (candidateClientIds.length > 0) {
+      horasTrabalhadasList = await fetchInChunks(candidateClientIds, 30, async (chunk) => {
+        const { data: htData, error: htError } = await supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('*')
+          .in('client_id', chunk)
+          .gte('data_trabalho', startDateStr)
+          .lte('data_trabalho', endDateStr);
+        if (htError) throw mapSupabaseError(htError);
+        return htData || [];
+      });
+    };
 
     // Fetch unknown workers (workers with hours but not in activeWorkers)
     const unknownWorkerIds = Array.from(new Set(
