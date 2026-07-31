@@ -783,9 +783,13 @@ MCS - Gestão Comercial`;
                   return (
                     <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                       <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
-                        {fatura.fatura_numero 
-                          ? `IF-${fatura.year}/${String(fatura.fatura_numero).padStart(4, '0')}`
-                          : `#${fatura.id.split('-')[0].toUpperCase()}`}
+                        {(() => {
+                          if (!fatura.fatura_numero) {
+                            return `#${fatura.id.split('-')[0].toUpperCase()}`;
+                          }
+                          const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
+                          return match ? match[0] : fatura.fatura_numero;
+                        })()}
                       </TableCell>
                       <TableCell className="font-medium text-slate-700 dark:text-slate-300">
                         <div className="flex flex-col gap-1 text-left">
