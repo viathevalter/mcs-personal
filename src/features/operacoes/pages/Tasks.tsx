@@ -39,6 +39,7 @@ export const Tasks: React.FC = () => {
         };
     }, [user]);
 
+    const currentUser = effectiveUser;
     const { t } = useLanguage();
 
     // Data State
