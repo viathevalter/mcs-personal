@@ -623,7 +623,7 @@ export async function getHorasPendentesFaturamento(
           (e.client_site_id === hourlyObraId || e.client_site_id === null)
         );
 
-        const isBilled = wHours.length > 0 && wHours.every(h => h.fatura_id !== null);
+        const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
 
         workersSummary.push({
           workerId: w.id,
@@ -684,7 +684,7 @@ export async function getHorasPendentesFaturamento(
           (e.client_site_id === sampleHour.obra_id || e.client_site_id === null)
         );
 
-        const isBilled = wHours.length > 0 && wHours.every(h => h.fatura_id !== null);
+        const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
 
         workersSummary.push({
           workerId: wId,

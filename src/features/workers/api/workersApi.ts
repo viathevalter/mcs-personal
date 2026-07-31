@@ -368,7 +368,7 @@ export async function addManualAllocation(params: AddManualAllocationParams): Pr
 }
 
 export interface UpdateWorkerAlocacaoParams {
-    id: number;
+    id: string | number;
     workerCodColab: string;
     cliente_nombre?: string;
     contratante?: string;
@@ -382,78 +382,142 @@ export interface UpdateWorkerAlocacaoParams {
 export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): Promise<void> {
     const { id, workerCodColab, ...updates } = params;
 
-    const { error: allocError } = await supabase
-        .schema('public')
-        .from('colaborador_por_pedido')
-        .update(updates)
-        .eq('id', id);
+    const idStr = String(id);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr);
 
-    if (allocError) throw mapSupabaseError(allocError);
+    let companyId: string | undefined = undefined;
+    if (updates.contratante) {
+        const { data: empresa } = await supabase
+            .schema('core_common')
+            .from('empresas')
+            .select('id')
+            .ilike('nome', `%${updates.contratante}%`)
+            .maybeSingle();
+        if (empresa?.id) {
+            companyId = empresa.id;
+        }
+    }
 
-    // Optional: If this is the most recent allocation, we might want to sync some fields back to the worker record.
-    // For now, we update the worker if we are updating the allocation to keep it somewhat in sync
-    // but a proper sync might check if it's the latest. We'll update the worker if cliente, contratante or funcion is provided.
-    
-    // We fetch the latest allocation to see if this is it.
-    const { data: latestAlloc } = await supabase
-        .schema('public')
-        .from('colaborador_por_pedido')
-        .select('id')
-        .eq('cod_colab', workerCodColab)
-        .order('inserted_at', { ascending: false })
-        .limit(1)
-        .single();
+    if (isUuid) {
+        // Alocação vinda de core_personal.worker_assignments
+        const waUpdates: any = {};
 
-    if (latestAlloc?.id === id) {
-        const workerUpdates: any = {};
-        if (updates.cliente_nombre) workerUpdates.cliente = updates.cliente_nombre;
-        if (updates.contratante) workerUpdates.contratante = updates.contratante;
-        if (updates.funcion) workerUpdates.funcion = updates.funcion;
-        
-        let companyId: string | undefined;
-        if (updates.contratante) {
-            const { data: empresa } = await supabase
+        if (updates.fechainiciopedido !== undefined) {
+            waUpdates.start_date = updates.fechainiciopedido || null;
+            waUpdates.planned_start_date = updates.fechainiciopedido || null;
+        }
+        if (updates.fechafinpedido !== undefined) {
+            waUpdates.planned_end_date = updates.fechafinpedido || null;
+        }
+        if (updates.fechasalidatrabajador !== undefined) {
+            waUpdates.end_date = updates.fechasalidatrabajador || null;
+            if (updates.fechasalidatrabajador) {
+                waUpdates.status = 'completed';
+            }
+        }
+        if (updates.funcion !== undefined) {
+            waUpdates.job_function_name_snapshot = updates.funcion;
+        }
+
+        // Resolver empresa contratante (empresa_id)
+        if (companyId) {
+            waUpdates.empresa_id = companyId;
+        }
+
+        // Resolver cliente (client_id)
+        if (updates.cliente_nombre) {
+            const { data: client } = await supabase
                 .schema('core_common')
-                .from('empresas')
+                .from('clients')
                 .select('id')
-                .ilike('nome', updates.contratante)
+                .or(`trade_name.ilike.%${updates.cliente_nombre}%,legal_name.ilike.%${updates.cliente_nombre}%`)
                 .maybeSingle();
-            if (empresa?.id) {
-                companyId = empresa.id;
+            if (client?.id) {
+                waUpdates.client_id = client.id;
             }
         }
 
-        if (Object.keys(workerUpdates).length > 0) {
+        // Resolver pedido por código (pedido_id)
+        if (updates.codpedido) {
+            const { data: pedido } = await supabase
+                .schema('core_comercial')
+                .from('pedidos')
+                .select('id, client_id, empresa_id')
+                .ilike('codigo', `%${updates.codpedido}%`)
+                .maybeSingle();
+            if (pedido?.id) {
+                waUpdates.pedido_id = pedido.id;
+                if (pedido.client_id) waUpdates.client_id = pedido.client_id;
+                if (pedido.empresa_id) waUpdates.empresa_id = pedido.empresa_id;
+            }
+        }
+
+        const { error: waError } = await supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .update(waUpdates)
+            .eq('id', idStr);
+
+        if (waError) throw mapSupabaseError(waError);
+    } else {
+        // Alocação vinda da tabela legada public.colaborador_por_pedido
+        const { error: allocError } = await supabase
+            .schema('public')
+            .from('colaborador_por_pedido')
+            .update(updates)
+            .eq('id', Number(id));
+
+        if (allocError) throw mapSupabaseError(allocError);
+    }
+
+    // Sincronizar dados principais do trabalhador no perfil
+    const workerUpdates: any = {};
+    if (updates.cliente_nombre) workerUpdates.cliente = updates.cliente_nombre;
+    if (updates.contratante) workerUpdates.contratante = updates.contratante;
+    if (updates.funcion) workerUpdates.funcion = updates.funcion;
+
+    if (Object.keys(workerUpdates).length > 0) {
+        await supabase
+            .schema('core_personal')
+            .from('workers')
+            .update(workerUpdates)
+            .eq('cod_colab', workerCodColab);
+
+        const colabUpdates: any = {};
+        if (updates.contratante) colabUpdates.contratante = updates.contratante;
+        if (updates.funcion) colabUpdates.funcion = updates.funcion;
+
+        if (Object.keys(colabUpdates).length > 0) {
             await supabase
-                .schema('core_personal')
-                .from('workers')
-                .update(workerUpdates)
+                .schema('public')
+                .from('colaboradores')
+                .update(colabUpdates)
                 .eq('cod_colab', workerCodColab);
         }
+    }
 
-        // If we updated the contractor, sync the tickets too
-        if (companyId) {
-            const { data: worker } = await supabase
+    // If we updated the contractor, sync the tickets too
+    if (companyId) {
+        const { data: worker } = await supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('id')
+            .eq('cod_colab', workerCodColab)
+            .single();
+
+        if (worker) {
+            const ticketUpdates: any = {
+                empresa_id: companyId
+            };
+            if (updates.cliente_nombre) ticketUpdates.origem_cliente_nome = updates.cliente_nombre;
+            if (updates.contratante) ticketUpdates.origem_contratante = updates.contratante;
+
+            await supabase
                 .schema('core_personal')
-                .from('workers')
-                .select('id')
-                .eq('cod_colab', workerCodColab)
-                .single();
-
-            if (worker) {
-                const ticketUpdates: any = {
-                    empresa_id: companyId
-                };
-                if (updates.cliente_nombre) ticketUpdates.origem_cliente_nome = updates.cliente_nombre;
-                if (updates.contratante) ticketUpdates.origem_contratante = updates.contratante;
-
-                await supabase
-                    .schema('core_personal')
-                    .from('seguridade_status')
-                    .update(ticketUpdates)
-                    .eq('worker_id', worker.id)
-                    .in('status', ['pendente', 'erro']);
-            }
+                .from('seguridade_status')
+                .update(ticketUpdates)
+                .eq('worker_id', worker.id)
+                .in('status', ['pendente', 'erro']);
         }
     }
 }

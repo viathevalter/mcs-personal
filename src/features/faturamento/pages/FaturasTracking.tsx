@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { useEmpresa } from '../../../app/providers/EmpresaProvider';
 import { supabase } from '@/shared/supabase/client';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import { getBillingCycleDays } from './FaturasPendentes';
 
 // Helper to calculate expected due date and remaining/overdue days
 const getDueDateAndRemaining = (emissaoStr: string | null, days: number | null) => {
@@ -161,6 +164,249 @@ export function FaturasTracking() {
       toast.error('Erro ao carregar detalhes das horas: ' + err.message);
     } finally {
       setLoadingDisputeHours(false);
+    }
+  };
+
+  const handleExportA4PDFTracking = async (faturaId: string, clientName: string, type: 'informe' | 'factura') => {
+    const elementId = `${type}-sheet-${faturaId}`;
+    const element = document.getElementById(elementId);
+    
+    if (!element) {
+      toast.error(`Não foi possível localizar o elemento visual do ${type === 'informe' ? 'Informe' : 'Pro-forma'}.`);
+      return;
+    }
+    
+    toast.info(`Aguarde, gerando PDF do ${type === 'informe' ? 'Informe de Facturación' : 'Fatura Pró-forma'}...`);
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      const filename = `${type}-${clientName.toLowerCase().replace(/\\s+/g, '-')}.pdf`;
+      pdf.save(filename);
+      toast.success(`PDF do ${type === 'informe' ? 'Informe' : 'Pro-forma'} gerado com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    }
+  };
+
+  const handleExportHoursPDFTracking = async (fatura: any) => {
+    toast.info("Aguarde, gerando PDF do Relatório de Horas...");
+    
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px';
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    
+    let disputeYear = new Date().getFullYear();
+    let disputeMonth = new Date().getMonth();
+    if (disputeHours && disputeHours.length > 0) {
+      const parts = disputeHours[0].data_trabalho.split('-');
+      disputeYear = parseInt(parts[0]);
+      disputeMonth = parseInt(parts[1]) - 1;
+    }
+    
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const periodStr = `${months[disputeMonth]} / ${disputeYear}`;
+    
+    const totalHorasCalculadas = disputeHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+    const totalValorCalculado = disputeHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Relatório de Horas</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>\${clientName}</strong> | Período: <strong>\${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">\${totalHorasCalculadas.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ \${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    const workersMap = new Map<string, {
+      workerId: string;
+      workerName: string;
+      horasDiarias: Record<string, number>;
+    }>();
+
+    disputeHours.forEach(h => {
+      const wId = h.worker_id;
+      if (!wId) return;
+
+      if (!workersMap.has(wId)) {
+        workersMap.set(wId, {
+          workerId: wId,
+          workerName: h.worker?.nome || 'Colaborador',
+          horasDiarias: {}
+        });
+      }
+
+      const wObj = workersMap.get(wId)!;
+      const dateKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      wObj.horasDiarias[dateKey] = h.horas_totais;
+    });
+
+    const groupedWorkers = Array.from(workersMap.values());
+    const cycleStartDay = fatura.client?.billing_cycle_start_day || 1;
+    const daysArray = getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
+
+    let tableHtml = `
+      <div style="margin-bottom: 40px; page-break-inside: avoid;">
+        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+          OBRA: TODAS AS OBRAS
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabalhador</th>
+    `;
+
+    daysArray.forEach(dInfo => {
+      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+      const dayOfWeek = cellDate.getDay();
+      const isSunday = dayOfWeek === 0;
+      const isSaturday = dayOfWeek === 6;
+      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const label = weekdays[dayOfWeek];
+      
+      let headerColor = '#64748b';
+      let headerBg = '';
+      if (isSunday) {
+        headerColor = '#e11d48';
+        headerBg = 'background-color: #ffe4e6;';
+      } else if (isSaturday) {
+        headerColor = '#d97706';
+        headerBg = 'background-color: #fef3c7;';
+      }
+
+      tableHtml += `
+        <th style="text-align: center; padding: 6px 2px; min-width: 25px; \${headerBg} border-right: 1px solid #e2e8f0;">
+          <div style="font-size: 7px; text-transform: uppercase; color: \${headerColor}; font-weight: 700;">\${label}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">\${String(dInfo.day).padStart(2, '0')}</div>
+        </th>
+      `;
+    });
+
+    tableHtml += `
+              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    groupedWorkers.forEach(w => {
+      const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+      tableHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">\${w.workerName}</td>
+      `;
+
+      daysArray.forEach(dInfo => {
+        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
+        
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+
+        let cellStyle = 'color: #94a3b8;';
+        let cellBg = '';
+        if (hoursVal > 0) {
+          cellStyle = 'color: #2563eb; font-weight: 700;';
+        }
+        if (isSunday) {
+          cellBg = 'background-color: #fff1f2;';
+        } else if (isSaturday) {
+          cellBg = 'background-color: #fffbeb;';
+        }
+
+        tableHtml += `
+          <td style="text-align: center; padding: 8px 2px; \${cellBg} \${cellStyle} border-right: 1px solid #e2e8f0;">
+            \${hoursVal > 0 ? hoursVal : '-'}
+          </td>
+        `;
+      });
+
+      tableHtml += `
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">\${workerTotal.toFixed(1)}h</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    container.innerHTML += tableHtml;
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+      
+      pdf.save(`relatorio-horas-\${clientName.toLowerCase().replace(/\\s+/g, '-')}.pdf`);
+      toast.success("PDF do Relatório de Horas gerado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    } finally {
+      document.body.removeChild(container);
     }
   };
 
@@ -536,8 +782,10 @@ MCS - Gestão Comercial`;
 
                   return (
                     <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100">
-                        #{fatura.id.split('-')[0].toUpperCase()}
+                      <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
+                        {fatura.fatura_numero 
+                          ? `IF-${fatura.year}/${String(fatura.fatura_numero).padStart(4, '0')}`
+                          : `#${fatura.id.split('-')[0].toUpperCase()}`}
                       </TableCell>
                       <TableCell className="font-medium text-slate-700 dark:text-slate-300">
                         <div className="flex flex-col gap-1 text-left">
@@ -598,7 +846,13 @@ MCS - Gestão Comercial`;
                       </TableCell>
                       <TableCell>{getStatusBadge(fatura.status)}</TableCell>
                       <TableCell className="text-right pr-6">
-                        <div className="flex justify-end gap-3">
+                        <div className="flex justify-end items-center gap-3">
+                          <button
+                            onClick={() => handleOpenDispute(fatura)}
+                            className="inline-flex items-center gap-1 text-sm text-slate-650 hover:text-slate-750 dark:text-slate-450 dark:hover:text-slate-300 font-bold transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-500" /> Ver Detalhes
+                          </button>
                           {(fatura.status === 'pending_client_approval' || fatura.status === 'disputed') && (
                             <>
                               <button
@@ -622,14 +876,6 @@ MCS - Gestão Comercial`;
                                 <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
                               </button>
                             </>
-                          )}
-                          {fatura.status === 'disputed' && (
-                            <button
-                              onClick={() => handleOpenDispute(fatura)}
-                              className="inline-flex items-center gap-1 text-sm text-red-650 hover:text-red-755 dark:text-red-400 dark:hover:text-red-350 font-medium transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" /> Ver Motivo
-                            </button>
                           )}
                           {fatura.status === 'approved' && (
                             fatura.ajustes_json?.cobro_gerado ? (
@@ -804,12 +1050,14 @@ MCS - Gestão Comercial`;
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-red-700">
-                    <XCircle className="w-6 h-6" />
-                    Análise de Contestação - Fatura #{selectedDispute.id.substring(0, 8).toUpperCase()}
+                  <DialogTitle className={`flex items-center gap-2 ${selectedDispute.status === 'disputed' ? 'text-red-700' : 'text-blue-700 dark:text-blue-400'}`}>
+                    {selectedDispute.status === 'disputed' ? <XCircle className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                    {selectedDispute.status === 'disputed' ? 'Análise de Contestação' : 'Detalhes do Faturamento'} - Fatura {selectedDispute.fatura_numero ? `IF-${selectedDispute.year}/${String(selectedDispute.fatura_numero).padStart(4, '0')}` : `#${selectedDispute.id.substring(0, 8).toUpperCase()}`}
                   </DialogTitle>
                   <DialogDescription className="text-base pt-1">
-                    Revise o motivo fornecido pelo cliente e as discrepâncias apontadas na folha de ponto.
+                    {selectedDispute.status === 'disputed'
+                      ? "Revise o motivo fornecido pelo cliente e as discrepâncias apontadas na folha de ponto."
+                      : "Consulte o resumo de horas, informe de faturamento e fatura única correspondentes a este ciclo."}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -855,6 +1103,20 @@ MCS - Gestão Comercial`;
                   {/* Resumo de Horas Tab */}
                   {disputeActiveTab === 'resumo' && (
                     <>
+                      <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-4">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Relatório de Horas (Folha de Ponto)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportHoursPDFTracking(selectedDispute)}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar Relatório de Horas (PDF)
+                        </Button>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Descritivo */}
                         <div className="space-y-1.5">
@@ -1017,8 +1279,23 @@ MCS - Gestão Comercial`;
 
                   {/* Informe Pró-forma Tab */}
                   {disputeActiveTab === 'informe' && (
-                    <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl">
-                      <div className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left">
+                    <div className="flex flex-col items-center w-full">
+                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Informe de Facturación (Pró-forma)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'informe')}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar PDF
+                        </Button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                        <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
                           <div className="space-y-1">
@@ -1135,12 +1412,28 @@ MCS - Gestão Comercial`;
                         </div>
                       </div>
                     </div>
+                  </div>
                   )}
 
                   {/* Factura Única Tab */}
                   {disputeActiveTab === 'factura' && (
-                    <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl">
-                      <div className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
+                    <div className="flex flex-col items-center w-full">
+                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Factura Única AT (Pro-forma / Definitiva)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'factura')}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar PDF
+                        </Button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                        <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
                         {/* Top row */}
                         <div className="flex justify-between items-start mb-6">
                           <div>
@@ -1270,6 +1563,7 @@ MCS - Gestão Comercial`;
                         </div>
                       </div>
                     </div>
+                  </div>
                   )}
                 </div>
 
@@ -1277,14 +1571,18 @@ MCS - Gestão Comercial`;
                   <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
                     Fechar
                   </Button>
-                  <Button variant="outline" onClick={() => handleResolveDispute(false)} disabled={resolvingDispute} className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
-                    {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
-                    Recusar & Comentar
-                  </Button>
-                  <Button onClick={() => handleResolveDispute(true)} disabled={resolvingDispute} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
-                    {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                    Aceitar Proposta & Atualizar Ponto
-                  </Button>
+                  {selectedDispute.status === 'disputed' && (
+                    <>
+                      <Button variant="outline" onClick={() => handleResolveDispute(false)} disabled={resolvingDispute} className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
+                        {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+                        Recusar & Comentar
+                      </Button>
+                      <Button onClick={() => handleResolveDispute(true)} disabled={resolvingDispute} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+                        {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                        Aceitar Proposta & Atualizar Ponto
+                      </Button>
+                    </>
+                  )}
                 </DialogFooter>
               </>
             );
