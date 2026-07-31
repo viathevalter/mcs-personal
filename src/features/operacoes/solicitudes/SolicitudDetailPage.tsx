@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSolicitudDetail } from './hooks/useSolicitudDetail';
 import { useSolicitudTasks } from './hooks/useSolicitudTasks';
@@ -5,7 +6,7 @@ import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, RefreshCw, Printer } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Mail } from 'lucide-react';
 import { SolicitudOverviewTab } from './components/SolicitudOverviewTab';
 import { SolicitudTasksTab } from './components/SolicitudTasksTab';
 import { SolicitudTimelineTab } from './components/SolicitudTimelineTab';
@@ -14,11 +15,13 @@ import { SolicitudStatusBadge } from './components/SolicitudStatusBadge';
 import { SolicitudTypeBadge } from './components/SolicitudTypeBadge';
 import { useSolicitudTargets } from './hooks/useSolicitudTargets';
 import { printReplacementDoc } from './utils/printReplacement';
+import { ResendNotificationModal } from './components/ResendNotificationModal';
 
 export function SolicitudDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const { data: solicitud, isLoading: loadingSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
@@ -93,6 +96,15 @@ export function SolicitudDetailPage() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Atualizar
               </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => setIsResendModalOpen(true)} 
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 font-medium"
+              >
+                <Mail className="h-4 w-4" />
+                Reenviar E-mail
+              </Button>
               {solicitud.tipo === 'replacement' && (
                 <Button variant="default" size="sm" onClick={handlePrintPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5">
                   <Printer className="h-4 w-4" />
@@ -150,6 +162,16 @@ export function SolicitudDetailPage() {
           </div>
         </Tabs>
       </div>
+
+      {solicitud && (
+        <ResendNotificationModal
+          isOpen={isResendModalOpen}
+          onClose={() => setIsResendModalOpen(false)}
+          solicitud={solicitud}
+          onSuccess={handleRefresh}
+        />
+      )}
     </Layout>
   );
 }
+
