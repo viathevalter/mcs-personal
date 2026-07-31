@@ -57,18 +57,30 @@ export const supabaseTaskService = {
     },
 
     create: async (task: Partial<IncidentTask>): Promise<IncidentTask> => {
-        const dbPayload = {
+        let currentUserId = task.created_by;
+        if (!currentUserId) {
+            try {
+                const { data } = await supabase.auth.getUser();
+                currentUserId = data.user?.id;
+            } catch {
+                // ignore
+            }
+        }
+
+        const dbPayload: any = {
             incident_id: task.incident_id,
             title: task.title,
-            status: 'open',
+            status: mapStatusToDb(task.status || 'Pendente'),
             step_order: task.step_order || 1,
-            department_id: task.department_id,
             sla_days: task.sla_days || 1,
             due_at: task.due_at,
             scheduled_for: task.scheduled_for,
-            created_by: task.created_by,
             assigned_to_email: task.assigned_to
         };
+
+        if (task.department_id) dbPayload.department_id = task.department_id;
+        if (currentUserId) dbPayload.created_by = currentUserId;
+        if (task.evidence) dbPayload.evidence = task.evidence;
 
         const { data, error } = await supabase
             .from('mcs_incident_tasks')

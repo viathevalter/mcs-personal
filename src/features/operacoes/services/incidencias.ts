@@ -202,7 +202,8 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
             sla_days: payload.sla || 1,
             scheduled_for: payload.scheduled_for,
             assigned_to: payload.responsavel_email,
-            created_by: payload.created_by
+            created_by: payload.created_by,
+            evidence: payload.descricao
         } as any);
 
         await notifyTaskCreated(payload.titulo, payload.departamento, payload.responsavel_email, newInc.id);

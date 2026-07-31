@@ -300,6 +300,7 @@ export const Incidencias: React.FC = () => {
                 status: 'Aberto',
                 origem_tipo: finalOriginType,
                 origem_criacao: 'manual',
+                created_by: user?.id,
                 criado_por_nome: user?.email || 'Unknown',
                 playbook_id: baseForm.playbook_id || undefined,
                 context: finalContext,
