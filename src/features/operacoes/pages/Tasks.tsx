@@ -127,6 +127,19 @@ export const Tasks: React.FC = () => {
         return Array.from(assignees).sort();
     }, [allTasks]);
 
+    const isAssignedToMe = (email?: string | null) => {
+        if (!email || !currentUser) return false;
+        const target = email.trim().toLowerCase();
+        const myEmail = (currentUser.email || '').trim().toLowerCase();
+        const myName = (currentUser.name || '').trim().toLowerCase();
+
+        if (myEmail && target === myEmail) return true;
+        if (myEmail && target.includes(myEmail.split('@')[0])) return true;
+        if (myEmail && myEmail.includes(target.split('@')[0])) return true;
+        if (myName && target.includes(myName)) return true;
+        return false;
+    };
+
     const filteredData = useMemo(() => {
         const userDeptVal = currentUser.profile?.department_id || '';
         const foundDept = departments.find(d => d.id === userDeptVal || d.name?.toLowerCase() === userDeptVal?.toLowerCase());
@@ -134,9 +147,10 @@ export const Tasks: React.FC = () => {
         const managed = currentUser.profile?.managed_departments || [];
 
         return allTasks.filter(t => {
+            const isMine = isAssignedToMe(t.responsavel_email) || t.created_by === currentUser.id;
+
             // --- ADMIN / SUPER ADMIN DATA ISOLATION ---
             if (currentUser && !currentUser.isSuperAdmin && currentUser.isAdmin) {
-                const isMine = t.responsavel_email === currentUser.email;
                 const isManaged = managed.includes(t.departamento);
 
                 if (!isMine && !isManaged && userDeptName && t.departamento?.toLowerCase() !== userDeptName.toLowerCase()) {
@@ -145,7 +159,7 @@ export const Tasks: React.FC = () => {
             }
 
             if (activeTab === 'minhas') {
-                if (t.responsavel_email !== currentUser.email) return false;
+                if (!isMine) return false;
             } else if (activeTab === 'setor') {
                 if (!userDeptName && managed.length === 0 && !currentUser.isSuperAdmin) {
                     return false;
@@ -171,7 +185,7 @@ export const Tasks: React.FC = () => {
                 if (assigneeFilter === 'Unassigned') {
                     if (t.responsavel_email) return false;
                 } else {
-                    if (t.responsavel_email !== assigneeFilter) return false;
+                    if (t.responsavel_email?.toLowerCase() !== assigneeFilter.toLowerCase()) return false;
                 }
             }
             if (searchTerm) {
@@ -191,7 +205,7 @@ export const Tasks: React.FC = () => {
         });
     }, [allTasks, activeTab, statusFilter, searchTerm, onlyOverdue, currentUser, assigneeFilter, departments]);
 
-    const myTasks = allTasks.filter(t => t.responsavel_email === currentUser.email && t.status !== 'Concluida');
+    const myTasks = allTasks.filter(t => (isAssignedToMe(t.responsavel_email) || t.created_by === currentUser.id) && t.status !== 'Concluida');
     const myPendingCount = myTasks.length;
     const myOverdueCount = myTasks.filter(t => t.prazo && new Date(t.prazo) < new Date()).length;
     const todayStr = new Date().toISOString().split('T')[0];

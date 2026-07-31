@@ -114,6 +114,17 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
 const toUiTarefa = async (task: any): Promise<IncidenciaTarefa> => {
     const depts = await departmentService.list();
     const dept = depts.find(d => d.id === task.department_id);
+    let parsedDesc = task.evidence || '';
+    let parsedAtts: any[] = [];
+    if (task.evidence && typeof task.evidence === 'string' && task.evidence.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(task.evidence);
+            parsedDesc = parsed.description || '';
+            parsedAtts = parsed.attachments || [];
+        } catch {
+            parsedDesc = task.evidence;
+        }
+    }
     return {
         id: task.id,
         incidencia_id: task.incident_id,
@@ -123,6 +134,8 @@ const toUiTarefa = async (task: any): Promise<IncidenciaTarefa> => {
         departamento: dept?.name || 'Geral',
         prazo: task.due_at,
         scheduled_for: task.scheduled_for,
+        descricao: parsedDesc,
+        attachments: parsedAtts,
         evidencia: task.evidence,
         responsavel_email: task.assigned_to,
 
@@ -131,7 +144,7 @@ const toUiTarefa = async (task: any): Promise<IncidenciaTarefa> => {
         completed_at: task.completed_at,
         last_status_change_at: task.last_status_change_at
     };
-}
+};
 
 // --- PUBLIC API (ADAPTERS) ---
 
