@@ -149,21 +149,60 @@ export const Incidencias: React.FC = () => {
         }
     };
 
+    // Safe ISO Date parsing helper
+    const formatSafeIsoDate = (val?: string): string | undefined => {
+        if (!val) return undefined;
+        try {
+            if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+                const d = new Date(val.includes('T') ? val : `${val}T00:00:00`);
+                if (!isNaN(d.getTime())) return d.toISOString();
+            }
+            if (val.includes('/')) {
+                const parts = val.split('/');
+                if (parts.length === 3) {
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    const d = new Date(`${year}-${month}-${day}T00:00:00`);
+                    if (!isNaN(d.getTime())) return d.toISOString();
+                }
+            }
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) return d.toISOString();
+        } catch {
+            return undefined;
+        }
+        return undefined;
+    };
+
     // Handle Scheduled For Change
     const handleScheduledDateChange = (val: string) => {
         const updates: any = { scheduled_for: val };
 
         if (val) {
-            const targetDate = new Date(val + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            let targetDate: Date | null = null;
+            if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+                targetDate = new Date(`${val}T00:00:00`);
+            } else if (val.includes('/')) {
+                const parts = val.split('/');
+                if (parts.length === 3) {
+                    targetDate = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T00:00:00`);
+                }
+            } else {
+                targetDate = new Date(val);
+            }
 
-            const diffTime = targetDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (targetDate && !isNaN(targetDate.getTime())) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
 
-            if (diffDays >= 0) {
-                updates.sla = diffDays === 0 ? 1 : diffDays;
-                updates.slaUnit = 'days';
+                const diffTime = targetDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays >= 0) {
+                    updates.sla = diffDays === 0 ? 1 : diffDays;
+                    updates.slaUnit = 'days';
+                }
             }
         }
 
@@ -266,7 +305,7 @@ export const Incidencias: React.FC = () => {
                 context: finalContext,
                 // Quick Task Fields
                 departamento: isQuickTask ? baseForm.departamento : undefined,
-                scheduled_for: isQuickTask && baseForm.scheduled_for ? new Date(baseForm.scheduled_for).toISOString() : undefined,
+                scheduled_for: isQuickTask && baseForm.scheduled_for ? formatSafeIsoDate(baseForm.scheduled_for) : undefined,
                 sla: isQuickTask ? baseForm.sla : undefined,
                 prazo: isQuickTask
                     ? new Date(Date.now() + (baseForm.sla * (baseForm.slaUnit === 'hours' ? 3600000 : 86400000))).toISOString()
@@ -278,9 +317,9 @@ export const Incidencias: React.FC = () => {
             resetModal();
             await loadData();
 
-        } catch (err) {
-            console.error(err);
-            alert('Erro ao criar incidência');
+        } catch (err: any) {
+            console.error("Error creating incident/task:", err);
+            alert(`Erro ao criar incidência: ${err?.message || err || 'Erro desconhecido'}`);
         } finally {
             setLoading(false);
         }

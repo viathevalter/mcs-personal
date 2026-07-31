@@ -34,14 +34,18 @@ export const notifyTaskCreated = async (title: string, deptName?: string, assign
             : (mcsUsers || []).slice(0, 5).map(u => u.id);
 
         for (const userId of userIdsToNotify) {
-            await schemaClient.from('notifications').insert({
-                user_id: userId,
-                title: `Nova Tarefa: ${deptName || 'Setor'}`,
-                message: title,
-                type: 'incident',
-                severity: 'info',
-                link_url: incidentId ? `/operacoes/incidencias/${incidentId}` : '/operacoes/operacao/tarefas'
-            });
+            try {
+                await schemaClient.from('notifications').insert({
+                    user_id: userId,
+                    title: `Nova Tarefa: ${deptName || 'Setor'}`,
+                    message: title,
+                    type: 'incident',
+                    severity: 'info',
+                    link_url: incidentId ? `/operacoes/incidencias/${incidentId}` : '/operacoes/operacao/tarefas'
+                });
+            } catch (innerErr) {
+                console.warn('Could not send notification to user:', userId, innerErr);
+            }
         }
     } catch (e) {
         console.warn("Notification insert fallback:", e);
@@ -186,7 +190,7 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
     // --- QUICK TASK LOGIC ---
     if (payload.tipo === 'Task') {
         const depts = await departmentService.list();
-        const deptId = depts.find(d => d.name === payload.departamento)?.id; // Removed fallback to invalid UUID
+        const deptId = depts.find(d => d.id === payload.departamento || d.name?.toLowerCase() === payload.departamento?.toLowerCase())?.id;
 
         await incidentTaskService.create({
             incident_id: newInc.id,
