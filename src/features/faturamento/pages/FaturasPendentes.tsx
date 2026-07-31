@@ -2242,18 +2242,14 @@ MCS - Gestão Comercial`;
                         <Button 
                           onClick={() => {
                             const faturaObj = {
+                              ...f,
                               id: f.activeFaturaId,
                               status: 'pending_client_approval',
                               magic_link_token: f.magicLinkToken,
                               data_emissao: f.dataEmissaoFatura,
                               ajustes_json: f.ajustesJson,
                               fatura_numero: f.faturaNumero,
-                              atcud: f.atcud,
-                              clientName: f.clientName,
-                              billingCycleStartDay: f.billingCycleStartDay,
-                              client: {
-                                paymentTermDays: f.paymentTermDays || 30
-                              }
+                              atcud: f.atcud
                             };
                             handleOpenFaturaDetails(faturaObj);
                           }}
@@ -2288,18 +2284,14 @@ MCS - Gestão Comercial`;
                         onClick={(e) => {
                           e.stopPropagation();
                           const faturaObj = {
+                            ...f,
                             id: f.activeFaturaId,
                             status: 'approved',
                             magic_link_token: f.magicLinkToken,
                             data_emissao: f.dataEmissaoFatura,
                             ajustes_json: f.ajustesJson,
                             fatura_numero: f.faturaNumero,
-                            atcud: f.atcud,
-                            clientName: f.clientName,
-                            billingCycleStartDay: f.billingCycleStartDay,
-                            client: {
-                              paymentTermDays: f.paymentTermDays || 30
-                            }
+                            atcud: f.atcud
                           };
                           handleOpenFaturaDetails(faturaObj);
                         }}
@@ -2315,18 +2307,14 @@ MCS - Gestão Comercial`;
                         onClick={(e) => {
                           e.stopPropagation();
                           const faturaObj = {
+                            ...f,
                             id: f.activeFaturaId,
                             status: 'disputed',
                             magic_link_token: f.magicLinkToken,
                             data_emissao: f.dataEmissaoFatura,
                             ajustes_json: f.ajustesJson,
                             fatura_numero: f.faturaNumero,
-                            atcud: f.atcud,
-                            clientName: f.clientName,
-                            billingCycleStartDay: f.billingCycleStartDay,
-                            client: {
-                              paymentTermDays: f.paymentTermDays || 30
-                            }
+                            atcud: f.atcud
                           };
                           handleOpenFaturaDetails(faturaObj);
                         }}
@@ -3895,17 +3883,29 @@ MCS - Gestão Comercial`;
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
                           <div className="space-y-1">
-                            <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-                              {selectedFatura.clientName?.includes('BALMES') ? 'STO - STOCCO' : 'MCS'}
-                            </h3>
+                            {selectedFatura.empresaInvoiceLogoUrl ? (
+                              <div className="h-12 flex items-center mb-1">
+                                <img src={selectedFatura.empresaInvoiceLogoUrl} alt={selectedFatura.empresaNome} className="max-h-full max-w-[180px] object-contain" />
+                              </div>
+                            ) : (
+                              <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
+                                {selectedFatura.empresaNome?.toUpperCase() || 'MCS'}
+                              </h3>
+                            )}
                             <p className="text-[9px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
                             <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
                           </div>
-                          <div className="text-right space-y-1">
+                          <div className="text-right space-y-1 text-[10px]">
                             <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-100">{invoiceControlCode}</p>
-                            <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                            <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                            <p className="font-bold text-slate-900 dark:text-slate-100">
+                              {(() => {
+                                const rawNum = selectedFatura.faturaNumero || selectedFatura.fatura_numero || '';
+                                const lastDigits = rawNum ? (rawNum.includes('/') ? rawNum.split('/').pop() : rawNum) : '';
+                                return `IF-${selectedFatura.year || year}/${String(lastDigits || selectedFatura.empresaNextInvoiceNumber || '0001').replace(/[^0-9]/g, '').padStart(4, '0')}`;
+                              })()}
+                            </p>
+                            <p className="text-muted-foreground mt-1">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                            <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                           </div>
                         </div>
 
@@ -3913,15 +3913,17 @@ MCS - Gestão Comercial`;
                         <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
                           <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
                             <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
-                            <p className="text-muted-foreground">CIF/NIF: PT517834747</p>
-                            <p className="text-muted-foreground">R. São Tomé e Príncipe, 287 - Vila Nova de Gaia</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.empresaNome}</p>
+                            <p className="text-muted-foreground">CIF/NIF: {selectedFatura.empresaTaxId || 'N/A'}</p>
+                            <p className="text-muted-foreground">{selectedFatura.empresaAddressLine || 'N/A'}</p>
+                            <p className="text-muted-foreground">{[selectedFatura.empresaPostalCode, selectedFatura.empresaCity].filter(Boolean).join(' ')}</p>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
                             <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
                             <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientName}</p>
-                            <p className="text-muted-foreground">NIF: ES55350245</p>
-                            <p className="text-muted-foreground">Pol. Ind. MERCADERIES C/1 NAU</p>
+                            <p className="text-muted-foreground">NIF: {selectedFatura.taxId || 'N/A'}</p>
+                            <p className="text-muted-foreground">{selectedFatura.clientAddressLine || 'N/A'}</p>
+                            <p className="text-muted-foreground">{[selectedFatura.clientPostalCode, selectedFatura.clientCity, selectedFatura.clientCountryName].filter(Boolean).join(', ')}</p>
                           </div>
                         </div>
 
@@ -4034,13 +4036,22 @@ MCS - Gestão Comercial`;
                         <div className="flex justify-between items-start mb-6">
                           <div>
                             <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                              Factura {selectedFatura.fatura_numero ? selectedFatura.fatura_numero.replace('Factura nº1 ', '') : `${year}/0347`}
+                              {selectedFatura.faturaNumero || selectedFatura.fatura_numero || `Factura nº${selectedFatura.empresaInvoiceSeries || '1'} ${year}/${selectedFatura.empresaNextInvoiceNumber || 1}`}
                             </h3>
                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
                           </div>
-                          <div className="border border-slate-200 dark:border-slate-800 p-1 bg-white dark:bg-slate-900 rounded shadow-sm">
-                            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-[6px] text-slate-400 font-bold border border-dashed border-slate-300 dark:border-slate-800">
-                              <span>MOCK QR</span>
+                          {/* QR Code dinâmico */}
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-[7px] font-bold text-slate-700 dark:text-slate-350">
+                              ATCUD: {selectedFatura.atcud || `${selectedFatura.empresaAtcudPrefix || 'J6XBVVRV'}-${selectedFatura.empresaNextInvoiceNumber || 1}`}
+                            </span>
+                            <div className="border border-slate-200 p-1 bg-white rounded shadow-sm">
+                              <QRCodeSVG
+                                value={`${window.location.origin}/aprovacao-cliente/${selectedFatura.magicLinkToken || selectedFatura.magic_link_token || 'draft'}`}
+                                size={55}
+                                level="H"
+                                includeMargin={false}
+                              />
                             </div>
                           </div>
                         </div>
@@ -4049,36 +4060,38 @@ MCS - Gestão Comercial`;
                         <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
                           <div>
                             <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
-                            <p className="text-muted-foreground">Rua Padre António Maria Pinho, n.º 353</p>
-                            <p className="text-muted-foreground">4460-853 Vila Nova de Gaia</p>
-                            <p className="text-muted-foreground">NIF: PT517834747</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.empresaNome}</p>
+                            <p className="text-muted-foreground">{selectedFatura.empresaAddressLine || 'N/A'}</p>
+                            <p className="text-muted-foreground">{[selectedFatura.empresaPostalCode, selectedFatura.empresaCity].filter(Boolean).join(' ')}</p>
+                            <p className="text-muted-foreground">NIF: {selectedFatura.empresaTaxId || 'N/A'}</p>
+                            {selectedFatura.empresaCapitalSocial && <p className="text-muted-foreground">Capital Social: {selectedFatura.empresaCapitalSocial}</p>}
                             <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
                             <p className="text-muted-foreground font-mono whitespace-pre-line text-[9px]">{adjustments.iban.split('\n')[0]}</p>
                           </div>
                           <div>
                             <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
                             <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientName}</p>
-                            <p className="text-muted-foreground">AVENIDA DE LA INDUSTRIA 14, 25190</p>
-                            <p className="text-muted-foreground">LLEIDA, Espanha</p>
+                            <p className="text-muted-foreground">{selectedFatura.clientAddressLine || 'N/A'}</p>
+                            <p className="text-muted-foreground">{[selectedFatura.clientPostalCode, selectedFatura.clientCity].filter(Boolean).join(' ')}</p>
+                            <p className="text-muted-foreground">{selectedFatura.clientCountryName || 'Espanha'}</p>
                             <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                             <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                           </div>
                         </div>
 
                         {/* Tabela de Itens */}
-                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                        <div className="bg-[#ec8a5e] text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
                           Lista de Artigos
                         </div>
                         <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
                           <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
                             <TableRow>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
+                              <TableHead className="font-bold text-slate-750 dark:text-slate-300 pl-3">Artigo</TableHead>
+                              <TableHead className="font-bold text-slate-750 dark:text-slate-300">Descrição</TableHead>
+                              <TableHead className="text-right font-bold text-slate-750 dark:text-slate-300 w-24">Qtd.</TableHead>
+                              <TableHead className="font-bold text-slate-750 dark:text-slate-300 w-16">Un.</TableHead>
+                              <TableHead className="text-right font-bold text-slate-750 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
+                              <TableHead className="text-right font-bold text-slate-750 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -4107,14 +4120,14 @@ MCS - Gestão Comercial`;
                                 <TableCell className="text-right">1.00</TableCell>
                                 <TableCell>UN</TableCell>
                                 <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold text-rose-650 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                               </TableRow>
                             )}
                           </TableBody>
                         </Table>
 
                         {/* Resumo da Fatura */}
-                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                        <div className="bg-[#ec8a5e] text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
                           Resumo
                         </div>
                         <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
@@ -4127,9 +4140,9 @@ MCS - Gestão Comercial`;
                               <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
                               <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                             </TableRow>
-                            <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
-                              <TableCell className="font-extrabold text-orange-850 dark:text-orange-300" colSpan={3}>Total da Fatura</TableCell>
-                              <TableCell className="text-right font-extrabold text-orange-950 dark:text-orange-205 text-[11px] pr-3 font-mono">
+                            <TableRow className="bg-[#fdf3ee] dark:bg-slate-900/50">
+                              <TableCell className="font-extrabold text-[#ec8a5e] dark:text-[#ec8a5e]" colSpan={3}>Total da Fatura</TableCell>
+                              <TableCell className="text-right font-extrabold text-[#ec8a5e] dark:text-[#ec8a5e] text-[11px] pr-3 font-mono">
                                 € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
@@ -4151,7 +4164,7 @@ MCS - Gestão Comercial`;
                           </div>
                           <div className="text-right">
                             <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                            <p>AVENIDA DE LA INDUSTRIA 14, 25190 LLEIDA</p>
+                            <p>{selectedFatura.clientAddressLine || 'AVENIDA DE LA INDUSTRIA 14, 25190 LLEIDA'}</p>
                           </div>
                         </div>
                         <div className="text-center text-[7px] text-muted-foreground mt-3 italic font-semibold">
