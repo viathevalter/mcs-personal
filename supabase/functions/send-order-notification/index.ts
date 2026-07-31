@@ -640,183 +640,187 @@ serve(async (req) => {
       };
 
       const folderName = empresa.trade_name?.toLowerCase().replace(/\s+/g, '_') || 'default';
-      const templateType = solicitud.tipo === 'replacement' ? 'reemplazo' : 'reubicacion';
+      const templateType = solicitud.tipo === 'replacement' ? 'reemplazo' : solicitud.tipo === 'offboarding' ? 'baja' : solicitud.tipo === 'relocation' ? 'reubicacion' : 'pedido';
 
-      // 5. Determinar os fallbacks de template
-      const templatePaths = [
-        `${folderName}/${activeLang}/${templateType}.docx`,
-        `${folderName}/${templateType}.docx`,
-        `default_${templateType}_${activeLang}.docx`,
-        `default_${templateType}.docx`
-      ];
+      try {
+        // 5. Determinar os fallbacks de template
+        const templatePaths = [
+          `${folderName}/${activeLang}/${templateType}.docx`,
+          `${folderName}/${templateType}.docx`,
+          `default_${templateType}_${activeLang}.docx`,
+          `default_${templateType}.docx`
+        ];
 
-      let templateBlob: Blob | null = null;
-      for (const path of templatePaths) {
-        console.log(`[send-order-notification] Tentando baixar template: ${path}`);
-        const { data, error } = await supabase.storage
-          .from("proposal-templates")
-          .download(path);
-        
-        if (!error && data) {
-          templateBlob = data;
-          console.log(`[send-order-notification] Template encontrado em: ${path}`);
-          break;
-        }
-      }
-
-      if (!templateBlob) {
-        console.error(`[send-order-notification] Nenhum modelo de ${templateType} foi encontrado no Storage.`);
-      } else {
-        // 6. Processar o Word
-        const templateBytes = new Uint8Array(await templateBlob.arrayBuffer());
-        const normalizedTemplate = await normalizeDocxTemplates(templateBytes);
-
-        let variables: any = {};
-        if (solicitud.tipo === 'relocation') {
-          const mappedTrabalhadores = (targets || []).map((t: any) => {
-            const worker = workersMap.get(t.source_worker_id);
-            const sourceClient = clientsMap.get(t.source_client_id);
-            const sourceSite = sitesMap.get(t.source_client_site_id);
-            const targetClient = clientsMap.get(t.target_client_id);
-            const targetSite = sitesMap.get(t.target_client_site_id);
-
-            return {
-              nome: worker?.nome || 'N/A',
-              codigo: worker?.cod_colab || 'N/A',
-              cargo: worker?.funcion || 'N/A',
-              cliente_origem: sourceClient?.trade_name || sourceClient?.legal_name || 'N/A',
-              obra_origem: sourceSite?.name || 'N/A',
-              cliente_destino: targetClient?.trade_name || targetClient?.legal_name || 'N/A',
-              obra_destino: targetSite?.name || 'N/A',
-              data_inicio: formatDate(solicitud.due_date),
-              requires_housing: t.requires_housing ? (activeLang === 'pt' ? 'Sim' : 'Sí') : (activeLang === 'pt' ? 'Não' : 'No'),
-              housing_period: t.requires_housing 
-                ? `${formatDate(t.housing_start_date)} a ${formatDate(t.housing_end_date)}`
-                : '-'
-            };
-          });
-
-          variables = {
-            solicitud_codigo: solicitud.codigo,
-            solicitud_data: formatDate(solicitud.created_at),
-            empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
-            empresa_nif: empresa.nif || empresa.cnpj || '',
-            empresa_morada: empresa.address || '',
-            motivo: solicitud.reason || targets?.[0]?.reason || '',
-            observacoes: solicitud.description || targets?.[0]?.notes || '',
-            trabalhadores: mappedTrabalhadores
-          };
-        } else {
-          // replacement
-          const mappedTrabalhadores = (targets || []).map((t: any) => {
-            const sourceWorker = workersMap.get(t.source_worker_id);
-            const targetWorker = workersMap.get(t.target_worker_id);
-            const sourceClient = clientsMap.get(t.source_client_id);
-            const sourceSite = sitesMap.get(t.source_client_site_id);
-
-            return {
-              saindo_nome: sourceWorker?.nome || 'N/A',
-              saindo_codigo: sourceWorker?.cod_colab || 'N/A',
-              saindo_cargo: sourceWorker?.funcion || 'N/A',
-              entrando_nome: targetWorker?.nome || (activeLang === 'pt' ? 'A definir' : 'A definir'),
-              entrando_codigo: targetWorker?.cod_colab || (activeLang === 'pt' ? 'A definir' : 'A definir'),
-              cliente_nome: sourceClient?.trade_name || sourceClient?.legal_name || 'N/A',
-              obra_nome: sourceSite?.name || 'N/A',
-              data_inicio: formatDate(solicitud.due_date)
-            };
-          });
-
-          variables = {
-            solicitud_codigo: solicitud.codigo,
-            solicitud_data: formatDate(solicitud.created_at),
-            empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
-            empresa_nif: empresa.nif || empresa.cnpj || '',
-            empresa_morada: empresa.address || '',
-            motivo: solicitud.reason || targets?.[0]?.reason || '',
-            observacoes: solicitud.description || targets?.[0]?.notes || '',
-            trabalhadores: mappedTrabalhadores
-          };
-        }
-
-        console.log(`[send-order-notification] Mesclando variáveis no template docx...`);
-        const finalDoc = await createReport({
-          template: normalizedTemplate,
-          data: variables,
-          cmdDelimiter: ["{{", "}}"],
-          noSandbox: true,
-          errorHandler: (err, command_code) => {
-            console.warn(`[docx-templates] Error on tag ${command_code}:`, err);
-            return "";
+        let templateBlob: Blob | null = null;
+        for (const path of templatePaths) {
+          console.log(`[send-order-notification] Tentando baixar template: ${path}`);
+          const { data, error } = await supabase.storage
+            .from("proposal-templates")
+            .download(path);
+          
+          if (!error && data) {
+            templateBlob = data;
+            console.log(`[send-order-notification] Template encontrado em: ${path}`);
+            break;
           }
-        });
+        }
 
-        const finalDocxBase64 = encode(finalDoc);
-        const fileName = `${templateType}_operacional_${solicitud.codigo}.docx`;
+        if (templateBlob) {
+          // 6. Processar o Word
+          const templateBytes = new Uint8Array(await templateBlob.arrayBuffer());
+          const normalizedTemplate = await normalizeDocxTemplates(templateBytes);
 
-        // Converter para PDF via OneDrive/Microsoft Graph
-        const tenantId = empresa?.microsoft_tenant_id || Deno.env.get('SHAREPOINT_TENANT_ID');
-        const clientId = empresa?.microsoft_client_id || Deno.env.get('SHAREPOINT_CLIENT_ID');
-        const clientSecret = empresa?.microsoft_client_secret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
-        const driveId = empresa?.microsoft_sharepoint_drive_id || Deno.env.get('SHAREPOINT_DRIVE_ID');
+          let variables: any = {};
+          if (solicitud.tipo === 'relocation') {
+            const mappedTrabalhadores = (targets || []).map((t: any) => {
+              const worker = workersMap.get(t.source_worker_id);
+              const sourceClient = clientsMap.get(t.source_client_id);
+              const sourceSite = sitesMap.get(t.source_client_site_id);
+              const targetClient = clientsMap.get(t.target_client_id);
+              const targetSite = sitesMap.get(t.target_client_site_id);
 
-        if (tenantId && clientId && clientSecret && driveId) {
-          try {
-            console.log("[send-order-notification] Obtendo token do Graph para conversão em PDF...");
-            const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-            const formData = new URLSearchParams();
-            formData.append('client_id', clientId);
-            formData.append('client_secret', clientSecret);
-            formData.append('scope', 'https://graph.microsoft.com/.default');
-            formData.append('grant_type', 'client_credentials');
-
-            const tokenRes = await fetch(tokenUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: formData,
+              return {
+                nome: worker?.nome || 'N/A',
+                codigo: worker?.cod_colab || 'N/A',
+                cargo: worker?.funcion || 'N/A',
+                cliente_origem: sourceClient?.trade_name || sourceClient?.legal_name || 'N/A',
+                obra_origem: sourceSite?.name || 'N/A',
+                cliente_destino: targetClient?.trade_name || targetClient?.legal_name || 'N/A',
+                obra_destino: targetSite?.name || 'N/A',
+                data_inicio: formatDate(solicitud.due_date),
+                requires_housing: t.requires_housing ? (activeLang === 'pt' ? 'Sim' : 'Sí') : (activeLang === 'pt' ? 'Não' : 'No'),
+                housing_period: t.requires_housing 
+                  ? `${formatDate(t.housing_start_date)} a ${formatDate(t.housing_end_date)}`
+                  : '-'
+              };
             });
 
-            if (tokenRes.ok) {
-              const { access_token } = await tokenRes.json();
-              console.log("[send-order-notification] Iniciando conversão de DOCX para PDF via OneDrive...");
-              const conversionResult = await convertDocxToPdfViaGraph(
-                access_token,
-                driveId,
-                finalDocxBase64,
-                fileName
-              );
-              
-              if (conversionResult && conversionResult.contentType === "application/pdf") {
-                console.log("[send-order-notification] Conversão para PDF concluída com sucesso!");
-                attachments.push({
-                  name: conversionResult.name,
-                  contentType: conversionResult.contentType,
-                  contentBytes: conversionResult.contentBytes
+            variables = {
+              solicitud_codigo: solicitud.codigo,
+              solicitud_data: formatDate(solicitud.created_at),
+              empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
+              empresa_nif: empresa.nif || empresa.cnpj || '',
+              empresa_morada: empresa.address || '',
+              motivo: solicitud.reason || targets?.[0]?.reason || '',
+              observacoes: solicitud.description || targets?.[0]?.notes || '',
+              trabalhadores: mappedTrabalhadores
+            };
+          } else {
+            // replacement, offboarding, etc.
+            const mappedTrabalhadores = (targets || []).map((t: any) => {
+              const sourceWorker = workersMap.get(t.source_worker_id);
+              const targetWorker = workersMap.get(t.target_worker_id);
+              const sourceClient = clientsMap.get(t.source_client_id);
+              const sourceSite = sitesMap.get(t.source_client_site_id);
+
+              return {
+                saindo_nome: sourceWorker?.nome || 'N/A',
+                saindo_codigo: sourceWorker?.cod_colab || 'N/A',
+                saindo_cargo: sourceWorker?.funcion || 'N/A',
+                entrando_nome: targetWorker?.nome || (activeLang === 'pt' ? 'A definir' : 'A definir'),
+                entrando_codigo: targetWorker?.cod_colab || (activeLang === 'pt' ? 'A definir' : 'A definir'),
+                cliente_nome: sourceClient?.trade_name || sourceClient?.legal_name || 'N/A',
+                obra_nome: sourceSite?.name || 'N/A',
+                data_inicio: formatDate(solicitud.due_date)
+              };
+            });
+
+            variables = {
+              solicitud_codigo: solicitud.codigo,
+              solicitud_data: formatDate(solicitud.created_at),
+              empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
+              empresa_nif: empresa.nif || empresa.cnpj || '',
+              empresa_morada: empresa.address || '',
+              motivo: solicitud.reason || targets?.[0]?.reason || '',
+              observacoes: solicitud.description || targets?.[0]?.notes || '',
+              trabalhadores: mappedTrabalhadores
+            };
+          }
+
+          console.log(`[send-order-notification] Mesclando variáveis no template docx...`);
+          const finalDoc = await createReport({
+            template: normalizedTemplate,
+            data: variables,
+            cmdDelimiter: ["{{", "}}"],
+            noSandbox: true,
+            errorHandler: (err, command_code) => {
+              console.warn(`[docx-templates] Error on tag ${command_code}:`, err);
+              return "";
+            }
+          });
+
+          if (finalDoc) {
+            const finalDocxBase64 = encode(finalDoc);
+            const fileName = `${templateType}_operacional_${solicitud.codigo}.docx`;
+
+            // Converter para PDF via OneDrive/Microsoft Graph
+            const tenantId = empresa?.microsoft_tenant_id || Deno.env.get('SHAREPOINT_TENANT_ID');
+            const clientId = empresa?.microsoft_client_id || Deno.env.get('SHAREPOINT_CLIENT_ID');
+            const clientSecret = empresa?.microsoft_client_secret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+            const driveId = empresa?.microsoft_sharepoint_drive_id || Deno.env.get('SHAREPOINT_DRIVE_ID');
+
+            if (tenantId && clientId && clientSecret && driveId) {
+              try {
+                console.log("[send-order-notification] Obtendo token do Graph para conversão em PDF...");
+                const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+                const formData = new URLSearchParams();
+                formData.append('client_id', clientId);
+                formData.append('client_secret', clientSecret);
+                formData.append('scope', 'https://graph.microsoft.com/.default');
+                formData.append('grant_type', 'client_credentials');
+
+                const tokenRes = await fetch(tokenUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: formData,
                 });
-              } else {
-                console.warn("[send-order-notification] A conversão falhou ou não retornou PDF, anexando DOCX como fallback.");
+
+                if (tokenRes.ok) {
+                  const { access_token } = await tokenRes.json();
+                  console.log("[send-order-notification] Iniciando conversão de DOCX para PDF via OneDrive...");
+                  const conversionResult = await convertDocxToPdfViaGraph(
+                    access_token,
+                    driveId,
+                    finalDocxBase64,
+                    fileName
+                  );
+                  
+                  if (conversionResult && conversionResult.contentType === "application/pdf") {
+                    console.log("[send-order-notification] Conversão para PDF concluída com sucesso!");
+                    attachments.push({
+                      name: conversionResult.name,
+                      contentType: conversionResult.contentType,
+                      contentBytes: conversionResult.contentBytes
+                    });
+                  } else {
+                    console.warn("[send-order-notification] A conversão falhou ou não retornou PDF, anexando DOCX como fallback.");
+                    attachments.push({
+                      name: `${templateType}_operacional_${solicitud.codigo}.docx`,
+                      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                      contentBytes: finalDocxBase64
+                    });
+                  }
+                }
+              } catch (convErr: any) {
+                console.error("[send-order-notification] Erro na conversão para PDF:", convErr.message);
                 attachments.push({
                   name: `${templateType}_operacional_${solicitud.codigo}.docx`,
                   contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                   contentBytes: finalDocxBase64
                 });
               }
+            } else {
+              console.warn("[send-order-notification] Credenciais SharePoint/Microsoft Graph incompletas, anexando DOCX diretamente.");
+              attachments.push({
+                name: `${templateType}_operacional_${solicitud.codigo}.docx`,
+                contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                contentBytes: finalDocxBase64
+              });
             }
-          } catch (convErr: any) {
-            console.error("[send-order-notification] Erro na conversão para PDF:", convErr.message);
-            attachments.push({
-              name: `${templateType}_operacional_${solicitud.codigo}.docx`,
-              contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-              contentBytes: finalDocxBase64
-            });
           }
-        } else {
-          console.warn("[send-order-notification] Credenciais SharePoint/Microsoft Graph incompletas, anexando DOCX diretamente.");
-          attachments.push({
-            name: `${templateType}_operacional_${solicitud.codigo}.docx`,
-            contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            contentBytes: finalDocxBase64
-          });
         }
+      } catch (docxErr: any) {
+        console.warn("[send-order-notification] Erro ao processar anexo docx/pdf (seguindo com envio de e-mail):", docxErr?.message);
       }
     } else if (is_faturamento) {
       if (attachments.length === 0) {
@@ -942,8 +946,13 @@ serve(async (req) => {
         };
       }
     }
+
     if (sender_email) {
       senderEmail = sender_email;
+    }
+
+    if (!senderEmail) {
+      senderEmail = "valter@gestaologinpro.com";
     }
 
     // 8. Enviar email via Microsoft Graph API

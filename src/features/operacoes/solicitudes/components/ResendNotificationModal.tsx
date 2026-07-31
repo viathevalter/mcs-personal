@@ -247,8 +247,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess 
                     solicitud_id: solicitud.id,
                     to_emails: toEmails,
                     email_subject: emailSubject,
-                    email_body: emailBody,
-                    sender_email: user?.email
+                    email_body: emailBody
                 }
             });
 
