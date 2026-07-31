@@ -142,7 +142,8 @@ async function sendMailViaGraph(
   subject: string,
   htmlContent: string,
   attachments: EmailAttachment[] = [],
-  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string }
+  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string },
+  replyToEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const tenantId = microsoftCredentials?.tenantId || Deno.env.get('SHAREPOINT_TENANT_ID');
@@ -185,7 +186,7 @@ async function sendMailViaGraph(
       },
     }));
 
-    const mailPayload = {
+    const mailPayload: any = {
       message: {
         subject: subject,
         body: {
@@ -199,6 +200,13 @@ async function sendMailViaGraph(
           contentType: att.contentType,
           contentBytes: att.contentBytes,
         })),
+        ...(replyToEmail ? {
+          replyTo: [{
+            emailAddress: {
+              address: replyToEmail.trim()
+            }
+          }]
+        } : {})
       },
       saveToSentItems: true,
     };
@@ -239,7 +247,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name, custom_attachments, sender_email } = await req.json();
+    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name, custom_attachments, sender_email, reply_to_email } = await req.json();
 
     if (!to_emails || !Array.isArray(to_emails) || to_emails.length === 0) {
       return new Response(
@@ -963,7 +971,8 @@ serve(async (req) => {
       email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`),
       email_body,
       attachments,
-      msCredentials
+      msCredentials,
+      reply_to_email
     );
 
     if (!mailRes.success) {
