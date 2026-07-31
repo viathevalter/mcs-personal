@@ -19,6 +19,7 @@ import { TaskDetailsModal } from '../components/TaskDetailsModal';
 export const Tasks: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { user } = useAuth();
     const effectiveUser = useMemo(() => {
         if (!user) return { name: '', email: '', id: '', isAdmin: false, isSuperAdmin: false, profile: undefined };
         const name = user.profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
@@ -464,7 +465,7 @@ export const Tasks: React.FC = () => {
                                                             >
                                                                 <Eye size={16} />
                                                             </button>
-                                                            {(user?.id === task.created_by || user?.isAdmin) && (
+                                                            {(effectiveUser.id === task.created_by || effectiveUser.isAdmin) && (
                                                                 <>
                                                                     <button
                                                                         onClick={() => {
@@ -529,7 +530,7 @@ export const Tasks: React.FC = () => {
                 <CalendarView
                     tasks={filteredData}
                     onTaskClick={(task) => navigate(`/operacoes/incidencias/${task.incidencia_id}`)}
-                    currentUserId={user?.id}
+                    currentUserId={effectiveUser.id}
                     onAssignMe={handleAssignToMe}
                     onEditClick={(task) => {
                         setEditingTask({ id: task.id, titulo: task.titulo, prazo: task.prazo ? task.prazo.split('T')[0] : '', scheduled_for: task.scheduled_for ? task.scheduled_for.split('T')[0] : '' });
@@ -594,7 +595,7 @@ export const Tasks: React.FC = () => {
                 onStatusChange={handleAdvanceStatus}
                 onAssignMe={handleAssignToMe}
                 onTaskUpdated={loadData}
-                currentUserEmail={currentUser.email}
+                currentUserEmail={effectiveUser.email}
             />
         </div >
     );
