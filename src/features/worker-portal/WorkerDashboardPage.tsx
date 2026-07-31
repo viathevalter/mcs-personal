@@ -42,7 +42,7 @@ export function WorkerDashboardPage() {
             const { data: dbWorkers } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, data_ingresso, data_baixa')
+                .select('id, data_ingresso, data_baixa, status_trabajador')
                 .in('id', workerIds);
 
             // Verify if there is a record for the current month and previous month.
@@ -65,9 +65,10 @@ export function WorkerDashboardPage() {
                 const dbWorker = dbWorkers?.find(w => w.id === profile.id);
                 const dataIngresso = profile.data_ingresso || dbWorker?.data_ingresso;
                 const dataBaixa = profile.data_baixa || dbWorker?.data_baixa;
+                const statusTrabajador = profile.status_trabajador || dbWorker?.status_trabajador || 'Ativo';
 
-                const isAtivo = profile.status_trabajador?.toLowerCase().includes('at') ||
-                    profile.status_trabajador?.toLowerCase().includes('ac');
+                const isAtivo = statusTrabajador?.toLowerCase().includes('at') ||
+                    statusTrabajador?.toLowerCase().includes('ac');
 
                 let isEligibleCurrent = isAtivo;
                 let isEligiblePrev = isAtivo;
