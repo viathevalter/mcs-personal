@@ -20,6 +20,7 @@ export const Tasks: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { user } = useAuth();
+
     const effectiveUser = useMemo(() => {
         if (!user) return { name: '', email: '', id: '', isAdmin: false, isSuperAdmin: false, profile: undefined };
         const name = user.profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
@@ -37,6 +38,41 @@ export const Tasks: React.FC = () => {
             profile: user.profile
         };
     }, [user]);
+
+    const { t } = useLanguage();
+
+    // Data State
+    const [allTasks, setAllTasks] = useState<IncidenciaTarefaExpandida[]>([]);
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Filters State
+    const [activeTab, setActiveTab] = useState<'minhas' | 'setor' | 'todas'>('minhas');
+    const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
+    const [statusFilter, setStatusFilter] = useState<string>('Ativas');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [onlyOverdue, setOnlyOverdue] = useState(false);
+    const [assigneeFilter, setAssigneeFilter] = useState<string>('Todos');
+
+    // Edit Task State
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<{ id: string, titulo: string, prazo: string, scheduled_for: string }>({ id: '', titulo: '', prazo: '', scheduled_for: '' });
+    const [selectedTaskForModal, setSelectedTaskForModal] = useState<IncidenciaTarefaExpandida | null>(null);
+
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            await incidentTaskService.checkForOverdueTasks();
+            const data = await getAllTarefas();
+            const depts = await listDepartments();
+            setAllTasks(data);
+            setDepartments(depts);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         const searchId = searchParams.get('search');
