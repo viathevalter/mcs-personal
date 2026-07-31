@@ -1107,6 +1107,23 @@ MCS - Gestão Comercial`;
         console.error('Error invoking send-order-notification for billing tracking:', functionErr);
         toast.error('Falhou ao enviar o e-mail: ' + functionErr.message, { id: toastId });
       } else {
+        if (isEmailAcceptance) {
+          try {
+            const { error: updateStatusError } = await supabase
+              .schema('core_finance')
+              .from('faturas')
+              .update({ status: 'invoice_sent' })
+              .eq('id', emailData.faturaId);
+              
+            if (updateStatusError) {
+              console.error('Error updating fatura status to invoice_sent:', updateStatusError);
+            } else {
+              setFaturas(prev => prev.map(f => f.id === emailData.faturaId ? { ...f, status: 'invoice_sent' } : f));
+            }
+          } catch (statusErr) {
+            console.error('Failed to update invoice status after email send:', statusErr);
+          }
+        }
         toast.success(`E-mail enviado com sucesso para ${toEmails.join(', ')}!`, { id: toastId });
         setIsEmailModalOpen(false);
       }
@@ -1140,6 +1157,13 @@ MCS - Gestão Comercial`;
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 flex w-max items-center gap-1.5 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" />
             Aprovado
+          </Badge>
+        );
+      case 'invoice_sent':
+        return (
+          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800 flex w-max items-center gap-1.5 font-medium">
+            <Send className="w-3.5 h-3.5" />
+            Fatura Enviada
           </Badge>
         );
       case 'disputed':
@@ -1319,7 +1343,7 @@ MCS - Gestão Comercial`;
                               </button>
                             </>
                           )}
-                          {fatura.status === 'approved' && (
+                          {(fatura.status === 'approved' || fatura.status === 'invoice_sent') && (
                             fatura.ajustes_json?.cobro_gerado ? (
                               <span className="text-xs text-emerald-650 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

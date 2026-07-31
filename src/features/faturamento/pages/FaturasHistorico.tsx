@@ -19,7 +19,7 @@ export function FaturasHistorico() {
       setLoading(true);
       const data = await getFaturasTracking(selectedEmpresaId);
       // Filter for approved faturas representing completed history
-      const approvedOnly = (data || []).filter(f => f.status === 'approved');
+      const approvedOnly = (data || []).filter(f => f.status === 'approved' || f.status === 'invoice_sent');
       setFaturas(approvedOnly);
     } catch (error: any) {
       toast.error('Erro ao carregar histórico de faturas', { description: error.message });

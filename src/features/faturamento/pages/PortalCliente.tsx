@@ -592,7 +592,7 @@ export function PortalCliente() {
     );
   }
 
-  const isResolved = fatura.status === 'approved' || fatura.status === 'disputed';
+  const isResolved = fatura.status === 'approved' || fatura.status === 'invoice_sent' || fatura.status === 'disputed';
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex py-10 px-2 sm:px-4 lg:px-6 font-sans text-left">
@@ -611,7 +611,7 @@ export function PortalCliente() {
                 <span className="bg-blue-500/20 text-blue-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-blue-500/30">
                   Portal del Cliente
                 </span>
-                {fatura.status === 'approved' && (
+                {(fatura.status === 'approved' || fatura.status === 'invoice_sent') && (
                   <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-emerald-500/30">
                     Aprobado
                   </span>
@@ -648,7 +648,7 @@ export function PortalCliente() {
         </div>
 
         {/* State Banner: Approved Case (Shows download attachments) */}
-        {fatura.status === 'approved' && (
+        {(fatura.status === 'approved' || fatura.status === 'invoice_sent') && (
           <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-3xl p-6 flex flex-col md:flex-row items-center md:items-start justify-between gap-6 shadow-sm">
             <div className="flex items-start gap-4 text-left">
               <CheckCircle className="w-10 h-10 text-emerald-600 shrink-0 mt-1" />

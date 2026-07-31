@@ -755,14 +755,14 @@ export async function getHorasPendentesFaturamento(
         faturaAtcud = activeFatura.atcud || null;
         if (activeFatura.status === 'pending_client_approval') {
           statusBilling = 'invoiced_pending';
-        } else if (activeFatura.status === 'approved') {
+        } else if (activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent') {
           statusBilling = 'invoiced_approved';
         } else if (activeFatura.status === 'disputed') {
           statusBilling = 'invoiced_disputed';
         }
       }
 
-      if (hasUnbilled && (!activeFatura || activeFatura.status === 'approved' || activeFatura.status === 'invoiced')) {
+      if (hasUnbilled && (!activeFatura || activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent' || activeFatura.status === 'invoiced')) {
         // Active billing session: there are unbilled hours/workers
         if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
           statusBilling = 'ready';
