@@ -117,6 +117,7 @@ export const Tasks: React.FC = () => {
         return false;
     };
 
+    const filteredData = useMemo(() => {
         const userDeptVal = effectiveUser.profile?.department_id || '';
         const foundDept = departments.find(d => d.id === userDeptVal || d.name?.toLowerCase() === userDeptVal?.toLowerCase());
         const userDeptName = foundDept?.name || userDeptVal;
