@@ -454,7 +454,7 @@ export async function getHorasPendentesFaturamento(
       const { data: fatData } = await supabase
         .schema('core_finance')
         .from('faturas')
-        .select('id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud')
+        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud')
         .in('id', faturaIds);
       faturasList = fatData || [];
     }
