@@ -86,7 +86,7 @@ export function WorkerDashboardPage() {
                 }
 
                 if (isEligibleCurrent || isEligiblePrev) {
-                    const profileRecords = allRecords.filter(r => r.worker_id === profile.id);
+                    const profileRecords = allRecords.filter(r => r.worker_id === profile.id && r.empresa_id === profile.empresa_id);
                     const hasCurrentMonth = profileRecords.some(r => r.period_year === currentYear && r.period_month === currentMonth);
                     const hasPrevMonth = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth);
 
