@@ -3423,7 +3423,7 @@ MCS - Gestão Comercial`;
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Empresa</span>
-                        <span className="font-medium">Stocco</span>
+                        <span className="font-medium">{currentFaturamento.empresaNome || 'STOCCO'}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Total de Horas</span>

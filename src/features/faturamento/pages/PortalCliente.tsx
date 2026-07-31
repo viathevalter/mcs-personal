@@ -220,6 +220,8 @@ export function PortalCliente() {
   };
 
   const handleDownloadHoursPDF = async (fatura: any) => {
+    setActiveTab('resumo');
+    await new Promise(resolve => setTimeout(resolve, 150));
     toast.info("Generando PDF del Registro de Horas...");
     
     const container = document.createElement('div');
@@ -406,6 +408,9 @@ export function PortalCliente() {
   };
 
   const handleDownloadA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
+    setActiveTab(type);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
     const elementId = `${type}-sheet-${cardId}`;
     const element = document.getElementById(elementId);
     
