@@ -88,58 +88,26 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
             }
 
             // Trigger background OCR
-            const triggerOcr = async () => {
+            const triggerOcr = () => {
                 try {
-                    // 1. Fetch the worker's active client name and function
-                    const { data: dbWorker } = await supabase
-                        .schema('core_personal')
-                        .from('workers')
-                        .select('cliente, funcion')
-                        .eq('id', worker.id)
-                        .single();
+                    const extension = file.name.split('.').pop() || 'pdf';
+                    const mimeType = file.type || (extension === 'pdf' ? 'application/pdf' : 'image/jpeg');
 
-                    const clientName = dbWorker?.cliente;
-                    if (clientName) {
-                        // 2. Fetch all clients and find a match
-                        const { data: allClients } = await supabase
-                            .schema('core_common')
-                            .from('clients')
-                            .select('id, legal_name, trade_name');
-
-                        const matched = allClients?.find(c => 
-                            c.legal_name?.toLowerCase().includes(clientName.toLowerCase()) || 
-                            c.trade_name?.toLowerCase().includes(clientName.toLowerCase()) ||
-                            clientName.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
-                            clientName.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
-                        );
-
-                        if (matched) {
-                            const extension = file.name.split('.').pop() || 'pdf';
-                            const mimeType = file.type || (extension === 'pdf' ? 'application/pdf' : 'image/jpeg');
-
-                            supabase.functions.invoke('process-document-ocr', {
-                                body: {
-                                    file_path: fileUrl,
-                                    document_type: "timesheet",
-                                    bucket_id: "horas_trabalhadores",
-                                    mime_type: mimeType,
-                                    worker_id: worker.id,
-                                    client_id: matched.id,
-                                    worker_function: dbWorker?.funcion || null,
-                                    year: period.period_year,
-                                    month: period.period_month
-                                }
-                            }).then(res => {
-                                console.log("Background OCR triggered successfully:", res);
-                            }).catch(err => {
-                                console.error("Background OCR invoke error:", err);
-                            });
-                        } else {
-                            console.warn(`[OCR Trigger] Cliente não encontrado para: "${clientName}"`);
+                    supabase.functions.invoke('process-document-ocr', {
+                        body: {
+                            file_path: fileUrl,
+                            document_type: "timesheet",
+                            bucket_id: "horas_trabalhadores",
+                            mime_type: mimeType,
+                            worker_id: worker.id,
+                            year: period.period_year,
+                            month: period.period_month
                         }
-                    } else {
-                        console.warn("[OCR Trigger] Trabalhador sem cliente associado.");
-                    }
+                    }).then(res => {
+                        console.log("Background OCR triggered successfully:", res);
+                    }).catch(err => {
+                        console.error("Background OCR invoke error:", err);
+                    });
                 } catch (e) {
                     console.error("[OCR Trigger] Erro ao disparar OCR:", e);
                 }

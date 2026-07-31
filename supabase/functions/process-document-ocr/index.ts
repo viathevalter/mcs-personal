@@ -116,6 +116,77 @@ serve(async (req) => {
       client_id = body.client_id;
     }
 
+    // Resolver metadados ausentes (client_id, worker_id, year, month)
+    if (!document_type || document_type === "timesheet") {
+      // 1. Buscar dados do registro de horas caso algum campo essencial esteja faltando
+      if (!worker_id || !client_id || !year || !month) {
+        let dbRecord = null;
+        if (file_path) {
+          const { data } = await supabase
+            .schema('core_personal')
+            .from('worker_hours')
+            .select('worker_id, period_year, period_month, cliente_nombre')
+            .eq('file_url', file_path)
+            .limit(1)
+            .maybeSingle();
+          dbRecord = data;
+        }
+
+        if (dbRecord) {
+          if (!worker_id) worker_id = dbRecord.worker_id;
+          if (!year) year = dbRecord.period_year;
+          if (!month) month = dbRecord.period_month;
+
+          // Resolver o client_id através do cliente_nombre do registro
+          if (!client_id && dbRecord.cliente_nombre) {
+            const { data: allClients } = await supabase
+              .schema('core_common')
+              .from('clients')
+              .select('id, legal_name, trade_name');
+
+            const matchedClient = allClients?.find((c: any) => 
+              c.legal_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) || 
+              c.trade_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) ||
+              dbRecord.cliente_nombre.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
+              dbRecord.cliente_nombre.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
+            );
+            if (matchedClient) {
+              client_id = matchedClient.id;
+              console.log(`[OCR Function] resolved client_id: ${client_id} para o cliente: ${dbRecord.cliente_nombre}`);
+            }
+          }
+        }
+
+        // 2. Fallback secundário para client_id pelo cadastro do trabalhador
+        if (!client_id && worker_id) {
+          const { data: workerData } = await supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('cliente')
+            .eq('id', worker_id)
+            .maybeSingle();
+
+          if (workerData && workerData.cliente) {
+            const { data: allClients } = await supabase
+              .schema('core_common')
+              .from('clients')
+              .select('id, legal_name, trade_name');
+
+            const matchedClient = allClients?.find((c: any) => 
+              c.legal_name?.toLowerCase().includes(workerData.cliente.toLowerCase()) || 
+              c.trade_name?.toLowerCase().includes(workerData.cliente.toLowerCase()) ||
+              workerData.cliente.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
+              workerData.cliente.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
+            );
+            if (matchedClient) {
+              client_id = matchedClient.id;
+              console.log(`[OCR Function] resolved client_id: ${client_id} pelo cliente do trabalhador: ${workerData.cliente}`);
+            }
+          }
+        }
+      }
+    }
+
     if (!file_path) {
       return new Response(
         JSON.stringify({ error: "O parâmetro file_path é obrigatório." }),
