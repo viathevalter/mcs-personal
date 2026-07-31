@@ -40,7 +40,9 @@ import {
   Check,
   Search,
   Download,
-  X
+  X,
+  XCircle,
+  Eye
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -170,6 +172,10 @@ export function FaturasPendentes() {
   }, [clientAdjustments]);
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [selectedFatura, setSelectedFatura] = useState<any | null>(null);
+  const [faturaHours, setFaturaHours] = useState<any[]>([]);
+  const [loadingFaturaHours, setLoadingFaturaHours] = useState(false);
+  const [faturaActiveTab, setFaturaActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailData, setEmailData] = useState<{
     clientId: string;
@@ -586,6 +592,256 @@ MCS - Gestão Comercial`;
       totalBase
     });
     setIsEmailModalOpen(true);
+  };
+
+  const isWeekendFatura = (day: number, year: number, monthIndex: number) => {
+    const d = new Date(year, monthIndex, day);
+    const dayOfWeek = d.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  };
+
+  const getWeekDayLabelFatura = (day: number, year: number, monthIndex: number) => {
+    const d = new Date(year, monthIndex, day);
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    return weekdays[d.getDay()];
+  };
+
+  const handleOpenFaturaDetails = async (fatura: any) => {
+    setSelectedFatura(fatura);
+    setFaturaHours([]);
+    setFaturaActiveTab('resumo');
+    setLoadingFaturaHours(true);
+    try {
+      const { data, error } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .select('*')
+        .eq('fatura_id', fatura.id);
+
+      if (error) throw error;
+      
+      const workerIds = Array.from(new Set((data || []).map((h: any) => h.worker_id).filter(Boolean)));
+      let workersMap = new Map();
+      if (workerIds.length > 0) {
+        const { data: wData } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome')
+          .in('id', workerIds);
+        workersMap = new Map((wData || []).map(w => [w.id, w]));
+      }
+      
+      const mapped = (data || []).map(h => ({
+        ...h,
+        worker: workersMap.get(h.worker_id)
+      }));
+      setFaturaHours(mapped);
+    } catch (err: any) {
+      console.error('Erro ao buscar horas da fatura:', err);
+      toast.error('Erro ao carregar detalhes das horas: ' + err.message);
+    } finally {
+      setLoadingFaturaHours(false);
+    }
+  };
+
+  const handleExportHoursPDFFatura = async (fatura: any) => {
+    toast.info("Aguarde, gerando PDF do Relatório de Horas...");
+    
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px';
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    const clientName = fatura.clientName || 'Cliente';
+    
+    let disputeYear = new Date().getFullYear();
+    let disputeMonth = new Date().getMonth();
+    if (faturaHours && faturaHours.length > 0) {
+      const parts = faturaHours[0].data_trabalho.split('-');
+      disputeYear = parseInt(parts[0]);
+      disputeMonth = parseInt(parts[1]) - 1;
+    }
+    
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const periodStr = `${months[disputeMonth]} / ${disputeYear}`;
+    
+    const totalHorasCalculadas = faturaHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+    const totalValorCalculado = faturaHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Relatório de Horas</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>${clientName}</strong> | Período: <strong>${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${totalHorasCalculadas.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ ${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    const workersMap = new Map();
+
+    faturaHours.forEach(h => {
+      const wId = h.worker_id;
+      if (!wId) return;
+
+      if (!workersMap.has(wId)) {
+        workersMap.set(wId, {
+          workerId: wId,
+          workerName: h.worker?.nome || 'Colaborador',
+          horasDiarias: {}
+        });
+      }
+
+      const wObj = workersMap.get(wId);
+      const dateKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      wObj.horasDiarias[dateKey] = h.horas_totais;
+    });
+
+    const groupedWorkers = Array.from(workersMap.values());
+    const cycleStartDay = fatura.billingCycleStartDay || 1;
+    const daysArray = getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
+
+    let tableHtml = `
+      <div style="margin-bottom: 40px; page-break-inside: avoid;">
+        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+          OBRA: TODAS AS OBRAS
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabalhador</th>
+    `;
+
+    daysArray.forEach(dInfo => {
+      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+      const dayOfWeek = cellDate.getDay();
+      const isSunday = dayOfWeek === 0;
+      const isSaturday = dayOfWeek === 6;
+      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const label = weekdays[dayOfWeek];
+      
+      let headerColor = '#64748b';
+      let headerBg = '';
+      if (isSunday) {
+        headerColor = '#e11d48';
+        headerBg = 'background-color: #ffe4e6;';
+      } else if (isSaturday) {
+        headerColor = '#d97706';
+        headerBg = 'background-color: #fef3c7;';
+      }
+
+      tableHtml += `
+        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
+        </th>
+      `;
+    });
+
+    tableHtml += `
+              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    groupedWorkers.forEach(w => {
+      const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+      tableHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+      `;
+
+      daysArray.forEach(dInfo => {
+        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
+        
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+
+        let cellStyle = 'color: #94a3b8;';
+        let cellBg = '';
+        if (hoursVal > 0) {
+          cellStyle = 'color: #2563eb; font-weight: 700;';
+        }
+        if (isSunday) {
+          cellBg = 'background-color: #fff1f2;';
+        } else if (isSaturday) {
+          cellBg = 'background-color: #fffbeb;';
+        }
+
+        tableHtml += `
+          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+            ${hoursVal > 0 ? hoursVal : '-'}
+          </td>
+        `;
+      });
+
+      tableHtml += `
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    container.innerHTML += tableHtml;
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+      
+      pdf.save(`relatorio-horas-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+      toast.success("PDF do Relatório de Horas gerado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    } finally {
+      document.body.removeChild(container);
+    }
   };
 
   const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
@@ -1984,6 +2240,31 @@ MCS - Gestão Comercial`;
                     ) : f.statusBilling === 'invoiced_pending' ? (
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button 
+                          onClick={() => {
+                            const faturaObj = {
+                              id: f.activeFaturaId,
+                              status: 'pending_client_approval',
+                              magic_link_token: f.magicLinkToken,
+                              data_emissao: f.dataEmissaoFatura,
+                              ajustes_json: f.ajustesJson,
+                              fatura_numero: f.faturaNumero,
+                              atcud: f.atcud,
+                              clientName: f.clientName,
+                              billingCycleStartDay: f.billingCycleStartDay,
+                              client: {
+                                paymentTermDays: f.paymentTermDays || 30
+                              }
+                            };
+                            handleOpenFaturaDetails(faturaObj);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-600 text-blue-600 hover:bg-blue-50 font-medium gap-1.5 shrink-0 flex items-center"
+                        >
+                          <Eye size={14} />
+                          Ver Detalhes
+                        </Button>
+                        <Button 
                           onClick={() => handleCopyLink(f.magicLinkToken)}
                           variant="outline"
                           size="sm"
@@ -2002,6 +2283,60 @@ MCS - Gestão Comercial`;
                           Cancelar / Resetar Fatura
                         </Button>
                       </div>
+                    ) : f.statusBilling === 'invoiced_approved' ? (
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const faturaObj = {
+                            id: f.activeFaturaId,
+                            status: 'approved',
+                            magic_link_token: f.magicLinkToken,
+                            data_emissao: f.dataEmissaoFatura,
+                            ajustes_json: f.ajustesJson,
+                            fatura_numero: f.faturaNumero,
+                            atcud: f.atcud,
+                            clientName: f.clientName,
+                            billingCycleStartDay: f.billingCycleStartDay,
+                            client: {
+                              paymentTermDays: f.paymentTermDays || 30
+                            }
+                          };
+                          handleOpenFaturaDetails(faturaObj);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-emerald-650 hover:bg-emerald-50 text-emerald-650 dark:border-emerald-500 dark:text-emerald-400 font-medium gap-1.5 shrink-0 flex items-center"
+                      >
+                        <Eye size={14} />
+                        Ver Fatura Aprovada
+                      </Button>
+                    ) : f.statusBilling === 'invoiced_disputed' ? (
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const faturaObj = {
+                            id: f.activeFaturaId,
+                            status: 'disputed',
+                            magic_link_token: f.magicLinkToken,
+                            data_emissao: f.dataEmissaoFatura,
+                            ajustes_json: f.ajustesJson,
+                            fatura_numero: f.faturaNumero,
+                            atcud: f.atcud,
+                            clientName: f.clientName,
+                            billingCycleStartDay: f.billingCycleStartDay,
+                            client: {
+                              paymentTermDays: f.paymentTermDays || 30
+                            }
+                          };
+                          handleOpenFaturaDetails(faturaObj);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-rose-600 hover:bg-rose-50 text-rose-600 dark:border-rose-500 dark:text-rose-400 font-medium gap-1.5 shrink-0 flex items-center"
+                      >
+                        <Eye size={14} />
+                        Ver Contestação
+                      </Button>
                     ) : (
                       <Button 
                         disabled
@@ -3317,6 +3652,525 @@ MCS - Gestão Comercial`;
             );
           })()}
 
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Details Dialog */}
+      <Dialog open={selectedFatura !== null} onOpenChange={(open) => !open && setSelectedFatura(null)}>
+        <DialogContent className="max-w-[98%] w-[98vw] dark:bg-slate-900 dark:border-slate-800">
+          {(() => {
+            if (!selectedFatura) return null;
+            
+            const dataEmissaoStr = selectedFatura.data_emissao || new Date().toISOString().split('T')[0];
+            const termDays = selectedFatura.client?.paymentTermDays || 30;
+            const emissionDate = selectedFatura.data_emissao ? new Date(selectedFatura.data_emissao) : new Date();
+            const dueDate = new Date(emissionDate);
+            dueDate.setDate(dueDate.getDate() + termDays);
+            const dataVencimentoStr = dueDate.toISOString().split('T')[0];
+            const year = new Date(dataEmissaoStr).getFullYear();
+
+            const adjustments = selectedFatura.ajustes_json || {
+              incrementos: 0,
+              incrementosDesc: '',
+              reducoes: 0,
+              reducoesDesc: '',
+              ivaPct: 0,
+              iban: 'Qonto\nIBAN: FR76 1695 8000 0156 2947 6179 052\nBIC: QNTOFRP1XXX',
+              descricaoServico: 'Prestação de Serviços'
+            };
+
+            const totalBaseVal = faturaHours.reduce((sum, h) => sum + Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0), 0);
+            const finalTotalVal = (totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * (1 + Number(adjustments.ivaPct || 0) / 100);
+            const totalHorasCalculadas = faturaHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+
+            const groupedWorkersEnriched = (() => {
+              const workersMap = new Map();
+              faturaHours.forEach(h => {
+                const wId = h.worker_id;
+                if (!wId) return;
+                if (!workersMap.has(wId)) {
+                  workersMap.set(wId, {
+                    workerId: wId,
+                    workerName: h.worker?.nome || 'Colaborador',
+                    totalHoras: 0,
+                    tarifa: h.tarifa_faturada || 0,
+                    totalValor: 0
+                  });
+                }
+                const wObj = workersMap.get(wId);
+                wObj.totalHoras += h.horas_totais;
+                wObj.totalValor += h.horas_totais * (h.tarifa_faturada || 0);
+              });
+              return Array.from(workersMap.values());
+            })();
+
+            const disputeDaysArray = (() => {
+              let disputeYear = year;
+              let disputeMonth = new Date(dataEmissaoStr).getMonth();
+              if (faturaHours && faturaHours.length > 0) {
+                const parts = faturaHours[0].data_trabalho.split('-');
+                disputeYear = parseInt(parts[0]);
+                disputeMonth = parseInt(parts[1]) - 1;
+              }
+              const cycleStartDay = selectedFatura.billingCycleStartDay || 1;
+              return getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
+            })();
+
+            const disputeYear = faturaHours.length > 0 ? parseInt(faturaHours[0].data_trabalho.split('-')[0]) : year;
+            const disputeMonth = faturaHours.length > 0 ? parseInt(faturaHours[0].data_trabalho.split('-')[1]) - 1 : new Date(dataEmissaoStr).getMonth();
+
+            const invoiceControlCode = selectedFatura.fatura_numero 
+              ? (selectedFatura.fatura_numero.includes('/') ? selectedFatura.fatura_numero : `IF-${selectedFatura.year || year}/${String(selectedFatura.fatura_numero).padStart(4, '0')}`)
+              : `#${selectedFatura.id.substring(0, 8).toUpperCase()}`;
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                    <FileText className="w-6 h-6" />
+                    Detalhes do Faturamento - Fatura {invoiceControlCode}
+                  </DialogTitle>
+                  <DialogDescription className="text-base pt-1">
+                    Consulte o resumo de horas, informe de faturamento e fatura única correspondentes a este ciclo.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {/* Tab Navigation */}
+                <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-xl mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setFaturaActiveTab('resumo')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
+                      faturaActiveTab === 'resumo'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Resumo de Horas (Folha de Ponto)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFaturaActiveTab('informe')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
+                      faturaActiveTab === 'informe'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Informe Pró-forma
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFaturaActiveTab('factura')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
+                      faturaActiveTab === 'factura'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Factura Única AT
+                  </button>
+                </div>
+
+                <div className="py-2 space-y-4 max-h-[62vh] overflow-y-auto text-left text-xs font-semibold">
+                  
+                  {/* Resumo de Horas Tab */}
+                  {faturaActiveTab === 'resumo' && (
+                    <>
+                      <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-4">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Relatório de Horas (Folha de Ponto)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportHoursPDFFatura(selectedFatura)}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar Relatório de Horas (PDF)
+                        </Button>
+                      </div>
+
+                      {/* Tabela de Diferenças (Horizontal Matrix) */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center pb-1 border-b dark:border-slate-800">
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Planilha Comparativa de Ponto</span>
+                        </div>
+                        {loadingFaturaHours ? (
+                          <div className="flex items-center justify-center py-10">
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          </div>
+                        ) : groupedWorkersEnriched.length === 0 ? (
+                          <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg text-center border text-muted-foreground">
+                            Nenhum registro de hora encontrado.
+                          </div>
+                        ) : (
+                          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-950 p-4 text-[10px]">
+                            <Table className="border border-slate-100 dark:border-slate-900 rounded">
+                              <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                                <TableRow>
+                                  <TableHead className="font-bold pl-4">Trabalhador</TableHead>
+                                  {disputeDaysArray.map(dayInfo => {
+                                    const wDay = getWeekDayLabelFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
+                                    const isWk = isWeekendFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
+                                    return (
+                                      <TableHead key={dayInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <span>{String(dayInfo.day).padStart(2, '0')}</span>
+                                          <span className="text-[6.5px] md:text-[7.5px] text-slate-400 font-normal uppercase tracking-tight">{wDay}</span>
+                                        </div>
+                                      </TableHead>
+                                    );
+                                  })}
+                                  <TableHead className="text-right font-extrabold pr-4 text-xs">TOTAL</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {groupedWorkersEnriched.map(worker => {
+                                  const workerHoursList = faturaHours.filter(h => h.worker_id === worker.workerId);
+                                  const workerHoursMapLocal = new Map(workerHoursList.map(h => [h.data_trabalho, h.horas_totais]));
+
+                                  const workerTotal = disputeDaysArray.reduce((sum, dayInfo) => {
+                                    const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
+                                    return sum + originalVal;
+                                  }, 0);
+
+                                  return (
+                                    <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
+                                      <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
+                                      {disputeDaysArray.map(dayInfo => {
+                                        const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
+                                        const isWk = isWeekendFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
+
+                                        return (
+                                          <TableCell 
+                                            key={dayInfo.dateStr} 
+                                            className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none border-x border-slate-100 dark:border-slate-850 ${
+                                              isWk
+                                                ? originalVal > 0
+                                                  ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
+                                                  : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
+                                                : originalVal > 0
+                                                  ? 'bg-slate-50 dark:bg-slate-800/10 text-slate-900 dark:text-slate-100 font-bold'
+                                                  : 'text-slate-300 font-normal'
+                                            }`}
+                                          >
+                                            {originalVal > 0 ? originalVal : '-'}
+                                          </TableCell>
+                                        );
+                                      })}
+                                      <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
+                                        {workerTotal.toFixed(1)}h
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Informe Pró-forma Tab */}
+                  {faturaActiveTab === 'informe' && (
+                    <div className="flex flex-col items-center w-full">
+                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Informe de Facturación (Pró-forma)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportA4PDF(selectedFatura.id, selectedFatura.clientName, 'informe')}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar PDF
+                        </Button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                        <div id={`informe-sheet-${selectedFatura.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
+                          <div className="space-y-1">
+                            <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
+                              {selectedFatura.clientName?.includes('BALMES') ? 'STO - STOCCO' : 'MCS'}
+                            </h3>
+                            <p className="text-[9px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
+                            <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-100">{invoiceControlCode}</p>
+                            <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                            <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                          </div>
+                        </div>
+
+                        {/* Emissor e Cliente */}
+                        <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
+                          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
+                            <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
+                            <p className="text-muted-foreground">CIF/NIF: PT517834747</p>
+                            <p className="text-muted-foreground">R. São Tomé e Príncipe, 287 - Vila Nova de Gaia</p>
+                          </div>
+                          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
+                            <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientName}</p>
+                            <p className="text-muted-foreground">NIF: ES55350245</p>
+                            <p className="text-muted-foreground">Pol. Ind. MERCADERIES C/1 NAU</p>
+                          </div>
+                        </div>
+
+                        {/* Resumo de Importe */}
+                        <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
+                        <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
+                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                            <TableRow>
+                              <TableHead className="font-bold">Concepto</TableHead>
+                              <TableHead className="text-right font-bold w-28">Valor (€)</TableHead>
+                              <TableHead className="font-bold">Descripción</TableHead>
+                              <TableHead className="text-right font-bold w-32">Total (€)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="font-semibold">Importe total</TableCell>
+                              <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                              <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                            {Number(adjustments.incrementos) > 0 && (
+                              <TableRow>
+                                <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
+                                <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
+                                <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            )}
+                            {Number(adjustments.reducoes) > 0 && (
+                              <TableRow>
+                                <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
+                                <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
+                                <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                              <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
+                              <TableCell className="text-right font-extrabold text-slate-900 dark:text-white font-mono">
+                                € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+
+                        <div className="text-center font-bold bg-slate-100 dark:bg-slate-900 py-1 rounded text-slate-700 dark:text-slate-300 mb-4 text-[9px]">
+                          OBRA: {adjustments.obra || 'SIN OBRA'}
+                        </div>
+
+                        {/* Relação de Trabalhadores */}
+                        <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
+                        <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
+                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                            <TableRow>
+                              <TableHead className="font-bold pl-4">Trabajador</TableHead>
+                              <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
+                              <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
+                              <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {groupedWorkersEnriched.map(w => (
+                              <TableRow key={w.workerId}>
+                                <TableCell className="font-semibold text-slate-800 dark:text-slate-250 pl-4">{w.workerName}</TableCell>
+                                <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
+                                <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                              <TableCell className="font-bold pl-4">Totales</TableCell>
+                              <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
+                              <TableCell className="text-right">-</TableCell>
+                              <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+
+                        {/* Informações Bancárias */}
+                        <div className="border-t border-slate-100 dark:border-slate-900 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
+                          <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
+                          <p className="whitespace-pre-line font-mono">{adjustments.iban}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  )}
+
+                  {/* Factura Única Tab */}
+                  {faturaActiveTab === 'factura' && (
+                    <div className="flex flex-col items-center w-full">
+                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                          Factura Única AT (Pro-forma / Definitiva)
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleExportA4PDF(selectedFatura.id, selectedFatura.clientName, 'factura')}
+                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <FileText size={12} /> Baixar PDF
+                        </Button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                        <div id={`factura-sheet-${selectedFatura.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
+                        {/* Top row */}
+                        <div className="flex justify-between items-start mb-6">
+                          <div>
+                            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                              Factura {selectedFatura.fatura_numero ? selectedFatura.fatura_numero.replace('Factura nº1 ', '') : `${year}/0347`}
+                            </h3>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                          </div>
+                          <div className="border border-slate-200 dark:border-slate-800 p-1 bg-white dark:bg-slate-900 rounded shadow-sm">
+                            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-[6px] text-slate-400 font-bold border border-dashed border-slate-300 dark:border-slate-800">
+                              <span>MOCK QR</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* De / Para */}
+                        <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                          <div>
+                            <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
+                            <p className="text-muted-foreground">Rua Padre António Maria Pinho, n.º 353</p>
+                            <p className="text-muted-foreground">4460-853 Vila Nova de Gaia</p>
+                            <p className="text-muted-foreground">NIF: PT517834747</p>
+                            <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
+                            <p className="text-muted-foreground font-mono whitespace-pre-line text-[9px]">{adjustments.iban.split('\n')[0]}</p>
+                          </div>
+                          <div>
+                            <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientName}</p>
+                            <p className="text-muted-foreground">AVENIDA DE LA INDUSTRIA 14, 25190</p>
+                            <p className="text-muted-foreground">LLEIDA, Espanha</p>
+                            <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                            <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                          </div>
+                        </div>
+
+                        {/* Tabela de Itens */}
+                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                          Lista de Artigos
+                        </div>
+                        <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
+                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                            <TableRow>
+                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
+                              <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
+                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
+                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
+                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
+                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
+                              <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                              <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
+                              <TableCell>UN</TableCell>
+                              <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                            {Number(adjustments.incrementos) > 0 && (
+                              <TableRow>
+                                <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
+                                <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
+                                <TableCell className="text-right">1.00</TableCell>
+                                <TableCell>UN</TableCell>
+                                <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            )}
+                            {Number(adjustments.reducoes) > 0 && (
+                              <TableRow>
+                                <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
+                                <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
+                                <TableCell className="text-right">1.00</TableCell>
+                                <TableCell>UN</TableCell>
+                                <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold text-rose-650 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+
+                        {/* Resumo da Fatura */}
+                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                          Resumo
+                        </div>
+                        <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
+                              <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
+                              <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                            <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
+                              <TableCell className="font-extrabold text-orange-850 dark:text-orange-300" colSpan={3}>Total da Fatura</TableCell>
+                              <TableCell className="text-right font-extrabold text-orange-950 dark:text-orange-205 text-[11px] pr-3 font-mono">
+                                € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+
+                        {/* Condições de IVA */}
+                        <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                          Condições de Enquadramento de IVA:<br/>
+                          (1) M09-IVA - autoliquidação
+                        </div>
+
+                        {/* Rodapé */}
+                        <div className="border-t border-slate-100 dark:border-slate-900 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium">
+                          <div>
+                            <p className="font-bold uppercase mb-0.5">Local de Carga</p>
+                            <p>Rua Conselheiro Fonseca, n.º 157</p>
+                            <p>4405-853 Vila Nova de Gaia</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
+                            <p>AVENIDA DE LA INDUSTRIA 14, 25190 LLEIDA</p>
+                          </div>
+                        </div>
+                        <div className="text-center text-[7px] text-muted-foreground mt-3 italic font-semibold">
+                          Rexx - Processado por Programa Certificado nº 1123/AT
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
+                  <Button variant="outline" onClick={() => setSelectedFatura(null)}>
+                    Fechar
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
