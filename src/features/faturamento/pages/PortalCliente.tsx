@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { QRCodeSVG } from 'qrcode.react';
 import { getBillingCycleDays } from './FaturasPendentes';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { toast } from 'sonner';
 
 // Format helpers
 const formatHours = (decimalHours: number) => {
@@ -113,13 +116,13 @@ export function PortalCliente() {
       await aprovarHorasCliente(token!, fatura!.id);
       setSubmittedMessage({
         type: 'success',
-        title: 'Horas Aprovadas',
-        desc: 'Obrigado! As horas foram aprovadas com sucesso e o faturamento seguirá o fluxo normal.'
+        title: '¡Muchas gracias!',
+        desc: 'Has aprobado el informe de horas correctamente. Ya puedes descargar los documentos adjuntos en los botones de abajo. La factura oficial te será enviada posteriormente por correo electrónico.'
       });
       await loadData();
     } catch (err: any) {
       console.error(err);
-      alert('Erro ao aprovar horas: ' + err.message);
+      alert('Error al aprobar las horas: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -196,13 +199,13 @@ export function PortalCliente() {
       setIsDisputeModalOpen(false);
       setSubmittedMessage({
         type: 'error',
-        title: 'Horas Contestadas',
-        desc: 'Sua contestação e propostas de horas foram registradas. Nossa equipe entrará em contato para revisão.'
+        title: 'Informe de Horas en Disputa',
+        desc: 'Has solicitado una corrección para este informe de horas. Nuestro equipo comercial está revisando tus comentarios y se pondrá en contacto contigo a la brevedad.'
       });
       await loadData();
     } catch (err: any) {
       console.error(err);
-      alert('Erro ao contestar horas: ' + err.message);
+      alert('Error al disputar las horas: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -210,10 +213,235 @@ export function PortalCliente() {
 
   const getMonthName = (mIndex: number) => {
     const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
     return months[mIndex] || '';
+  };
+
+  const handleDownloadHoursPDF = async (fatura: any) => {
+    toast.info("Generando PDF del Registro de Horas...");
+    
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1120px';
+    container.style.padding = '40px';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    
+    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    const periodStr = `${getMonthName(month)} / ${year}`;
+    
+    const workersMap = new Map();
+    horas.forEach(h => {
+      const wId = h.worker_id;
+      if (!wId) return;
+
+      if (!workersMap.has(wId)) {
+        workersMap.set(wId, {
+          workerId: wId,
+          workerName: h.worker?.nombrecompleto || 'Colaborador',
+          horasDiarias: {}
+        });
+      }
+
+      const wObj = workersMap.get(wId);
+      const dateKey = h.data_trabalho;
+      wObj.horasDiarias[dateKey] = h.horas_totais;
+    });
+
+    const groupedWorkersLocal = Array.from(workersMap.values());
+    const cycleStartDay = fatura.client?.billingCycleStartDay || 1;
+    const daysArrayLocal = getBillingCycleDays(cycleStartDay, year, month);
+    
+    const totalHorasLocal = horas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+    const totalValorLocal = horas.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 27.00)), 0);
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Registro de Horas</h2>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>${clientName}</strong> | Periodo: <strong>${periodStr}</strong></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${totalHorasLocal.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Importe Base: <strong style="color: #1e293b; font-size: 16px;">€ ${totalValorLocal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+        </div>
+      </div>
+    `;
+
+    let tableHtml = `
+      <div style="margin-bottom: 40px; page-break-inside: avoid;">
+        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+          OBRA: TODAS LAS OBRAS
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabajador</th>
+    `;
+
+    daysArrayLocal.forEach(dInfo => {
+      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+      const dayOfWeek = cellDate.getDay();
+      const isSunday = dayOfWeek === 0;
+      const isSaturday = dayOfWeek === 6;
+      const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      const label = weekdays[dayOfWeek];
+      
+      let headerColor = '#64748b';
+      let headerBg = '';
+      if (isSunday) {
+        headerColor = '#e11d48';
+        headerBg = 'background-color: #ffe4e6;';
+      } else if (isSaturday) {
+        headerColor = '#d97706';
+        headerBg = 'background-color: #fef3c7;';
+      }
+
+      tableHtml += `
+        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
+        </th>
+      `;
+    });
+
+    tableHtml += `
+              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    groupedWorkersLocal.forEach(w => {
+      const workerTotal = daysArrayLocal.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+      tableHtml += `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+      `;
+
+      daysArrayLocal.forEach(dInfo => {
+        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
+        
+        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+        const dayOfWeek = cellDate.getDay();
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+
+        let cellStyle = 'color: #94a3b8;';
+        let cellBg = '';
+        if (hoursVal > 0) {
+          cellStyle = 'color: #2563eb; font-weight: 700;';
+        }
+        if (isSunday) {
+          cellBg = 'background-color: #fff1f2;';
+        } else if (isSaturday) {
+          cellBg = 'background-color: #fffbeb;';
+        }
+
+        tableHtml += `
+          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+            ${hoursVal > 0 ? hoursVal : '-'}
+          </td>
+        `;
+      });
+
+      tableHtml += `
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    container.innerHTML += tableHtml;
+
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+      
+      pdf.save(`registro-horas-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+      toast.success("¡PDF de Registro de Horas generado con éxito!");
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Error al generar el archivo PDF: " + error.message);
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
+  const handleDownloadA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
+    const elementId = `${type}-sheet-${cardId}`;
+    const element = document.getElementById(elementId);
+    
+    if (!element) {
+      toast.error(`No se pudo encontrar el elemento visual de la ${type === 'informe' ? 'Pro-forma' : 'Factura'}.`);
+      return;
+    }
+    
+    toast.info(`Generando PDF de la ${type === 'informe' ? 'Pro-forma' : 'Factura'}...`);
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      pdf.save(filename);
+      toast.success(`¡PDF de la ${type === 'informe' ? 'Pro-forma' : 'Factura'} generado con éxito!`);
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Error al generar el archivo PDF: " + error.message);
+    }
   };
 
   // Group flat hours by worker
@@ -376,25 +604,25 @@ export function PortalCliente() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="bg-blue-500/20 text-blue-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-blue-500/30">
-                  Portal do Cliente
+                  Portal del Cliente
                 </span>
                 {fatura.status === 'approved' && (
                   <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-emerald-500/30">
-                    Aprovado
+                    Aprobado
                   </span>
                 )}
                 {fatura.status === 'disputed' && (
                   <span className="bg-rose-500/20 text-rose-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-rose-500/30">
-                    Em Contestação
+                    En Disputa
                   </span>
                 )}
                 {fatura.status === 'pending_client_approval' && (
                   <span className="bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-amber-500/30">
-                    Aguardando sua Revisão
+                    Esperando su Revisión
                   </span>
                 )}
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight">Revisão de Horas & Faturamento</h1>
+              <h1 className="text-3xl font-extrabold tracking-tight">Revisión de Horas y Facturación</h1>
               <p className="text-sm text-slate-300">
                 Cliente: <span className="font-bold text-white">{fatura.client?.nombre_comercial || 'Cliente'}</span>
               </p>
@@ -407,14 +635,72 @@ export function PortalCliente() {
               </div>
               <div className="w-px bg-slate-850 self-stretch" />
               <div className="text-left px-2">
-                <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Total a Faturar</span>
-                <span className="text-xl font-black text-blue-400">€ {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>
+                <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Total a Facturar</span>
+                <span className="text-xl font-black text-blue-400">€ {finalTotalVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {submittedMessage && (
+        {/* State Banner: Approved Case (Shows download attachments) */}
+        {fatura.status === 'approved' && (
+          <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-3xl p-6 flex flex-col md:flex-row items-center md:items-start justify-between gap-6 shadow-sm">
+            <div className="flex items-start gap-4 text-left">
+              <CheckCircle className="w-10 h-10 text-emerald-600 shrink-0 mt-1" />
+              <div className="space-y-1">
+                <h3 className="text-xl font-extrabold text-emerald-900 dark:text-emerald-300">
+                  ¡Muchas gracias!
+                </h3>
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                  Has aprobado el informe de horas correctamente. Ya puedes descargar los documentos adjuntos (informe de horas, pro-forma y factura única) en los botones de la derecha. La factura oficial te será enviada posteriormente por correo electrónico.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-3 shrink-0 w-full md:w-auto">
+              <Button
+                variant="outline"
+                className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-250 hover:border-emerald-350 font-bold flex items-center justify-center gap-2 h-11 px-4 rounded-xl shadow-sm text-xs transition-colors"
+                onClick={() => handleDownloadHoursPDF(fatura)}
+              >
+                <Calendar className="w-4 h-4" />
+                Descargar Registro de Horas
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-250 hover:border-emerald-350 font-bold flex items-center justify-center gap-2 h-11 px-4 rounded-xl shadow-sm text-xs transition-colors"
+                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.nombre_comercial || 'cliente', 'informe')}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Descargar Pro-forma
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-250 hover:border-emerald-350 font-bold flex items-center justify-center gap-2 h-11 px-4 rounded-xl shadow-sm text-xs transition-colors"
+                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.nombre_comercial || 'cliente', 'factura')}
+              >
+                <FileText className="w-4 h-4" />
+                Descargar Factura Única
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* State Banner: Disputed Case */}
+        {fatura.status === 'disputed' && (
+          <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-3xl p-6 flex items-start gap-4 text-left shadow-sm">
+            <AlertTriangle className="w-10 h-10 text-rose-600 shrink-0 mt-1" />
+            <div className="space-y-1">
+              <h3 className="text-xl font-extrabold text-rose-900 dark:text-rose-300">
+                Informe de Horas en Disputa
+              </h3>
+              <p className="text-sm font-semibold text-rose-700 dark:text-rose-400 leading-relaxed">
+                Has solicitado una corrección para este informe de horas. Nuestro equipo comercial está revisando tus comentarios y se pondrá en contacto contigo a la brevedad.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {submittedMessage && !isResolved && (
           <div className={`p-6 rounded-xl border shadow-sm ${submittedMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800' : 'bg-rose-50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-800'}`}>
             <div className="flex items-start gap-4">
               {submittedMessage.type === 'success' ? (
@@ -435,7 +721,7 @@ export function PortalCliente() {
         )}
 
         {/* Action Buttons at the Top Fold */}
-        {!isResolved && !submittedMessage && horas.length > 0 && (
+        {!isResolved && horas.length > 0 && (
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button 
               size="lg" 
@@ -444,7 +730,7 @@ export function PortalCliente() {
               disabled={isSubmitting}
             >
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle className="w-5 h-5 mr-2" />}
-              Aprovar Relatório de Horas
+              Aprobar Informe de Horas
             </Button>
             
             <Button 
@@ -455,7 +741,7 @@ export function PortalCliente() {
               disabled={isSubmitting}
             >
               <XCircle className="w-5 h-5 mr-2" />
-              Contestar / Solicitar Correção
+              Disputar / Solicitar Corrección
             </Button>
           </div>
         )}
@@ -464,17 +750,17 @@ export function PortalCliente() {
         <Card className="shadow-md border-slate-200 dark:border-slate-800 overflow-hidden dark:bg-slate-900">
           <div className="bg-slate-900 p-5 text-white flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800">
             <div>
-              <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Referência Fatura</p>
+              <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Referencia Factura</p>
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-slate-400" />
                 <span className="text-lg font-bold">#{fatura.id.split('-')[0].toUpperCase()}</span>
               </div>
             </div>
             <div className="text-left md:text-right">
-              <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Data de Emissão</p>
+              <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Fecha de Emisión</p>
               <div className="flex items-center md:justify-end gap-2">
                 <Calendar className="w-4 h-4 text-slate-400" />
-                <span className="text-sm font-semibold">{fatura.data_emissao ? new Date(fatura.data_emissao).toLocaleDateString('pt-PT') : '--/--/----'}</span>
+                <span className="text-sm font-semibold">{fatura.data_emissao ? new Date(fatura.data_emissao).toLocaleDateString('es-ES') : '--/--/----'}</span>
               </div>
             </div>
           </div>
@@ -483,21 +769,21 @@ export function PortalCliente() {
           <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 gap-2 overflow-x-auto text-xs font-semibold">
             <button 
               onClick={() => setActiveTab('resumo')} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'resumo' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-355 dark:hover:bg-slate-800'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'resumo' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800'}`}
             >
               <Calendar className="w-4 h-4" />
-              Resumo de Horas (Folha de Ponto)
+              Resumen de Horas (Control de Presencia)
             </button>
             <button 
               onClick={() => setActiveTab('informe')} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'informe' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-355 dark:hover:bg-slate-800'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'informe' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800'}`}
             >
               <FileSpreadsheet className="w-4 h-4" />
-              Informe Pró-forma
+              Informe Pro-forma
             </button>
             <button 
               onClick={() => setActiveTab('factura')} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'factura' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-355 dark:hover:bg-slate-800'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold ${activeTab === 'factura' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-105 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800'}`}
             >
               <FileText className="w-4 h-4" />
               Factura Única AT
@@ -510,7 +796,7 @@ export function PortalCliente() {
               <div className="p-6 bg-white overflow-x-auto text-xs">
                 <div className="mb-4 flex justify-between items-center border-b border-slate-100 pb-3">
                   <div>
-                    <h4 className="text-base font-bold text-slate-900">Relatório de Horas</h4>
+                    <h4 className="text-base font-bold text-slate-900">Informe de Horas</h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5">Cliente: <span className="font-semibold text-slate-800">{fatura.client?.nombre_comercial}</span> | Período: <span className="font-semibold text-slate-800">{getMonthName(month)} / {year}</span></p>
                   </div>
                   <div className="text-right">
@@ -525,12 +811,12 @@ export function PortalCliente() {
                 <Table className="border border-slate-200 rounded-lg">
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="font-bold pl-4">Trabalhador</TableHead>
+                      <TableHead className="font-bold pl-4">Trabajador</TableHead>
                       {daysArray.map(dInfo => {
                         const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                         const dayOfWeek = cellDate.getDay();
                         const isWk = dayOfWeek === 0 || dayOfWeek === 6;
-                        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                        const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
                         const wDay = weekdays[dayOfWeek];
                         return (
                           <TableHead key={dInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
@@ -644,7 +930,7 @@ export function PortalCliente() {
             {/* Aba: Informe */}
             {activeTab === 'informe' && (
               <div className="p-8 bg-slate-100 flex justify-center text-xs">
-                <div className="w-full max-w-[800px] bg-white p-8 shadow border border-slate-200 text-slate-800 rounded text-left">
+                <div id={`informe-sheet-${fatura.id}`} className="w-full max-w-[800px] bg-white p-8 shadow border border-slate-200 text-slate-800 rounded text-left">
                   {/* Header */}
                   <div className="flex justify-between items-start border-b-2 border-slate-100 pb-6 mb-6">
                     <div className="space-y-2">

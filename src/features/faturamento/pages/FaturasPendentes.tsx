@@ -567,13 +567,10 @@ MCS - Gestão Comercial`;
     const defaultEmails: string[] = [];
     if (faturamento.billingEmail) {
       defaultEmails.push(faturamento.billingEmail);
-    } else if (faturamento.clientEmail) {
+    }
+    if (faturamento.clientEmail && faturamento.clientEmail !== faturamento.billingEmail) {
       defaultEmails.push(faturamento.clientEmail);
     }
-    
-    // Check some operations emails by default
-    defaultEmails.push("valter@kr-industrial.com");
-    defaultEmails.push("valter@gestaologinpro.com");
 
     setSelectedEmails(defaultEmails);
     setAdditionalEmails("");
@@ -3407,27 +3404,7 @@ MCS - Gestão Comercial`;
               });
             }
             
-            // Fixed operations copy emails
-            emailOptions.push({
-              id: 'valter_kr',
-              email: 'valter@kr-industrial.com',
-              label: 'valter@kr-industrial.com (Cópia Operações)'
-            });
-            emailOptions.push({
-              id: 'thevalter',
-              email: 'thevalter@gmail.com',
-              label: 'thevalter@gmail.com'
-            });
-            emailOptions.push({
-              id: 'valter_loginpro',
-              email: 'valter@gestaologinpro.com',
-              label: 'valter@gestaologinpro.com (Gestão)'
-            });
-            emailOptions.push({
-              id: 'valtencir_loginpro',
-              email: 'valtencir@gestaologinpro.com',
-              label: 'valtencir@gestaologinpro.com'
-            });
+
 
             return (
               <>
