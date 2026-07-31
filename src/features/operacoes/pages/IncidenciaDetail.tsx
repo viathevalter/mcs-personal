@@ -13,6 +13,8 @@ import { supabaseEmployeeService } from '../services/db/SupabaseEmployeeService'
 import type { Incidencia, IncidenciaTarefa, IncidenciaLog } from '../services/types';
 import { useLanguage } from '../i18n';
 import { ContextCard } from '../components/ContextCard';
+import { RichTextRenderer } from '../components/ui/RichTextEditor';
+import { FileAttachmentUploader, TaskAttachment } from '../components/ui/FileAttachmentUploader';
 
 export const IncidenciaDetail: React.FC = () => {
     const { id } = useParams();
@@ -445,7 +447,7 @@ export const IncidenciaDetail: React.FC = () => {
                 </div>
 
                 {(incidencia.descricao || isEditingIncidencia) && (
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
                         {isEditingIncidencia ? (
                             <textarea
                                 className="w-full bg-slate-50 dark:bg-slate-800 border border-blue-400 rounded px-3 py-2 text-sm outline-none resize-y min-h-[80px]"
@@ -454,7 +456,29 @@ export const IncidenciaDetail: React.FC = () => {
                                 placeholder="Descrição detalhada..."
                             />
                         ) : (
-                            <p className="text-slate-600 dark:text-slate-300 text-sm">{incidencia.descricao}</p>
+                            (() => {
+                                let desc = incidencia.descricao || '';
+                                let atts: TaskAttachment[] = [];
+                                if (desc.trim().startsWith('{')) {
+                                    try {
+                                        const parsed = JSON.parse(desc);
+                                        desc = parsed.description || '';
+                                        atts = parsed.attachments || [];
+                                    } catch {
+                                        desc = incidencia.descricao || '';
+                                    }
+                                }
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 text-sm text-slate-800 dark:text-slate-200">
+                                            <RichTextRenderer content={desc} />
+                                        </div>
+                                        {atts.length > 0 && (
+                                            <FileAttachmentUploader attachments={atts} onChange={() => {}} readOnly />
+                                        )}
+                                    </div>
+                                );
+                            })()
                         )}
                     </div>
                 )}

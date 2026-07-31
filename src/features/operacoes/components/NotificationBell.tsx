@@ -3,6 +3,7 @@ import { Bell, Check, AlertCircle, Info, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../../../shared/supabase/client';
+import { toast } from 'sonner';
 
 interface DbNotification {
     id: string;
@@ -55,19 +56,55 @@ export const NotificationBell: React.FC = () => {
 
         if (!user?.id) return;
 
+        // Request browser push notification permission if default
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+
         // Subscrição em tempo real para novas notificações
         const channel = supabase
             .channel(`user-notifications-${user.id}`)
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'core_common',
                     table: 'notifications',
                     filter: `user_id=eq.${user.id}`
                 },
-                () => {
+                (payload) => {
                     loadNotifications();
+
+                    if (payload.new) {
+                        const newNotif = payload.new as DbNotification;
+
+                        // 1. In-app Toast Banner
+                        toast.info(newNotif.title || 'Nova Notificação', {
+                            description: newNotif.message,
+                            duration: 8000,
+                            action: newNotif.link_url ? {
+                                label: 'Ver Tarefa',
+                                onClick: () => navigate(newNotif.link_url!)
+                            } : undefined
+                        });
+
+                        // 2. Windows Native Desktop Push Notification
+                        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                            try {
+                                const notif = new Notification(newNotif.title || 'MCS - Nova Tarefa', {
+                                    body: newNotif.message,
+                                    icon: '/favicon.ico',
+                                    tag: newNotif.id
+                                });
+                                notif.onclick = () => {
+                                    window.focus();
+                                    if (newNotif.link_url) navigate(newNotif.link_url);
+                                };
+                            } catch (e) {
+                                console.warn('Could not launch desktop notification', e);
+                            }
+                        }
+                    }
                 }
             )
             .subscribe();
