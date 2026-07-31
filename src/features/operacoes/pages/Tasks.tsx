@@ -19,47 +19,22 @@ import { TaskDetailsModal } from '../components/TaskDetailsModal';
 export const Tasks: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { user } = useAuth();
-    const [currentUser, setCurrentUser] = useState<any>(user || {}); // Fallback/Compatibility
-    const { t } = useLanguage();
+    const effectiveUser = useMemo(() => {
+        if (!user) return { name: '', email: '', id: '', isAdmin: false, isSuperAdmin: false, profile: undefined };
+        const name = user.profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
+        const email = user.email || '';
+        const isSuperAdmin = user.isSuperAdmin || user.profile?.role === 'super_admin';
+        const isAdmin = user.isAdmin || isSuperAdmin || user.profile?.role === 'admin';
 
-    // Data State
-    const [allTasks, setAllTasks] = useState<IncidenciaTarefaExpandida[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    // Filters State
-    const [activeTab, setActiveTab] = useState<'minhas' | 'setor' | 'todas'>('minhas');
-    const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
-    const [statusFilter, setStatusFilter] = useState<string>('Ativas');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [onlyOverdue, setOnlyOverdue] = useState(false);
-    const [assigneeFilter, setAssigneeFilter] = useState<string>('Todos');
-
-    // Edit Task State
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingTask, setEditingTask] = useState<{ id: string, titulo: string, prazo: string, scheduled_for: string }>({ id: '', titulo: '', prazo: '', scheduled_for: '' });
-    const [selectedTaskForModal, setSelectedTaskForModal] = useState<IncidenciaTarefaExpandida | null>(null);
-
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            await incidentTaskService.checkForOverdueTasks();
-            const data = await getAllTarefas();
-            const depts = await listDepartments();
-            setAllTasks(data);
-            setDepartments(depts);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (user) {
-            setCurrentUser(user);
-        }
+        return {
+            ...user,
+            name,
+            email,
+            id: user.id,
+            isAdmin,
+            isSuperAdmin,
+            profile: user.profile
+        };
     }, [user]);
 
     useEffect(() => {
@@ -127,30 +102,31 @@ export const Tasks: React.FC = () => {
         return Array.from(assignees).sort();
     }, [allTasks]);
 
-    const isAssignedToMe = (email?: string | null) => {
-        if (!email || !currentUser) return false;
-        const target = email.trim().toLowerCase();
-        const myEmail = (currentUser.email || '').trim().toLowerCase();
-        const myName = (currentUser.name || '').trim().toLowerCase();
+    const isAssignedToMe = (emailOrName?: string | null) => {
+        if (!emailOrName || !effectiveUser) return false;
+        const target = emailOrName.trim().toLowerCase();
+        const myEmail = (effectiveUser.email || '').trim().toLowerCase();
+        const myName = (effectiveUser.name || '').trim().toLowerCase();
+        const myUsername = myEmail.split('@')[0];
 
         if (myEmail && target === myEmail) return true;
-        if (myEmail && target.includes(myEmail.split('@')[0])) return true;
-        if (myEmail && myEmail.includes(target.split('@')[0])) return true;
+        if (myUsername && target.includes(myUsername)) return true;
+        if (myUsername && myUsername.includes(target.split('@')[0])) return true;
         if (myName && target.includes(myName)) return true;
+        if (myName && myName.includes(target)) return true;
         return false;
     };
 
-    const filteredData = useMemo(() => {
-        const userDeptVal = currentUser.profile?.department_id || '';
+        const userDeptVal = effectiveUser.profile?.department_id || '';
         const foundDept = departments.find(d => d.id === userDeptVal || d.name?.toLowerCase() === userDeptVal?.toLowerCase());
         const userDeptName = foundDept?.name || userDeptVal;
-        const managed = currentUser.profile?.managed_departments || [];
+        const managed = effectiveUser.profile?.managed_departments || [];
 
         return allTasks.filter(t => {
-            const isMine = isAssignedToMe(t.responsavel_email) || t.created_by === currentUser.id;
+            const isMine = isAssignedToMe(t.responsavel_email) || t.created_by === effectiveUser.id;
 
             // --- ADMIN / SUPER ADMIN DATA ISOLATION ---
-            if (currentUser && !currentUser.isSuperAdmin && currentUser.isAdmin) {
+            if (effectiveUser && !effectiveUser.isSuperAdmin && effectiveUser.isAdmin) {
                 const isManaged = managed.includes(t.departamento);
 
                 if (!isMine && !isManaged && userDeptName && t.departamento?.toLowerCase() !== userDeptName.toLowerCase()) {
@@ -161,14 +137,14 @@ export const Tasks: React.FC = () => {
             if (activeTab === 'minhas') {
                 if (!isMine) return false;
             } else if (activeTab === 'setor') {
-                if (!userDeptName && managed.length === 0 && !currentUser.isSuperAdmin) {
+                if (!userDeptName && managed.length === 0 && !effectiveUser.isSuperAdmin) {
                     return false;
                 }
                 const matchesDeptName = userDeptName && t.departamento?.toLowerCase() === userDeptName.toLowerCase();
                 const matchesDeptId = userDeptVal && t.department_id === userDeptVal;
                 const matchesManaged = managed.includes(t.departamento);
 
-                if (!matchesDeptName && !matchesDeptId && !matchesManaged && !currentUser.isSuperAdmin) {
+                if (!matchesDeptName && !matchesDeptId && !matchesManaged && !effectiveUser.isSuperAdmin) {
                     return false;
                 }
             }
@@ -203,9 +179,9 @@ export const Tasks: React.FC = () => {
             }
             return true;
         });
-    }, [allTasks, activeTab, statusFilter, searchTerm, onlyOverdue, currentUser, assigneeFilter, departments]);
+    }, [allTasks, activeTab, statusFilter, searchTerm, onlyOverdue, effectiveUser, assigneeFilter, departments]);
 
-    const myTasks = allTasks.filter(t => (isAssignedToMe(t.responsavel_email) || t.created_by === currentUser.id) && t.status !== 'Concluida');
+    const myTasks = allTasks.filter(t => (isAssignedToMe(t.responsavel_email) || t.created_by === effectiveUser.id) && t.status !== 'Concluida');
     const myPendingCount = myTasks.length;
     const myOverdueCount = myTasks.filter(t => t.prazo && new Date(t.prazo) < new Date()).length;
     const todayStr = new Date().toISOString().split('T')[0];
@@ -220,7 +196,7 @@ export const Tasks: React.FC = () => {
                         {t('tasks.title')}
                     </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Olá, <span className="font-medium text-slate-900 dark:text-slate-200">{currentUser.name}</span>. {t('tasks.subtitle')}
+                        Olá, <span className="font-medium text-slate-900 dark:text-slate-200">{effectiveUser.name}</span>. {t('tasks.subtitle')}
                     </p>
                 </div>
 
