@@ -1085,8 +1085,8 @@ export const Incidencias: React.FC = () => {
                                                     }}
                                                 >
                                                     <option value="">Não atribuir</option>
-                                                    {employees.filter(e => e.active !== false && (e.correoempresarial || e.nombrecompleto)).map(emp => {
-                                                        const emailVal = emp.correoempresarial || emp.usuario || `${emp.nombrecompleto.toLowerCase().replace(/\s+/g, '.')}@mastercorp.es`;
+                                                    {employees.filter(e => e.active !== false && e.correoempresarial && e.correoempresarial.includes('@')).map(emp => {
+                                                        const emailVal = emp.correoempresarial || '';
                                                         return (
                                                             <option key={emp.id} value={emailVal}>
                                                                 {emp.nombrecompleto} ({emailVal})
