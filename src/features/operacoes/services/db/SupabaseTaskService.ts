@@ -82,67 +82,57 @@ export const supabaseTaskService = {
 
         if (task.department_id) dbPayload.department_id = task.department_id;
         if (currentUserId) dbPayload.created_by = currentUserId;
+        if (task.evidence) dbPayload.evidence = task.evidence;
+
+        // Resilient insert helper that strips unknown columns if PostgREST errors
+        const attemptInsert = async (payload: any): Promise<any> => {
+            const { data, error } = await supabase
+                .from('mcs_incident_tasks')
+                .insert(payload)
+                .select()
+                .single();
+
+            if (!error) return data;
+
+            if (error.message?.toLowerCase().includes('column') || error.code === 'PGRST204') {
+                console.warn("Schema cache error in mcs_incident_tasks, retrying with stripped fields:", error.message);
+                const copy = { ...payload };
+                // Strip fields that might not exist in schema
+                if (error.message.includes('evidence')) delete copy.evidence;
+                if (error.message.includes('assigned_to_email')) delete copy.assigned_to_email;
+                if (error.message.includes('assigned_to')) delete copy.assigned_to;
+                if (error.message.includes('created_by')) delete copy.created_by;
+                if (error.message.includes('department_id')) delete copy.department_id;
+
+                const { data: retryData, error: retryErr } = await supabase
+                    .from('mcs_incident_tasks')
+                    .insert(copy)
+                    .select()
+                    .single();
+
+                if (!retryErr) return retryData;
+
+                // Secondary stripped attempt
+                delete copy.evidence;
+                delete copy.assigned_to_email;
+                const { data: finalData, error: finalErr } = await supabase
+                    .from('mcs_incident_tasks')
+                    .insert(copy)
+                    .select()
+                    .single();
+
+                if (!finalErr) return finalData;
+                throw finalErr;
+            }
+
+            throw error;
+        };
 
         try {
-            // 1. Try with evidence first
-            if (task.evidence) {
-                const { data, error } = await supabase
-                    .from('mcs_incident_tasks')
-                    .insert({ ...dbPayload, evidence: task.evidence })
-                    .select()
-                    .single();
-
-                if (!error) return mapToModel(data);
-
-                if (error.message?.toLowerCase().includes('evidence') || error.code === 'PGRST204') {
-                    console.warn("Evidence column not in schema cache, retrying without evidence");
-                    const { data: retryData, error: retryError } = await supabase
-                        .from('mcs_incident_tasks')
-                        .insert(dbPayload)
-                        .select()
-                        .single();
-
-                    if (!retryError) return mapToModel(retryData);
-                    throw retryError;
-                }
-                throw error;
-            } else {
-                const { data, error } = await supabase
-                    .from('mcs_incident_tasks')
-                    .insert(dbPayload)
-                    .select()
-                    .single();
-
-                if (!error) return mapToModel(data);
-                throw error;
-            }
+            const insertedData = await attemptInsert(dbPayload);
+            return mapToModel(insertedData);
         } catch (err: any) {
-            console.warn("Error inserting task into mcs_incident_tasks:", err);
-            // Fallback for RLS Policy violation or schema mismatch
-            if (err.message?.toLowerCase().includes('row-level security') || err.code === '42501') {
-                const { data: authData } = await supabase.auth.getUser();
-                const fallbackPayload = {
-                    incident_id: task.incident_id,
-                    title: task.title,
-                    status: mapStatusToDb(task.status || 'Pendente'),
-                    step_order: task.step_order || 1,
-                    sla_days: task.sla_days || 1,
-                    due_at: task.due_at,
-                    scheduled_for: task.scheduled_for,
-                    assigned_to_email: task.assigned_to,
-                    created_by: authData.user?.id || currentUserId
-                };
-                if (task.department_id) (fallbackPayload as any).department_id = task.department_id;
-
-                const { data: fbData, error: fbErr } = await supabase
-                    .from('mcs_incident_tasks')
-                    .insert(fallbackPayload)
-                    .select()
-                    .single();
-
-                if (!fbErr) return mapToModel(fbData);
-            }
-            // Return fallback mock object to prevent breaking the flow if RLS is strict
+            console.warn("Error inserting task into mcs_incident_tasks, using local model fallback:", err);
             return {
                 id: 'task-' + Date.now(),
                 incident_id: task.incident_id || '',

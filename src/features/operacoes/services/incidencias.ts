@@ -206,8 +206,9 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
     } as any);
 
     try {
-        // --- QUICK TASK LOGIC ---
-        if (payload.tipo === 'Task') {
+        // --- TASK CREATION LOGIC ---
+        const isQuickTask = payload.tipo === 'Task' || (!payload.playbook_id);
+        if (isQuickTask) {
             const depts = await departmentService.list();
             const deptId = depts.find(d => d.id === payload.departamento || d.name?.toLowerCase() === payload.departamento?.toLowerCase())?.id;
 
