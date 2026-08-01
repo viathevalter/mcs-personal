@@ -80,16 +80,46 @@ export const supabaseTaskService = {
 
         if (task.department_id) dbPayload.department_id = task.department_id;
         if (currentUserId) dbPayload.created_by = currentUserId;
-        if (task.evidence) dbPayload.evidence = task.evidence;
 
-        const { data, error } = await supabase
-            .from('mcs_incident_tasks')
-            .insert(dbPayload)
-            .select()
-            .single();
+        let resultData: any = null;
 
-        if (error) throw error;
-        return mapToModel(data);
+        if (task.evidence) {
+            const { data, error } = await supabase
+                .from('mcs_incident_tasks')
+                .insert({ ...dbPayload, evidence: task.evidence })
+                .select()
+                .single();
+
+            if (error) {
+                // Fallback if 'evidence' column is not in mcs_incident_tasks schema cache
+                if (error.message?.toLowerCase().includes('evidence') || error.code === 'PGRST204') {
+                    console.warn("Evidence column not found in mcs_incident_tasks schema cache, retrying without evidence column");
+                    const { data: retryData, error: retryError } = await supabase
+                        .from('mcs_incident_tasks')
+                        .insert(dbPayload)
+                        .select()
+                        .single();
+
+                    if (retryError) throw retryError;
+                    resultData = retryData;
+                } else {
+                    throw error;
+                }
+            } else {
+                resultData = data;
+            }
+        } else {
+            const { data, error } = await supabase
+                .from('mcs_incident_tasks')
+                .insert(dbPayload)
+                .select()
+                .single();
+
+            if (error) throw error;
+            resultData = data;
+        }
+
+        return mapToModel(resultData);
     },
 
     delete: async (taskId: string): Promise<void> => {
