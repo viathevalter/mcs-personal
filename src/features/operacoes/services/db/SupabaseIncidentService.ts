@@ -7,6 +7,7 @@ export const supabaseIncidentService = {
         const { data, error } = await supabase
             .from('mcs_incidents')
             .select('*')
+            .neq('status', 'deleted')
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -41,9 +42,15 @@ export const supabaseIncidentService = {
                 impacto: incident.impacto
             }
         };
-        const contextJson = JSON.stringify(fullContext);
+        let currentUserId: string | undefined = undefined;
+        try {
+            const { data: authData } = await supabase.auth.getUser();
+            currentUserId = authData.user?.id;
+        } catch {
+            // ignore
+        }
 
-        const dbPayload = {
+        const dbPayload: any = {
             title: incident.title,
             description: incident.description,
             status: mapStatusToDb(incident.status),
@@ -55,9 +62,11 @@ export const supabaseIncidentService = {
             client_sp_id: incident.context?.client?.sp_id,
             worker_sp_id: incident.context?.worker?.sp_id,
             pedido_sp_id: incident.context?.pedido?.sp_id,
-
-            // Removed prioridade/impacto columns as they don't exist
         };
+
+        if (currentUserId) {
+            dbPayload.created_by = currentUserId;
+        }
 
         const { data, error } = await supabase
             .from('mcs_incidents')
@@ -113,13 +122,21 @@ export const supabaseIncidentService = {
             console.warn('Error deleting associated tasks:', taskErr);
         }
 
-        // 2. Delete the incident
-        const { error } = await supabase
+        // 2. Try hard delete
+        const { data, error } = await supabase
             .from('mcs_incidents')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
-        if (error) throw error;
+        // 3. Fallback: If RLS blocked hard delete (or created_by was NULL), mark status = 'deleted'
+        if (error || !data || data.length === 0) {
+            console.warn("Hard delete returned 0 rows or error. Soft deleting incident status = 'deleted'", error);
+            await supabase
+                .from('mcs_incidents')
+                .update({ status: 'deleted' })
+                .eq('id', id);
+        }
     }
 };
 
