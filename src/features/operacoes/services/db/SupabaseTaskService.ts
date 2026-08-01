@@ -76,8 +76,7 @@ export const supabaseTaskService = {
             sla_days: task.sla_days || 1,
             due_at: task.due_at,
             scheduled_for: task.scheduled_for,
-            assigned_to_email: task.assigned_to,
-            assigned_to: task.assigned_to
+            assigned_to_email: task.assigned_to
         };
 
         if (task.department_id) dbPayload.department_id = task.department_id;
