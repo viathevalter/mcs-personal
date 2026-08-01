@@ -200,54 +200,64 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
         criado_por_nome: payload.criado_por_nome
     } as any);
 
-    // --- QUICK TASK LOGIC ---
-    if (payload.tipo === 'Task') {
-        const depts = await departmentService.list();
-        const deptId = depts.find(d => d.id === payload.departamento || d.name?.toLowerCase() === payload.departamento?.toLowerCase())?.id;
-
-        await incidentTaskService.create({
-            incident_id: newInc.id,
-            title: payload.titulo, // Task inherits Incident Title
-            department_id: deptId,
-            step_order: 1,
-            status: 'Pendente', // Service maps to 'open'
-            due_at: payload.prazo || new Date().toISOString(),
-            sla_days: payload.sla || 1,
-            scheduled_for: payload.scheduled_for,
-            assigned_to: payload.responsavel_email,
-            created_by: payload.created_by,
-            evidence: payload.descricao
-        } as any);
-
-        await notifyTaskCreated(payload.titulo, payload.departamento, payload.responsavel_email, newInc.id);
-    }
-
-    // --- PLAYBOOK TASKS LOGIC ---
-    if (payload.playbook_id) {
-        const steps = await playbookStepService.listByPlaybook(payload.playbook_id);
-        const depts = await departmentService.list();
-
-        for (const step of steps) {
-            // Calculate Due Date based on Unit
-            const slaVal = step.sla_days;
-            const unit = step.sla_unit || 'days';
-            const offsetMs = unit === 'hours' ? slaVal * 3600000 : slaVal * 86400000;
-            const dueDate = new Date(Date.now() + offsetMs).toISOString();
-
-            const deptId = depts.find(d => d.name === step.department_name)?.id;
+    try {
+        // --- QUICK TASK LOGIC ---
+        if (payload.tipo === 'Task') {
+            const depts = await departmentService.list();
+            const deptId = depts.find(d => d.id === payload.departamento || d.name?.toLowerCase() === payload.departamento?.toLowerCase())?.id;
 
             await incidentTaskService.create({
                 incident_id: newInc.id,
-                title: step.task_title,
+                title: payload.titulo, // Task inherits Incident Title
                 department_id: deptId,
-                step_order: step.step_order,
-                status: 'Pendente',
-                due_at: dueDate,
-                sla_days: slaVal
+                step_order: 1,
+                status: 'Pendente', // Service maps to 'open'
+                due_at: payload.prazo || new Date().toISOString(),
+                sla_days: payload.sla || 1,
+                scheduled_for: payload.scheduled_for,
+                assigned_to: payload.responsavel_email,
+                created_by: payload.created_by,
+                evidence: payload.descricao
             } as any);
 
-            await notifyTaskCreated(step.task_title, step.department_name, undefined, newInc.id);
+            await notifyTaskCreated(payload.titulo, payload.departamento, payload.responsavel_email, newInc.id);
         }
+
+        // --- PLAYBOOK TASKS LOGIC ---
+        if (payload.playbook_id) {
+            const steps = await playbookStepService.listByPlaybook(payload.playbook_id);
+            const depts = await departmentService.list();
+
+            for (const step of steps) {
+                // Calculate Due Date based on Unit
+                const slaVal = step.sla_days;
+                const unit = step.sla_unit || 'days';
+                const offsetMs = unit === 'hours' ? slaVal * 3600000 : slaVal * 86400000;
+                const dueDate = new Date(Date.now() + offsetMs).toISOString();
+
+                const deptId = depts.find(d => d.name === step.department_name)?.id;
+
+                await incidentTaskService.create({
+                    incident_id: newInc.id,
+                    title: step.task_title,
+                    department_id: deptId,
+                    step_order: step.step_order,
+                    status: 'Pendente',
+                    due_at: dueDate,
+                    sla_days: slaVal
+                } as any);
+
+                await notifyTaskCreated(step.task_title, step.department_name, undefined, newInc.id);
+            }
+        }
+    } catch (err) {
+        console.error("Task creation failed, rolling back incident:", err);
+        try {
+            await incidentService.delete(newInc.id);
+        } catch (delErr) {
+            console.error("Rollback failed:", delErr);
+        }
+        throw err;
     }
 
     return getIncidencia(newInc.id);
