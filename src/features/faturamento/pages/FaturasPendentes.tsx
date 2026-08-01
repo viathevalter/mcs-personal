@@ -808,7 +808,7 @@ MCS - Gestão Comercial`;
         useCORS: true
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -822,13 +822,13 @@ MCS - Gestão Comercial`;
       let heightLeft = imgHeight;
       let position = 0;
       
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= 210;
       
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= 210;
       }
       
@@ -1529,7 +1529,7 @@ MCS - Gestão Comercial`;
         useCORS: true
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       
       // Standard a4 landscape is 297mm x 210mm
       const pdf = new jsPDF({
@@ -1545,13 +1545,13 @@ MCS - Gestão Comercial`;
       let heightLeft = imgHeight;
       let position = 0;
       
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= 210;
       
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= 210;
       }
       
@@ -1582,7 +1582,7 @@ MCS - Gestão Comercial`;
         useCORS: true
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       
       // Standard A4 portrait is 210mm x 297mm
       const pdf = new jsPDF({
@@ -1594,7 +1594,7 @@ MCS - Gestão Comercial`;
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
       
       const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
       pdf.save(filename);
