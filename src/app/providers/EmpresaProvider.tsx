@@ -4,6 +4,8 @@ import { useEmpresas } from '@/shared/hooks/useEmpresas';
 import type { Empresa } from '@/shared/types/coreCommon';
 import type { AppRole, UserMembership } from '@/shared/rbac/roles';
 import { isHoldingId, getEffectiveEmpresaId } from '@/shared/utils/empresaUtils';
+import { useRole } from '@/app/providers/RoleProvider';
+
 
 interface EmpresaContextType {
     selectedEmpresaId: string | null;
@@ -25,9 +27,16 @@ export function EmpresaProvider({ children }: { children: React.ReactNode }) {
 
     const { data: membershipData, isLoading: membershipLoading } = useMyMemberships();
     const { data: empresasData, isLoading: empresasLoading } = useEmpresas();
+    const { role: globalRole } = useRole();
 
     const memberships = membershipData?.memberships || [];
-    const empresas = empresasData || [];
+    const rawEmpresas = empresasData || [];
+
+    // Filter available companies based on user memberships (non-super-admins only see their linked companies)
+    const empresas = globalRole === 'super_admin'
+        ? rawEmpresas
+        : rawEmpresas.filter(e => memberships.some(m => m.empresa_id === e.id));
+
 
     // Watch for changes and save to local storage
     useEffect(() => {

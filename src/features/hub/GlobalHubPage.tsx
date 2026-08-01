@@ -39,7 +39,7 @@ const MODULES: ModuleDef[] = [
         path: '/master-data',
         color: 'text-orange-500',
         bgHover: 'hover:bg-orange-50',
-        allowedRoles: ['admin', 'commercial']
+        allowedRoles: ['admin', 'commercial', 'rh']
     },
     {
         id: 'comercial',
@@ -84,7 +84,7 @@ const MODULES: ModuleDef[] = [
         path: '/logistica',
         color: 'text-emerald-500',
         bgHover: 'hover:bg-emerald-50',
-        allowedRoles: ['admin', 'operacoes']
+        allowedRoles: ['admin', 'operacoes', 'rh']
     },
     {
         id: 'almacen',
@@ -93,7 +93,7 @@ const MODULES: ModuleDef[] = [
         path: '/almacen',
         color: 'text-emerald-600',
         bgHover: 'hover:bg-emerald-50',
-        allowedRoles: ['admin', 'operacoes']
+        allowedRoles: ['admin', 'operacoes', 'rh']
     },
     {
         id: 'cierre_horas',
@@ -111,7 +111,7 @@ const MODULES: ModuleDef[] = [
         path: '/operacoes',
         color: 'text-indigo-500',
         bgHover: 'hover:bg-indigo-50',
-        allowedRoles: ['admin', 'operacoes']
+        allowedRoles: ['admin', 'operacoes', 'rh']
     },
     {
         id: 'rrhh',
