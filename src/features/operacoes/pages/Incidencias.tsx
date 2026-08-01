@@ -224,6 +224,23 @@ export const Incidencias: React.FC = () => {
         }
     };
 
+    const handleClearAllIncidencias = async () => {
+        if (!window.confirm('Tem certeza que deseja ZERAR e EXCLUIR TODAS as incidências e tarefas de teste? Esta ação não pode ser desfeita.')) return;
+        setLoading(true);
+        try {
+            for (const inc of data) {
+                await deleteIncidencia(inc.id);
+            }
+            await loadData();
+            alert('Todas as incidências e tarefas foram zeradas com sucesso!');
+        } catch (err: any) {
+            console.error(err);
+            alert('Erro ao excluir incidências: ' + (err.message || err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Create Action
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -377,6 +394,16 @@ export const Incidencias: React.FC = () => {
                             <FileText size={16} />
                             <span className="hidden md:inline">{t('incidencias.btn_new_process') || 'Iniciar Processo'}</span>
                         </button>
+                        {data.length > 0 && (
+                            <button
+                                onClick={handleClearAllIncidencias}
+                                className="flex items-center justify-center space-x-2 px-3 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-semibold hover:bg-rose-100 transition-all"
+                                title="Excluir todas as incidências e tarefas"
+                            >
+                                <Trash2 size={16} />
+                                <span className="hidden md:inline">Zerar / Excluir Tudo</span>
+                            </button>
+                        )}
                     </div>
                     <button onClick={() => navigate('/admin/playbooks')} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200" title={t('menu.playbooks')}>
                         <Settings size={20} />
@@ -555,15 +582,13 @@ export const Incidencias: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right flex items-center justify-end h-full gap-2">
-                                                    {user?.id === row.criado_por_nome && (
-                                                        <button
-                                                            onClick={(e) => handleDeleteIncidencia(e, row.id)}
-                                                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                                                            title="Excluir Incidência"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={(e) => handleDeleteIncidencia(e, row.id)}
+                                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                        title="Excluir Incidência"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                     <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
                                                 </td>
                                             </tr>
