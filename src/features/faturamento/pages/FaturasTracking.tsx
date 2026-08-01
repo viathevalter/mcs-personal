@@ -97,6 +97,42 @@ export function FaturasTracking() {
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [sendEmailCheckbox, setSendEmailCheckbox] = useState(true);
   const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+
+  const [emailCache, setEmailCache] = useState<Record<string, {
+    selectedEmails: string[];
+    additionalEmails: string;
+    sendEmailCheckbox: boolean;
+    emailLanguage: 'pt' | 'es' | 'en';
+    subject: string;
+    body: string;
+  }>>({});
+
+  const updateEmailCache = (faturaId: string, updates: Partial<{
+    selectedEmails: string[];
+    additionalEmails: string;
+    sendEmailCheckbox: boolean;
+    emailLanguage: 'pt' | 'es' | 'en';
+    subject: string;
+    body: string;
+  }>) => {
+    setEmailCache(prev => {
+      const current = prev[faturaId] || {
+        selectedEmails: [],
+        additionalEmails: '',
+        sendEmailCheckbox: true,
+        emailLanguage: 'pt',
+        subject: '',
+        body: ''
+      };
+      return {
+        ...prev,
+        [faturaId]: {
+          ...current,
+          ...updates
+        }
+      };
+    });
+  };
   const [isEmailAcceptance, setIsEmailAcceptance] = useState<boolean>(false);
   const [currentEmailFatura, setCurrentEmailFatura] = useState<any | null>(null);
   const [emailHours, setEmailHours] = useState<any[]>([]);
@@ -943,6 +979,9 @@ MCS - Gestão Comercial`;
     if (currentEmailFatura) {
       const { subject, body } = generateEmailContent(currentEmailFatura, isEmailAcceptance, lang);
       setEmailData(prev => prev ? { ...prev, subject, body } : null);
+      if (currentEmailFatura.id) {
+        updateEmailCache(currentEmailFatura.id, { emailLanguage: lang, subject, body });
+      }
     }
   };
 
@@ -1002,28 +1041,60 @@ MCS - Gestão Comercial`;
         defaultEmails.push(cEmail);
       }
 
-      setSelectedEmails(defaultEmails);
-      setAdditionalEmails("");
-      setSendEmailCheckbox(true);
+      const cached = emailCache[fatura.id];
+      if (cached) {
+        setSelectedEmails(cached.selectedEmails);
+        setAdditionalEmails(cached.additionalEmails);
+        setSendEmailCheckbox(cached.sendEmailCheckbox);
+        setEmailLanguage(cached.emailLanguage);
 
-      const adj = fatura.ajustes_json || {};
+        setEmailData({
+          faturaId: fatura.id,
+          clientId: fatura.client_id,
+          clientName: clientName,
+          recipientEmail: cached.selectedEmails.join(", "),
+          subject: cached.subject,
+          body: cached.body,
+          token: fatura.magic_link_token,
+          totalHoras: fatura.total_horas,
+          totalValor: fatura.total_valor,
+          ajustesJson: adj,
+          dataEmissao: fatura.data_emissao,
+          paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
+          paymentTermDays: fatura.client?.paymentTermDays || 0,
+          fatura
+        });
+      } else {
+        setSelectedEmails(defaultEmails);
+        setAdditionalEmails("");
+        setSendEmailCheckbox(true);
 
-      setEmailData({
-        faturaId: fatura.id,
-        clientId: fatura.client_id,
-        clientName: clientName,
-        recipientEmail: defaultEmails.join(", "),
-        subject,
-        body,
-        token: fatura.magic_link_token,
-        totalHoras: fatura.total_horas,
-        totalValor: fatura.total_valor,
-        ajustesJson: adj,
-        dataEmissao: fatura.data_emissao,
-        paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
-        paymentTermDays: fatura.client?.paymentTermDays || 0,
-        fatura
-      });
+        setEmailData({
+          faturaId: fatura.id,
+          clientId: fatura.client_id,
+          clientName: clientName,
+          recipientEmail: defaultEmails.join(", "),
+          subject,
+          body,
+          token: fatura.magic_link_token,
+          totalHoras: fatura.total_horas,
+          totalValor: fatura.total_valor,
+          ajustesJson: adj,
+          dataEmissao: fatura.data_emissao,
+          paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
+          paymentTermDays: fatura.client?.paymentTermDays || 0,
+          fatura
+        });
+
+        updateEmailCache(fatura.id, {
+          selectedEmails: defaultEmails,
+          additionalEmails: "",
+          sendEmailCheckbox: true,
+          emailLanguage: defaultLang,
+          subject,
+          body
+        });
+      }
       
       toast.dismiss(toastId);
       setIsEmailModalOpen(true);
@@ -2190,7 +2261,12 @@ MCS - Gestão Comercial`;
                       type="checkbox"
                       id="send_email_chk_billing_tracking"
                       checked={sendEmailCheckbox}
-                      onChange={e => setSendEmailCheckbox(e.target.checked)}
+                      onChange={e => {
+                        setSendEmailCheckbox(e.target.checked);
+                        if (emailData?.faturaId) {
+                          updateEmailCache(emailData.faturaId, { sendEmailCheckbox: e.target.checked });
+                        }
+                      }}
                       className="h-4.5 w-4.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                     <label htmlFor="send_email_chk_billing_tracking" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
@@ -2229,9 +2305,17 @@ MCS - Gestão Comercial`;
                                 checked={selectedEmails.includes(opt.email)}
                                 onChange={e => {
                                   if (e.target.checked) {
-                                    setSelectedEmails(prev => [...prev, opt.email]);
+                                    const next = [...selectedEmails, opt.email];
+                                    setSelectedEmails(next);
+                                    if (emailData?.faturaId) {
+                                      updateEmailCache(emailData.faturaId, { selectedEmails: next });
+                                    }
                                   } else {
-                                    setSelectedEmails(prev => prev.filter(email => email !== opt.email));
+                                    const next = selectedEmails.filter(email => email !== opt.email);
+                                    setSelectedEmails(next);
+                                    if (emailData?.faturaId) {
+                                      updateEmailCache(emailData.faturaId, { selectedEmails: next });
+                                    }
                                   }
                                 }}
                                 className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
@@ -2247,7 +2331,12 @@ MCS - Gestão Comercial`;
                         <label className="text-slate-500 dark:text-slate-400">E-mails Adicionais (separados por vírgula)</label>
                         <Input
                           value={additionalEmails}
-                          onChange={e => setAdditionalEmails(e.target.value)}
+                          onChange={e => {
+                            setAdditionalEmails(e.target.value);
+                            if (emailData?.faturaId) {
+                              updateEmailCache(emailData.faturaId, { additionalEmails: e.target.value });
+                            }
+                          }}
                           placeholder="financeiro@empresa.com, diretoria@empresa.com"
                           className="h-9 text-xs dark:bg-slate-950 dark:border-slate-800"
                         />
@@ -2258,7 +2347,12 @@ MCS - Gestão Comercial`;
                         <label className="text-slate-500 dark:text-slate-400">Assunto do E-mail</label>
                         <Input
                           value={emailData.subject}
-                          onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
+                          onChange={(e) => {
+                            setEmailData({ ...emailData, subject: e.target.value });
+                            if (emailData?.faturaId) {
+                              updateEmailCache(emailData.faturaId, { subject: e.target.value });
+                            }
+                          }}
                           placeholder="Assunto do e-mail"
                           className="h-9 text-xs font-bold dark:bg-slate-950 dark:border-slate-800"
                         />
@@ -2269,7 +2363,12 @@ MCS - Gestão Comercial`;
                         <label className="text-slate-500 dark:text-slate-400">Corpo do E-mail</label>
                         <Textarea
                           value={emailData.body}
-                          onChange={(e) => setEmailData({ ...emailData, body: e.target.value })}
+                          onChange={(e) => {
+                            setEmailData({ ...emailData, body: e.target.value });
+                            if (emailData?.faturaId) {
+                              updateEmailCache(emailData.faturaId, { body: e.target.value });
+                            }
+                          }}
                           className="min-h-[200px] text-xs resize-y font-mono font-medium leading-relaxed dark:bg-slate-950 dark:border-slate-800"
                         />
                       </div>
