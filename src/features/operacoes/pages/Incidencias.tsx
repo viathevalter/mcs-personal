@@ -126,19 +126,36 @@ export const Incidencias: React.FC = () => {
             supabase.from('mcs_users').select('*')
         ]).then(([emps, mcsUsersRes]) => {
             const mcsUsers = mcsUsersRes.data || [];
-            const merged = [...emps];
+            const mapByEmail = new Map<string, any>();
+
+            // 1. Add department members (prefers full name)
+            for (const emp of emps) {
+                const email = (emp.correoempresarial || '').trim().toLowerCase();
+                if (email && email.includes('@')) {
+                    mapByEmail.set(email, emp);
+                } else if (emp.usuario) {
+                    mapByEmail.set(emp.usuario.trim().toLowerCase(), emp);
+                }
+            }
+
+            // 2. Merge mcs_users only if email not already present
             for (const u of mcsUsers) {
-                if (u.email && !merged.some(e => e.correoempresarial?.toLowerCase() === u.email?.toLowerCase())) {
-                    merged.push({
+                const email = (u.email || '').trim().toLowerCase();
+                if (email && !mapByEmail.has(email)) {
+                    mapByEmail.set(email, {
                         id: u.id,
                         department_id: u.department_id || 'Financeiro',
                         active: true,
                         nombrecompleto: u.full_name || u.email.split('@')[0],
                         correoempresarial: u.email
-                    } as any);
+                    });
                 }
             }
-            setEmployees(merged);
+
+            const uniqueList = Array.from(mapByEmail.values()).sort((a, b) => 
+                (a.nombrecompleto || '').localeCompare(b.nombrecompleto || '')
+            );
+            setEmployees(uniqueList);
         }).catch(err => console.error("Error loading employees/users:", err));
     }, [activeTab, statusFilter, impactoFilter, user]);
 
