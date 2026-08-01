@@ -57,14 +57,15 @@ export const supabaseTaskService = {
     },
 
     create: async (task: Partial<IncidentTask>): Promise<IncidentTask> => {
-        let currentUserId = task.created_by;
+        let currentUserId: string | undefined = undefined;
+        try {
+            const { data } = await supabase.auth.getUser();
+            currentUserId = data.user?.id;
+        } catch {
+            // fallback below
+        }
         if (!currentUserId) {
-            try {
-                const { data } = await supabase.auth.getUser();
-                currentUserId = data.user?.id;
-            } catch {
-                // ignore
-            }
+            currentUserId = task.created_by;
         }
 
         const dbPayload: any = {
