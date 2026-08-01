@@ -7,12 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, ArrowRight, History, CalendarDays } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Label } from '@/components/ui/label';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 export function MovementHistoryPage() {
+    const { selectedEmpresaId } = useEmpresa();
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
     const { data: history, isLoading, isError } = useGlobalMovementHistory({
+        empresaId: selectedEmpresaId || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined
     });
