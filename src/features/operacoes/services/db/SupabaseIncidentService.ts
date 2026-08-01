@@ -55,7 +55,7 @@ export const supabaseIncidentService = {
             description: incident.description,
             status: mapStatusToDb(incident.status),
             incident_type: incident.incident_type,
-            context_json: JSON.parse(contextJson),
+            context_json: fullContext,
 
             origin_system: incident.context?.origin?.system,
             origin_ref: incident.context?.origin?.ref,
