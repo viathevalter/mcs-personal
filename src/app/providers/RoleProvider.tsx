@@ -26,6 +26,13 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
+            const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com'];
+            if (session.user.email && superAdminEmails.includes(session.user.email.toLowerCase())) {
+                setRole('super_admin');
+                setLoadingRole(false);
+                return;
+            }
+
             const { data: roleData } = await supabase
                 .from('user_roles')
                 .select('role')
@@ -50,12 +57,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com'];
-            if (session.user.email && superAdminEmails.includes(session.user.email.toLowerCase())) {
-                setRole('super_admin');
-            } else {
-                setRole('visualizador');
-            }
+            setRole('visualizador');
         } catch (err) {
             console.error("Exception fetching user role:", err);
             setRole('visualizador');
