@@ -119,7 +119,26 @@ export const Incidencias: React.FC = () => {
         loadData();
         getActivePlaybooks().then(setPlaybooks);
         listDepartments().then(setDepartments);
-        supabaseEmployeeService.list().then(setEmployees);
+
+        Promise.all([
+            supabaseEmployeeService.list(),
+            supabase.from('mcs_users').select('*')
+        ]).then(([emps, mcsUsersRes]) => {
+            const mcsUsers = mcsUsersRes.data || [];
+            const merged = [...emps];
+            for (const u of mcsUsers) {
+                if (u.email && !merged.some(e => e.correoempresarial?.toLowerCase() === u.email?.toLowerCase())) {
+                    merged.push({
+                        id: u.id,
+                        department_id: u.department_id || 'Financeiro',
+                        active: true,
+                        nombrecompleto: u.full_name || u.email.split('@')[0],
+                        correoempresarial: u.email
+                    } as any);
+                }
+            }
+            setEmployees(merged);
+        }).catch(err => console.error("Error loading employees/users:", err));
     }, [activeTab, statusFilter, impactoFilter, user]);
 
     // Handle Origin Item Selection
@@ -850,9 +869,14 @@ export const Incidencias: React.FC = () => {
                                                     }}
                                                 >
                                                     <option value="">Não atribuir</option>
-                                                    {employees.filter(e => e.active && e.correoempresarial).map(emp => (
-                                                        <option key={emp.id} value={emp.correoempresarial}>{emp.nombrecompleto}</option>
-                                                    ))}
+                                                    {employees.filter(e => e.active !== false && (e.correoempresarial || e.nombrecompleto)).map(emp => {
+                                                        const emailVal = emp.correoempresarial || emp.usuario || `${emp.nombrecompleto.toLowerCase().replace(/\s+/g, '.')}@mastercorp.es`;
+                                                        return (
+                                                            <option key={emp.id} value={emailVal}>
+                                                                {emp.nombrecompleto} ({emailVal})
+                                                            </option>
+                                                        );
+                                                    })}
                                                 </select>
                                             </div>
                                         </div>
@@ -1003,9 +1027,14 @@ export const Incidencias: React.FC = () => {
                                                     }}
                                                 >
                                                     <option value="">Não atribuir</option>
-                                                    {employees.filter(e => e.active && e.correoempresarial).map(emp => (
-                                                        <option key={emp.id} value={emp.correoempresarial}>{emp.nombrecompleto}</option>
-                                                    ))}
+                                                    {employees.filter(e => e.active !== false && (e.correoempresarial || e.nombrecompleto)).map(emp => {
+                                                        const emailVal = emp.correoempresarial || emp.usuario || `${emp.nombrecompleto.toLowerCase().replace(/\s+/g, '.')}@mastercorp.es`;
+                                                        return (
+                                                            <option key={emp.id} value={emailVal}>
+                                                                {emp.nombrecompleto} ({emailVal})
+                                                            </option>
+                                                        );
+                                                    })}
                                                 </select>
                                             </div>
                                         </div>
