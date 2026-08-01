@@ -79,7 +79,7 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
 
     // Assigned Users
     const assignedEmails = Array.from(new Set(tasks.map((t: any) => t.assigned_to_email || t.assigned_to).filter(Boolean)));
-    const primaryAssignedEmail = assignedEmails.length > 0 ? (assignedEmails[0] as string) : undefined;
+    const primaryAssignedEmail = assignedEmails.length > 0 ? (assignedEmails[0] as string) : (ctx?.extra?.responsavel_email || (inc as any).responsavel_email || (inc as any).atribuido_a_email);
 
     return {
         id: inc.id,

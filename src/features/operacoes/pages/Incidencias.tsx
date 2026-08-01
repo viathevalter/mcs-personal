@@ -286,7 +286,9 @@ export const Incidencias: React.FC = () => {
                 // Build Manual Context (Shared logic for Process Manual & Quick Task)
                 finalContext = {
                     origin: { system: 'supabase', table: 'incidents', label: 'Manual Creation' },
-                    extra: {}
+                    extra: {
+                        responsavel_email: baseForm.responsavel_email
+                    }
                 };
 
                 // Use manualSel for both modes
