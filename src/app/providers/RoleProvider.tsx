@@ -26,7 +26,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com'];
+            const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com', 'kawan@gestaologinpro.com', 'lucia@gestaologinpro.com'];
             if (session.user.email && superAdminEmails.includes(session.user.email.toLowerCase())) {
                 setRole('super_admin');
                 setLoadingRole(false);
