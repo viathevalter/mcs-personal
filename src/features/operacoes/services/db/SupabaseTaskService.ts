@@ -80,8 +80,6 @@ export const supabaseTaskService = {
         };
 
         if (task.department_id) dbPayload.department_id = task.department_id;
-        if (currentUserId) dbPayload.created_by = currentUserId;
-        if (task.evidence) dbPayload.evidence = task.evidence;
 
         // Resilient insert helper that strips unknown columns if PostgREST errors
         const attemptInsert = async (payload: any): Promise<any> => {

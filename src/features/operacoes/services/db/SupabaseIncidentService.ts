@@ -42,10 +42,10 @@ export const supabaseIncidentService = {
                 impacto: incident.impacto
             }
         };
-        let currentUserId: string | undefined = undefined;
+        let currentUserEmail: string | undefined = undefined;
         try {
             const { data: authData } = await supabase.auth.getUser();
-            currentUserId = authData.user?.id;
+            currentUserEmail = authData.user?.email;
         } catch {
             // ignore
         }
@@ -58,10 +58,11 @@ export const supabaseIncidentService = {
             context_json: fullContext
         };
 
+        if (currentUserEmail) dbPayload.created_by_email = currentUserEmail;
         if (incident.context?.origin?.system) dbPayload.origin_system = incident.context.origin.system;
         if (incident.context?.origin?.ref) dbPayload.origin_ref = String(incident.context.origin.ref);
         
-        // Parse integer sp_ids safely to avoid PostgreSQL 22P02 error
+        // Parse integer sp_ids safely
         const cSpId = parseInt(String(incident.context?.client?.sp_id), 10);
         if (!isNaN(cSpId)) dbPayload.client_sp_id = cSpId;
 
@@ -80,17 +81,17 @@ export const supabaseIncidentService = {
             if (!error) return data;
 
             if (error.code === 'PGRST204' || error.message?.toLowerCase().includes('column')) {
-                console.warn("Schema error in mcs_incidents, retrying without optional columns:", error.message);
-                const cleaned = { ...payload };
-                delete cleaned.created_by;
-                delete cleaned.client_sp_id;
-                delete cleaned.worker_sp_id;
-                delete cleaned.pedido_sp_id;
-                delete cleaned.origin_system;
-                delete cleaned.origin_ref;
+                console.warn("Schema error in mcs_incidents, retrying minimal payload:", error.message);
+                const minimal = {
+                    title: payload.title,
+                    description: payload.description,
+                    status: payload.status,
+                    incident_type: payload.incident_type,
+                    context_json: payload.context_json
+                };
                 const { data: retryData, error: retryErr } = await supabase
                     .from('mcs_incidents')
-                    .insert(cleaned)
+                    .insert(minimal)
                     .select()
                     .single();
                 if (!retryErr) return retryData;
@@ -99,8 +100,7 @@ export const supabaseIncidentService = {
         };
 
         try {
-            const insertPayload = currentUserId ? { ...dbPayload, created_by: currentUserId } : dbPayload;
-            const resultData = await attemptInsert(insertPayload);
+            const resultData = await attemptInsert(dbPayload);
             return mapToModel(resultData);
         } catch (err: any) {
             console.warn("Error inserting incident into Supabase, using resilient fallback:", err);
