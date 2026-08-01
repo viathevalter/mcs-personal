@@ -95,15 +95,24 @@ export const Incidencias: React.FC = () => {
                 // --- ADMIN DATA ISOLATION ---
                 if (user && !user.isSuperAdmin && user.isAdmin) {
                     const managed = user.profile?.managed_departments || [];
+                    const userEmail = (user.email || '').trim().toLowerCase();
+
                     res = res.filter(inc => {
-                        // Allow if admin created the incident
-                        if (inc.criado_por_nome === user.email) return true;
+                        // 1. Allow if admin created the incident
+                        if (inc.criado_por_nome?.toLowerCase() === userEmail) return true;
 
-                        // Check if the incident involves any managed department
+                        // 2. Allow if ANY task inside the incident is assigned to this user
+                        if (inc.responsavel_email?.toLowerCase() === userEmail) return true;
+                        if (inc.tarefas?.some(t => {
+                            const resp = (t.responsavel_email || '').trim().toLowerCase();
+                            return resp === userEmail || (userEmail && resp.includes(userEmail.split('@')[0]));
+                        })) return true;
+
+                        // 3. Check if the incident involves any managed department
                         const involved = inc.departamentos_envolvidos || [];
-                        if (involved.length === 0) return false;
+                        if (involved.length > 0 && involved.some(d => managed.includes(d))) return true;
 
-                        return involved.some(d => managed.includes(d));
+                        return false;
                     });
                 }
 
