@@ -70,12 +70,9 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
     const nextDue = openTasks.length > 0 ? openTasks[0] : null;
     const diff = nextDue ? Math.ceil((new Date(nextDue).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : 999;
 
-    // Map Context to Legacy UI Fields
-    const ctx = inc.context as IncidentContext;
-    const clienteName = ctx?.client?.name || inc.cliente || '';
-    const empresaName = ctx?.company?.name || inc.empresa || '';
-    const comercialName = ctx?.extra?.comercial || inc.comercial || '';
-    const originCode = ctx?.origin?.ref || ctx?.origin?.label || inc.origem_codigo || '';
+    // Assigned Users
+    const assignedEmails = Array.from(new Set(tasks.map((t: any) => t.assigned_to_email || t.assigned_to).filter(Boolean)));
+    const primaryAssignedEmail = assignedEmails.length > 0 ? (assignedEmails[0] as string) : undefined;
 
     return {
         id: inc.id,
@@ -97,6 +94,7 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
         // Legacy Mapped
         origem_codigo: originCode,
         criado_por_nome: inc.criado_por_nome,
+        atribuido_a_email: primaryAssignedEmail,
         cliente: clienteName,
         empresa: empresaName,
         comercial: comercialName,

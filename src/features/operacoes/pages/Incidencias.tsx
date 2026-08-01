@@ -506,14 +506,15 @@ export const Incidencias: React.FC = () => {
                                     <th className="px-6 py-4 w-20">{t('incidencias.table.id')}</th>
                                     <th className="px-6 py-4 w-40">{t('incidencias.table.status')}</th>
                                     <th className="px-6 py-4">{t('incidencias.table.titulo')}</th>
-                                    <th className="px-6 py-4 w-48">{t('incidencias.table.criado_por')}</th>
-                                    <th className="px-6 py-4 w-40">{t('incidencias.table.dept_impacto')}</th>
-                                    <th className="px-6 py-4 w-40">{t('incidencias.table.progresso')}</th>
+                                    <th className="px-6 py-4 w-44">{t('incidencias.table.criado_por') || 'Criado Por'}</th>
+                                    <th className="px-6 py-4 w-48">Atribuído A</th>
+                                    <th className="px-6 py-4 w-36">{t('incidencias.table.dept_impacto') || 'Depto'}</th>
+                                    <th className="px-6 py-4 w-36">{t('incidencias.table.progresso')}</th>
                                     <th className="px-6 py-4 w-10"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {loading ? <tr><td colSpan={7} className="p-12 text-center text-slate-500">{t('common.loading')}</td></tr> :
+                                {loading ? <tr><td colSpan={8} className="p-12 text-center text-slate-500">{t('common.loading')}</td></tr> :
                                     filteredIncidencias.map((row) => {
                                         const statusDisplay = t(`incidencias.status.${row.status}` as any) || row.status;
                                         const impactDisplay = t(`incidencias.impacto.${row.impacto}` as any) || row.impacto;
@@ -534,8 +535,27 @@ export const Incidencias: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="text-sm text-slate-700 font-medium">{row.origem_tipo}</div>
+                                                    <div className="text-sm text-slate-700 dark:text-slate-300 font-medium">{row.origem_tipo}</div>
                                                     <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><User size={12} /> {row.criado_por_nome || 'N/A'}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {row.atribuido_a_email ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800 shrink-0 shadow-sm">
+                                                                {row.atribuido_a_email.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                                                    {row.atribuido_a_email.split('@')[0]}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 truncate">
+                                                                    {row.atribuido_a_email}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400 italic">Não atribuído</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-wrap gap-1">

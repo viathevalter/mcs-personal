@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Calendar, CheckSquare, MessageSquare, Send, Plus,
-    User, FileText, CheckCircle, Save, X, Play, Clock, AlertCircle, Edit, Trash2
+    User, FileText, CheckCircle, Save, X, Play, Clock, AlertCircle, Edit, Trash2, Briefcase
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -438,6 +438,58 @@ export const IncidenciaDetail: React.FC = () => {
                                 {t('incidencias.detail.closed')}: {new Date(incidencia.data_fechamento).toLocaleDateString()}
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* MANAGEMENT SUMMARY BAR */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 my-4 shadow-sm">
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg">
+                            <User size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Atribuído A</div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                {(incidencia.atribuido_a_email || (tarefas.length > 0 && tarefas[0].responsavel_email)) ? (
+                                    incidencia.atribuido_a_email || tarefas[0].responsavel_email
+                                ) : (
+                                    <span className="text-slate-400 italic">Não atribuído</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-lg">
+                            <Briefcase size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Departamento</div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                {tarefas.length > 0 && tarefas[0].departamento ? tarefas[0].departamento : 'Geral'}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                            <User size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Criado Por (Gestor)</div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                {incidencia.criado_por_nome || 'N/A'}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-lg">
+                            <Clock size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Progresso</div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                {incidencia.progresso_pct || 0}% ({incidencia.tarefas_concluidas || 0}/{incidencia.tarefas_totais || tarefas.length})
+                            </div>
+                        </div>
                     </div>
                 </div>
 

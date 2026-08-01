@@ -144,14 +144,19 @@ export const Tasks: React.FC = () => {
         if (!emailOrName || !effectiveUser) return false;
         const target = emailOrName.trim().toLowerCase();
         const myEmail = (effectiveUser.email || '').trim().toLowerCase();
-        const myName = (effectiveUser.name || '').trim().toLowerCase();
-        const myUsername = myEmail.split('@')[0];
+        const myName = (effectiveUser.name || effectiveUser.profile?.full_name || user?.user_metadata?.full_name || '').trim().toLowerCase();
+        const myUsername = myEmail ? myEmail.split('@')[0] : '';
 
         if (myEmail && target === myEmail) return true;
+        if (myEmail && target.includes(myEmail)) return true;
         if (myUsername && target.includes(myUsername)) return true;
         if (myUsername && myUsername.includes(target.split('@')[0])) return true;
         if (myName && target.includes(myName)) return true;
         if (myName && myName.includes(target)) return true;
+
+        const firstName = myName ? myName.split(' ')[0] : '';
+        if (firstName && firstName.length > 2 && target.includes(firstName)) return true;
+
         return false;
     };
 

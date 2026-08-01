@@ -164,6 +164,8 @@ export interface Incidencia {
 
   // Relations (Denormalized for list view or joins)
   responsavel_id?: string;
+  atribuido_a_email?: string;
+  atribuido_a_nome?: string;
   criado_por?: string;        // Email/Login
   criado_por_nome?: string;   // Nome exibível
   cliente?: string;
