@@ -103,6 +103,17 @@ export const supabaseIncidentService = {
     },
 
     delete: async (id: string): Promise<void> => {
+        // 1. Delete associated tasks first to prevent FK constraint issues
+        try {
+            await supabase
+                .from('mcs_incident_tasks')
+                .delete()
+                .eq('incident_id', id);
+        } catch (taskErr) {
+            console.warn('Error deleting associated tasks:', taskErr);
+        }
+
+        // 2. Delete the incident
         const { error } = await supabase
             .from('mcs_incidents')
             .delete()

@@ -211,14 +211,14 @@ export const Incidencias: React.FC = () => {
 
     const handleDeleteIncidencia = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation(); // Evitar navegar p/ detalhe da incidência
-        if (!window.confirm('Tem certeza que deseja excluir toda essa incidência e suas tarefas?')) return;
+        if (!window.confirm('Tem certeza que deseja excluir esta incidência e suas tarefas?')) return;
         setLoading(true);
         try {
             await deleteIncidencia(id);
             await loadData();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert('Erro ao excluir incidência');
+            alert('Erro ao excluir incidência: ' + (err.message || JSON.stringify(err)));
         } finally {
             setLoading(false);
         }
@@ -229,13 +229,17 @@ export const Incidencias: React.FC = () => {
         setLoading(true);
         try {
             for (const inc of data) {
-                await deleteIncidencia(inc.id);
+                try {
+                    await deleteIncidencia(inc.id);
+                } catch (e) {
+                    console.error('Erro ao excluir item:', inc.id, e);
+                }
             }
             await loadData();
-            alert('Todas as incidências e tarefas foram zeradas com sucesso!');
+            alert('Processo de exclusão concluído!');
         } catch (err: any) {
             console.error(err);
-            alert('Erro ao excluir incidências: ' + (err.message || err));
+            alert('Erro ao zerar incidências: ' + (err.message || err));
         } finally {
             setLoading(false);
         }
