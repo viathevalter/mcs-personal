@@ -64,18 +64,44 @@ export const supabaseIncidentService = {
             pedido_sp_id: incident.context?.pedido?.sp_id,
         };
 
+        let resultData: any = null;
+
         if (currentUserId) {
-            dbPayload.created_by = currentUserId;
+            const { data, error } = await supabase
+                .from('mcs_incidents')
+                .insert({ ...dbPayload, created_by: currentUserId })
+                .select()
+                .single();
+
+            if (error) {
+                if (error.message?.toLowerCase().includes('created_by') || error.code === 'PGRST204') {
+                    console.warn("created_by column not found in mcs_incidents schema cache, retrying without created_by");
+                    const { data: retryData, error: retryError } = await supabase
+                        .from('mcs_incidents')
+                        .insert(dbPayload)
+                        .select()
+                        .single();
+
+                    if (retryError) throw retryError;
+                    resultData = retryData;
+                } else {
+                    throw error;
+                }
+            } else {
+                resultData = data;
+            }
+        } else {
+            const { data, error } = await supabase
+                .from('mcs_incidents')
+                .insert(dbPayload)
+                .select()
+                .single();
+
+            if (error) throw error;
+            resultData = data;
         }
 
-        const { data, error } = await supabase
-            .from('mcs_incidents')
-            .insert(dbPayload)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return mapToModel(data);
+        return mapToModel(resultData);
     },
 
     update: async (id: string, patch: Partial<Incident>): Promise<Incident | null> => {
