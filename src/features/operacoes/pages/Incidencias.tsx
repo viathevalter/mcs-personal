@@ -126,33 +126,71 @@ export const Incidencias: React.FC = () => {
             supabase.from('mcs_users').select('*')
         ]).then(([emps, mcsUsersRes]) => {
             const mcsUsers = mcsUsersRes.data || [];
-            const mapByEmail = new Map<string, any>();
+            const mapByKey = new Map<string, any>();
 
-            // 1. Add department members (prefers full name)
+            const getPersonKey = (item: any) => {
+                const email = (item.correoempresarial || item.email || '').trim().toLowerCase();
+                if (email && email.includes('@')) return email;
+                const nameOrUser = (item.usuario || item.nombrecompleto || item.display_name || '').trim().toLowerCase();
+                if (nameOrUser) return nameOrUser;
+                return item.id;
+            };
+
+            // 1. Process department members
             for (const emp of emps) {
+                const key = getPersonKey(emp);
                 const email = (emp.correoempresarial || '').trim().toLowerCase();
-                if (email && email.includes('@')) {
-                    mapByEmail.set(email, emp);
-                } else if (emp.usuario) {
-                    mapByEmail.set(emp.usuario.trim().toLowerCase(), emp);
-                }
+                mapByKey.set(key, {
+                    ...emp,
+                    nombrecompleto: emp.nombrecompleto || emp.usuario || 'Desconhecido',
+                    correoempresarial: email || (emp.usuario ? `${emp.usuario.toLowerCase()}@gestaologinpro.com` : undefined)
+                });
             }
 
-            // 2. Merge mcs_users only if email not already present
+            // 2. Merge mcs_users (matching email or username)
             for (const u of mcsUsers) {
                 const email = (u.email || '').trim().toLowerCase();
-                if (email && !mapByEmail.has(email)) {
-                    mapByEmail.set(email, {
+                const username = email ? email.split('@')[0] : '';
+                const displayName = u.display_name || u.full_name || username;
+
+                let existingKey = null;
+                if (email && mapByKey.has(email)) existingKey = email;
+                else if (username && mapByKey.has(username)) existingKey = username;
+
+                if (existingKey) {
+                    const existing = mapByKey.get(existingKey);
+                    if (displayName && displayName.length > (existing.nombrecompleto || '').length) {
+                        existing.nombrecompleto = displayName;
+                    }
+                    if (email && !existing.correoempresarial) {
+                        existing.correoempresarial = email;
+                    }
+                } else {
+                    const key = email || username || u.id;
+                    mapByKey.set(key, {
                         id: u.id,
                         department_id: u.department_id || 'Financeiro',
-                        active: true,
-                        nombrecompleto: u.full_name || u.email.split('@')[0],
-                        correoempresarial: u.email
+                        active: u.active ?? true,
+                        nombrecompleto: displayName,
+                        correoempresarial: email
                     });
                 }
             }
 
-            const uniqueList = Array.from(mapByEmail.values()).sort((a, b) => 
+            // 3. Final pass: deduplicate by email so no email appears more than once
+            const finalItems: any[] = [];
+            const seenEmails = new Set<string>();
+
+            for (const item of mapByKey.values()) {
+                const email = item.correoempresarial?.toLowerCase();
+                if (email) {
+                    if (seenEmails.has(email)) continue;
+                    seenEmails.add(email);
+                }
+                finalItems.push(item);
+            }
+
+            const uniqueList = finalItems.sort((a, b) => 
                 (a.nombrecompleto || '').localeCompare(b.nombrecompleto || '')
             );
             setEmployees(uniqueList);
