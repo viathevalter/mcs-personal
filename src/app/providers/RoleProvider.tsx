@@ -26,18 +26,33 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            const { data, error } = await supabase
+            const { data: roleData } = await supabase
                 .from('user_roles')
                 .select('role')
                 .eq('user_id', session.user.id)
-                .single();
+                .maybeSingle();
 
-            if (error) {
-                console.error("Error fetching user role:", error);
-                // Default to visualizador or null if there is an error
-                setRole('visualizador');
-            } else if (data) {
-                setRole(data.role as AppRole);
+            if (roleData?.role) {
+                setRole(roleData.role as AppRole);
+                setLoadingRole(false);
+                return;
+            }
+
+            const { data: mcsUser } = await supabase
+                .from('mcs_users')
+                .select('role')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+            if (mcsUser?.role) {
+                setRole(mcsUser.role as AppRole);
+                setLoadingRole(false);
+                return;
+            }
+
+            const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com'];
+            if (session.user.email && superAdminEmails.includes(session.user.email.toLowerCase())) {
+                setRole('super_admin');
             } else {
                 setRole('visualizador');
             }
