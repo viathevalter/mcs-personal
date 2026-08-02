@@ -16,6 +16,7 @@ import { RichTextEditor } from '../components/ui/RichTextEditor';
 import { FileAttachmentUploader, TaskAttachment } from '../components/ui/FileAttachmentUploader';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { toast } from 'sonner';
 
 import { supabaseEmployeeService } from '../services/db/SupabaseEmployeeService';
 import type { Employee } from '../services/db/SupabaseEmployeeService';
