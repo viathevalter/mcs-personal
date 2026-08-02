@@ -86,41 +86,39 @@ export const Incidencias: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            if (activeTab === 'incidencias' || activeTab === 'resumen') {
-                const filters: any = {};
-                if (statusFilter) filters.status = statusFilter;
-                if (impactoFilter) filters.prioridade = impactoFilter;
-                let res = await listIncidencias(filters);
+            const filters: any = {};
+            if (statusFilter) filters.status = statusFilter;
+            if (impactoFilter) filters.prioridade = impactoFilter;
+            let res = await listIncidencias(filters);
 
-                // --- ADMIN DATA ISOLATION ---
-                if (user && !user.isSuperAdmin && user.isAdmin) {
-                    const managed = user.profile?.managed_departments || [];
-                    const userEmail = (user.email || '').trim().toLowerCase();
+            // --- ADMIN DATA ISOLATION ---
+            if (user && !user.isSuperAdmin && user.isAdmin) {
+                const managed = user.profile?.managed_departments || [];
+                const userEmail = (user.email || '').trim().toLowerCase();
 
-                    res = res.filter(inc => {
-                        // 1. Allow if admin created the incident
-                        if (inc.criado_por_nome?.toLowerCase() === userEmail) return true;
+                res = res.filter(inc => {
+                    // 1. Allow if user created the incident
+                    if (inc.criado_por_nome?.toLowerCase() === userEmail) return true;
 
-                        // 2. Allow if assigned to this user
-                        const assigned = (inc.atribuido_a_email || inc.responsavel_email || '').trim().toLowerCase();
-                        if (assigned === userEmail || (userEmail && assigned.includes(userEmail.split('@')[0]))) return true;
+                    // 2. Allow if assigned to this user
+                    const assigned = (inc.atribuido_a_email || inc.responsavel_email || '').trim().toLowerCase();
+                    if (assigned === userEmail || (userEmail && assigned.includes(userEmail.split('@')[0]))) return true;
 
-                        // 3. Allow if ANY task inside the incident is assigned to this user
-                        if (inc.tarefas?.some((t: any) => {
-                            const resp = (t.responsavel_email || t.assigned_to_email || t.assigned_to || '').trim().toLowerCase();
-                            return resp === userEmail || (userEmail && resp.includes(userEmail.split('@')[0]));
-                        })) return true;
+                    // 3. Allow if ANY task inside the incident is assigned to this user
+                    if (inc.tarefas?.some((t: any) => {
+                        const resp = (t.responsavel_email || t.assigned_to_email || t.assigned_to || '').trim().toLowerCase();
+                        return resp === userEmail || (userEmail && resp.includes(userEmail.split('@')[0]));
+                    })) return true;
 
-                        // 4. Check if the incident involves any managed department
-                        const involved = inc.departamentos_envolvidos || [];
-                        if (involved.length > 0 && involved.some(d => managed.includes(d))) return true;
+                    // 4. Check if the incident involves any managed department
+                    const involved = inc.departamentos_envolvidos || [];
+                    if (involved.length > 0 && involved.some(d => managed.includes(d))) return true;
 
-                        return false;
-                    });
-                }
-
-                setData(res);
+                    return false;
+                });
             }
+
+            setData(res);
         } catch (error) {
             console.error("Failed to load data", error);
         } finally {
@@ -427,6 +425,7 @@ export const Incidencias: React.FC = () => {
             setIsModalOpen(false);
             resetModal();
             await loadData();
+            toast.success("Incidência / Tarefa criada com sucesso!");
 
         } catch (err: any) {
             console.error("Error creating incident/task:", err);
