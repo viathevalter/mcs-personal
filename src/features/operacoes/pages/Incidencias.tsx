@@ -101,14 +101,17 @@ export const Incidencias: React.FC = () => {
                         // 1. Allow if admin created the incident
                         if (inc.criado_por_nome?.toLowerCase() === userEmail) return true;
 
-                        // 2. Allow if ANY task inside the incident is assigned to this user
-                        if (inc.responsavel_email?.toLowerCase() === userEmail) return true;
-                        if (inc.tarefas?.some(t => {
-                            const resp = (t.responsavel_email || '').trim().toLowerCase();
+                        // 2. Allow if assigned to this user
+                        const assigned = (inc.atribuido_a_email || inc.responsavel_email || '').trim().toLowerCase();
+                        if (assigned === userEmail || (userEmail && assigned.includes(userEmail.split('@')[0]))) return true;
+
+                        // 3. Allow if ANY task inside the incident is assigned to this user
+                        if (inc.tarefas?.some((t: any) => {
+                            const resp = (t.responsavel_email || t.assigned_to_email || t.assigned_to || '').trim().toLowerCase();
                             return resp === userEmail || (userEmail && resp.includes(userEmail.split('@')[0]));
                         })) return true;
 
-                        // 3. Check if the incident involves any managed department
+                        // 4. Check if the incident involves any managed department
                         const involved = inc.departamentos_envolvidos || [];
                         if (involved.length > 0 && involved.some(d => managed.includes(d))) return true;
 

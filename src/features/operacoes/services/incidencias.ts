@@ -100,8 +100,9 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
 
         // Legacy Mapped
         origem_codigo: originCode,
-        criado_por_nome: inc.criado_por_nome,
+        criado_por_nome: inc.criado_por_nome || (inc as any).created_by_email,
         atribuido_a_email: primaryAssignedEmail,
+        responsavel_email: primaryAssignedEmail,
         cliente: clienteName,
         empresa: empresaName,
         comercial: comercialName,
@@ -112,6 +113,7 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
         tarefas_concluidas: concluidas,
         sla_dias: diff,
         departamentos_envolvidos: depts,
+        tarefas: await Promise.all(tasks.map(toUiTarefa)),
         tags: []
     };
 };
