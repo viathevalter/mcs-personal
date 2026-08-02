@@ -430,7 +430,13 @@ export const Incidencias: React.FC = () => {
 
         } catch (err: any) {
             console.error("Error creating incident/task:", err);
-            alert(`Erro ao criar incidência: ${err?.message || err || 'Erro desconhecido'}`);
+            const msg = err?.message || String(err) || '';
+            if (msg.toLowerCase().includes('row-level security') || msg.includes('42501')) {
+                alert('As permissões do servidor foram atualizadas no banco! Clique em OK para recarregar a página e continuar.');
+                window.location.reload();
+                return;
+            }
+            alert(`Erro ao criar incidência: ${msg || 'Erro desconhecido'}`);
         } finally {
             setLoading(false);
         }
