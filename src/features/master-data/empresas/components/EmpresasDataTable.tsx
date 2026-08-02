@@ -7,10 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Building, Edit, ArrowUpDown } from 'lucide-react';
 import type { Empresa } from '../types';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export function EmpresasDataTable() {
   const { t } = useTranslation();
-  const { data: empresas = [], isLoading } = useEmpresasList();
+  const { data: rawEmpresas = [], isLoading } = useEmpresasList();
+  const { role: globalRole } = useRole();
+  const { empresas: allowedEmpresas } = useEmpresa();
   const [searchTerm, setSearchTerm] = useState('');
   
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -19,6 +23,10 @@ export function EmpresasDataTable() {
   // Sorting State
   const [sortField, setSortField] = useState<'codigo' | 'nome' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const empresas = globalRole === 'super_admin'
+    ? rawEmpresas
+    : rawEmpresas.filter(re => allowedEmpresas.some(ae => ae.id === re.id));
 
   const filteredEmpresas = empresas.filter(e => 
     (e.nome?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 

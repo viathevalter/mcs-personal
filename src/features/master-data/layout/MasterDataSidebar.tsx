@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
 import type { AppRole } from '@/shared/rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 
 type SidebarLink = {
     to: string;
@@ -28,6 +29,7 @@ export function MasterDataSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { role: globalRole } = useRole();
 
     const links: SidebarLink[] = [
         { to: '/master-data/dashboard', label: t('masterData.sidebar.dashboard', { defaultValue: 'Dashboard' }), icon: LayoutDashboard, roles: ['admin', 'rh', 'commercial'] },
@@ -41,6 +43,13 @@ export function MasterDataSidebar() {
         { to: '/master-data/countries', label: t('masterData.sidebar.paises', { defaultValue: 'Países' }), icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
         { to: '/master-data/regions', label: t('masterData.sidebar.regioes', { defaultValue: 'Regiões' }), icon: MapPin, roles: ['admin', 'rh', 'commercial'] },
     ];
+
+    const filteredLinks = links.filter(link => {
+        if (link.to === '/master-data/empresas') {
+            return globalRole === 'super_admin';
+        }
+        return true;
+    });
 
     return (
         <aside className={cn(
@@ -78,7 +87,7 @@ export function MasterDataSidebar() {
                         </div>
                     )}
                     <nav className="grid items-start px-2 text-sm font-medium gap-1">
-                        {links.map(({ to, label, icon: Icon, roles }) => (
+                        {filteredLinks.map(({ to, label, icon: Icon, roles }) => (
                             <RoleGate key={to} allow={roles}>
                                 <NavLink
                                     to={to}
