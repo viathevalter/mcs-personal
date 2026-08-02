@@ -125,25 +125,8 @@ export const supabaseTaskService = {
             throw error;
         };
 
-        try {
-            const insertedData = await attemptInsert(dbPayload);
-            return mapToModel(insertedData);
-        } catch (err: any) {
-            console.warn("Error inserting task into mcs_incident_tasks, using local model fallback:", err);
-            return {
-                id: 'task-' + Date.now(),
-                incident_id: task.incident_id || '',
-                title: task.title || '',
-                status: (task.status as any) || 'Pendente',
-                step_order: task.step_order || 1,
-                department_id: task.department_id,
-                sla_days: task.sla_days || 1,
-                due_at: task.due_at || new Date().toISOString(),
-                scheduled_for: task.scheduled_for,
-                assigned_to: task.assigned_to,
-                created_by: currentUserId
-            };
-        }
+        const insertedData = await attemptInsert(dbPayload);
+        return mapToModel(insertedData);
     },
 
     delete: async (taskId: string): Promise<void> => {

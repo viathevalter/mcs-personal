@@ -99,24 +99,8 @@ export const supabaseIncidentService = {
             throw error;
         };
 
-        try {
-            const resultData = await attemptInsert(dbPayload);
-            return mapToModel(resultData);
-        } catch (err: any) {
-            console.warn("Error inserting incident into Supabase, using resilient fallback:", err);
-            return {
-                id: 'inc-' + Date.now(),
-                title: incident.title,
-                description: incident.description,
-                status: incident.status || 'Aberto',
-                prioridade: incident.prioridade || 'Media',
-                impacto: incident.impacto || 'Médio',
-                incident_type: incident.incident_type || 'Task',
-                created_at: new Date().toISOString(),
-                context: fullContext,
-                criado_por_nome: incident.criado_por_nome
-            } as any;
-        }
+        const resultData = await attemptInsert(dbPayload);
+        return mapToModel(resultData);
     },
 
     update: async (id: string, patch: Partial<Incident>): Promise<Incident | null> => {
