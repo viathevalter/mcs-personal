@@ -10,6 +10,7 @@ interface MCSUser {
     display_name: string;
     department_id?: string;
     managed_departments?: string[];
+    blocked_modules?: string[];
 }
 
 interface DepartmentMember {
@@ -112,7 +113,8 @@ export const UserManagement: React.FC = () => {
             role: u.role,
             display_name: u.display_name || '',
             employee_id: linkedEmp?.id || '',
-            managed_departments: u.managed_departments || []
+            managed_departments: u.managed_departments || [],
+            blocked_modules: u.blocked_modules || []
         });
 
         // Load existing memberships for this user
@@ -154,10 +156,13 @@ export const UserManagement: React.FC = () => {
             });
             if (authCheckError) throw authCheckError;
 
-            // 1. Update display_name
+            // 1. Update display_name and blocked_modules
             await supabase
                 .from('mcs_users')
-                .update({ display_name: formData.display_name })
+                .update({ 
+                    display_name: formData.display_name,
+                    blocked_modules: formData.blocked_modules || []
+                })
                 .eq('id', userId);
 
             // 2. Update Employee Link
@@ -501,6 +506,45 @@ export const UserManagement: React.FC = () => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Blocked Modules */}
+                            <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
+                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Bloquear Acesso a Módulos</label>
+                                <p className="text-[11px] text-slate-400 mb-3">Marque os módulos que este usuário NÃO deve visualizar ou acessar (mesmo que seja administrador).</p>
+                                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700 max-h-40 overflow-y-auto">
+                                    {[
+                                        { id: 'cadastro', label: 'MCS Registro General' },
+                                        { id: 'comercial', label: 'MCS Comercial' },
+                                        { id: 'facturacion', label: 'MCS Facturacion' },
+                                        { id: 'financeiro', label: 'MCS Financeiro' },
+                                        { id: 'chat', label: 'MCS Chat' },
+                                        { id: 'logistica', label: 'MCS Logistica' },
+                                        { id: 'almacen', label: 'MCS Almacen' },
+                                        { id: 'cierre_horas', label: 'MCS CentralCars' },
+                                        { id: 'operacoes', label: 'MCS Operacoes' },
+                                        { id: 'rrhh', label: 'MCS RRHH' }
+                                    ].map(mod => (
+                                        <label key={mod.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-slate-300 dark:border-slate-600 text-red-600 focus:ring-red-500"
+                                                checked={formData.blocked_modules?.includes(mod.id) || false}
+                                                onChange={(e) => {
+                                                    const current = formData.blocked_modules || [];
+                                                    if (e.target.checked) {
+                                                        setFormData({ ...formData, blocked_modules: [...current, mod.id] });
+                                                    } else {
+                                                        setFormData({ ...formData, blocked_modules: current.filter(id => id !== mod.id) });
+                                                    }
+                                                }}
+                                            />
+                                            <span className={formData.blocked_modules?.includes(mod.id) ? "text-red-500 font-semibold" : ""}>
+                                                {mod.label}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
 
                             {/* Company / Filiais Memberships */}
                             <div className="border-t border-slate-100 dark:border-slate-700 pt-6">

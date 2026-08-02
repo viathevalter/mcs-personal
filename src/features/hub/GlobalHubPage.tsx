@@ -126,7 +126,7 @@ const MODULES: ModuleDef[] = [
 
 export function GlobalHubPage() {
     const { user } = useAuth();
-    const { role: userRole } = useRole();
+    const { role: userRole, blockedModules = [] } = useRole();
     const { data: membershipsData } = useMyMemberships();
     const navigate = useNavigate();
 
@@ -229,7 +229,7 @@ export function GlobalHubPage() {
 
                 {/* Grid de Aplicativos */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
-                    {MODULES.map((module) => {
+                    {MODULES.filter(m => !blockedModules.includes(m.id)).map((module) => {
                         const canAccess = hasAccess(module.allowedRoles);
                         const Icon = module.icon;
 

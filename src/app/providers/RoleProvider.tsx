@@ -6,6 +6,7 @@ type AppRole = 'super_admin' | 'admin_rh' | 'operador' | 'visualizador';
 interface RoleContextType {
     role: AppRole | null;
     loadingRole: boolean;
+    blockedModules: string[];
     refreshRole: () => Promise<void>;
 }
 
@@ -13,6 +14,7 @@ const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
     const [role, setRole] = useState<AppRole | null>(null);
+    const [blockedModules, setBlockedModules] = useState<string[]>([]);
     const [loadingRole, setLoadingRole] = useState(true);
 
     const fetchRole = async () => {
@@ -22,8 +24,22 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
             if (!session?.user) {
                 setRole(null);
+                setBlockedModules([]);
                 setLoadingRole(false);
                 return;
+            }
+
+            // Fetch mcs_users data (role and blocked_modules)
+            const { data: mcsUser } = await supabase
+                .from('mcs_users')
+                .select('role, blocked_modules')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+            if (mcsUser?.blocked_modules) {
+                setBlockedModules(mcsUser.blocked_modules);
+            } else {
+                setBlockedModules([]);
             }
 
             const superAdminEmails = ['valter@gestaologinpro.com', 'valtencir@gestaologinpro.com', 'joao@gestaologinpro.com', 'angie@gestaologinpro.com', 'thalia@gestaologinpro.com', 'nairelis@gestaologinpro.com', 'kawan@gestaologinpro.com', 'lucia@gestaologinpro.com'];
@@ -44,12 +60,6 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 setLoadingRole(false);
                 return;
             }
-
-            const { data: mcsUser } = await supabase
-                .from('mcs_users')
-                .select('role')
-                .eq('id', session.user.id)
-                .maybeSingle();
 
             if (mcsUser?.role) {
                 setRole(mcsUser.role as AppRole);
@@ -75,6 +85,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 fetchRole();
             } else {
                 setRole(null);
+                setBlockedModules([]);
             }
         });
 
@@ -84,7 +95,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     return (
-        <RoleContext.Provider value={{ role, loadingRole, refreshRole: fetchRole }}>
+        <RoleContext.Provider value={{ role, loadingRole, blockedModules, refreshRole: fetchRole }}>
             {children}
         </RoleContext.Provider>
     );
