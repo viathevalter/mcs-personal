@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from '../lib/utils';
 import { fetchObservacoes, saveObservacao, updateContaReceber } from '../data/loader';
 import type { EnrichedTitulo, CobrancaObservacao } from '../types';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '@/features/faturamento/api/faturamentoApi';
 import { 
     Clock, 
     FileText, 
@@ -165,14 +166,15 @@ export function CobroDetalhesSheet({
             setFaturaInfo(fatData);
 
             if (fatData) {
-                // 2. Fetch hours worked
-                const { data: horasData, error: horasErr } = await supabase
-                    .schema('core_finance')
-                    .from('horas_trabalhadas')
-                    .select('*')
-                    .eq('fatura_id', faturaId);
-
-                if (horasErr) throw horasErr;
+                // 2. Fetch hours worked using paginated query
+                const horasData = await fetchAllPages(async (from, to) => {
+                    return supabase
+                        .schema('core_finance')
+                        .from('horas_trabalhadas')
+                        .select('*')
+                        .eq('fatura_id', faturaId)
+                        .range(from, to);
+                });
 
                 // 3. Resolve worker names
                 const workerIds = Array.from(new Set((horasData || []).map((h: any) => h.worker_id).filter(Boolean)));

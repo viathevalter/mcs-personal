@@ -13,7 +13,8 @@ import {
   atualizarHorasDiarias, 
   atualizarTarifaFaturada,
   cancelarFatura,
-  sincronizarTarifasFaturamento
+  sincronizarTarifasFaturamento,
+  fetchAllPages
 } from '../api/faturamentoApi';
 import type { ClientBillingSummary } from '../api/faturamentoApi';
 import { toast } from 'sonner';
@@ -700,13 +701,14 @@ MCS - Gestão Comercial`;
     setFaturaActiveTab('resumo');
     setLoadingFaturaHours(true);
     try {
-      const { data, error } = await supabase
-        .schema('core_finance')
-        .from('horas_trabalhadas')
-        .select('*')
-        .eq('fatura_id', fatura.id);
-
-      if (error) throw error;
+      const data = await fetchAllPages(async (from, to) => {
+        return supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('*')
+          .eq('fatura_id', fatura.id)
+          .range(from, to);
+      });
       
       const workerIds = Array.from(new Set((data || []).map((h: any) => h.worker_id).filter(Boolean)));
       let workersMap = new Map();

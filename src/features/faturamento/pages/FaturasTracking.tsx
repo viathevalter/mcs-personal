@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -228,13 +228,14 @@ export function FaturasTracking() {
     setDisputeHours([]);
     setLoadingDisputeHours(true);
     try {
-      const { data, error } = await supabase
-        .schema('core_finance')
-        .from('horas_trabalhadas')
-        .select('*')
-        .eq('fatura_id', fatura.id);
-
-      if (error) throw error;
+      const data = await fetchAllPages(async (from, to) => {
+        return supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('*')
+          .eq('fatura_id', fatura.id)
+          .range(from, to);
+      });
       
       const workerIds = Array.from(new Set((data || []).map((h: any) => h.worker_id).filter(Boolean)));
       let workersMap = new Map();
@@ -1119,13 +1120,14 @@ MCS - Gestão Comercial`;
     const toastId = toast.loading('Carregando dados das horas da fatura...');
     try {
       // 1. Fetch hours associated with this invoice
-      const { data: horasData, error: horasError } = await supabase
-        .schema('core_finance')
-        .from('horas_trabalhadas')
-        .select('*')
-        .eq('fatura_id', fatura.id);
-
-      if (horasError) throw horasError;
+      const horasData = await fetchAllPages(async (from, to) => {
+        return supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('*')
+          .eq('fatura_id', fatura.id)
+          .range(from, to);
+      });
 
       // 2. Fetch worker profiles for these hours
       const workerIds = Array.from(new Set((horasData || []).map((h: any) => h.worker_id).filter(Boolean)));
