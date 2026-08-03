@@ -1183,6 +1183,17 @@ Muchas gracias.`;
         toast.success("Mensagem padrão com o link copiada!");
     };
 
+    const handleCopyContractSignLink = (link: string, workerName?: string, otpCode?: string) => {
+        const nameText = workerName ? `Sr. ${workerName}` : 'Sr.';
+        const codeText = otpCode ? `*${otpCode}*` : '';
+        const msg = `Hola ${nameText}
+Adjunto encontrará un link para firmar el contrato, por favor revise el mismo y al final le mostrará opción "IR PARA FIRMAR CONTRATO", firme el contrato y se le solicitará este código único ${codeText} digítelo para confirmar y finalizar el proceso.
+*LINK* ${link}
+Muchas gracias.`;
+        navigator.clipboard.writeText(msg);
+        toast.success("Mensagem padrão do contrato copiada!");
+    };
+
     return (
         <Layout>
             <div className="flex flex-col h-[calc(100vh-115px)] overflow-hidden space-y-6 p-4">
@@ -1504,7 +1515,7 @@ Muchas gracias.`;
                                                                 <Label className="text-xs text-muted-foreground">Link de Assinatura Pública</Label>
                                                                 <div className="flex gap-2">
                                                                     <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
-                                                                    <Button size="icon" variant="outline" onClick={() => handleCopyLink(generationSuccess.signingLink)}>
+                                                                    <Button size="icon" variant="outline" onClick={() => handleCopyContractSignLink(generationSuccess.signingLink, workersList.find(w => w.value === selectedWorkerId)?.label.split(' (')[0], generationSuccess.otpCode)} title="Copiar mensagem padrão com link e código OTP">
                                                                         <Copy className="h-4 w-4" />
                                                                     </Button>
                                                                 </div>
@@ -2045,8 +2056,8 @@ Muchas gracias.`;
                                                                     <Button
                                                                         size="icon"
                                                                         variant="ghost"
-                                                                        onClick={() => handleCopyLink(signLink)}
-                                                                        title="Copiar Link de Assinatura"
+                                                                        onClick={() => handleCopyContractSignLink(signLink, contract.worker?.nome, contract.otp_code)}
+                                                                        title="Copiar mensagem padrão do contrato com link e código OTP"
                                                                     >
                                                                         <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
                                                                     </Button>
