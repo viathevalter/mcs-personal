@@ -180,6 +180,7 @@ export interface ClientBillingSummary {
       fatura_id?: string | null;
     }>;
   }>;
+  clientHours?: any[];
 }
 
 export async function getHorasPendentesFaturamento(
@@ -524,315 +525,336 @@ export async function getHorasPendentesFaturamento(
       const clientHours = hoursList.filter(h => h.client_id === client.id);
       if (clientWorkers.length === 0 && clientHours.length === 0) continue;
 
-      // Calculate Obras totals for the client based on active session hours
+      // Find all active/pending faturas for this client
+      const clientFaturas = faturasList.filter(f => f.client_id === client.id);
+      
       const unbilledHours = clientHours.filter(h => !h.fatura_id);
-      
-      let activeSessionHours: any[] = [];
-      let activeFatura: any = null;
+      const hasPendingHours = unbilledHours.length > 0;
+      const hasPendingWorkers = clientWorkers.length > 0 && clientHours.length === 0;
 
-      if (unbilledHours.length > 0) {
-        activeSessionHours = unbilledHours;
-      } else {
-        const clientFaturas = Array.from(faturasMap.values()).filter(f => f.client_id === client.id);
-        const pendingFaturas = clientFaturas.filter(f => f.status === 'pending_client_approval' || f.status === 'disputed');
-        
-        if (pendingFaturas.length > 0) {
-          const latestPending = pendingFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
-          activeFatura = latestPending;
-          activeSessionHours = clientHours.filter(h => h.fatura_id === latestPending.id);
-        } else if (clientFaturas.length > 0) {
-          const latestFinalized = clientFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
-          activeFatura = latestFinalized;
-          activeSessionHours = clientHours.filter(h => h.fatura_id === latestFinalized.id);
-        } else {
-          activeSessionHours = [];
+      // Find which workers are already billed in this client's active faturas
+      const billedWorkerIds = new Set(clientHours.filter(h => h.fatura_id).map(h => h.worker_id));
+      
+      // We calculate unbilled workers for validation status metrics
+      const unbilledWorkersForMetrics = clientWorkers.filter(w => !billedWorkerIds.has(w.id));
+      const totalUnbilled = unbilledWorkersForMetrics.length;
+      
+      // Let's count validated unbilled workers
+      let validatedUnbilled = 0;
+      unbilledWorkersForMetrics.forEach(w => {
+        const whObj = workerHoursMap.get(w.id);
+        if (whObj?.status === 'validado') {
+          validatedUnbilled++;
         }
-      }
+      });
 
-      const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
-      
-      activeSessionHours.forEach(h => {
-        const oId = h.obra_id || null;
-        if (!obrasMap.has(oId)) {
-          const siteName = oId ? (clientSitesMap.get(oId) || 'Obra Desconhecida') : 'Sem Obra';
-          obrasMap.set(oId, {
-            id: oId,
-            name: siteName,
-            totalHoras: 0,
-            totalValor: 0,
-            horasIds: []
+      // Helper function to build a card for a given session hours, active fatura, and specific workers
+      const buildSummaryCard = (
+        activeFatura: any,
+        activeSessionHours: any[]
+      ): ClientBillingSummary => {
+        // Group active session hours by worker
+        const activeHoursByWorker = new Map<string, any[]>();
+        activeSessionHours.forEach(h => {
+          if (!activeHoursByWorker.has(h.worker_id)) {
+            activeHoursByWorker.set(h.worker_id, []);
+          }
+          activeHoursByWorker.get(h.worker_id)!.push(h);
+        });
+
+        // Group all client hours by worker
+        const hoursByWorker = new Map<string, any[]>();
+        clientHours.forEach(h => {
+          if (!hoursByWorker.has(h.worker_id)) {
+            hoursByWorker.set(h.worker_id, []);
+          }
+          hoursByWorker.get(h.worker_id)!.push(h);
+        });
+
+        // Obras for the active session hours
+        const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
+        activeSessionHours.forEach(h => {
+          const oId = h.obra_id || null;
+          if (!obrasMap.has(oId)) {
+            const siteName = oId ? (clientSitesMap.get(oId) || 'Obra Desconhecida') : 'Sem Obra';
+            obrasMap.set(oId, {
+              id: oId,
+              name: siteName,
+              totalHoras: 0,
+              totalValor: 0,
+              horasIds: []
+            });
+          }
+          const entry = obrasMap.get(oId)!;
+          entry.totalHoras += Number(h.horas_totais || 0);
+          entry.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+          if (h.id) {
+            entry.horasIds.push(h.id);
+          }
+        });
+
+        const obrasSummary = Array.from(obrasMap.values()).sort((a, b) => {
+          if (a.id === null) return 1; // "Sem Obra" goes last
+          if (b.id === null) return -1;
+          return a.name.localeCompare(b.name);
+        });
+
+        let cardTotalHoras = 0;
+        let cardTotalValor = 0;
+        let cardValidatedWorkersCount = 0;
+        const workersSummary = [];
+        const resolvedWorkerIds = new Set<string>();
+
+        // Find which workers are relevant for this card
+        let targetWorkers = [];
+        if (activeFatura) {
+          // If fatura card, we only show workers who have hours in this fatura
+          const faturaWorkerIds = new Set(activeSessionHours.map(h => h.worker_id));
+          targetWorkers = clientWorkers.filter(w => faturaWorkerIds.has(w.id));
+        } else {
+          // If pending/unbilled card, we show workers who have unbilled hours, OR who are assigned to client and have NO hours in this period at all
+          const unbilledWorkerIds = new Set(activeSessionHours.map(h => h.worker_id));
+          targetWorkers = clientWorkers.filter(w => unbilledWorkerIds.has(w.id) || !clientHours.some(h => h.worker_id === w.id));
+        }
+
+        // Build workers summary list for target workers
+        for (const w of targetWorkers) {
+          resolvedWorkerIds.add(w.id);
+          const whObj = workerHoursMap.get(w.id);
+          const whStatus = whObj?.status;
+          const isValidated = whStatus === 'validado';
+          const observacoes = whObj?.observacoes || null;
+
+          if (isValidated) {
+            cardValidatedWorkersCount++;
+          }
+
+          const wHours = hoursByWorker.get(w.id) || [];
+          const wActiveHours = activeHoursByWorker.get(w.id) || [];
+
+          const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+          const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+          const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+          const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+          cardTotalHoras += wTotalHoras;
+          cardTotalValor += wTotalValor;
+
+          const horasDiarias: Record<string, any> = {};
+          wActiveHours.forEach(h => {
+            const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+            horasDiarias[dateOnly] = h;
+          });
+
+          // Determine job function profile name
+          const hourlyFuncaoId = wActiveHours.find(h => h.funcao_id)?.funcao_id;
+          const perfilName = jobFunctionsMap.get(hourlyFuncaoId || w.funcao_id || '') || w.funcao || 'Não Definido';
+
+          // Find tariff from hours, or default to mock
+          const sampleHour = wActiveHours[0];
+          const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 27.00));
+
+          // Check if there is an active custom exception configuration for this worker
+          const hourlyObraId = wActiveHours[0]?.obra_id || null;
+          const hasException = workerExceptions.some(e => 
+            e.client_id === client.id && 
+            e.worker_id === w.id && 
+            (e.client_site_id === hourlyObraId || e.client_site_id === null)
+          );
+
+          const isBilled = wActiveHours.length === 0 || wActiveHours.every(h => h.fatura_id !== null);
+
+          workersSummary.push({
+            workerId: w.id,
+            workerName: w.nome || 'Trabalhador Desconhecido',
+            codColab: w.cod_colab || 'N/A',
+            perfil: perfilName,
+            tarifa,
+            totalHoras: wTotalHoras,
+            totalValor: wTotalValor,
+            totalHorasMes: wTotalHorasMes,
+            totalValorMes: wTotalValorMes,
+            isValidated,
+            isBilled,
+            funcaoId: hourlyFuncaoId || w.funcao_id,
+            workerStatus: w.status_trabajador || 'Ativo',
+            dataBaixa: w.data_baixa || null,
+            observacoes,
+            isException: hasException,
+            horasDiarias
           });
         }
-        const entry = obrasMap.get(oId)!;
-        entry.totalHoras += Number(h.horas_totais || 0);
-        entry.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
-        if (h.id) {
-          entry.horasIds.push(h.id);
+
+        // Add any workers who have hours in this activeSessionHours but were not returned in getHoursControlWorkers (just in case)
+        for (const [wId, wHours] of activeHoursByWorker.entries()) {
+          if (resolvedWorkerIds.has(wId)) continue;
+
+          const sampleHour = wHours[0];
+          
+          // Resolve worker from unknownWorkersMap
+          const uw = unknownWorkersMap.get(wId);
+          const wName = uw?.nome || 'Trabalhador Desconhecido';
+          const wCodColab = uw?.cod_colab || 'N/A';
+          const wStatus = uw?.status_trabajador || 'Ativo';
+          const wDataBaixa = uw?.data_baixa || null;
+          const wFuncaoId = sampleHour.funcao_id || null;
+
+          const wTotalHoras = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+          const wTotalValor = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+          const allWHours = hoursByWorker.get(wId) || [];
+          const wTotalHorasMes = allWHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+          const wTotalValorMes = allWHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+          cardTotalHoras += wTotalHoras;
+          cardTotalValor += wTotalValor;
+
+          const horasDiarias: Record<string, any> = {};
+          wHours.forEach(h => {
+            const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+            horasDiarias[dateOnly] = h;
+          });
+
+          const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
+
+          const hasException = workerExceptions.some(e => 
+            e.client_id === client.id && 
+            e.worker_id === wId && 
+            (e.client_site_id === sampleHour.obra_id || e.client_site_id === null)
+          );
+
+          const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
+
+          workersSummary.push({
+            workerId: wId,
+            workerName: wName,
+            codColab: wCodColab,
+            perfil: jobFunctionsMap.get(wFuncaoId || '') || uw?.funcion || 'Não Definido',
+            tarifa: tariff,
+            totalHoras: wTotalHoras,
+            totalValor: wTotalValor,
+            totalHorasMes: wTotalHorasMes,
+            totalValorMes: wTotalValorMes,
+            isValidated: true,
+            isBilled,
+            workerStatus: wStatus,
+            dataBaixa: wDataBaixa,
+            observacoes: null,
+            funcaoId: wFuncaoId,
+            isException: hasException,
+            horasDiarias
+          });
+          
+          cardValidatedWorkersCount++;
         }
-      });
 
-      const obrasSummary = Array.from(obrasMap.values()).sort((a, b) => {
-        if (a.id === null) return 1; // "Sem Obra" goes last
-        if (b.id === null) return -1;
-        return a.name.localeCompare(b.name);
-      });
+        // Calculate billing status
+        let statusBilling: ClientBillingSummary['statusBilling'] = 'waiting_validation';
+        let magicLinkToken: string | null = null;
+        let dataEmissaoFatura: string | null = null;
+        let ajustesJson: any | null = null;
+        let faturaNumero: string | null = null;
+        let faturaAtcud: string | null = null;
 
-      let totalHoras = 0;
-      let totalValor = 0;
-      let validatedWorkersCount = 0;
-
-      // Group hours by worker
-      const hoursByWorker = new Map<string, any[]>();
-      clientHours.forEach(h => {
-        if (!hoursByWorker.has(h.worker_id)) {
-          hoursByWorker.set(h.worker_id, []);
-        }
-        hoursByWorker.get(h.worker_id)!.push(h);
-      });
-
-      // Group active session hours by worker
-      const activeHoursByWorker = new Map<string, any[]>();
-      activeSessionHours.forEach(h => {
-        if (!activeHoursByWorker.has(h.worker_id)) {
-          activeHoursByWorker.set(h.worker_id, []);
-        }
-        activeHoursByWorker.get(h.worker_id)!.push(h);
-      });
-
-      // Build workers summary list
-      const workersSummary = [];
-      const resolvedWorkerIds = new Set<string>();
-      
-      for (const w of clientWorkers) {
-        resolvedWorkerIds.add(w.id);
-        const whObj = workerHoursMap.get(w.id);
-        const whStatus = whObj?.status;
-        const isValidated = whStatus === 'validado';
-        const observacoes = whObj?.observacoes || null;
-
-        if (isValidated) {
-          validatedWorkersCount++;
-        }
-
-        const wHours = hoursByWorker.get(w.id) || [];
-        const wActiveHours = activeHoursByWorker.get(w.id) || [];
-
-        const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
-
-        const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
-
-        totalHoras += wTotalHoras;
-        totalValor += wTotalValor;
-
-        const horasDiarias: Record<string, any> = {};
-        wHours.forEach(h => {
-          const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-          horasDiarias[dateOnly] = h;
-        });
-
-        // Determine job function profile name
-        const hourlyFuncaoId = wHours.find(h => h.funcao_id)?.funcao_id;
-        const perfilName = jobFunctionsMap.get(hourlyFuncaoId || w.funcao_id || '') || w.funcao || 'Não Definido';
-
-        // Find tariff from hours, or default to mock
-        const sampleHour = wHours[0];
-        const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 27.00));
-
-        // Check if there is an active custom exception configuration for this worker (either specific to the site or global)
-        const hourlyObraId = wHours[0]?.obra_id || null;
-        const hasException = workerExceptions.some(e => 
-          e.client_id === client.id && 
-          e.worker_id === w.id && 
-          (e.client_site_id === hourlyObraId || e.client_site_id === null)
-        );
-
-        const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
-
-        workersSummary.push({
-          workerId: w.id,
-          workerName: w.nome || 'Trabalhador Desconhecido',
-          codColab: w.cod_colab || 'N/A',
-          perfil: perfilName,
-          tarifa,
-          totalHoras: wTotalHoras,
-          totalValor: wTotalValor,
-          totalHorasMes: wTotalHorasMes,
-          totalValorMes: wTotalValorMes,
-          isValidated,
-          isBilled,
-          funcaoId: hourlyFuncaoId || w.funcao_id,
-          workerStatus: w.status_trabajador || 'Ativo',
-          dataBaixa: w.data_baixa || null,
-          observacoes,
-          isException: hasException,
-          horasDiarias
-        });
-      }
-
-      // Add any workers who have hours in core_finance but were not returned in getHoursControlWorkers (just in case)
-      for (const [wId, wHours] of hoursByWorker.entries()) {
-        if (resolvedWorkerIds.has(wId)) continue;
-
-        const sampleHour = wHours[0];
-        
-        // Resolve worker from unknownWorkersMap
-        const uw = unknownWorkersMap.get(wId);
-        const wName = uw?.nome || 'Trabalhador Desconhecido';
-        const wCodColab = uw?.cod_colab || 'N/A';
-        const wStatus = uw?.status_trabajador || 'Ativo';
-        const wDataBaixa = uw?.data_baixa || null;
-        const wFuncaoId = sampleHour.funcao_id || null;
-
-        const wActiveHours = activeHoursByWorker.get(wId) || [];
-        const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
-
-        const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
-
-        totalHoras += wTotalHoras;
-        totalValor += wTotalValor;
-
-        const horasDiarias: Record<string, any> = {};
-        wHours.forEach(h => {
-          const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-          horasDiarias[dateOnly] = h;
-        });
-
-        const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
-
-        const hasException = workerExceptions.some(e => 
-          e.client_id === client.id && 
-          e.worker_id === wId && 
-          (e.client_site_id === sampleHour.obra_id || e.client_site_id === null)
-        );
-
-        const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
-
-        workersSummary.push({
-          workerId: wId,
-          workerName: wName,
-          codColab: wCodColab,
-          perfil: jobFunctionsMap.get(wFuncaoId || '') || uw?.funcion || 'Não Definido',
-          tarifa: tariff,
-          totalHoras: wTotalHoras,
-          totalValor: wTotalValor,
-          totalHorasMes: wTotalHorasMes,
-          totalValorMes: wTotalValorMes,
-          isValidated: true,
-          isBilled,
-          workerStatus: wStatus,
-          dataBaixa: wDataBaixa,
-          observacoes: null,
-          funcaoId: wFuncaoId,
-          isException: hasException,
-          horasDiarias
-        });
-        
-        validatedWorkersCount++;
-      }
-
-      // Calculate unbilled and billed counts
-      const unbilledWorkersList = workersSummary.filter(w => !w.isBilled);
-      const totalUnbilled = unbilledWorkersList.length;
-      const validatedUnbilled = unbilledWorkersList.filter(w => w.isValidated).length;
-
-      // Check if there are any unbilled hours or if we have workers with no hours recorded yet
-      const hasPendingHours = clientHours.some(h => !h.fatura_id);
-      const hasPendingWorkers = clientWorkers.length > 0 && clientHours.length === 0;
-      const hasUnbilled = hasPendingHours || hasPendingWorkers || totalUnbilled > 0;
-
-      let statusBilling: ClientBillingSummary['statusBilling'] = 'waiting_validation';
-      let magicLinkToken: string | null = null;
-      let dataEmissaoFatura: string | null = null;
-      let ajustesJson: any | null = null;
-      let faturaNumero: string | null = null;
-      let faturaAtcud: string | null = null;
-
-      if (activeFatura) {
-        magicLinkToken = activeFatura.magic_link_token;
-        dataEmissaoFatura = activeFatura.data_emissao || null;
-        ajustesJson = activeFatura.ajustes_json || null;
-        faturaNumero = activeFatura.fatura_numero || null;
-        faturaAtcud = activeFatura.atcud || null;
-        if (activeFatura.status === 'pending_client_approval') {
-          statusBilling = 'invoiced_pending';
-        } else if (activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent') {
-          statusBilling = 'invoiced_approved';
-        } else if (activeFatura.status === 'disputed') {
-          statusBilling = 'invoiced_disputed';
-        }
-      }
-
-      if (hasUnbilled && (!activeFatura || activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent' || activeFatura.status === 'invoiced')) {
-        // Active billing session: there are unbilled hours/workers
-        if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
-          statusBilling = 'ready';
+        if (activeFatura) {
+          magicLinkToken = activeFatura.magic_link_token;
+          dataEmissaoFatura = activeFatura.data_emissao || null;
+          ajustesJson = activeFatura.ajustes_json || null;
+          faturaNumero = activeFatura.fatura_numero || null;
+          faturaAtcud = activeFatura.atcud || null;
+          if (activeFatura.status === 'pending_client_approval') {
+            statusBilling = 'invoiced_pending';
+          } else if (activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent') {
+            statusBilling = 'invoiced_approved';
+          } else if (activeFatura.status === 'disputed') {
+            statusBilling = 'invoiced_disputed';
+          }
         } else {
-          statusBilling = 'waiting_validation';
+          // Unbilled session
+          if (totalUnbilled > 0 && validatedUnbilled === totalUnbilled) {
+            statusBilling = 'ready';
+          } else {
+            statusBilling = 'waiting_validation';
+          }
         }
+
+        const termName = client.payment_terms || (client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A';
+        const termDays = (client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null;
+
+        return {
+          clientId: client.id,
+          clientName: client.trade_name || 'Cliente Desconhecido',
+          clientCodigo: client.codigo || null,
+          empresaNome,
+          empresaId: empresaId || '',
+          empresaInvoiceSeries,
+          empresaNextInvoiceNumber,
+          empresaAtcudPrefix,
+          empresaCapitalSocial,
+          empresaConservatoria,
+          empresaMatricula,
+          empresaCertifiedSoftwareText,
+          empresaInvoiceLogoUrl,
+          empresaAddressLine,
+          empresaPostalCode,
+          empresaCity,
+          empresaProvince,
+          clientAddressLine: client.address_line || null,
+          clientPostalCode: client.postal_code || null,
+          clientCity: client.city || null,
+          clientProvince: client.province || null,
+          clientCountryName: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
+          faturaNumero: faturaNumero,
+          activeFaturaId: activeFatura ? activeFatura.id : null,
+          atcud: faturaAtcud,
+          year: periodYear,
+          month: periodMonth - 1, // 0-indexed
+          totalHoras: cardTotalHoras,
+          totalValor: cardTotalValor,
+          statusBilling,
+          magicLinkToken,
+          dataEmissaoFatura,
+          ajustesJson,
+          totalWorkers: !activeFatura ? totalUnbilled : workersSummary.length,
+          validatedWorkers: !activeFatura ? validatedUnbilled : workersSummary.length,
+          paymentTermName: termName,
+          paymentTermDays: termDays,
+          billingEmail: client.billing_email || null,
+          clientEmail: client.email || null,
+          viesApplicable: client.vies_applicable || false,
+          viesStatus: client.vies_status || 'not_checked',
+          viesValid: client.vies_valid || false,
+          viesLastCheckedAt: client.vies_last_checked_at || null,
+          taxId: client.tax_id || null,
+          countryId: client.country_id || null,
+          billingCycleStartDay: client.billing_cycle_start_day || 1,
+          obras: obrasSummary,
+          workers: workersSummary,
+          clientHours: activeSessionHours
+        };
+      };
+
+      // 1. Build unbilled/pending session card if there are unbilled hours or workers
+      const hasUnbilled = hasPendingHours || hasPendingWorkers || totalUnbilled > 0;
+      if (hasUnbilled) {
+        clientSummaries.push(buildSummaryCard(null, unbilledHours));
       }
 
-      const termName = client.payment_terms || (client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A';
-      const termDays = (client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null;
-
-      clientSummaries.push({
-        clientId: client.id,
-        clientName: client.trade_name || 'Cliente Desconhecido',
-        clientCodigo: client.codigo || null,
-        empresaNome,
-        empresaId: empresaId || '',
-        empresaInvoiceSeries,
-        empresaNextInvoiceNumber,
-        empresaAtcudPrefix,
-        empresaCapitalSocial,
-        empresaConservatoria,
-        empresaMatricula,
-        empresaCertifiedSoftwareText,
-        empresaInvoiceLogoUrl,
-        empresaAddressLine,
-        empresaPostalCode,
-        empresaCity,
-        empresaProvince,
-        empresaTaxId,
-        empresaEmail,
-        empresaPhone,
-        empresaIban,
-        empresaBankDetails,
-        clientAddressLine: client.address_line || null,
-        clientPostalCode: client.postal_code || null,
-        clientCity: client.city || null,
-        clientProvince: client.province || null,
-        clientCountryName: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
-        faturaNumero: faturaNumero,
-        activeFaturaId: activeFatura ? activeFatura.id : null,
-        atcud: faturaAtcud,
-        year: periodYear,
-        month: periodMonth - 1, // 0-indexed
-        totalHoras,
-        totalValor,
-        statusBilling,
-        magicLinkToken,
-        dataEmissaoFatura,
-        ajustesJson,
-        totalWorkers: hasUnbilled ? totalUnbilled : workersSummary.length,
-        validatedWorkers: hasUnbilled ? validatedUnbilled : workersSummary.length,
-        paymentTermName: termName,
-        paymentTermDays: termDays,
-        billingEmail: client.billing_email || null,
-        clientEmail: client.email || null,
-        viesApplicable: client.vies_applicable || false,
-        viesStatus: client.vies_status || 'not_checked',
-        viesValid: client.vies_valid || false,
-        viesLastCheckedAt: client.vies_last_checked_at || null,
-        taxId: client.tax_id || null,
-        countryId: client.country_id || null,
-        billingCycleStartDay: client.billing_cycle_start_day || 1,
-        obras: obrasSummary,
-        workers: workersSummary
-      });
+      // 2. Build card for each active draft/pending fatura in the current month
+      const activeFaturas = clientFaturas.filter(f => 
+        f.status === 'pending_client_approval' || 
+        f.status === 'disputed' || 
+        f.status === 'approved' || 
+        f.status === 'invoice_sent'
+      );
+      
+      for (const fat of activeFaturas) {
+        const fatHours = clientHours.filter(h => h.fatura_id === fat.id);
+        if (fatHours.length > 0) {
+          clientSummaries.push(buildSummaryCard(fat, fatHours));
+        }
+      }
     }
 
     return clientSummaries;
