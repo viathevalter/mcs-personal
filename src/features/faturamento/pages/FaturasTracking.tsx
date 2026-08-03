@@ -1241,15 +1241,20 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const handleCancelFaturaTracking = async (faturaId: string) => {
+  const handleCancelFaturaTracking = async (fatura: any) => {
+    const hasCobro = fatura.ajustes_json?.cobro_gerado;
+    const warnMessage = hasCobro 
+      ? 'ATENÇÃO: Esta fatura já possui uma cobrança (Cobro) gerada no módulo financeiro.\nO cancelamento irá excluir a fatura e liberar as horas, mas você precisará cancelar/ajustar o título no financeiro manualmente.\n\n'
+      : '';
+
     const confirmDelete = window.confirm(
-      'Tem certeza que deseja cancelar e excluir esta fatura?\n\nTodas as horas associadas retornarão para o estado pendente no painel de faturamento para que você possa refazer do zero.'
+      `${warnMessage}Tem certeza que deseja cancelar e excluir esta fatura?\n\nTodas as horas associadas retornarão para o estado pendente no painel de faturamento (Operacional) para que você possa refazer ou ajustar.`
     );
     if (!confirmDelete) return;
 
     try {
       setLoading(true);
-      await cancelarFatura(faturaId);
+      await cancelarFatura(fatura.id);
       toast.success('Fatura cancelada e horas liberadas com sucesso!');
       fetchFaturas();
     } catch (err: any) {
@@ -1555,7 +1560,7 @@ MCS - Gestão Comercial`;
                                 </button>
 
                                 <button
-                                  onClick={() => handleCancelFaturaTracking(fatura.id)}
+                                  onClick={() => handleCancelFaturaTracking(fatura)}
                                   className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
@@ -1573,18 +1578,35 @@ MCS - Gestão Comercial`;
                                 
                                 <button
                                   onClick={() => handleTriggerResendEmail(fatura, true)}
-                                  className="inline-flex items-center gap-1 text-sm text-indigo-650 hover:text-indigo-750 dark:text-indigo-450 dark:hover:text-indigo-350 font-bold transition-all px-2.5 py-1 border border-indigo-200 dark:border-indigo-800 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
+                                  className="inline-flex items-center gap-1 text-sm text-indigo-655 hover:text-indigo-755 dark:text-indigo-450 dark:hover:text-indigo-355 font-bold transition-all px-2.5 py-1 border border-indigo-205 dark:border-indigo-805 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
                                 >
                                   <Mail className="w-3.5 h-3.5 mr-1" /> Enviar Fatura
+                                </button>
+
+                                <button
+                                  onClick={() => handleCancelFaturaTracking(fatura)}
+                                  className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
                                 </button>
                               </>
                             )}
                             {fatura.status === 'invoice_sent' && (
                               fatura.ajustes_json?.cobro_gerado ? (
-                                <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  Cobros Gerado
-                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Cobros Gerado
+                                  </span>
+
+                                  <button
+                                    onClick={() => handleCancelFaturaTracking(fatura)}
+                                    className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors animate-pulse"
+                                    title="Atenção: A cobrança financeira correspondente já foi gerada no sistema!"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
+                                  </button>
+                                </div>
                               ) : (
                                 <>
                                   <button
@@ -1608,6 +1630,13 @@ MCS - Gestão Comercial`;
                                   >
                                     {isGeneratingCobro ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                                     Gerar Cobros
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleCancelFaturaTracking(fatura)}
+                                    className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
                                   </button>
                                 </>
                               )
