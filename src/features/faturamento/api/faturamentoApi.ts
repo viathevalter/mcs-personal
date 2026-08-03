@@ -1401,4 +1401,98 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
   if (updateError) throw mapSupabaseError(updateError);
 }
 
+export async function sincronizarTarifasFaturamento(
+  clientId: string,
+  periodYear: number,
+  periodMonth: number
+): Promise<void> {
+  const startDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-01`;
+  const endDateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${new Date(periodYear, periodMonth, 0).getDate()}`;
+
+  // 1. Fetch exceptions
+  const { data: exceptions, error: excError } = await supabase
+    .schema('core_common')
+    .from('client_worker_tariffs')
+    .select('worker_id, client_site_id, valor_tarifa')
+    .eq('client_id', clientId);
+
+  if (excError) throw mapSupabaseError(excError);
+  const workerExceptions = exceptions || [];
+
+  // 2. Fetch standard tariffs
+  const { data: tariffs, error: tarError } = await supabase
+    .schema('core_common')
+    .from('client_tariffs')
+    .select('job_function_id, client_site_id, valor_tarifa')
+    .eq('client_id', clientId);
+
+  if (tarError) throw mapSupabaseError(tarError);
+  const standardTariffs = tariffs || [];
+
+  // 3. Fetch job functions names mapping
+  const { data: jobFuncs, error: jfError } = await supabase
+    .schema('core_comercial')
+    .from('job_functions')
+    .select('id, name');
+
+  if (jfError) throw mapSupabaseError(jfError);
+  const jobFunctionsMap = new Map((jobFuncs || []).map(jf => [jf.id, jf.name]));
+
+  // 4. Fetch hours
+  const { data: hours, error: hrError } = await supabase
+    .schema('core_finance')
+    .from('horas_trabalhadas')
+    .select('id, worker_id, funcao_id, obra_id, tarifa_faturada')
+    .eq('client_id', clientId)
+    .gte('data_trabalho', startDateStr)
+    .lte('data_trabalho', endDateStr);
+
+  if (hrError) throw mapSupabaseError(hrError);
+  if (!hours || hours.length === 0) return;
+
+  // 5. Process each row
+  for (const h of hours) {
+    const funcId = h.funcao_id;
+    const siteId = h.obra_id;
+    const workerId = h.worker_id;
+    const targetFuncName = jobFunctionsMap.get(funcId || '') || '';
+
+    // Resolve tariff
+    let resolvedTariff = 27.00;
+
+    const wExcSite = workerExceptions.find(e => e.worker_id === workerId && e.client_site_id === siteId);
+    if (wExcSite) {
+      resolvedTariff = Number(wExcSite.valor_tarifa);
+    } else {
+      const wExcGlobal = workerExceptions.find(e => e.worker_id === workerId && e.client_site_id === null);
+      if (wExcGlobal) {
+        resolvedTariff = Number(wExcGlobal.valor_tarifa);
+      } else {
+        const stdSite = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === siteId);
+        if (stdSite) {
+          resolvedTariff = Number(stdSite.valor_tarifa);
+        } else {
+          const stdGlobal = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === null);
+          if (stdGlobal) {
+            resolvedTariff = Number(stdGlobal.valor_tarifa);
+          } else {
+            resolvedTariff = targetFuncName.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+          }
+        }
+      }
+    }
+
+    if (Number(h.tarifa_faturada) !== resolvedTariff) {
+      const { error: updError } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .update({ tarifa_faturada: resolvedTariff })
+        .eq('id', h.id);
+
+      if (updError) throw mapSupabaseError(updError);
+    }
+  }
+}
+
+
 

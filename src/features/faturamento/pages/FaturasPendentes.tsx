@@ -12,7 +12,8 @@ import {
   solicitarAprovacaoCliente, 
   atualizarHorasDiarias, 
   atualizarTarifaFaturada,
-  cancelarFatura
+  cancelarFatura,
+  sincronizarTarifasFaturamento
 } from '../api/faturamentoApi';
 import type { ClientBillingSummary } from '../api/faturamentoApi';
 import { toast } from 'sonner';
@@ -42,7 +43,8 @@ import {
   Download,
   X,
   XCircle,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -177,6 +179,7 @@ export function FaturasPendentes() {
   const [loadingFaturaHours, setLoadingFaturaHours] = useState(false);
   const [faturaActiveTab, setFaturaActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [recalculatingTariffs, setRecalculatingTariffs] = useState<string | null>(null);
   const [emailData, setEmailData] = useState<{
     clientId: string;
     cardId: string;
@@ -1792,6 +1795,20 @@ MCS - Gestão Comercial`;
     }
   };
 
+  const handleRecalculateTariffs = async (f: ClientBillingSummary) => {
+    try {
+      setRecalculatingTariffs(f.clientId);
+      toast.loading('Sincronizando e recalculando tarifas da obra...', { id: 'recalculating_tariffs' });
+      await sincronizarTarifasFaturamento(f.clientId, f.year, f.month + 1);
+      toast.success('Tarifas sincronizadas e recalculadas com sucesso!', { id: 'recalculating_tariffs' });
+      await fetchHoras();
+    } catch (err: any) {
+      toast.error('Erro ao sincronizar tarifas', { id: 'recalculating_tariffs', description: err.message });
+    } finally {
+      setRecalculatingTariffs(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -2592,6 +2609,15 @@ MCS - Gestão Comercial`;
                         className={`px-3 py-1.5 rounded-lg transition-colors ${getActiveTab(cardId) === 'factura' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                       >
                         Factura Única
+                      </button>
+
+                      <button
+                        onClick={() => handleRecalculateTariffs(f)}
+                        disabled={recalculatingTariffs === f.clientId}
+                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors font-semibold text-xs disabled:opacity-50"
+                      >
+                        <RefreshCw size={12} className={recalculatingTariffs === f.clientId ? 'animate-spin' : ''} />
+                        Sincronizar Tarifas
                       </button>
                     </div>
 
