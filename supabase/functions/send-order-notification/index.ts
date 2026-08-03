@@ -256,6 +256,25 @@ serve(async (req) => {
       );
     }
 
+    const parsedToEmails: string[] = [];
+    to_emails.forEach((email: string) => {
+      if (typeof email === 'string') {
+        email.split(/[;,]/).forEach(e => {
+          const trimmed = e.trim();
+          if (trimmed && !parsedToEmails.includes(trimmed)) {
+            parsedToEmails.push(trimmed);
+          }
+        });
+      }
+    });
+
+    if (parsedToEmails.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Nenhum destinatário de e-mail válido foi fornecido." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let resolvedEmpresaId = empresa_id;
     let senderEmail = "valter@gestaologinpro.com";
     let senderName = "Comercial";
@@ -972,7 +991,7 @@ serve(async (req) => {
     const mailRes = await sendMailViaGraph(
       senderEmail,
       senderName,
-      to_emails,
+      parsedToEmails,
       email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`),
       email_body,
       attachments,

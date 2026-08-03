@@ -608,12 +608,18 @@ Atenciosamente,
 MCS - Gestão Comercial`;
 
     const defaultEmails: string[] = [];
-    if (faturamento.billingEmail) {
-      defaultEmails.push(faturamento.billingEmail);
-    }
-    if (faturamento.clientEmail && faturamento.clientEmail !== faturamento.billingEmail) {
-      defaultEmails.push(faturamento.clientEmail);
-    }
+    const addEmails = (emailStr: string) => {
+      if (!emailStr) return;
+      emailStr.split(/[;,]/).forEach(e => {
+        const trimmed = e.trim();
+        if (trimmed && !defaultEmails.includes(trimmed)) {
+          defaultEmails.push(trimmed);
+        }
+      });
+    };
+
+    addEmails(faturamento.billingEmail);
+    addEmails(faturamento.clientEmail);
 
     const cached = emailCache[cardId];
     if (cached) {

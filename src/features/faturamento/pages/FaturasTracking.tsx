@@ -1031,15 +1031,18 @@ MCS - Gestão Comercial`;
 
       // 4. Resolve default recipient emails
       const defaultEmails: string[] = [];
-      const bEmail = fatura.client?.billingEmail || fatura.client?.billing_email;
-      const cEmail = fatura.client?.clientEmail || fatura.client?.email;
-      
-      if (bEmail) {
-        defaultEmails.push(bEmail);
-      }
-      if (cEmail && cEmail !== bEmail) {
-        defaultEmails.push(cEmail);
-      }
+      const addEmails = (emailStr: string) => {
+        if (!emailStr) return;
+        emailStr.split(/[;,]/).forEach(e => {
+          const trimmed = e.trim();
+          if (trimmed && !defaultEmails.includes(trimmed)) {
+            defaultEmails.push(trimmed);
+          }
+        });
+      };
+
+      addEmails(fatura.client?.billingEmail || fatura.client?.billing_email);
+      addEmails(fatura.client?.clientEmail || fatura.client?.email);
 
       const adj = fatura.ajustes_json || {};
       const cached = emailCache[fatura.id];
