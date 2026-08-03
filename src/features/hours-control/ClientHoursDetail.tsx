@@ -8,7 +8,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
-import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote } from 'lucide-react';
+import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
@@ -16,6 +16,8 @@ import { ValidationScreen } from './ValidationScreen';
 import { Dialog, DialogContent } from '../../components/ui/dialog';
 import { useRole } from '../../app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
+import { Input } from '../../components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../components/ui/select';
 
 interface WorkerDetail {
     worker_id: string;
@@ -55,6 +57,8 @@ export function ClientHoursDetail() {
     const searchQuery = searchParams.get('q');
 
     const [workers, setWorkers] = useState<WorkerDetail[]>([]);
+    const [localSearch, setLocalSearch] = useState(searchQuery || '');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -120,14 +124,7 @@ export function ClientHoursDetail() {
                 contratante: contratante || null
             });
 
-            if (searchQuery && searchQuery.trim().length > 0 && workersData) {
-                const q = searchQuery.trim().toLowerCase();
-                workersData = workersData.filter(w => {
-                    const nameMatch = w.nome && w.nome.toLowerCase().includes(q);
-                    const phoneMatch = w.movil && w.movil.toLowerCase().includes(q);
-                    return nameMatch || phoneMatch;
-                });
-            }
+            // Filter applied dynamically in render body via localSearch
 
             // Fetch hour records
             const workerIds = workersData?.map(w => w.id) || [];
@@ -321,6 +318,32 @@ export function ClientHoursDetail() {
 
 
 
+    const filteredWorkers = workers.filter(w => {
+        // 1. Local Search Filter
+        if (localSearch.trim()) {
+            const q = localSearch.toLowerCase();
+            const nameMatch = w.worker_name?.toLowerCase().includes(q);
+            const passportMatch = w.pasaporte?.toLowerCase().includes(q);
+            const phoneMatch = w.movil?.toLowerCase().includes(q);
+            const codeMatch = w.cod_colab?.toLowerCase().includes(q);
+            if (!nameMatch && !passportMatch && !phoneMatch && !codeMatch) return false;
+        }
+
+        // 2. Status Filter
+        if (statusFilter !== 'all') {
+            if (statusFilter === 'pendente') {
+                return w.status === 'pendente';
+            }
+            if (statusFilter === 'enviado') {
+                return w.status === 'enviado' || w.status === 'processado';
+            }
+            if (statusFilter === 'validado') {
+                return w.status === 'validado';
+            }
+        }
+        return true;
+    });
+
     const getMonthName = (m: number) => {
         const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
         return new Date(2000, m - 1, 1).toLocaleString(locale, { month: 'long' }).toUpperCase();
@@ -344,10 +367,42 @@ export function ClientHoursDetail() {
                 <div>
                     <h2 className="text-lg font-semibold">{getMonthName(month)} {year}</h2>
                     <p className="text-sm text-muted-foreground">
-                        {workers.length} {t('clientHoursDetail.activeWorkers')}
+                        {filteredWorkers.length} de {workers.length} {t('clientHoursDetail.activeWorkers')}
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                    {/* Filtro de Busca */}
+                    <div className="relative w-full sm:w-[200px]">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="text"
+                            placeholder="Buscar trabalhador..."
+                            value={localSearch}
+                            onChange={(e) => setLocalSearch(e.target.value)}
+                            className="pl-9 pr-8 h-9 text-xs dark:bg-slate-950 dark:border-slate-800"
+                        />
+                        {localSearch && (
+                            <button
+                                onClick={() => setLocalSearch('')}
+                                className="absolute right-2.5 top-2 h-5 w-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-350"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Filtro de Status */}
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs bg-background dark:bg-slate-950 dark:border-slate-800">
+                            <SelectValue placeholder="Filtrar por status" />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                            <SelectItem value="all">Todos os Estados</SelectItem>
+                            <SelectItem value="pendente">Falta Enviar</SelectItem>
+                            <SelectItem value="enviado">Falta Validar</SelectItem>
+                            <SelectItem value="validado">Validado</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
@@ -368,19 +423,26 @@ export function ClientHoursDetail() {
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-32 text-center">
+                                    <TableCell colSpan={7} className="h-32 text-center">
                                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                                     </TableCell>
                                 </TableRow>
                             )}
                             {!loading && workers.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                         {t('clientHoursDetail.emptyWorkers')}
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {!loading && workers.map((worker) => {
+                            {!loading && workers.length > 0 && filteredWorkers.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                        Nenhum trabalhador corresponde aos filtros aplicados.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && filteredWorkers.map((worker) => {
                                 const rawStatus = worker.worker_status?.toUpperCase() || '';
                                 let displayStatus = rawStatus;
                                 let isHistoricalActive = false;
