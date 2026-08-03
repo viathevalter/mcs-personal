@@ -77,7 +77,7 @@ export const Sidebar: React.FC = () => {
           <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />
           {isSystemAdmin && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
           {(isSystemAdmin || isOps) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
-          {(isSystemAdmin || isOps) && <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />}
+          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />}
           {isSystemAdmin && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
         </div>
 
