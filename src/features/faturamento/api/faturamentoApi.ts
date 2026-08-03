@@ -1069,14 +1069,15 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       const faturaIds = faturas.map(f => f.id);
       let hoursSums: any[] = [];
       if (faturaIds.length > 0) {
-        const { data: horas, error: horasError } = await supabase
-          .schema('core_finance')
-          .from('horas_trabalhadas')
-          .select('fatura_id, horas_totais, tarifa_faturada')
-          .in('fatura_id', faturaIds);
-        
-        if (horasError) console.error('Erro ao buscar horas para tracking:', horasError);
-        else hoursSums = horas || [];
+        hoursSums = await fetchInChunks(faturaIds, 30, async (chunk) => {
+          const { data: horas, error: horasError } = await supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .select('fatura_id, horas_totais, tarifa_faturada')
+            .in('fatura_id', chunk);
+          if (horasError) throw mapSupabaseError(horasError);
+          return horas || [];
+        });
       }
   
       const hoursMap = new Map<string, number>();

@@ -15,6 +15,8 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { getBillingCycleDays } from './FaturasPendentes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QRCodeSVG } from 'qrcode.react';
+
 
 // Helper to calculate expected due date and remaining/overdue days
 const getDueDateAndRemaining = (emissaoStr: string | null, days: number | null) => {
@@ -1819,294 +1821,335 @@ MCS - Gestão Comercial`;
                   )}
 
                   {/* Informe Pró-forma Tab */}
-                  {disputeActiveTab === 'informe' && (
-                    <div className="flex flex-col items-center w-full">
-                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
-                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
-                          Informe de Facturación (Pró-forma)
-                        </span>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'informe')}
-                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
-                        >
-                          <FileText size={12} /> Baixar PDF
-                        </Button>
-                      </div>
-                      
-                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                        <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left">
-                        {/* Header */}
-                        <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
-                          <div className="space-y-1">
-                            <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-                              {selectedDispute.client?.nombre_comercial ? 'STO - STOCCO' : 'MCS'}
-                            </h3>
-                            <p className="text-[9px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
-                            <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-100">IF-{year}/0760</p>
-                            <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                            <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                          </div>
+                  {disputeActiveTab === 'informe' && (() => {
+                    const disputeEmpresa = empresas.find(e => e.id === selectedDispute.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
+                    return (
+                      <div className="flex flex-col items-center w-full">
+                        <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                          <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                            Informe de Facturación (Pró-forma)
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'informe')}
+                            className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                          >
+                            <FileText size={12} /> Baixar PDF
+                          </Button>
                         </div>
+                        
+                        <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                          <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
+                            {/* Header */}
+                            <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
+                              <div className="space-y-1">
+                                {disputeEmpresa?.invoice_logo_url ? (
+                                  <div className="h-10 flex items-center mb-1">
+                                    <img src={disputeEmpresa.invoice_logo_url} alt={disputeEmpresa.nome} className="max-h-full max-w-[180px] object-contain" />
+                                  </div>
+                                ) : (
+                                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
+                                    {(disputeEmpresa?.trade_name || disputeEmpresa?.nome || 'MCS').toUpperCase()}
+                                  </h3>
+                                )}
+                                <p className="text-[9px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
+                                <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
+                              </div>
+                              <div className="text-right space-y-1">
+                                <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">
+                                  IF-{year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                                </p>
+                                <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                              </div>
+                            </div>
 
-                        {/* Emissor e Cliente */}
-                        <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
-                          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
-                            <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
-                            <p className="text-muted-foreground">CIF/NIF: PT517834747</p>
-                            <p className="text-muted-foreground">R. São Tomé e Príncipe, 287 - Vila Nova de Gaia</p>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
-                            <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
-                            <p className="text-muted-foreground">NIF: ES55350245</p>
-                            <p className="text-muted-foreground">Pol. Ind. MERCADERIES C/1 NAU</p>
-                          </div>
-                        </div>
+                            {/* Emissor e Cliente */}
+                            <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
+                              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
+                                <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-150">{disputeEmpresa?.nome || 'MCS'}</p>
+                                <p className="text-muted-foreground">CIF/NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                                <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
+                                <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
+                                <p className="text-muted-foreground">NIF: {selectedDispute.client?.taxId || selectedDispute.client?.tax_id || 'N/A'}</p>
+                                <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                              </div>
+                            </div>
 
-                        {/* Resumo de Importe */}
-                        <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
-                        <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
-                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                            <TableRow>
-                              <TableHead className="font-bold">Concepto</TableHead>
-                              <TableHead className="text-right font-bold w-28">Valor (€)</TableHead>
-                              <TableHead className="font-bold">Descripción</TableHead>
-                              <TableHead className="text-right font-bold w-32">Total (€)</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell className="font-semibold">Importe total</TableCell>
-                              <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                              <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                            {Number(adjustments.incrementos) > 0 && (
-                              <TableRow>
-                                <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
-                                <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
-                                <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            )}
-                            {Number(adjustments.reducoes) > 0 && (
-                              <TableRow>
-                                <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
-                                <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
-                                <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            )}
-                            <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                              <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
-                              <TableCell className="text-right font-extrabold text-slate-900 dark:text-white font-mono">
-                                € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
+                            {/* Resumo de Importe */}
+                            <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
+                            <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
+                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                                <TableRow>
+                                  <TableHead className="font-bold">Concepto</TableHead>
+                                  <TableHead className="text-right font-bold w-28">Valor (€)</TableHead>
+                                  <TableHead className="font-bold">Descripción</TableHead>
+                                  <TableHead className="text-right font-bold w-32">Total (€)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell className="font-semibold">Importe total</TableCell>
+                                  <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                                  <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                                {Number(adjustments.incrementos) > 0 && (
+                                  <TableRow>
+                                    <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
+                                    <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
+                                    <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                )}
+                                {Number(adjustments.reducoes) > 0 && (
+                                  <TableRow>
+                                    <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
+                                    <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
+                                    <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                )}
+                                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                                  <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
+                                  <TableCell className="text-right font-extrabold text-slate-900 dark:text-white font-mono">
+                                    € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
 
-                        <div className="text-center font-bold bg-slate-105 dark:bg-slate-900 py-1 rounded text-slate-700 dark:text-slate-300 mb-4 text-[9px]">
-                          OBRA: {selectedDispute.ajustes_json?.obra || 'SIN OBRA'}
-                        </div>
+                            <div className="text-center font-bold bg-slate-105 dark:bg-slate-900 py-1 rounded text-slate-700 dark:text-slate-300 mb-4 text-[9px]">
+                              OBRA: {selectedDispute.ajustes_json?.obra || 'SIN OBRA'}
+                            </div>
 
-                        {/* Relação de Trabalhadores */}
-                        <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
-                        <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
-                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                            <TableRow>
-                              <TableHead className="font-bold pl-4">Trabajador</TableHead>
-                              <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
-                              <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
-                              <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {groupedDisputeWorkersEnriched.map(w => (
-                              <TableRow key={w.workerId}>
-                                <TableCell className="font-semibold text-slate-800 dark:text-slate-250 pl-4">{w.workerName}</TableCell>
-                                <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                                <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            ))}
-                            <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                              <TableCell className="font-bold pl-4">Totales</TableCell>
-                              <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
-                              <TableCell className="text-right">-</TableCell>
-                              <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
+                            {/* Relação de Trabalhadores */}
+                            <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
+                            <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
+                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                                <TableRow>
+                                  <TableHead className="font-bold pl-4">Trabajador</TableHead>
+                                  <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
+                                  <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
+                                  <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {groupedDisputeWorkersEnriched.map(w => (
+                                  <TableRow key={w.workerId}>
+                                    <TableCell className="font-semibold text-slate-800 dark:text-slate-250 pl-4">{w.workerName}</TableCell>
+                                    <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
+                                    <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                                  <TableCell className="font-bold pl-4">Totales</TableCell>
+                                  <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
+                                  <TableCell className="text-right">-</TableCell>
+                                  <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
 
-                        {/* Informações Bancárias */}
-                        <div className="border-t border-slate-100 dark:border-slate-900 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
-                          <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
-                          <p className="whitespace-pre-line font-mono">{adjustments.iban}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  )}
-
-                  {/* Factura Única Tab */}
-                  {disputeActiveTab === 'factura' && (
-                    <div className="flex flex-col items-center w-full">
-                      <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
-                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
-                          Factura Única AT (Pro-forma / Definitiva)
-                        </span>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'factura')}
-                          className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
-                        >
-                          <FileText size={12} /> Baixar PDF
-                        </Button>
-                      </div>
-                      
-                      <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                        <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
-                        {/* Top row */}
-                        <div className="flex justify-between items-start mb-6">
-                          <div>
-                            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                              Factura 2026/0347
-                            </h3>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
-                          </div>
-                          <div className="border border-slate-200 dark:border-slate-800 p-1 bg-white dark:bg-slate-900 rounded shadow-sm">
-                            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-[6px] text-slate-400 font-bold border border-dashed border-slate-300 dark:border-slate-800">
-                              <span>MOCK QR</span>
+                            {/* Informações Bancárias */}
+                            <div className="border-t border-slate-100 dark:border-slate-900 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
+                              <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
+                              <p className="whitespace-pre-line font-mono">{adjustments.iban || disputeEmpresa?.iban || 'N/A'}</p>
                             </div>
                           </div>
                         </div>
+                      </div>
+                    );
+                  })()}
 
-                        {/* De / Para */}
-                        <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
-                          <div>
-                            <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">STOCCO LDA</p>
-                            <p className="text-muted-foreground">Rua Padre António Maria Pinho, n.º 353</p>
-                            <p className="text-muted-foreground">4460-853 Vila Nova de Gaia</p>
-                            <p className="text-muted-foreground">NIF: PT517834747</p>
-                            <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
-                            <p className="text-muted-foreground font-mono whitespace-pre-line text-[9px]">{adjustments.iban.split('\n')[0]}</p>
+                  {/* Factura Única Tab */}
+                  {disputeActiveTab === 'factura' && (() => {
+                    const disputeEmpresa = empresas.find(e => e.id === selectedDispute.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
+                    return (
+                      <div className="flex flex-col items-center w-full">
+                        <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
+                          <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                            Factura Única AT (Pro-forma / Definitiva)
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'factura')}
+                            className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                          >
+                            <FileText size={12} /> Baixar PDF
+                          </Button>
+                        </div>
+                        
+                        <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative pb-[60px]">
+                            {/* Top row */}
+                            <div className="flex justify-between items-start mb-6">
+                              <div>
+                                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                  Factura {selectedDispute.year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                                </h3>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                              </div>
+                              {/* QR Code dinâmico */}
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[8px] font-bold text-slate-700 dark:text-slate-300 font-sans">
+                                  ATCUD: {selectedDispute.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${selectedDispute.fatura_numero || 1}`}
+                                </span>
+                                <div className="border border-slate-200 dark:border-slate-800 p-1 bg-white rounded shadow-sm">
+                                  <QRCodeSVG
+                                    value={`${window.location.origin}/aprovacao-cliente/${selectedDispute.magic_link_token || 'draft'}`}
+                                    size={50}
+                                    level="H"
+                                    includeMargin={false}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* De / Para */}
+                            <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                              <div>
+                                <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-150">{disputeEmpresa?.nome || 'MCS'}</p>
+                                <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                                <p className="text-muted-foreground">NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                                <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
+                                <p className="text-muted-foreground font-mono text-[9px] whitespace-pre-line">
+                                  {(adjustments.iban || disputeEmpresa?.iban || 'N/A').split('\n')[0]}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
+                                <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
+                                <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                                <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                              </div>
+                            </div>
+
+                            {/* Tabela de Itens */}
+                            <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                              Lista de Artigos
+                            </div>
+                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
+                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
+                                <TableRow>
+                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
+                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
+                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
+                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
+                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
+                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
+                                  <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                                  <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
+                                  <TableCell>UN</TableCell>
+                                  <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                                {Number(adjustments.incrementos) > 0 && (
+                                  <TableRow>
+                                    <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
+                                    <TableCell className="text-right">1.00</TableCell>
+                                    <TableCell>UN</TableCell>
+                                    <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                )}
+                                {Number(adjustments.reducoes) > 0 && (
+                                  <TableRow>
+                                    <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
+                                    <TableCell className="text-right">1.00</TableCell>
+                                    <TableCell>UN</TableCell>
+                                    <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+
+                            {/* Resumo da Fatura */}
+                            <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                              Resumo
+                            </div>
+                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
+                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
+                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                                <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
+                                  <TableCell className="font-extrabold text-orange-850 dark:text-orange-300" colSpan={3}>Total da Fatura</TableCell>
+                                  <TableCell className="text-right font-extrabold text-orange-950 dark:text-orange-205 text-[11px] pr-3 font-mono">
+                                    € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+
+                            {/* Condições de IVA */}
+                            <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                              Condições de Enquadramento de IVA:<br/>
+                              (1) {Number(adjustments.ivaPct) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+                            </div>
+
+                            {/* Footer de moradas */}
+                            <div className="border-t border-slate-200 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                              <div>
+                                <p className="font-bold uppercase mb-0.5">Local de Carga</p>
+                                <p>{disputeEmpresa?.address_line || 'N/ Morada'}</p>
+                                <p>{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
+                                <p>{selectedDispute.client?.address_line || 'V/ Morada'}</p>
+                                <p>{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                              </div>
+                            </div>
+
+                            {/* Certified Software */}
+                            <div className="text-center text-[8px] text-slate-700 italic font-semibold mb-2">
+                              {disputeEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
+                            </div>
+
+                            {/* Barra preta com logotipo decorativo */}
+                            <div className="absolute bottom-0 left-0 right-0 h-[35px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-6 text-[7px] font-sans rounded-b select-none overflow-hidden">
+                              <div className="absolute left-0 bottom-0 top-0 w-16 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                              <span className="relative z-10 font-medium">
+                                Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
+                              </span>
+                              <span className="relative z-10 font-bold">
+                                ORIGINAL
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
-                            <p className="text-muted-foreground">AVENIDA DE LA INDUSTRIA 14, 25190</p>
-                            <p className="text-muted-foreground">LLEIDA, Espanha</p>
-                            <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                            <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                          </div>
-                        </div>
-
-                        {/* Tabela de Itens */}
-                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                          Lista de Artigos
-                        </div>
-                        <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
-                          <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                            <TableRow>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
-                              <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
-                              <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
-                              <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                              <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
-                              <TableCell>UN</TableCell>
-                              <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                            {Number(adjustments.incrementos) > 0 && (
-                              <TableRow>
-                                <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
-                                <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
-                                <TableCell className="text-right">1.00</TableCell>
-                                <TableCell>UN</TableCell>
-                                <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            )}
-                            {Number(adjustments.reducoes) > 0 && (
-                              <TableRow>
-                                <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
-                                <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
-                                <TableCell className="text-right">1.00</TableCell>
-                                <TableCell>UN</TableCell>
-                                <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-
-                        {/* Resumo da Fatura */}
-                        <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                          Resumo
-                        </div>
-                        <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
-                          <TableBody>
-                            <TableRow>
-                              <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
-                              <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
-                              <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                            <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
-                              <TableCell className="font-extrabold text-orange-850 dark:text-orange-300" colSpan={3}>Total da Fatura</TableCell>
-                              <TableCell className="text-right font-extrabold text-orange-950 dark:text-orange-205 text-[11px] pr-3 font-mono">
-                                € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-
-                        {/* Condições de IVA */}
-                        <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
-                          Condições de Enquadramento de IVA:<br/>
-                          (1) M09-IVA - autoliquidação
-                        </div>
-
-                        {/* Rodapé */}
-                        <div className="border-t border-slate-100 dark:border-slate-900 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium">
-                          <div>
-                            <p className="font-bold uppercase mb-0.5">Local de Carga</p>
-                            <p>Rua Conselheiro Fonseca, n.º 157</p>
-                            <p>4405-853 Vila Nova de Gaia</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                            <p>AVENIDA DE LA INDUSTRIA 14, 25190 LLEIDA</p>
-                          </div>
-                        </div>
-                        <div className="text-center text-[7px] text-muted-foreground mt-3 italic font-semibold">
-                          Rexx - Processado por Programa Certificado nº 1123/AT
                         </div>
                       </div>
-                    </div>
+                    );
+                  })()}
                   </div>
-                  )}
-                </div>
 
                 <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
                   <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
@@ -2245,18 +2288,33 @@ MCS - Gestão Comercial`;
                   <div className="space-y-2">
                     <h4 className="font-bold text-indigo-600 dark:text-indigo-400 border-b dark:border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Documentos Anexos (PDF)</h4>
                     <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
+                      <button
+                        type="button"
+                        onClick={() => handleExportHoursPDFTracking(emailData.fatura)}
+                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
+                        title="Clique para visualizar/baixar o Relatório de Horas"
+                      >
+                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                         <span>Relatorio_Datas_Trabalhadas.pdf</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'informe')}
+                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
+                        title="Clique para visualizar/baixar o Informe de Faturamento"
+                      >
+                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                         <span>Informe_Facturacion.pdf</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'factura')}
+                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
+                        title="Clique para visualizar/baixar a Factura Única"
+                      >
+                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                         <span>Factura_Pró-forma.pdf</span>
-                      </div>
+                      </button>
                     </div>
                   </div>
                 </div>
