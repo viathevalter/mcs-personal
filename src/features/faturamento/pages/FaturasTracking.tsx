@@ -94,6 +94,7 @@ export function FaturasTracking() {
   const { selectedEmpresaId, empresas } = useEmpresa();
 
   const [pdfRenderData, setPdfRenderData] = useState<{ fatura: any, hours: any[], type: 'informe' | 'factura' } | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Effect to handle dynamic PDF generation in the background
   useEffect(() => {
@@ -1347,7 +1348,10 @@ MCS - Gestão Comercial`;
     const matchesId = f.id.toLowerCase().includes(query);
     const matchesClient = f.client?.nombre_comercial?.toLowerCase().includes(query) || false;
     const matchesClientCode = f.client?.codigo?.toLowerCase().includes(query) || false;
-    return matchesId || matchesClient || matchesClientCode;
+    const matchesQuery = matchesId || matchesClient || matchesClientCode;
+
+    if (statusFilter === 'all') return matchesQuery;
+    return matchesQuery && f.status === statusFilter;
   });
 
   const getStatusBadge = (status: string) => {
@@ -1407,15 +1411,30 @@ MCS - Gestão Comercial`;
               <CardTitle>Painel de Rastreamento</CardTitle>
               <CardDescription>Monitore as solicitações de aprovação ativas</CardDescription>
             </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Buscar fatura ou cliente..."
-                className="pl-9 bg-white dark:bg-slate-950"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[185px] bg-white dark:bg-slate-950 font-medium">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="pending_client_approval">Aguardando Cliente</SelectItem>
+                  <SelectItem value="approved">Aprovado (Falta Enviar)</SelectItem>
+                  <SelectItem value="invoice_sent">Fatura Enviada</SelectItem>
+                  <SelectItem value="disputed">Contestado</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar fatura ou cliente..."
+                  className="pl-9 bg-white dark:bg-slate-950"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -1429,134 +1448,121 @@ MCS - Gestão Comercial`;
               <p className="text-lg font-medium text-muted-foreground">Nenhuma fatura encontrada.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-transparent">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6 py-4">Fatura ID</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Data Emissão</TableHead>
-                  <TableHead>Prazo</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Horas</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right pr-6">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredFaturas.map((fatura) => {
-                  const { dueDateStr, daysText, isOverdue, daysVal } = getDueDateAndRemaining(
-                    fatura.data_emissao,
-                    fatura.client?.paymentTermDays ?? null
-                  );
+            <div className="overflow-y-auto max-h-[calc(100vh-320px)] pr-2 scrollbar-thin scrollbar-thumb-slate-350 dark:scrollbar-thumb-slate-750 overscroll-contain w-full">
+              <Table>
+                <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="pl-6 py-4">Fatura ID</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Data Emissão</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Horas</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right pr-6">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredFaturas.map((fatura) => {
+                    const { dueDateStr, daysText, isOverdue, daysVal } = getDueDateAndRemaining(
+                      fatura.data_emissao,
+                      fatura.client?.paymentTermDays ?? null
+                    );
 
-                  return (
-                    <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
-                        {(() => {
-                          if (!fatura.fatura_numero) {
-                            return `#${fatura.id.split('-')[0].toUpperCase()}`;
-                          }
-                          const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
-                          return match ? match[0] : fatura.fatura_numero;
-                        })()}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-700 dark:text-slate-300">
-                        <div className="flex flex-col gap-1 text-left">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {fatura.client?.codigo ? (
-                              <span className="text-slate-400 font-normal bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">
-                                {fatura.client.codigo}
-                              </span>
-                            ) : null}
-                            <span className="font-bold text-slate-900 dark:text-slate-100">{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
+                    return (
+                      <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
+                          {(() => {
+                            if (!fatura.fatura_numero) {
+                              return `#${fatura.id.split('-')[0].toUpperCase()}`;
+                            }
+                            const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
+                            return match ? match[0] : fatura.fatura_numero;
+                          })()}
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-700 dark:text-slate-300">
+                          <div className="flex flex-col gap-1 text-left">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {fatura.client?.codigo ? (
+                                <span className="text-slate-400 font-normal bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">
+                                  {fatura.client.codigo}
+                                </span>
+                              ) : null}
+                              <span className="font-bold text-slate-900 dark:text-slate-100">{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
+                            </div>
+                            {fatura.client?.viesApplicable && (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-[9px] font-extrabold px-1.5 py-0 w-fit flex items-center gap-1 shrink-0 ${
+                                  fatura.client.viesValid 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' 
+                                    : fatura.client.viesStatus === 'invalid'
+                                      ? 'bg-rose-50 text-rose-700 border-rose-250 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800'
+                                      : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+                                }`}
+                                title={fatura.client.viesLastCheckedAt ? `Última consulta VIES: ${new Date(fatura.client.viesLastCheckedAt).toLocaleString('pt-PT')}` : 'Nunca verificado no VIES'}
+                              >
+                                VIES: {fatura.client.viesValid ? 'Ativo' : fatura.client.viesStatus === 'invalid' ? 'Inválido' : 'Pendente'}
+                              </Badge>
+                            )}
                           </div>
-                          {fatura.client?.viesApplicable && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-[9px] font-extrabold px-1.5 py-0 w-fit flex items-center gap-1 shrink-0 ${
-                                fatura.client.viesValid 
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' 
-                                  : fatura.client.viesStatus === 'invalid'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-250 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800'
-                                    : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
-                              }`}
-                              title={fatura.client.viesLastCheckedAt ? `Última consulta VIES: ${new Date(fatura.client.viesLastCheckedAt).toLocaleString('pt-PT')}` : 'Nunca verificado no VIES'}
-                            >
-                              VIES: {fatura.client.viesValid ? 'Ativo' : fatura.client.viesStatus === 'invalid' ? 'Inválido' : 'Pendente'}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {fatura.data_emissao ? new Date(fatura.data_emissao).toLocaleDateString() : '--/--/----'}
-                      </TableCell>
-                      <TableCell className="text-slate-600 dark:text-slate-400 text-sm">
-                        {fatura.client?.paymentTermName || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {dueDateStr}
-                          </span>
-                          {(fatura.status === 'pending_client_approval' || fatura.status === 'disputed') && daysText && (
-                            <span className={`text-[10px] font-bold ${
-                              isOverdue 
-                                ? 'text-rose-600 dark:text-rose-400' 
-                                : daysVal === 0 
-                                  ? 'text-amber-600 dark:text-amber-500' 
-                                  : 'text-slate-500 dark:text-slate-400'
-                            }`}>
-                              {daysText}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
-                        {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
-                        <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
-                          {fatura.total_valor ? `€ ${fatura.total_valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '€ 0,00'}
-                        </span>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(fatura.status)}</TableCell>
-                      <TableCell className="text-right pr-6">
-                        <div className="flex justify-end items-center gap-3">
-                          <button
-                            onClick={() => handleOpenDispute(fatura)}
-                            className="inline-flex items-center gap-1 text-sm text-slate-650 hover:text-slate-750 dark:text-slate-450 dark:hover:text-slate-300 font-bold transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" /> Ver Detalhes
-                          </button>
-                          {(fatura.status === 'pending_client_approval' || fatura.status === 'disputed') && (
-                            <>
-                              <button
-                                onClick={() => handleCopyLink(fatura.magic_link_token)}
-                                className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
-                              >
-                                <Copy className="w-3.5 h-3.5" /> Copiar Link
-                              </button>
-                              
-                              <button
-                                onClick={() => handleTriggerResendEmail(fatura)}
-                                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors"
-                              >
-                                <Mail className="w-3.5 h-3.5" /> Reenviar E-mail
-                              </button>
-
-                              <button
-                                onClick={() => handleCancelFaturaTracking(fatura.id)}
-                                className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
-                              </button>
-                            </>
-                          )}
-                          {(fatura.status === 'approved' || fatura.status === 'invoice_sent') && (
-                            fatura.ajustes_json?.cobro_gerado ? (
-                              <span className="text-xs text-emerald-650 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                Cobros Gerado
+                        </TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-400">
+                          {fatura.data_emissao ? new Date(fatura.data_emissao + 'T00:00:00').toLocaleDateString('pt-PT') : 'N/D'}
+                        </TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-400">
+                          {fatura.client?.paymentTermName || 'Pronto Pagamento'}
+                        </TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-400">
+                          <div className="flex flex-col text-left">
+                            <span>{dueDateStr}</span>
+                            {daysText && (
+                              <span className={`text-[10px] font-medium ${isOverdue ? 'text-rose-650 font-bold' : 'text-slate-400'}`}>
+                                {daysText}
                               </span>
-                            ) : (
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
+                          {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
+                          <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
+                            {fatura.total_valor ? `€ ${fatura.total_valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '€ 0,00'}
+                          </span>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(fatura.status)}</TableCell>
+                        <TableCell className="text-right pr-6">
+                          <div className="flex justify-end items-center gap-3">
+                            <button
+                              onClick={() => handleOpenDispute(fatura)}
+                              className="inline-flex items-center gap-1 text-sm text-slate-650 hover:text-slate-750 dark:text-slate-450 dark:hover:text-slate-300 font-bold transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-500" /> Ver Detalhes
+                            </button>
+                            {(fatura.status === 'pending_client_approval' || fatura.status === 'disputed') && (
+                              <>
+                                <button
+                                  onClick={() => handleCopyLink(fatura.magic_link_token)}
+                                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                >
+                                  <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleTriggerResendEmail(fatura)}
+                                  className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors"
+                                >
+                                  <Mail className="w-3.5 h-3.5" /> Reenviar E-mail
+                                </button>
+
+                                <button
+                                  onClick={() => handleCancelFaturaTracking(fatura.id)}
+                                  className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Cancelar Fatura
+                                </button>
+                              </>
+                            )}
+                            {fatura.status === 'approved' && (
                               <>
                                 <button
                                   onClick={() => handleCopyLink(fatura.magic_link_token)}
@@ -1567,29 +1573,53 @@ MCS - Gestão Comercial`;
                                 
                                 <button
                                   onClick={() => handleTriggerResendEmail(fatura, true)}
-                                  className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors"
+                                  className="inline-flex items-center gap-1 text-sm text-indigo-650 hover:text-indigo-750 dark:text-indigo-450 dark:hover:text-indigo-350 font-bold transition-all px-2.5 py-1 border border-indigo-200 dark:border-indigo-800 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
                                 >
-                                  <Mail className="w-3.5 h-3.5" /> Enviar Fatura
-                                </button>
-
-                                <button
-                                  onClick={() => handleGerarCobro(fatura)}
-                                  disabled={isGeneratingCobro}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                                >
-                                  {isGeneratingCobro ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                                  Gerar Cobros
+                                  <Mail className="w-3.5 h-3.5 mr-1" /> Enviar Fatura
                                 </button>
                               </>
-                            )
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                            )}
+                            {fatura.status === 'invoice_sent' && (
+                              fatura.ajustes_json?.cobro_gerado ? (
+                                <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Cobros Gerado
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleCopyLink(fatura.magic_link_token)}
+                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => handleTriggerResendEmail(fatura, true)}
+                                    className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 font-medium transition-colors"
+                                  >
+                                    <Mail className="w-3.5 h-3.5" /> Reenviar Fatura
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleGerarCobro(fatura)}
+                                    disabled={isGeneratingCobro}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                  >
+                                    {isGeneratingCobro ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                                    Gerar Cobros
+                                  </button>
+                                </>
+                              )
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
