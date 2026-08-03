@@ -140,7 +140,7 @@ export function WorkerDashboardPage() {
             const uniqueRecordsMap = new Map<string, WorkerHour>();
 
             for (const record of allRecords) {
-                const key = `${record.period_year}-${record.period_month}-${record.worker_id}`;
+                const key = `${record.period_year}-${record.period_month}-${record.worker_id}-${record.empresa_id}`;
                 const existing = uniqueRecordsMap.get(key);
 
                 if (!existing) {
