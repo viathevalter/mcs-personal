@@ -1844,7 +1844,7 @@ const ConfigurarReemplazoDialog: React.FC<ConfigurarReemplazoDialogProps> = ({
                         Confirmar Respostas
                     </Button>
                 </DialogFooter>
-            </Dialog>
+            </DialogContent>
         </Dialog>
     );
 };
