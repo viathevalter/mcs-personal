@@ -1122,7 +1122,7 @@ Muchas gracias.`;
     };
 
     // 8.5 Trigger para abrir modal de gerar contrato a partir de uma solicitação validada
-    const handleTriggerGenerate = (workerId: string, empresaId: string) => {
+    const handleTriggerGenerate = async (workerId: string, empresaId: string) => {
         setSelectedWorkerId(workerId);
         
         // Mapear empresaId para selectedContratante
@@ -1136,6 +1136,31 @@ Muchas gracias.`;
             setSelectedContratante('TRIANGULO');
         } else {
             setSelectedContratante('');
+        }
+
+        // Garante o carregamento dos trabalhadores da empresa do pedido
+        if (empresaId) {
+            await loadWorkersForEmpresa(empresaId);
+        }
+
+        // Se o trabalhador específico ainda não estiver na lista (ex: status diferenciado), carrega individualmente
+        try {
+            const { data: w } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, nome, cod_colab')
+                .eq('id', workerId)
+                .maybeSingle();
+
+            if (w) {
+                const label = `${w.nome} (${w.cod_colab || 'Sem Cód.'})`;
+                setWorkersList(prev => {
+                    if (prev.some(item => item.value === w.id)) return prev;
+                    return [{ value: w.id, label }, ...prev];
+                });
+            }
+        } catch (err) {
+            console.error("Erro ao buscar trabalhador específico:", err);
         }
         
         setGenerateDialogOpen(true);
