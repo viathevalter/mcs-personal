@@ -423,12 +423,21 @@ MCS - Gestão Comercial`;
     const condPay = f.paymentTermName || 'Pronto Pagamento';
     const payDays = f.paymentTermDays ?? 0;
     
-    const emissionDate = new Date();
-    const emissionStr = emissionDate.toISOString().split('T')[0];
+    // Get the last day of the reference month and year timezone-safe
+    const emissionDate = new Date(f.year, f.month + 1, 0);
     
-    const dueDate = new Date();
+    const year = emissionDate.getFullYear();
+    const month = String(emissionDate.getMonth() + 1).padStart(2, '0');
+    const day = String(emissionDate.getDate()).padStart(2, '0');
+    const emissionStr = `${year}-${month}-${day}`;
+    
+    const dueDate = new Date(emissionDate.getTime());
     dueDate.setDate(emissionDate.getDate() + payDays);
-    const dueStr = dueDate.toISOString().split('T')[0];
+    
+    const dueYear = dueDate.getFullYear();
+    const dueMonth = String(dueDate.getMonth() + 1).padStart(2, '0');
+    const dueDay = String(dueDate.getDate()).padStart(2, '0');
+    const dueStr = `${dueYear}-${dueMonth}-${dueDay}`;
 
     const defaultIban = f.empresaBankDetails || (f.empresaIban ? `IBAN: ${f.empresaIban}` : "NIB: PT50 0018 000365089609020 15\nBanco Santander\nSWIFT: TOTAPPTPL");
     let ibanVal = f.ajustesJson?.iban ?? defaultIban;
