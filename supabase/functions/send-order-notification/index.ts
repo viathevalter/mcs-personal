@@ -257,7 +257,7 @@ serve(async (req) => {
     }
 
     let resolvedEmpresaId = empresa_id;
-    let senderEmail = "vendas@stoco.es";
+    let senderEmail = "valter@gestaologinpro.com";
     let senderName = "Comercial";
     let attachments: EmailAttachment[] = [];
     let resolvedEmpresa: any = null;
@@ -957,20 +957,6 @@ serve(async (req) => {
           clientId: resolvedEmpresa.microsoft_client_id,
           clientSecret: resolvedEmpresa.microsoft_client_secret
         };
-      } else {
-        // If the company has no custom Microsoft Graph integration, we MUST send the email
-        // from the default authenticated sender to avoid auth failure, but we route 
-        // replies to the company's actual email so the client can reply directly to them.
-        const companyEmail = is_faturamento
-          ? (resolvedEmpresa.billing_email || resolvedEmpresa.email || resolvedEmpresa.proposal_sender_email)
-          : (resolvedEmpresa.proposal_sender_email || resolvedEmpresa.billing_email);
-
-        if (companyEmail && !resolvedReplyTo) {
-          resolvedReplyTo = companyEmail;
-        }
-        
-        // Reset senderEmail to the default authenticated email
-        senderEmail = "vendas@stoco.es";
       }
     }
 
@@ -979,7 +965,7 @@ serve(async (req) => {
     }
 
     if (!senderEmail) {
-      senderEmail = "vendas@stoco.es";
+      senderEmail = "valter@gestaologinpro.com";
     }
 
     // 8. Enviar email via Microsoft Graph API
