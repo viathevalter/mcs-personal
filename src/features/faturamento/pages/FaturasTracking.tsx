@@ -287,11 +287,11 @@ export function FaturasTracking() {
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
         <div>
           <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Relatório de Horas</h2>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>\${clientName}</strong> | Período: <strong>\${periodStr}</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>${clientName}</strong> | Período: <strong>${periodStr}</strong></p>
         </div>
         <div style="text-align: right;">
-          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">\${totalHorasCalculadas.toFixed(2)}h</strong></p>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ \${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${totalHorasCalculadas.toFixed(2)}h</strong></p>
+          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ ${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
         </div>
       </div>
     `;
@@ -353,9 +353,9 @@ export function FaturasTracking() {
       }
 
       tableHtml += `
-        <th style="text-align: center; padding: 6px 2px; min-width: 25px; \${headerBg} border-right: 1px solid #e2e8f0;">
-          <div style="font-size: 7px; text-transform: uppercase; color: \${headerColor}; font-weight: 700;">\${label}</div>
-          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">\${String(dInfo.day).padStart(2, '0')}</div>
+        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
         </th>
       `;
     });
@@ -371,7 +371,7 @@ export function FaturasTracking() {
       const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
       tableHtml += `
         <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">\${w.workerName}</td>
+          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
       `;
 
       daysArray.forEach(dInfo => {
@@ -394,14 +394,14 @@ export function FaturasTracking() {
         }
 
         tableHtml += `
-          <td style="text-align: center; padding: 8px 2px; \${cellBg} \${cellStyle} border-right: 1px solid #e2e8f0;">
-            \${hoursVal > 0 ? hoursVal : '-'}
+          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+            ${hoursVal > 0 ? hoursVal : '-'}
           </td>
         `;
       });
 
       tableHtml += `
-          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">\${workerTotal.toFixed(1)}h</td>
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
         </tr>
       `;
     });
@@ -445,7 +445,7 @@ export function FaturasTracking() {
         heightLeft -= 210;
       }
       
-      pdf.save(`relatorio-horas-\${clientName.toLowerCase().replace(/\\s+/g, '-')}.pdf`);
+      pdf.save(`relatorio-horas-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
       toast.success("PDF do Relatório de Horas gerado com sucesso!");
     } catch (error: any) {
       console.error("Erro ao gerar PDF:", error);
@@ -1840,130 +1840,147 @@ MCS - Gestão Comercial`;
                         </div>
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                          <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative">
-                            {/* Header */}
-                            <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-900 pb-4 mb-4">
-                              <div className="space-y-1">
-                                {disputeEmpresa?.invoice_logo_url ? (
-                                  <div className="h-10 flex items-center mb-1">
-                                    <img src={disputeEmpresa.invoice_logo_url} alt={disputeEmpresa.nome} className="max-h-full max-w-[180px] object-contain" />
-                                  </div>
-                                ) : (
-                                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-                                    {(disputeEmpresa?.trade_name || disputeEmpresa?.nome || 'MCS').toUpperCase()}
-                                  </h3>
-                                )}
-                                <p className="text-[9px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-widest">Informe de Facturación</p>
-                                <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
+                          <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+                            {/* Wrapper do conteúdo flex-1 */}
+                            <div className="flex-1">
+                              {/* Header */}
+                              <div className="flex justify-between items-start border-b-2 border-slate-100 pb-4 mb-4">
+                                <div className="space-y-1">
+                                  {disputeEmpresa?.invoice_logo_url ? (
+                                    <div className="h-10 flex items-center mb-1">
+                                      <img src={disputeEmpresa.invoice_logo_url} alt={disputeEmpresa.nome} className="max-h-full max-w-[180px] object-contain" />
+                                    </div>
+                                  ) : (
+                                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                                      {(disputeEmpresa?.trade_name || disputeEmpresa?.nome || 'MCS').toUpperCase()}
+                                    </h3>
+                                  )}
+                                  <p className="text-[9px] font-bold text-indigo-650 uppercase tracking-widest">Informe de Facturación</p>
+                                  <p className="text-[8px] text-muted-foreground">MCS - Gestão Comercial</p>
+                                </div>
+                                <div className="text-right space-y-1">
+                                  <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
+                                  <p className="font-bold text-slate-900">
+                                    IF-{year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                                  </p>
+                                  <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                  <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                </div>
                               </div>
-                              <div className="text-right space-y-1">
-                                <p className="font-bold text-slate-500 uppercase text-[8px]">Documento</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">
-                                  IF-{year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
-                                </p>
-                                <p className="text-muted-foreground mt-1 text-[10px]">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                                <p className="text-muted-foreground text-[10px]">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                              </div>
-                            </div>
 
-                            {/* Emissor e Cliente */}
-                            <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
-                              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
-                                <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-150">{disputeEmpresa?.nome || 'MCS'}</p>
-                                <p className="text-muted-foreground">CIF/NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
-                                <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                              {/* Emissor e Cliente */}
+                              <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-150 space-y-0.5">
+                                  <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
+                                  <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                                  <p className="text-muted-foreground">CIF/NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-150 space-y-0.5">
+                                  <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
+                                  <p className="font-bold text-slate-900">{selectedDispute.client?.nombre_comercial}</p>
+                                  <p className="text-muted-foreground">NIF: {selectedDispute.client?.taxId || selectedDispute.client?.tax_id || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                                </div>
                               </div>
-                              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
-                                <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
-                                <p className="text-muted-foreground">NIF: {selectedDispute.client?.taxId || selectedDispute.client?.tax_id || 'N/A'}</p>
-                                <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
-                              </div>
-                            </div>
 
-                            {/* Resumo de Importe */}
-                            <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
-                            <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
-                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                                <TableRow>
-                                  <TableHead className="font-bold">Concepto</TableHead>
-                                  <TableHead className="text-right font-bold w-28">Valor (€)</TableHead>
-                                  <TableHead className="font-bold">Descripción</TableHead>
-                                  <TableHead className="text-right font-bold w-32">Total (€)</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-semibold">Importe total</TableCell>
-                                  <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                                  <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                {Number(adjustments.incrementos) > 0 && (
+                              {/* Resumo de Importe */}
+                              <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
+                              <Table className="border border-slate-150 rounded mb-4 text-[10px]">
+                                <TableHeader className="bg-slate-50">
                                   <TableRow>
-                                    <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
-                                    <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                    <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
-                                    <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableHead className="font-bold text-slate-700">Concepto</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-28">Valor (€)</TableHead>
+                                    <TableHead className="font-bold text-slate-700">Descripción</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-32">Total (€)</TableHead>
                                   </TableRow>
-                                )}
-                                {Number(adjustments.reducoes) > 0 && (
+                                </TableHeader>
+                                <TableBody>
                                   <TableRow>
-                                    <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
-                                    <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                    <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
-                                    <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="font-semibold text-slate-850">Importe total</TableCell>
+                                    <TableCell className="text-right font-semibold text-slate-850">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                                    <TableCell className="text-right font-semibold text-slate-850 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
-                                )}
-                                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                                  <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
-                                  <TableCell className="text-right font-extrabold text-slate-900 dark:text-white font-mono">
-                                    € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
+                                  {Number(adjustments.incrementos) > 0 && (
+                                    <TableRow>
+                                      <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
+                                      <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                      <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
+                                      <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  )}
+                                  {Number(adjustments.reducoes) > 0 && (
+                                    <TableRow>
+                                      <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
+                                      <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                      <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
+                                      <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  )}
+                                  <TableRow className="bg-slate-50">
+                                    <TableCell className="font-bold text-slate-800" colSpan={3}>Total a facturar</TableCell>
+                                    <TableCell className="text-right font-extrabold text-slate-900 font-mono">
+                                      € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
 
-                            <div className="text-center font-bold bg-slate-105 dark:bg-slate-900 py-1 rounded text-slate-700 dark:text-slate-300 mb-4 text-[9px]">
-                              OBRA: {selectedDispute.ajustes_json?.obra || 'SIN OBRA'}
+                              <div className="text-center font-bold bg-slate-100 py-1 rounded text-slate-700 mb-4 text-[9px]">
+                                OBRA: {selectedDispute.ajustes_json?.obra || 'SIN OBRA'}
+                              </div>
+
+                              {/* Relação de Trabalhadores */}
+                              <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
+                              <Table className="border border-slate-150 rounded mb-4 text-[10px]">
+                                <TableHeader className="bg-slate-50">
+                                  <TableRow>
+                                    <TableHead className="font-bold text-slate-700 pl-4">Trabajador</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-40">Cantidad de horas</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-40">Precio hora (€)</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-40 pr-4">Total (€)</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {groupedDisputeWorkersEnriched.map(w => (
+                                    <TableRow key={w.workerId}>
+                                      <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
+                                      <TableCell className="text-right font-medium text-slate-800">{w.totalHoras.toFixed(2)}h</TableCell>
+                                      <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
+                                      <TableCell className="text-right font-bold text-slate-800 pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                  <TableRow className="bg-slate-50">
+                                    <TableCell className="font-bold text-slate-800 pl-4">Totales</TableCell>
+                                    <TableCell className="text-right font-bold text-slate-800">{totalHorasCalculadas.toFixed(2)}h</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right font-extrabold text-slate-900 pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
                             </div>
 
-                            {/* Relação de Trabalhadores */}
-                            <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
-                            <Table className="border border-slate-150 dark:border-slate-850 rounded mb-4 text-[10px]">
-                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                                <TableRow>
-                                  <TableHead className="font-bold pl-4">Trabajador</TableHead>
-                                  <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
-                                  <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
-                                  <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {groupedDisputeWorkersEnriched.map(w => (
-                                  <TableRow key={w.workerId}>
-                                    <TableCell className="font-semibold text-slate-800 dark:text-slate-250 pl-4">{w.workerName}</TableCell>
-                                    <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                                    <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                ))}
-                                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                                  <TableCell className="font-bold pl-4">Totales</TableCell>
-                                  <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
-                                  <TableCell className="text-right">-</TableCell>
-                                  <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
+                            {/* Wrapper do rodapé */}
+                            <div className="space-y-4">
+                              {/* Informações Bancárias */}
+                              <div className="border-t border-slate-150 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
+                                <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
+                                <p className="whitespace-pre-line font-mono">{adjustments.iban || disputeEmpresa?.iban || 'N/A'}</p>
+                              </div>
+                            </div>
 
-                            {/* Informações Bancárias */}
-                            <div className="border-t border-slate-100 dark:border-slate-900 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
-                              <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
-                              <p className="whitespace-pre-line font-mono">{adjustments.iban || disputeEmpresa?.iban || 'N/A'}</p>
+                            {/* Barra preta com logotipo decorativo */}
+                            <div className="absolute bottom-0 left-0 right-0 h-[35px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-6 text-[7px] font-sans rounded-b select-none overflow-hidden">
+                              <div className="absolute left-0 bottom-0 top-0 w-16 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                              <span className="relative z-10 font-medium">
+                                Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
+                              </span>
+                              <span className="relative z-10 font-bold">
+                                ORIGINAL
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1991,147 +2008,153 @@ MCS - Gestão Comercial`;
                         </div>
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] bg-white dark:bg-slate-950 p-6 shadow border border-slate-200 dark:border-slate-850 text-slate-850 dark:text-slate-200 rounded text-left relative pb-[60px]">
-                            {/* Top row */}
-                            <div className="flex justify-between items-start mb-6">
-                              <div>
-                                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                  Factura {selectedDispute.year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
-                                </h3>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
-                              </div>
-                              {/* QR Code dinâmico */}
-                              <div className="flex flex-col items-end gap-1">
-                                <span className="text-[8px] font-bold text-slate-700 dark:text-slate-300 font-sans">
-                                  ATCUD: {selectedDispute.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${selectedDispute.fatura_numero || 1}`}
-                                </span>
-                                <div className="border border-slate-200 dark:border-slate-800 p-1 bg-white rounded shadow-sm">
-                                  <QRCodeSVG
-                                    value={`${window.location.origin}/aprovacao-cliente/${selectedDispute.magic_link_token || 'draft'}`}
-                                    size={50}
-                                    level="H"
-                                    includeMargin={false}
-                                  />
+                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+                            {/* Wrapper do conteúdo flex-1 */}
+                            <div className="flex-1">
+                              {/* Top row */}
+                              <div className="flex justify-between items-start mb-6">
+                                <div>
+                                  <h3 className="text-base font-extrabold text-slate-900">
+                                    Factura {selectedDispute.year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                                  </h3>
+                                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                                </div>
+                                {/* QR Code dinâmico */}
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-[8px] font-bold text-slate-700 font-sans">
+                                    ATCUD: {selectedDispute.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${selectedDispute.fatura_numero || 1}`}
+                                  </span>
+                                  <div className="border border-slate-200 p-1 bg-white rounded shadow-sm">
+                                    <QRCodeSVG
+                                      value={`${window.location.origin}/aprovacao-cliente/${selectedDispute.magic_link_token || 'draft'}`}
+                                      size={50}
+                                      level="H"
+                                      includeMargin={false}
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* De / Para */}
-                            <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
-                              <div>
-                                <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-150">{disputeEmpresa?.nome || 'MCS'}</p>
-                                <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
-                                <p className="text-muted-foreground">NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
-                                <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
-                                <p className="text-muted-foreground font-mono text-[9px] whitespace-pre-line">
-                                  {(adjustments.iban || disputeEmpresa?.iban || 'N/A').split('\n')[0]}
-                                </p>
+                              {/* De / Para */}
+                              <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                                <div>
+                                  <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                                  <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                                  <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                                  <p className="text-muted-foreground">NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                                  <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
+                                  <p className="text-muted-foreground font-mono text-[9px] whitespace-pre-line">
+                                    {(adjustments.iban || disputeEmpresa?.iban || 'N/A').split('\n')[0]}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                                  <p className="font-bold text-slate-900">{selectedDispute.client?.nombre_comercial}</p>
+                                  <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
+                                  <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                                  <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                  <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-150">{selectedDispute.client?.nombre_comercial}</p>
-                                <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
-                                <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
-                                <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                                <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                              </div>
-                            </div>
 
-                            {/* Tabela de Itens */}
-                            <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                              Lista de Artigos
-                            </div>
-                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
-                              <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                                <TableRow>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 pl-3">Artigo</TableHead>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Qtd.</TableHead>
-                                  <TableHead className="font-bold text-slate-700 dark:text-slate-300 w-16">Un.</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24">Pr. Unitário</TableHead>
-                                  <TableHead className="text-right font-bold text-slate-700 dark:text-slate-300 w-24 pr-3">Valor</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
-                                  <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                                  <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
-                                  <TableCell>UN</TableCell>
-                                  <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                {Number(adjustments.incrementos) > 0 && (
+                              {/* Tabela de Itens */}
+                              <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                                Lista de Artigos
+                              </div>
+                              <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
+                                <TableHeader className="bg-slate-50">
                                   <TableRow>
-                                    <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
-                                    <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
-                                    <TableCell className="text-right">1.00</TableCell>
-                                    <TableCell>UN</TableCell>
-                                    <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableHead className="font-bold text-slate-700 pl-3">Artigo</TableHead>
+                                    <TableHead className="font-bold text-slate-700">Descrição</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-24">Qtd.</TableHead>
+                                    <TableHead className="font-bold text-slate-700 w-16">Un.</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-24">Pr. Unitário</TableHead>
+                                    <TableHead className="text-right font-bold text-slate-700 w-24 pr-3">Valor</TableHead>
                                   </TableRow>
-                                )}
-                                {Number(adjustments.reducoes) > 0 && (
+                                </TableHeader>
+                                <TableBody>
                                   <TableRow>
-                                    <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
-                                    <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
-                                    <TableCell className="text-right">1.00</TableCell>
+                                    <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
+                                    <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
+                                    <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
                                     <TableCell>UN</TableCell>
-                                    <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
-                                )}
-                              </TableBody>
-                            </Table>
+                                  {Number(adjustments.incrementos) > 0 && (
+                                    <TableRow>
+                                      <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
+                                      <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
+                                      <TableCell className="text-right">1.00</TableCell>
+                                      <TableCell>UN</TableCell>
+                                      <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
+                                      <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  )}
+                                  {Number(adjustments.reducoes) > 0 && (
+                                    <TableRow>
+                                      <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
+                                      <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
+                                      <TableCell className="text-right">1.00</TableCell>
+                                      <TableCell>UN</TableCell>
+                                      <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
+                                      <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  )}
+                                </TableBody>
+                              </Table>
 
-                            {/* Resumo da Fatura */}
-                            <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                              Resumo
-                            </div>
-                            <Table className="border border-slate-200 dark:border-slate-800 rounded-b mb-4 text-[10px]">
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
-                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
-                                  <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
-                                  <TableCell className="font-extrabold text-orange-850 dark:text-orange-300" colSpan={3}>Total da Fatura</TableCell>
-                                  <TableCell className="text-right font-extrabold text-orange-950 dark:text-orange-205 text-[11px] pr-3 font-mono">
-                                    € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-
-                            {/* Condições de IVA */}
-                            <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
-                              Condições de Enquadramento de IVA:<br/>
-                              (1) {Number(adjustments.ivaPct) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
-                            </div>
-
-                            {/* Footer de moradas */}
-                            <div className="border-t border-slate-200 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
-                              <div>
-                                <p className="font-bold uppercase mb-0.5">Local de Carga</p>
-                                <p>{disputeEmpresa?.address_line || 'N/ Morada'}</p>
-                                <p>{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                              {/* Resumo da Fatura */}
+                              <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                                Resumo
                               </div>
-                              <div className="text-right">
-                                <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                                <p>{selectedDispute.client?.address_line || 'V/ Morada'}</p>
-                                <p>{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                              <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
+                                <TableBody>
+                                  <TableRow>
+                                    <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
+                                    <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
+                                    <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                  <TableRow className="bg-orange-50/50">
+                                    <TableCell className="font-extrabold text-orange-850" colSpan={3}>Total da Fatura</TableCell>
+                                    <TableCell className="text-right font-extrabold text-orange-950 text-[11px] pr-3 font-mono">
+                                      € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+
+                              {/* Condições de IVA */}
+                              <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                                Condições de Enquadramento de IVA:<br/>
+                                (1) {Number(adjustments.ivaPct) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
                               </div>
                             </div>
 
-                            {/* Certified Software */}
-                            <div className="text-center text-[8px] text-slate-700 italic font-semibold mb-2">
-                              {disputeEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
+                            {/* Wrapper do rodapé */}
+                            <div className="space-y-4">
+                              {/* Footer de moradas */}
+                              <div className="border-t border-slate-200 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                                <div>
+                                  <p className="font-bold uppercase mb-0.5">Local de Carga</p>
+                                  <p>{disputeEmpresa?.address_line || 'N/ Morada'}</p>
+                                  <p>{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
+                                  <p>{selectedDispute.client?.address_line || 'V/ Morada'}</p>
+                                  <p>{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
+                                </div>
+                              </div>
+
+                              {/* Certified Software */}
+                              <div className="text-center text-[8px] text-slate-700 italic font-semibold mb-2">
+                                {disputeEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
+                              </div>
                             </div>
 
                             {/* Barra preta com logotipo decorativo */}
@@ -2143,13 +2166,12 @@ MCS - Gestão Comercial`;
                               <span className="relative z-10 font-bold">
                                 ORIGINAL
                               </span>
-                            </div>
                           </div>
                         </div>
                       </div>
                     );
                   })()}
-                  </div>
+                </div>
 
                 <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
                   <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
