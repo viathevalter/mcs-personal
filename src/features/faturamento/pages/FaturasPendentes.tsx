@@ -2364,7 +2364,7 @@ MCS - Gestão Comercial`;
                             return;
                           }
                           const validatedUnbilledWorkers = unbilledWorkersList.filter(w => w.isValidated);
-                          handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers);
+                          handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers, cardId);
                         }}
                         disabled={isProcessing}
                         variant={f.viesApplicable && !f.viesValid ? "destructive" : "default"}
