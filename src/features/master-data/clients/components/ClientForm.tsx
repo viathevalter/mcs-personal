@@ -28,7 +28,6 @@ import { useRegions } from '../../locations/hooks/useLocations';
 import type { Client, CreateClientDTO } from '../types';
 import { createClientSchema } from '../types';
 import { useMutateClient } from '../hooks/useClients';
-import { usePaymentTerms } from '../hooks/usePaymentTerms';
 
 interface ClientFormProps {
   client?: Client | null;
@@ -40,7 +39,6 @@ interface ClientFormProps {
 export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: ClientFormProps) {
   const isEditing = !!client;
   const { createClient, updateClient, isCreating, isUpdating } = useMutateClient();
-  const { data: paymentTerms = [] } = usePaymentTerms();
   const isSaving = isCreating || isUpdating;
 
   const form = useForm<CreateClientDTO>({
@@ -279,38 +277,6 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
                     <FormControl>
                       <Input placeholder="Ex: +351 912 345 678" {...field} value={field.value || ''} className="bg-white focus-visible:ring-orange-500" />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <FormField
-                control={form.control}
-                name="payment_term_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prazo de Pagamento Padrão</FormLabel>
-                    <Select 
-                      key={`${field.value || 'none'}-${paymentTerms.length}`} 
-                      onValueChange={field.onChange} 
-                      value={field.value || ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="bg-white focus-visible:ring-orange-500">
-                          <SelectValue placeholder="Selecione o prazo de pagamento" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum / A combinar</SelectItem>
-                        {paymentTerms.map((term) => (
-                          <SelectItem key={term.id} value={term.id}>
-                            {term.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

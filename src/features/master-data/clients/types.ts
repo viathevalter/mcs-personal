@@ -24,7 +24,7 @@ export const clientSchema = z.object({
   financial_status: z.enum(['active', 'debtor', 'blocked']).default('active'),
   credit_limit: z.coerce.number().nullable().optional(),
   current_debt: z.coerce.number().nullable().optional(),
-  payment_term_id: z.string().uuid().nullable().optional(),
+  payment_term_id: z.string().uuid().or(z.literal('')).nullable().optional(),
   billing_cycle_start_day: z.coerce.number().min(1).max(31).nullable().optional(),
   vies_applicable: z.boolean().default(false).optional(),
   vies_status: z.string().default('not_checked').optional(),
