@@ -18,6 +18,26 @@ async function fetchInChunks<T>(
   return results;
 }
 
+// Helper to query all rows of a Supabase table by paginating via .range() to bypass PostgREST's default 1000 row limit
+async function fetchAllPages<T>(
+  queryFn: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
+): Promise<T[]> {
+  const allData: T[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  while (true) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await queryFn(from, to);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < pageSize) break;
+    page++;
+  }
+  return allData;
+}
+
 const supabaseUrl = (import.meta.env?.VITE_SUPABASE_URL || '') as string;
 const supabaseAnonKey = (import.meta.env?.VITE_SUPABASE_ANON_KEY || '') as string;
 
@@ -394,15 +414,16 @@ export async function getHorasPendentesFaturamento(
     let horasTrabalhadasList: any[] = [];
     if (candidateClientIds.length > 0) {
       horasTrabalhadasList = await fetchInChunks(candidateClientIds, 30, async (chunk) => {
-        const { data: htData, error: htError } = await supabase
-          .schema('core_finance')
-          .from('horas_trabalhadas')
-          .select('*')
-          .in('client_id', chunk)
-          .gte('data_trabalho', startDateStr)
-          .lte('data_trabalho', endDateStr);
-        if (htError) throw mapSupabaseError(htError);
-        return htData || [];
+        return fetchAllPages(async (from, to) => {
+          return supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .select('*')
+            .in('client_id', chunk)
+            .gte('data_trabalho', startDateStr)
+            .lte('data_trabalho', endDateStr)
+            .range(from, to);
+        });
       });
     };
 
@@ -1070,13 +1091,14 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       let hoursSums: any[] = [];
       if (faturaIds.length > 0) {
         hoursSums = await fetchInChunks(faturaIds, 30, async (chunk) => {
-          const { data: horas, error: horasError } = await supabase
-            .schema('core_finance')
-            .from('horas_trabalhadas')
-            .select('fatura_id, horas_totais, tarifa_faturada')
-            .in('fatura_id', chunk);
-          if (horasError) throw mapSupabaseError(horasError);
-          return horas || [];
+          return fetchAllPages(async (from, to) => {
+            return supabase
+              .schema('core_finance')
+              .from('horas_trabalhadas')
+              .select('fatura_id, horas_totais, tarifa_faturada')
+              .in('fatura_id', chunk)
+              .range(from, to);
+          });
         });
       }
   
