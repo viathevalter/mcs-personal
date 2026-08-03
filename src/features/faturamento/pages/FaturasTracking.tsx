@@ -3176,46 +3176,46 @@ MCS - Gestão Comercial`;
 
                   {/* Resumo de Importe */}
                   <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Resumen de Importe</h5>
-                  <Table className="border border-slate-150 rounded mb-4 text-[10px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-bold text-slate-700">Concepto</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-28">Valor (€)</TableHead>
-                        <TableHead className="font-bold text-slate-700">Descripción</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-32">Total (€)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="font-semibold text-slate-850">Importe total</TableCell>
-                        <TableCell className="text-right font-semibold text-slate-850">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                        <TableCell className="text-right font-semibold text-slate-850 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
+                  <table className="w-full border border-slate-150 border-collapse mb-4 text-[10px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-[9px]">
+                        <th className="font-bold text-slate-700 text-left p-2">Concepto</th>
+                        <th className="text-right font-bold text-slate-700 w-28 p-2">Valor (€)</th>
+                        <th className="font-bold text-slate-700 text-left p-2">Descripción</th>
+                        <th className="text-right font-bold text-slate-700 w-32 p-2 pr-3">Total (€)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-slate-150">
+                        <td className="font-semibold text-slate-850 p-2">Importe total</td>
+                        <td className="text-right font-semibold text-slate-850 p-2">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        <td className="text-muted-foreground p-2">{adjustments.descricaoServico}</td>
+                        <td className="text-right font-semibold text-slate-850 font-mono p-2 pr-3">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
                       {Number(adjustments.incrementos) > 0 && (
-                        <TableRow>
-                          <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                          <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
+                        <tr className="border-b border-slate-150">
+                          <td className="font-medium text-emerald-600 p-2">Incrementos</td>
+                          <td className="text-right font-semibold text-emerald-600 p-2">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <td className="text-muted-foreground p-2">{adjustments.incrementosDesc || 'Adicional'}</td>
+                          <td className="text-right font-semibold text-emerald-600 font-mono p-2 pr-3">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
                       )}
                       {Number(adjustments.reducoes) > 0 && (
-                        <TableRow>
-                          <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
-                          <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                          <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
-                          <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
+                        <tr className="border-b border-slate-150">
+                          <td className="font-medium text-rose-600 p-2">Reducciones</td>
+                          <td className="text-right font-semibold text-rose-600 p-2">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <td className="text-muted-foreground p-2">{adjustments.reducoesDesc || 'Desconto'}</td>
+                          <td className="text-right font-semibold text-rose-600 font-mono p-2 pr-3">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
                       )}
-                      <TableRow className="bg-slate-50">
-                        <TableCell className="font-bold text-slate-800" colSpan={3}>Total a facturar</TableCell>
-                        <TableCell className="text-right font-extrabold text-slate-900 font-mono">
+                      <tr className="bg-slate-50 font-bold">
+                        <td className="text-slate-800 p-2" colSpan={3}>Total a facturar</td>
+                        <td className="text-right font-extrabold text-slate-900 font-mono p-2 pr-3">
                           € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
                   <div className="text-center font-bold bg-slate-100 py-1 rounded text-slate-700 mb-4 text-[9px]">
                     OBRA: {fat.ajustes_json?.obra || 'SIN OBRA'}
@@ -3223,32 +3223,32 @@ MCS - Gestão Comercial`;
 
                   {/* Relação de Trabalhadores */}
                   <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-1.5 text-[8px]">Relación de Trabajadores</h5>
-                  <Table className="border border-slate-150 rounded mb-4 text-[10px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-bold text-slate-700 pl-4">Trabajador</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-40">Quantidade de horas</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-40">Precio hora (€)</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-40 pr-4">Total (€)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <table className="w-full border border-slate-150 border-collapse mb-4 text-[10px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-[9px]">
+                        <th className="font-bold text-slate-700 text-left p-2 pl-4">Trabajador</th>
+                        <th className="text-right font-bold text-slate-700 w-40 p-2">Quantidade de horas</th>
+                        <th className="text-right font-bold text-slate-700 w-40 p-2">Precio hora (€)</th>
+                        <th className="text-right font-bold text-slate-700 w-40 p-2 pr-4">Total (€)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {groupedDisputeWorkersEnriched.map(w => (
-                        <TableRow key={w.workerId}>
-                          <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
-                          <TableCell className="text-right font-medium text-slate-800">{w.totalHoras.toFixed(2)}h</TableCell>
-                          <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-bold text-slate-800 pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
+                        <tr key={w.workerId} className="border-b border-slate-150">
+                          <td className="font-semibold text-slate-800 p-2 pl-4">{w.workerName}</td>
+                          <td className="text-right font-medium text-slate-800 p-2">{w.totalHoras.toFixed(2)}h</td>
+                          <td className="text-right font-medium text-slate-800 p-2">€ {w.tarifa.toFixed(2)}</td>
+                          <td className="text-right font-bold text-slate-800 p-2 pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
                       ))}
-                      <TableRow className="bg-slate-50">
-                        <TableCell className="font-bold text-slate-800 pl-4">Totales</TableCell>
-                        <TableCell className="text-right font-bold text-slate-800">{totalHorasCalculadas.toFixed(2)}h</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right font-extrabold text-slate-900 pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                      <tr className="bg-slate-50 font-bold">
+                        <td className="text-slate-800 p-2 pl-4">Totales</td>
+                        <td className="text-right text-slate-800 p-2">{totalHorasCalculadas.toFixed(2)}h</td>
+                        <td className="text-right p-2">-</td>
+                        <td className="text-right font-extrabold text-slate-900 p-2 pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
 
                 {/* Wrapper do rodapé */}
@@ -3319,70 +3319,70 @@ MCS - Gestão Comercial`;
                   <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
                     Lista de Artigos
                   </div>
-                  <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-bold text-slate-700 pl-3">Artigo</TableHead>
-                        <TableHead className="font-bold text-slate-700">Descrição</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-24">Qtd.</TableHead>
-                        <TableHead className="font-bold text-slate-700 w-16">Un.</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-24">Pr. Unitário</TableHead>
-                        <TableHead className="text-right font-bold text-slate-700 w-24 pr-3">Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
-                        <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                        <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
-                        <TableCell>UN</TableCell>
-                        <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
+                  <table className="w-full border border-slate-200 border-collapse mb-4 text-[10px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[9px]">
+                        <th className="font-bold text-slate-700 text-left p-2 pl-3">Artigo</th>
+                        <th className="font-bold text-slate-700 text-left p-2">Descrição</th>
+                        <th className="text-right font-bold text-slate-700 w-24 p-2">Qtd.</th>
+                        <th className="font-bold text-slate-700 text-left w-16 p-2">Un.</th>
+                        <th className="text-right font-bold text-slate-700 w-24 p-2">Pr. Unitário</th>
+                        <th className="text-right font-bold text-slate-700 w-24 p-2 pr-3">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-slate-200">
+                        <td className="font-semibold p-2 pl-3">PREST-SERV</td>
+                        <td className="text-muted-foreground p-2">{adjustments.descricaoServico}</td>
+                        <td className="text-right p-2">{totalHorasCalculadas.toFixed(2)}</td>
+                        <td className="p-2">UN</td>
+                        <td className="text-right p-2">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</td>
+                        <td className="text-right font-bold p-2 pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
                       {Number(adjustments.incrementos) > 0 && (
-                        <TableRow>
-                          <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
-                          <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
-                          <TableCell className="text-right">1.00</TableCell>
-                          <TableCell>UN</TableCell>
-                          <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
+                        <tr className="border-b border-slate-200">
+                          <td className="font-semibold text-emerald-600 p-2 pl-3">INC-ADIC</td>
+                          <td className="text-muted-foreground p-2">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>
+                          <td className="text-right p-2">1.00</td>
+                          <td className="p-2">UN</td>
+                          <td className="text-right p-2">€ {Number(adjustments.incrementos).toFixed(2)}</td>
+                          <td className="text-right font-bold text-emerald-600 p-2 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
                       )}
                       {Number(adjustments.reducoes) > 0 && (
-                        <TableRow>
-                          <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
-                          <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
-                          <TableCell className="text-right">1.00</TableCell>
-                          <TableCell>UN</TableCell>
-                          <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
+                        <tr className="border-b border-slate-200">
+                          <td className="font-semibold text-rose-600 p-2 pl-3">DESC-COM</td>
+                          <td className="text-muted-foreground p-2">{adjustments.reducoesDesc || 'Redução Comercial'}</td>
+                          <td className="text-right p-2">1.00</td>
+                          <td className="p-2">UN</td>
+                          <td className="text-right p-2">€ -{Number(adjustments.reducoes).toFixed(2)}</td>
+                          <td className="text-right font-bold text-rose-600 p-2 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        </tr>
                       )}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
 
                   <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
                     Resumo
                   </div>
-                  <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
-                        <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
-                        <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-orange-50/50">
-                        <TableCell className="font-extrabold text-orange-850" colSpan={3}>Total da Fatura</TableCell>
-                        <TableCell className="text-right font-extrabold text-orange-950 text-[11px] pr-3 font-mono">
+                  <table className="w-full border border-slate-200 border-collapse mb-4 text-[10px]">
+                    <tbody>
+                      <tr className="border-b border-slate-200">
+                        <td className="font-bold p-2 pl-3" colSpan={3}>Subtotal da Obra</td>
+                        <td className="text-right font-bold w-40 p-2 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="font-bold p-2 pl-3" colSpan={3}>IVA {adjustments.ivaPct}%</td>
+                        <td className="text-right font-bold w-40 p-2 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr className="bg-orange-50/50 font-bold">
+                        <td className="font-extrabold text-orange-850 p-2 pl-3" colSpan={3}>Total da Fatura</td>
+                        <td className="text-right font-extrabold text-orange-950 text-[11px] p-2 pr-3 font-mono">
                           € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
                   <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
                     Condições de Enquadramento de IVA:<br/>
