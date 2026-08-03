@@ -2166,12 +2166,12 @@ MCS - Gestão Comercial`;
                               <span className="relative z-10 font-bold">
                                 ORIGINAL
                               </span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     );
                   })()}
-                </div>
 
                 <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
                   <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
