@@ -262,6 +262,7 @@ serve(async (req) => {
     let attachments: EmailAttachment[] = [];
     let resolvedEmpresa: any = null;
     let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
+    let resolvedReplyTo = reply_to_email;
     
     if (custom_attachments && Array.isArray(custom_attachments)) {
       attachments.push(...custom_attachments);
@@ -946,12 +947,30 @@ serve(async (req) => {
       }
     }
     if (resolvedEmpresa) {
-      if (resolvedEmpresa.microsoft_tenant_id && resolvedEmpresa.microsoft_client_id && resolvedEmpresa.microsoft_client_secret) {
+      const hasMicrosoftCreds = resolvedEmpresa.microsoft_tenant_id && 
+                               resolvedEmpresa.microsoft_client_id && 
+                               resolvedEmpresa.microsoft_client_secret;
+
+      if (hasMicrosoftCreds) {
         msCredentials = {
           tenantId: resolvedEmpresa.microsoft_tenant_id,
           clientId: resolvedEmpresa.microsoft_client_id,
           clientSecret: resolvedEmpresa.microsoft_client_secret
         };
+      } else {
+        // If the company has no custom Microsoft Graph integration, we MUST send the email
+        // from the default authenticated sender to avoid auth failure, but we route 
+        // replies to the company's actual email so the client can reply directly to them.
+        const companyEmail = is_faturamento
+          ? (resolvedEmpresa.billing_email || resolvedEmpresa.email || resolvedEmpresa.proposal_sender_email)
+          : (resolvedEmpresa.proposal_sender_email || resolvedEmpresa.billing_email);
+
+        if (companyEmail && !resolvedReplyTo) {
+          resolvedReplyTo = companyEmail;
+        }
+        
+        // Reset senderEmail to the default authenticated email
+        senderEmail = "vendas@stoco.es";
       }
     }
 
@@ -960,7 +979,7 @@ serve(async (req) => {
     }
 
     if (!senderEmail) {
-      senderEmail = "valter@gestaologinpro.com";
+      senderEmail = "vendas@stoco.es";
     }
 
     // 8. Enviar email via Microsoft Graph API
@@ -972,7 +991,7 @@ serve(async (req) => {
       email_body,
       attachments,
       msCredentials,
-      reply_to_email
+      resolvedReplyTo
     );
 
     if (!mailRes.success) {
