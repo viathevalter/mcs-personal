@@ -19,7 +19,7 @@ async function fetchInChunks<T>(
 }
 
 // Helper to query all rows of a Supabase table by paginating via .range() to bypass PostgREST's default 1000 row limit
-async function fetchAllPages<T>(
+export async function fetchAllPages<T>(
   queryFn: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
 ): Promise<T[]> {
   const allData: T[] = [];
