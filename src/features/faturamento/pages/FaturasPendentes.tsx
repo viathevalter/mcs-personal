@@ -1347,7 +1347,7 @@ MCS - Gestão Comercial`;
     if (!confirmDelete) return;
 
     try {
-      setIsProcessing(true);
+      setProcessingClient(f.clientId);
       const faturaId = f.clientHours.find(h => h.fatura_id)?.fatura_id;
       if (faturaId) {
         await cancelarFatura(faturaId);
@@ -1355,12 +1355,12 @@ MCS - Gestão Comercial`;
       } else {
         toast.info('Nenhuma fatura registrada para este cliente.');
       }
-      fetchHoras();
+      await fetchHoras();
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao cancelar fatura: ' + err.message);
     } finally {
-      setIsProcessing(false);
+      setProcessingClient(null);
     }
   };
 
@@ -2197,7 +2197,7 @@ MCS - Gestão Comercial`;
               ? f.obras.find(o => o.id === selectedObraId)
               : null;
 
-            const unbilledWorkersList = filteredWorkers.filter(w => !w.isBilled);
+            const unbilledWorkersList = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced);
             const totalUnbilled = unbilledWorkersList.length;
             const validatedUnbilled = unbilledWorkersList.filter(w => w.isValidated).length;
 
@@ -2883,7 +2883,7 @@ MCS - Gestão Comercial`;
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredWorkers.filter(worker => !worker.isBilled).map(worker => {
+                            {filteredWorkers.filter(worker => !worker.isBilled || isAlreadyInvoiced).map(worker => {
                               const workerTotal = Object.values(worker.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
                               return (
                                 <TableRow key={worker.workerId} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -3234,7 +3234,7 @@ MCS - Gestão Comercial`;
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {filteredWorkers.filter(w => !w.isBilled).map(w => (
+                                {filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).map(w => (
                                   <TableRow key={w.workerId}>
                                     <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
                                       <div className="flex items-center justify-between w-full">
