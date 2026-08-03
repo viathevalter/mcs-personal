@@ -3508,22 +3508,26 @@ MCS - Gestão Comercial`;
             const currentTotalBase = emailData.totalBase;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.ivaPct || 0)/100);
 
-            // Available emails list
             const emailOptions: Array<{ id: string; email: string; label: string }> = [];
-            if (currentFaturamento.billingEmail) {
-              emailOptions.push({
-                id: 'billing_email',
-                email: currentFaturamento.billingEmail,
-                label: `E-mail de Faturamento (${currentFaturamento.billingEmail})`
+            const addedEmails = new Set<string>();
+
+            const addEmailsToOptions = (emailStr: string, prefix: string, labelPrefix: string) => {
+              if (!emailStr) return;
+              emailStr.split(/[;,]/).forEach((e, idx) => {
+                const trimmed = e.trim();
+                if (trimmed && !addedEmails.has(trimmed)) {
+                  addedEmails.add(trimmed);
+                  emailOptions.push({
+                    id: `${prefix}_${idx}`,
+                    email: trimmed,
+                    label: `${labelPrefix} (${trimmed})`
+                  });
+                }
               });
-            }
-            if (currentFaturamento.clientEmail) {
-              emailOptions.push({
-                id: 'client_email',
-                email: currentFaturamento.clientEmail,
-                label: `E-mail Geral (${currentFaturamento.clientEmail})`
-              });
-            }
+            };
+
+            addEmailsToOptions(currentFaturamento.billingEmail, 'billing_email', 'E-mail de Faturamento');
+            addEmailsToOptions(currentFaturamento.clientEmail, 'client_email', 'E-mail Geral');
             
 
 

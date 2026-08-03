@@ -2143,25 +2143,34 @@ MCS - Gestão Comercial`;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.iva_pct || 0)/100);
             const currentEmpresa = empresas.find(e => e.id === emailData.fatura?.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
 
-            // Available emails list
             const emailOptions: Array<{ id: string; email: string; label: string }> = [];
-            const bEmail = emailData.fatura?.client?.billingEmail || emailData.fatura?.client?.billing_email;
-            const cEmail = emailData.fatura?.client?.clientEmail || emailData.fatura?.client?.email;
+            const addedEmails = new Set<string>();
 
-            if (bEmail) {
-              emailOptions.push({
-                id: 'billing_email',
-                email: bEmail,
-                label: `E-mail de Faturamento (${bEmail})`
+            const addEmailsToOptions = (emailStr: string, prefix: string, labelPrefix: string) => {
+              if (!emailStr) return;
+              emailStr.split(/[;,]/).forEach((e, idx) => {
+                const trimmed = e.trim();
+                if (trimmed && !addedEmails.has(trimmed)) {
+                  addedEmails.add(trimmed);
+                  emailOptions.push({
+                    id: `${prefix}_${idx}`,
+                    email: trimmed,
+                    label: `${labelPrefix} (${trimmed})`
+                  });
+                }
               });
-            }
-            if (cEmail && cEmail !== bEmail) {
-              emailOptions.push({
-                id: 'client_email',
-                email: cEmail,
-                label: `E-mail Geral (${cEmail})`
-              });
-            }
+            };
+
+            addEmailsToOptions(
+              emailData.fatura?.client?.billingEmail || emailData.fatura?.client?.billing_email,
+              'billing_email',
+              'E-mail de Faturamento'
+            );
+            addEmailsToOptions(
+              emailData.fatura?.client?.clientEmail || emailData.fatura?.client?.email,
+              'client_email',
+              'E-mail Geral'
+            );
             
 
 
