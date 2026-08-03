@@ -408,7 +408,7 @@ export function ValidationScreen({
                 body: {
                     file_path: filePath,
                     document_type: "timesheet",
-                    bucket_id: "extracao-horas",
+                    bucket_id: filePath.includes('/') ? 'horas_trabalhadores' : 'extracao-horas',
                     mime_type: mimeType,
                     worker_id: workerId,
                     client_id: clientId
