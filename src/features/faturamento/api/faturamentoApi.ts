@@ -1439,6 +1439,7 @@ export async function sincronizarTarifasFaturamento(
 
   if (jfError) throw mapSupabaseError(jfError);
   const jobFunctionsMap = new Map((jobFuncs || []).map(jf => [jf.id, jf.name]));
+  const jobFunctionsByName = new Map((jobFuncs || []).map(jf => [jf.name.toUpperCase().trim(), jf.id]));
 
   // 4. Fetch hours
   const { data: hours, error: hrError } = await supabase
@@ -1452,11 +1453,43 @@ export async function sincronizarTarifasFaturamento(
   if (hrError) throw mapSupabaseError(hrError);
   if (!hours || hours.length === 0) return;
 
-  // 5. Process each row
+  // 5. Fetch workers mapping
+  const workerIds = Array.from(new Set(hours.map(h => h.worker_id).filter(Boolean)));
+  let workersList: any[] = [];
+  if (workerIds.length > 0) {
+    const { data: wData, error: wError } = await supabase
+      .schema('core_personal')
+      .from('workers')
+      .select('id, funcion')
+      .in('id', workerIds);
+    if (wError) throw mapSupabaseError(wError);
+    workersList = wData || [];
+  }
+  const workersMap = new Map(workersList.map(w => [w.id, w.funcion]));
+
+  // 6. Process each row
   for (const h of hours) {
-    const funcId = h.funcao_id;
+    let funcId = h.funcao_id;
     const siteId = h.obra_id;
     const workerId = h.worker_id;
+
+    // Resolve funcId if null
+    if (!funcId) {
+      const workerFuncion = workersMap.get(workerId);
+      if (workerFuncion) {
+        const matchedId = jobFunctionsByName.get(workerFuncion.toUpperCase().trim());
+        if (matchedId) {
+          funcId = matchedId;
+          // Save funcao_id directly in DB for future loads
+          await supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .update({ funcao_id: funcId })
+            .eq('id', h.id);
+        }
+      }
+    }
+
     const targetFuncName = jobFunctionsMap.get(funcId || '') || '';
 
     // Resolve tariff
@@ -1470,7 +1503,12 @@ export async function sincronizarTarifasFaturamento(
       if (wExcGlobal) {
         resolvedTariff = Number(wExcGlobal.valor_tarifa);
       } else {
-        const stdSite = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === siteId);
+        let stdSite = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === siteId);
+        if (!stdSite && !siteId) {
+          // Fallback: match standard tariff for this job function on any site if siteId is null
+          stdSite = standardTariffs.find(t => t.job_function_id === funcId);
+        }
+
         if (stdSite) {
           resolvedTariff = Number(stdSite.valor_tarifa);
         } else {
