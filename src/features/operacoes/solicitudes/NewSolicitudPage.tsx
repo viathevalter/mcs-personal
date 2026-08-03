@@ -70,25 +70,9 @@ export function NewSolicitudPage() {
 
     // Job Function and Question States
     const { data: jobFunctions = [] } = useJobFunctions(selectedEmpresaId);
-    const [targetJobFunctionId, setTargetJobFunctionId] = useState<string>('');
-    const [targetJobFunctionName, setTargetJobFunctionName] = useState<string>('');
-    const [answers, setAnswers] = useState<Record<string, string>>({});
-
-    const { data: questions = [], isLoading: isLoadingQuestions } = useQuery({
-        queryKey: ['job_function_questions', targetJobFunctionId, selectedEmpresaId],
-        queryFn: () => {
-            if (!targetJobFunctionId) return [];
-            return jobFunctionQuestionsApi.getQuestions(targetJobFunctionId, selectedEmpresaId || undefined);
-        },
-        enabled: !!targetJobFunctionId && actionType === 'replacement'
-    });
-
-    const handleAnswerChange = (questionId: string, value: string) => {
-        setAnswers(prev => ({
-            ...prev,
-            [questionId]: value
-        }));
-    };
+    const [targetFunctions, setTargetFunctions] = useState<Record<string, { id: string; name: string }>>({});
+    const [answers, setAnswers] = useState<Record<string, Record<string, { pergunta: string; resposta: string; cargo: string }>>>({});
+    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
     // Email Notification State
     const [sendEmailNotification, setSendEmailNotification] = useState(true);
@@ -227,26 +211,34 @@ export function NewSolicitudPage() {
         }
     }, [selectedPedidoId, actionType, assignments, pedidos]);
 
-    // Pre-select function based on selected worker
+    // Pre-select functions for each selected worker
     useEffect(() => {
-        if (actionType === 'replacement' && selectedAssignments.length === 1 && jobFunctions.length > 0) {
-            const single = assignments.find(a => selectedAssignments.includes(a.id));
-            if (single) {
-                const workerJobFuncName = single.job_function?.name || single.job_function_name_snapshot;
-                if (workerJobFuncName) {
-                    const matchedJobFunc = jobFunctions.find(
-                        jf => jf.name.toLowerCase() === workerJobFuncName.toLowerCase()
-                    );
-                    if (matchedJobFunc) {
-                        setTargetJobFunctionId(matchedJobFunc.id || '');
-                        setTargetJobFunctionName(matchedJobFunc.name);
-                    } else {
-                        // Fallback if not found in db catalog
-                        setTargetJobFunctionId('');
-                        setTargetJobFunctionName(workerJobFuncName);
+        if (actionType === 'replacement' && selectedAssignments.length > 0 && jobFunctions.length > 0) {
+            setTargetFunctions(prev => {
+                const next = { ...prev };
+                let changed = false;
+                selectedAssignments.forEach(id => {
+                    if (!next[id]) {
+                        const single = assignments.find(a => a.id === id);
+                        if (single) {
+                            const workerJobFuncName = single.job_function?.name || single.job_function_name_snapshot;
+                            if (workerJobFuncName) {
+                                const matchedJobFunc = jobFunctions.find(
+                                    jf => jf.name.toLowerCase() === workerJobFuncName.toLowerCase()
+                                );
+                                if (matchedJobFunc) {
+                                    next[id] = { id: matchedJobFunc.id || '', name: matchedJobFunc.name };
+                                    changed = true;
+                                } else {
+                                    next[id] = { id: '', name: workerJobFuncName };
+                                    changed = true;
+                                }
+                            }
+                        }
                     }
-                }
-            }
+                });
+                return changed ? next : prev;
+            });
         }
     }, [selectedAssignments, actionType, jobFunctions, assignments]);
 
@@ -688,8 +680,8 @@ export function NewSolicitudPage() {
             source_client_site_id: a.client_site_id,
             target_client_id: actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null,
             target_client_site_id: actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null,
-            target_job_function_id: actionType === 'replacement' && targetJobFunctionId ? targetJobFunctionId : null,
-            target_job_function_name: actionType === 'replacement' && targetJobFunctionName ? targetJobFunctionName : null,
+            target_job_function_id: actionType === 'replacement' && targetFunctions[a.id]?.id ? targetFunctions[a.id].id : null,
+            target_job_function_name: actionType === 'replacement' && targetFunctions[a.id]?.name ? targetFunctions[a.id].name : null,
             requires_housing: actionType === 'relocation' ? requiresHousing : false,
             housing_start_date: actionType === 'relocation' && requiresHousing && housingStartDate ? housingStartDate : null,
             housing_end_date: actionType === 'relocation' && requiresHousing && housingEndDate ? housingEndDate : null,
@@ -707,15 +699,19 @@ export function NewSolicitudPage() {
 
         // Format pergunta_respuesta for saving
         const pergunta_respuesta: Record<string, any> = {};
-        if (actionType === 'replacement' && questions.length > 0) {
-            questions.forEach(q => {
-                const questionId = q.id || '';
-                const ansVal = answers[questionId] || '';
-                pergunta_respuesta[questionId] = {
-                    cargo: targetJobFunctionName,
-                    pergunta: q.question_text,
-                    resposta: ansVal
-                };
+        if (actionType === 'replacement') {
+            Object.keys(answers).forEach(assignId => {
+                const workerAnswers = answers[assignId] || {};
+                Object.keys(workerAnswers).forEach(qId => {
+                    const ans = workerAnswers[qId];
+                    if (ans && ans.resposta) {
+                        pergunta_respuesta[`${assignId}_${qId}`] = {
+                            cargo: ans.cargo,
+                            pergunta: ans.pergunta,
+                            resposta: ans.resposta
+                        };
+                    }
+                });
             });
         }
 
@@ -1302,119 +1298,39 @@ export function NewSolicitudPage() {
                                 </div>
 
                             {actionType === 'replacement' && (
-                                <div className="space-y-4 border-t border-b py-4 my-2 border-slate-100 dark:border-slate-800">
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-350">
-                                            Função Desejada para Substituição <span className="text-red-500">*</span>
-                                        </label>
-                                        <Select 
-                                            value={targetJobFunctionId} 
-                                            onValueChange={(val) => {
-                                                setTargetJobFunctionId(val);
-                                                const selectedFunc = jobFunctions.find(jf => jf.id === val);
-                                                if (selectedFunc) {
-                                                    setTargetJobFunctionName(selectedFunc.name);
-                                                }
-                                            }}
+                                <div className="space-y-4 border-t border-b py-4 my-2 border-slate-100 dark:border-slate-800 animate-fade-in">
+                                    <div className="bg-indigo-50/40 dark:bg-slate-900/20 p-4 rounded-xl border border-indigo-100 dark:border-slate-850 space-y-3">
+                                        <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                            <HelpCircle className="w-4 h-4 text-indigo-650" />
+                                            Reemplazo: Funções & Perguntas
+                                        </h3>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                                            Você selecionou <strong className="text-indigo-950 dark:text-indigo-300 font-bold">{selectedAssignments.length} trabalhador(es)</strong> para substituição. Responda às perguntas de viabilidade técnica para cada um deles.
+                                        </p>
+                                        
+                                        <Button
+                                            type="button"
+                                            onClick={() => setIsConfigDialogOpen(true)}
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 h-9 shadow-sm"
+                                            disabled={selectedAssignments.length === 0}
                                         >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione a Função" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {jobFunctions.map(jf => (
-                                                    <SelectItem key={jf.id} value={jf.id || ''}>
-                                                        {jf.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <FileText className="w-4 h-4" />
+                                            Configurar Perguntas Técnicas
+                                        </Button>
+                                        
+                                        {/* Status indicator */}
+                                        {selectedAssignments.length > 0 && (() => {
+                                            const configuredCount = Object.keys(answers).filter(id => selectedAssignments.includes(id) && Object.keys(answers[id] || {}).length > 0).length;
+                                            return (
+                                                <div className="text-[11px] font-semibold text-slate-500 flex items-center justify-between mt-1 pt-1.5 border-t border-slate-200/50 dark:border-slate-800">
+                                                    <span>Status:</span>
+                                                    <span className={configuredCount === selectedAssignments.length ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-400 font-bold"}>
+                                                        {configuredCount} de {selectedAssignments.length} configurados
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
-
-                                    {/* Perguntas Técnicas da Função */}
-                                    {targetJobFunctionId && (
-                                        <div className="bg-indigo-50/30 dark:bg-slate-900/40 p-4 rounded-xl border border-indigo-100 dark:border-slate-800 space-y-4">
-                                            <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                <HelpCircle className="w-4 h-4 text-indigo-650" />
-                                                Perguntas de Viabilidade Técnica ({questions.length})
-                                            </h3>
-                                            
-                                            {isLoadingQuestions ? (
-                                                <div className="flex items-center gap-2 text-xs text-slate-550 py-2">
-                                                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                                                    <span>Carregando perguntas...</span>
-                                                </div>
-                                            ) : questions.length === 0 ? (
-                                                <p className="text-xs text-slate-500 italic">Esta função não possui perguntas técnicas cadastradas.</p>
-                                            ) : (
-                                                <div className="space-y-3.5">
-                                                    {questions.map((q) => {
-                                                        const isRequired = q.is_required;
-                                                        const questionId = q.id || '';
-                                                        const currentVal = answers[questionId] || '';
-                                                        
-                                                        return (
-                                                            <div key={questionId} className="space-y-1.5 text-left">
-                                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">
-                                                                    {q.question_text} {isRequired && <span className="text-red-500">*</span>}
-                                                                </label>
-                                                                
-                                                                {q.question_type === 'boolean' && (
-                                                                    <Select 
-                                                                        value={currentVal} 
-                                                                        onValueChange={(val) => handleAnswerChange(questionId, val)}
-                                                                    >
-                                                                        <SelectTrigger className="h-9 text-xs">
-                                                                            <SelectValue placeholder="Selecione..." />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="Sim">Sim</SelectItem>
-                                                                            <SelectItem value="Não">Não</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                )}
-
-                                                                {q.question_type === 'long_text' && (
-                                                                    <Textarea 
-                                                                        value={currentVal}
-                                                                        onChange={(e) => handleAnswerChange(questionId, e.target.value)}
-                                                                        placeholder="Digite a resposta..."
-                                                                        className="resize-none text-xs"
-                                                                        rows={2}
-                                                                    />
-                                                                )}
-
-                                                                {q.question_type === 'single_choice' && q.options && q.options.length > 0 && (
-                                                                    <Select 
-                                                                        value={currentVal} 
-                                                                        onValueChange={(val) => handleAnswerChange(questionId, val)}
-                                                                    >
-                                                                        <SelectTrigger className="h-9 text-xs">
-                                                                            <SelectValue placeholder="Selecione uma opção..." />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {q.options.map((opt: string, optIdx: number) => (
-                                                                                <SelectItem key={optIdx} value={opt}>{opt}</SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                )}
-
-                                                                {q.question_type !== 'boolean' && q.question_type !== 'long_text' && q.question_type !== 'single_choice' && (
-                                                                    <Input 
-                                                                        type={q.question_type === 'number' ? 'number' : q.question_type === 'date' ? 'date' : 'text'}
-                                                                        value={currentVal}
-                                                                        onChange={(e) => handleAnswerChange(questionId, e.target.value)}
-                                                                        placeholder="Digite a resposta..."
-                                                                        className="h-9 text-xs"
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
@@ -1807,6 +1723,282 @@ export function NewSolicitudPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfigurarReemplazoDialog
+                isOpen={isConfigDialogOpen}
+                onClose={() => setIsConfigDialogOpen(false)}
+                selectedAssignments={selectedAssignments}
+                assignments={assignments}
+                jobFunctions={jobFunctions}
+                targetFunctions={targetFunctions}
+                setTargetFunctions={setTargetFunctions}
+                answers={answers}
+                setAnswers={setAnswers}
+                selectedEmpresaId={selectedEmpresaId}
+            />
         </div>
     );
 }
+
+interface ConfigurarReemplazoDialogProps {
+    isOpen: boolean;
+    onClose: () => void;
+    selectedAssignments: string[];
+    assignments: any[];
+    jobFunctions: any[];
+    targetFunctions: Record<string, { id: string; name: string }>;
+    setTargetFunctions: React.Dispatch<React.SetStateAction<Record<string, { id: string; name: string }>>>;
+    answers: Record<string, Record<string, { pergunta: string; resposta: string; cargo: string }>>;
+    setAnswers: React.Dispatch<React.SetStateAction<Record<string, Record<string, { pergunta: string; resposta: string; cargo: string }>>>>;
+    selectedEmpresaId: string | null;
+}
+
+const ConfigurarReemplazoDialog: React.FC<ConfigurarReemplazoDialogProps> = ({
+    isOpen,
+    onClose,
+    selectedAssignments,
+    assignments,
+    jobFunctions,
+    targetFunctions,
+    setTargetFunctions,
+    answers,
+    setAnswers,
+    selectedEmpresaId
+}) => {
+    const handleTargetFuncChange = (id: string, funcId: string, funcName: string) => {
+        setTargetFunctions(prev => ({
+            ...prev,
+            [id]: { id: funcId, name: funcName }
+        }));
+        // Reset answers for this worker when function changes
+        setAnswers(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
+
+    const handleAnswerChange = (id: string, questionId: string, questionText: string, value: string, cargoName: string) => {
+        setAnswers(prev => ({
+            ...prev,
+            [id]: {
+                ...(prev[id] || {}),
+                [questionId]: {
+                    pergunta: questionText,
+                    resposta: value,
+                    cargo: cargoName
+                }
+            }
+        }));
+    };
+
+    const selectedWorkers = assignments.filter(a => selectedAssignments.includes(a.id));
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
+                <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <DialogTitle className="text-lg font-bold text-slate-850 dark:text-white flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5 text-indigo-650" />
+                        Perguntas de Viabilidade Técnica (Reemplazo)
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                        Responda as perguntas técnicas de viabilidade individuais para cada um dos trabalhadores que serão substituídos.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto py-4 space-y-6 max-h-[55vh] pr-2">
+                    {selectedWorkers.length === 0 ? (
+                        <p className="text-sm text-slate-500 italic text-center py-8">Nenhum trabalhador selecionado na tabela.</p>
+                    ) : (
+                        selectedWorkers.map((assignment) => {
+                            const workerId = assignment.id;
+                            const targetFunc = targetFunctions[workerId];
+                            const workerAnswers = answers[workerId] || {};
+
+                            return (
+                                <WorkerQuestionsSection
+                                    key={workerId}
+                                    assignment={assignment}
+                                    jobFunctions={jobFunctions}
+                                    targetFunc={targetFunc}
+                                    onTargetFuncChange={(funcId, funcName) => handleTargetFuncChange(workerId, funcId, funcName)}
+                                    answers={workerAnswers}
+                                    onAnswerChange={(qId, qText, val, cargoName) => handleAnswerChange(workerId, qId, qText, val, cargoName)}
+                                    selectedEmpresaId={selectedEmpresaId}
+                                />
+                            );
+                        })
+                    )}
+                </div>
+
+                <DialogFooter className="pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0 mt-2 gap-2 justify-end">
+                    <Button type="button" variant="outline" onClick={onClose} className="h-9 font-semibold text-xs">
+                        Fechar
+                    </Button>
+                    <Button 
+                        type="button" 
+                        onClick={onClose} 
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-9"
+                    >
+                        Confirmar Respostas
+                    </Button>
+                </DialogFooter>
+            </Dialog>
+        </Dialog>
+    );
+};
+
+interface WorkerQuestionsSectionProps {
+    assignment: any;
+    jobFunctions: any[];
+    targetFunc: { id: string; name: string } | undefined;
+    onTargetFuncChange: (funcId: string, funcName: string) => void;
+    answers: Record<string, { pergunta: string; resposta: string; cargo: string }>;
+    onAnswerChange: (questionId: string, qText: string, val: string, cargoName: string) => void;
+    selectedEmpresaId: string | null;
+}
+
+const WorkerQuestionsSection: React.FC<WorkerQuestionsSectionProps> = ({
+    assignment,
+    jobFunctions,
+    targetFunc,
+    onTargetFuncChange,
+    answers,
+    onAnswerChange,
+    selectedEmpresaId
+}) => {
+    const { data: questions = [], isLoading } = useQuery({
+        queryKey: ['job_function_questions', targetFunc?.id, selectedEmpresaId],
+        queryFn: () => {
+            if (!targetFunc?.id) return [];
+            return jobFunctionQuestionsApi.getQuestions(targetFunc.id, selectedEmpresaId || undefined);
+        },
+        enabled: !!targetFunc?.id
+    });
+
+    return (
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 space-y-4 text-left">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b pb-3 border-slate-200/50 dark:border-slate-800">
+                <div>
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+                        {assignment.worker?.nome || assignment.worker_nome}
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                        Função Atual: <span className="font-semibold">{assignment.job_function?.name || assignment.job_function_name_snapshot}</span>
+                    </p>
+                </div>
+                
+                <div className="w-full md:w-64 space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Função Alvo Substituta</label>
+                    <Select 
+                        value={targetFunc?.id || ''} 
+                        onValueChange={(val) => {
+                            const found = jobFunctions.find(jf => jf.id === val);
+                            if (found) {
+                                onTargetFuncChange(found.id, found.name);
+                            }
+                        }}
+                    >
+                        <SelectTrigger className="h-8.5 text-xs">
+                            <SelectValue placeholder="Selecione a Função" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {jobFunctions.map(jf => (
+                                <SelectItem key={jf.id} value={jf.id || ''}>
+                                    {jf.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Questions list */}
+            {targetFunc?.id && (
+                <div className="space-y-3.5 pl-3 border-l-2 border-indigo-500/35">
+                    <h5 className="text-[11px] font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-indigo-650" />
+                        Perguntas de Viabilidade ({questions.length})
+                    </h5>
+                    
+                    {isLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                            <span>Carregando perguntas da função...</span>
+                        </div>
+                    ) : questions.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Nenhuma pergunta de viabilidade configurada para esta função.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                            {questions.map((q) => {
+                                const isRequired = q.is_required;
+                                const questionId = q.id || '';
+                                const currentVal = answers[questionId]?.resposta || '';
+                                
+                                return (
+                                    <div key={questionId} className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">
+                                            {q.question_text} {isRequired && <span className="text-red-500">*</span>}
+                                        </label>
+                                        
+                                        {q.question_type === 'boolean' && (
+                                            <Select 
+                                                value={currentVal} 
+                                                onValueChange={(val) => onAnswerChange(questionId, q.question_text, val, targetFunc.name)}
+                                            >
+                                                <SelectTrigger className="h-8.5 text-xs">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Sim">Sim</SelectItem>
+                                                    <SelectItem value="Não">Não</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+
+                                        {q.question_type === 'long_text' && (
+                                            <Textarea 
+                                                value={currentVal}
+                                                onChange={(e) => onAnswerChange(questionId, q.question_text, e.target.value, targetFunc.name)}
+                                                placeholder="Digite a resposta..."
+                                                className="resize-none text-xs min-h-[50px] md:col-span-2"
+                                                rows={2}
+                                            />
+                                        )}
+
+                                        {q.question_type === 'single_choice' && q.options && q.options.length > 0 && (
+                                            <Select 
+                                                value={currentVal} 
+                                                onValueChange={(val) => onAnswerChange(questionId, q.question_text, val, targetFunc.name)}
+                                            >
+                                                <SelectTrigger className="h-8.5 text-xs">
+                                                    <SelectValue placeholder="Selecione uma opção..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {q.options.map((opt: string, optIdx: number) => (
+                                                        <SelectItem key={optIdx} value={opt}>{opt}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+
+                                        {q.question_type !== 'boolean' && q.question_type !== 'long_text' && q.question_type !== 'single_choice' && (
+                                            <Input 
+                                                type={q.question_type === 'number' ? 'number' : q.question_type === 'date' ? 'date' : 'text'}
+                                                value={currentVal}
+                                                onChange={(e) => onAnswerChange(questionId, q.question_text, e.target.value, targetFunc.name)}
+                                                placeholder="Digite a resposta..."
+                                                className="h-8.5 text-xs"
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
