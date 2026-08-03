@@ -269,13 +269,15 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           source_worker_id,
           source_client_id,
           source_client_site_id,
+          target_job_function_id,
+          target_job_function_name,
           status, 
           action_type, 
           requires_replacement, 
           reason,
           notes,
           solicitud_id, 
-          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id)
+          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta)
         `)
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress', 'completed']);
@@ -392,12 +394,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       const existingId = `reemplazo-${t.solicitud_id || t.id}`;
       let syntheticPedido = list.find(p => p.id === existingId);
       
-      const itemJobFunction = t.source_worker?.funcion || 'Perfil';
+      const itemJobFunction = t.target_job_function_name || t.source_worker?.funcion || 'Perfil';
+      const itemJobFunctionId = t.target_job_function_id || null;
       const isTargetCompleted = t.status === 'completed' || !!t.target_assignment_id || allAllocations.some((a: any) => a.solicitud_id === (t.solicitud_id || t.id));
       const item = {
         id: `reemplazo-item-${t.id}`,
         pedido_id: existingId,
-        job_function_id: null,
+        job_function_id: itemJobFunctionId,
         job_function_name_snapshot: itemJobFunction,
         job_function: { name: itemJobFunction },
         quantity_requested: 1,
@@ -428,6 +431,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           expected_end_date: null,
           client: t.client || { trade_name: 'N/A - Reemplazo' },
           client_site: t.client_site || { name: 'N/A - Local não definido' },
+          pergunta_respuesta: t.solicitud?.pergunta_respuesta || null,
           pedido_items: [item]
         };
         list.push(syntheticPedido);
@@ -629,6 +633,9 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       ? replacementTargets.find(t => t.id === item.solicitud_target_id)
       : replacementTargets.find(t => t.source_pedido_item_id === item.id);
 
+    const targetJobFuncId = repTarget?.target_job_function_id || item.job_function_id;
+    const targetJobFuncName = repTarget?.target_job_function_name || item.job_function_name_snapshot || item.job_function?.name || 'Função';
+
     setSelectedPosition({
       id: item.id,
       pedido_id: selectedPedido.id,
@@ -637,13 +644,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       client_name: selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente',
       client_site_id: selectedPedido.client_site_id,
       site_name: selectedPedido.client_site?.name || 'Local',
-      job_function_id: item.job_function_id,
-      job_function_name: item.job_function_name_snapshot || item.job_function?.name || 'Função',
+      job_function_id: targetJobFuncId,
+      job_function_name: targetJobFuncName,
       expected_start_date: selectedPedido.expected_start_date,
       quantity_requested: item.quantity_requested,
       quantity_fulfilled: item.quantity_fulfilled,
       status: item.status,
-      pergunta_respuesta: selectedPedido.pergunta_respuesta,
+      pergunta_respuesta: repTarget?.solicitud?.pergunta_respuesta || selectedPedido.pergunta_respuesta,
       base_cost_hour_snapshot: item.base_cost_hour_snapshot,
       solicitud_id: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : (repTarget?.solicitud_id || undefined),
       replacement_due_date: repTarget?.solicitud?.due_date || undefined,

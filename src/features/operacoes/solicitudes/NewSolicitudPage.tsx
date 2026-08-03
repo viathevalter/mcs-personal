@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail, RotateCcw, HelpCircle } from 'lucide-react';
 import { useWorkerAssignments } from './hooks/useWorkerAssignments';
 import { useCreateSolicitud } from './hooks/useCreateSolicitud';
 import { AssignmentsSelectionTable } from './components/AssignmentsSelectionTable';
@@ -17,7 +17,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJobFunctions';
+import { jobFunctionQuestionsApi } from '@/features/master-data/job-functions/api/jobFunctionQuestionsApi';
 
 const DRAFT_STORAGE_KEY = 'mcs:new_solicitud_draft';
 
@@ -65,6 +67,28 @@ export function NewSolicitudPage() {
     const [dueDate, setDueDate] = useState('');
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
+
+    // Job Function and Question States
+    const { data: jobFunctions = [] } = useJobFunctions(selectedEmpresaId);
+    const [targetJobFunctionId, setTargetJobFunctionId] = useState<string>('');
+    const [targetJobFunctionName, setTargetJobFunctionName] = useState<string>('');
+    const [answers, setAnswers] = useState<Record<string, string>>({});
+
+    const { data: questions = [], isLoading: isLoadingQuestions } = useQuery({
+        queryKey: ['job_function_questions', targetJobFunctionId, selectedEmpresaId],
+        queryFn: () => {
+            if (!targetJobFunctionId) return [];
+            return jobFunctionQuestionsApi.getQuestions(targetJobFunctionId, selectedEmpresaId || undefined);
+        },
+        enabled: !!targetJobFunctionId && actionType === 'replacement'
+    });
+
+    const handleAnswerChange = (questionId: string, value: string) => {
+        setAnswers(prev => ({
+            ...prev,
+            [questionId]: value
+        }));
+    };
 
     // Email Notification State
     const [sendEmailNotification, setSendEmailNotification] = useState(true);
@@ -203,6 +227,29 @@ export function NewSolicitudPage() {
         }
     }, [selectedPedidoId, actionType, assignments, pedidos]);
 
+    // Pre-select function based on selected worker
+    useEffect(() => {
+        if (actionType === 'replacement' && selectedAssignments.length === 1 && jobFunctions.length > 0) {
+            const single = assignments.find(a => selectedAssignments.includes(a.id));
+            if (single) {
+                const workerJobFuncName = single.job_function?.name || single.job_function_name_snapshot;
+                if (workerJobFuncName) {
+                    const matchedJobFunc = jobFunctions.find(
+                        jf => jf.name.toLowerCase() === workerJobFuncName.toLowerCase()
+                    );
+                    if (matchedJobFunc) {
+                        setTargetJobFunctionId(matchedJobFunc.id || '');
+                        setTargetJobFunctionName(matchedJobFunc.name);
+                    } else {
+                        // Fallback if not found in db catalog
+                        setTargetJobFunctionId('');
+                        setTargetJobFunctionName(workerJobFuncName);
+                    }
+                }
+            }
+        }
+    }, [selectedAssignments, actionType, jobFunctions, assignments]);
+
     // Query parent solicitude for selected Pedido
     useEffect(() => {
         if (selectedPedidoId && selectedPedidoId !== 'all') {
@@ -290,7 +337,9 @@ export function NewSolicitudPage() {
                 if (draft.isBodyEdited !== undefined) setIsBodyEdited(draft.isBodyEdited);
 
                 const urlTipo = searchParams.get('tipo');
-                if (draft.actionType && (!urlTipo || urlTipo === draft.actionType || urlTipo === 'replacement')) {
+                if (urlTipo) {
+                    setActionType(urlTipo);
+                } else if (draft.actionType) {
                     setActionType(draft.actionType);
                 }
 
@@ -639,6 +688,8 @@ export function NewSolicitudPage() {
             source_client_site_id: a.client_site_id,
             target_client_id: actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null,
             target_client_site_id: actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null,
+            target_job_function_id: actionType === 'replacement' && targetJobFunctionId ? targetJobFunctionId : null,
+            target_job_function_name: actionType === 'replacement' && targetJobFunctionName ? targetJobFunctionName : null,
             requires_housing: actionType === 'relocation' ? requiresHousing : false,
             housing_start_date: actionType === 'relocation' && requiresHousing && housingStartDate ? housingStartDate : null,
             housing_end_date: actionType === 'relocation' && requiresHousing && housingEndDate ? housingEndDate : null,
@@ -654,6 +705,20 @@ export function NewSolicitudPage() {
             notes: notes
         }));
 
+        // Format pergunta_respuesta for saving
+        const pergunta_respuesta: Record<string, any> = {};
+        if (actionType === 'replacement' && questions.length > 0) {
+            questions.forEach(q => {
+                const questionId = q.id || '';
+                const ansVal = answers[questionId] || '';
+                pergunta_respuesta[questionId] = {
+                    cargo: targetJobFunctionName,
+                    pergunta: q.question_text,
+                    resposta: ansVal
+                };
+            });
+        }
+
         const payload = {
             empresa_id: selectedEmpresaId!,
             type: actionType,
@@ -664,6 +729,7 @@ export function NewSolicitudPage() {
             origin_pedido_id: originPedidoId,
             client_id: clientId,
             client_site_id: clientSiteId,
+            pergunta_respuesta: actionType === 'replacement' && Object.keys(pergunta_respuesta).length > 0 ? pergunta_respuesta : null,
             targets: targets
         };
 
@@ -1234,6 +1300,123 @@ export function NewSolicitudPage() {
                                         return null;
                                     })()}
                                 </div>
+
+                            {actionType === 'replacement' && (
+                                <div className="space-y-4 border-t border-b py-4 my-2 border-slate-100 dark:border-slate-800">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-350">
+                                            Função Desejada para Substituição <span className="text-red-500">*</span>
+                                        </label>
+                                        <Select 
+                                            value={targetJobFunctionId} 
+                                            onValueChange={(val) => {
+                                                setTargetJobFunctionId(val);
+                                                const selectedFunc = jobFunctions.find(jf => jf.id === val);
+                                                if (selectedFunc) {
+                                                    setTargetJobFunctionName(selectedFunc.name);
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecione a Função" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {jobFunctions.map(jf => (
+                                                    <SelectItem key={jf.id} value={jf.id || ''}>
+                                                        {jf.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Perguntas Técnicas da Função */}
+                                    {targetJobFunctionId && (
+                                        <div className="bg-indigo-50/30 dark:bg-slate-900/40 p-4 rounded-xl border border-indigo-100 dark:border-slate-800 space-y-4">
+                                            <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                <HelpCircle className="w-4 h-4 text-indigo-650" />
+                                                Perguntas de Viabilidade Técnica ({questions.length})
+                                            </h3>
+                                            
+                                            {isLoadingQuestions ? (
+                                                <div className="flex items-center gap-2 text-xs text-slate-550 py-2">
+                                                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                                                    <span>Carregando perguntas...</span>
+                                                </div>
+                                            ) : questions.length === 0 ? (
+                                                <p className="text-xs text-slate-500 italic">Esta função não possui perguntas técnicas cadastradas.</p>
+                                            ) : (
+                                                <div className="space-y-3.5">
+                                                    {questions.map((q) => {
+                                                        const isRequired = q.is_required;
+                                                        const questionId = q.id || '';
+                                                        const currentVal = answers[questionId] || '';
+                                                        
+                                                        return (
+                                                            <div key={questionId} className="space-y-1.5 text-left">
+                                                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">
+                                                                    {q.question_text} {isRequired && <span className="text-red-500">*</span>}
+                                                                </label>
+                                                                
+                                                                {q.question_type === 'boolean' && (
+                                                                    <Select 
+                                                                        value={currentVal} 
+                                                                        onValueChange={(val) => handleAnswerChange(questionId, val)}
+                                                                    >
+                                                                        <SelectTrigger className="h-9 text-xs">
+                                                                            <SelectValue placeholder="Selecione..." />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="Sim">Sim</SelectItem>
+                                                                            <SelectItem value="Não">Não</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                )}
+
+                                                                {q.question_type === 'long_text' && (
+                                                                    <Textarea 
+                                                                        value={currentVal}
+                                                                        onChange={(e) => handleAnswerChange(questionId, e.target.value)}
+                                                                        placeholder="Digite a resposta..."
+                                                                        className="resize-none text-xs"
+                                                                        rows={2}
+                                                                    />
+                                                                )}
+
+                                                                {q.question_type === 'single_choice' && q.options && q.options.length > 0 && (
+                                                                    <Select 
+                                                                        value={currentVal} 
+                                                                        onValueChange={(val) => handleAnswerChange(questionId, val)}
+                                                                    >
+                                                                        <SelectTrigger className="h-9 text-xs">
+                                                                            <SelectValue placeholder="Selecione uma opção..." />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {q.options.map((opt: string, optIdx: number) => (
+                                                                                <SelectItem key={optIdx} value={opt}>{opt}</SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                )}
+
+                                                                {q.question_type !== 'boolean' && q.question_type !== 'long_text' && q.question_type !== 'single_choice' && (
+                                                                    <Input 
+                                                                        type={q.question_type === 'number' ? 'number' : q.question_type === 'date' ? 'date' : 'text'}
+                                                                        value={currentVal}
+                                                                        onChange={(e) => handleAnswerChange(questionId, e.target.value)}
+                                                                        placeholder="Digite a resposta..."
+                                                                        className="h-9 text-xs"
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {actionType === 'relocation' && (
                                 <>

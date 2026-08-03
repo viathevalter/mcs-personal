@@ -13,6 +13,7 @@ export interface SolicitudOperativa {
   status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
   due_date?: string;
   completed_at?: string;
+  pergunta_respuesta?: any;
   created_at: string;
   updated_at: string;
   created_by?: string;

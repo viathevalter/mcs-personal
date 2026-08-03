@@ -19,6 +19,8 @@ export interface SolicitudTargetPayload {
     housing_end_date?: string | null;
     target_client_id?: string | null;
     target_client_site_id?: string | null;
+    target_job_function_id?: string | null;
+    target_job_function_name?: string | null;
 }
 
 export interface CreateSolicitudPayload {
@@ -27,6 +29,7 @@ export interface CreateSolicitudPayload {
     title: string;
     description: string;
     priority?: string;
+    pergunta_respuesta?: any;
     targets: SolicitudTargetPayload[];
 }
 
