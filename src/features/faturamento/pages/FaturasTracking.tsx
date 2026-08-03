@@ -1041,6 +1041,7 @@ MCS - Gestão Comercial`;
         defaultEmails.push(cEmail);
       }
 
+      const adj = fatura.ajustes_json || {};
       const cached = emailCache[fatura.id];
       if (cached) {
         setSelectedEmails(cached.selectedEmails);
