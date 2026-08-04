@@ -97,41 +97,27 @@
 
 .docx-wrapper {
   background: transparent !important;
-  padding: 16px 0 !important;
+  padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 28px !important;
+  gap: 24px !important;
   width: 100% !important;
 }
 
 .docx {
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 auto !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
+  margin: 0 auto 30px auto !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 8px !important;
+  background: white !important;
+  color: #0f172a !important;
+  box-sizing: border-box !important;
 }
 
 .docx > section {
   box-sizing: border-box !important;
   overflow: visible !important;
   position: relative !important;
-  background: white !important;
-  color: #0f172a !important;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.18), 0 2px 8px -1px rgba(0, 0, 0, 0.12) !important;
-  margin: 0 auto 32px auto !important;
-  min-height: 297mm !important;
-  width: 210mm !important;
-  max-width: 100% !important;
-  border-radius: 4px !important;
-}
-
-.docx p {
-  line-height: 1.35 !important;
-  margin-bottom: 0.4em !important;
 }
 
 .docx img {
