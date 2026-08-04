@@ -954,7 +954,29 @@ export async function cancelarFatura(faturaId: string): Promise<void> {
 
   if (horasError) throw mapSupabaseError(horasError);
 
-  // 2. Delete the fatura row
+  // 2. Handle associated accounts receivable entries (contas_receber)
+  try {
+    const { error: deleteCobroError } = await supabase
+      .from('contas_receber')
+      .delete()
+      .eq('fatura_id', faturaId);
+      
+    if (deleteCobroError) {
+      console.warn('Could not delete contas_receber, disassociating instead:', deleteCobroError);
+      await supabase
+        .from('contas_receber')
+        .update({ fatura_id: null })
+        .eq('fatura_id', faturaId);
+    }
+  } catch (err) {
+    console.error('Failed to delete contas_receber on cancel, attempting update instead:', err);
+    await supabase
+      .from('contas_receber')
+      .update({ fatura_id: null })
+      .eq('fatura_id', faturaId);
+  }
+
+  // 3. Delete the fatura row
   const { error: faturaError } = await supabase
     .schema('core_finance')
     .from('faturas')
