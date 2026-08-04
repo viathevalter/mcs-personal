@@ -353,7 +353,8 @@
         "inactivo": "Inactivo",
         "pendente_ingresso": "Pendiente de Ingreso",
         "pendiente_ingreso": "Pendiente de Ingreso",
-        "pendiente_ingresar": "Pendiente de Ingreso"
+        "pendiente_ingresar": "Pendiente de Ingreso",
+        "desistiu": "Desistió"
       },
       "seguridad": {
         "alta": "Alta",

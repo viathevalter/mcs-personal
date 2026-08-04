@@ -68,7 +68,7 @@ export async function changeWorkerStatus(payload: ChangeStatusPayload): Promise<
     const updateData: any = {};
     if (changeType === 'TRABALHADOR') {
         updateData.status_trabajador = newValue;
-        if (newValue.toUpperCase() === 'INATIVO' || newValue.toUpperCase() === 'BAIXA' || newValue.toUpperCase() === 'DESLIGADO') {
+        if (newValue.toUpperCase() === 'INATIVO' || newValue.toUpperCase() === 'BAIXA' || newValue.toUpperCase() === 'DESLIGADO' || newValue.toUpperCase() === 'DESISTIU') {
             updateData.data_baixa = effectiveDate;
             
             // Regra 4: Casamento com Seguridade Social
