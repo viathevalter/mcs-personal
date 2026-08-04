@@ -97,24 +97,22 @@
 
 .docx-wrapper {
   background: transparent !important;
-  padding: 0 !important;
+  padding: 16px 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 24px !important;
+  gap: 28px !important;
   width: 100% !important;
 }
 
 .docx {
-  margin: 0 auto 30px auto !important; /* Espaçamento de 30px entre as páginas */
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
-  border-radius: 12px !important;
-  background: white !important;
-  color: #0f172a !important;
-  box-sizing: border-box !important;
-  /* Não forçar width: 100% ou max-width aqui para que o docx-preview use a largura nativa do documento Word (ex: A4 595.3pt / 793px).
-     Isso garante que as tabelas, parágrafos e cabeçalhos absolutos fiquem perfeitamente alinhados à página.
-     A responsividade/redimensionamento é tratada acima no contêiner com as Container Queries abaixo. */
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
 }
 
 .docx > section {
@@ -122,9 +120,12 @@
   overflow: visible !important;
   position: relative !important;
   background: white !important;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.15), 0 2px 6px -1px rgba(0, 0, 0, 0.1) !important;
-  margin: 0 auto 24px auto !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.18), 0 2px 8px -1px rgba(0, 0, 0, 0.12) !important;
+  margin: 0 auto 32px auto !important;
   min-height: 297mm !important;
+  width: 210mm !important;
+  max-width: 100% !important;
   border-radius: 4px !important;
 }
 
