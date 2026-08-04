@@ -19,7 +19,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      db: { schema: 'core_comercial' },
+    });
 
     console.log("Iniciando processamento da fila de e-mail marketing...");
 
@@ -72,14 +74,9 @@ serve(async (req) => {
           marketing_templates (
             subject,
             html_content
-          ),
-          core_common_empresas:empresa_id (
-            trade_name,
-            proposal_sender_email,
-            marketing_sender_email
           )
         ),
-        core_comercial_leads:lead_id (
+        leads:lead_id (
           name,
           email,
           company_name,
@@ -122,19 +119,26 @@ serve(async (req) => {
     for (const item of queueItems) {
       const campaign = item.marketing_campaigns;
       const template = campaign?.marketing_templates;
-      const company = campaign?.core_common_empresas;
-      const lead = item.core_comercial_leads;
+      const lead = item.leads;
 
-      if (!lead || !template || !company) {
+      if (!lead || !template || !campaign) {
         await supabase
           .from("marketing_campaign_queue")
           .update({
             status: "failed",
-            error_message: "Dados incompletos (Lead, Template ou Empresa ausente).",
+            error_message: "Dados incompletos (Lead, Template ou Campanha ausente).",
           })
           .eq("id", item.id);
         continue;
       }
+
+      // Buscar dados da empresa explicitamente do schema core_common
+      const { data: company } = await supabase
+        .schema("core_common")
+        .from("empresas")
+        .select("trade_name, proposal_sender_email, marketing_sender_email")
+        .eq("id", campaign.empresa_id)
+        .maybeSingle();
 
       // Substituição de placeholders dinâmicos
       const rawHtml = template.html_content;
@@ -148,8 +152,13 @@ serve(async (req) => {
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
           .replace(/\{\{\s*email\s*\}\}/g, lead.email || "")
           .replace(/\{\{\s*phone\s*\}\}/g, lead.phone || "")
-          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}`)
-          .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${lead.id}`)
+          .replace(/\{\{\s*lead_id\s*\}\}/g, lead.id || "")
+          .replace(/\{\{\s*lead\.id\s*\}\}/g, lead.id || "")
+          .replace(/\{\{\s*id\s*\}\}/g, lead.id || "")
+          .replace(/\{\{\s*empresa_id\s*\}\}/g, campaign.empresa_id || "")
+          .replace(/\{\{\s*empresa\.id\s*\}\}/g, campaign.empresa_id || "")
+          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${lead.id}&empresa_id=${campaign.empresa_id}`)
           .replace(/\{\{\s*opt_out_url\s*\}\}/g, unsubscribeLink)
           .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, unsubscribeLink)
           .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
@@ -161,10 +170,8 @@ serve(async (req) => {
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
       
-      const senderEmail = company.marketing_sender_email || company.proposal_sender_email || "comercial@mastercorp.pt";
-      const senderName = company.trade_name || "Mastercorp";
-      const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
-      const senderName = company.trade_name || "Mastercorp";
+      const senderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial@mastercorp.pt";
+      const senderName = company?.trade_name || "Mastercorp";
       const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
 
       try {

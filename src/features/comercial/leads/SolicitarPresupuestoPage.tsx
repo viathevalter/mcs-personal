@@ -227,9 +227,10 @@ const translations = {
 };
 
 export function SolicitarPresupuestoPage() {
-  const [searchParams] = useSearchParams();
-  const leadId = searchParams.get('lead_id');
-  const empresaIdParam = searchParams.get('empresa_id');
+  const rawLeadId = searchParams.get('lead_id');
+  const rawEmpresaIdParam = searchParams.get('empresa_id');
+  const leadId = rawLeadId && rawLeadId !== 'undefined' && rawLeadId !== 'null' ? rawLeadId : null;
+  const empresaIdParam = rawEmpresaIdParam && rawEmpresaIdParam !== 'undefined' && rawEmpresaIdParam !== 'null' ? rawEmpresaIdParam : null;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -295,9 +296,7 @@ export function SolicitarPresupuestoPage() {
             .from('leads')
             .select('*')
             .eq('id', leadId)
-            .single();
-
-          if (error) throw error;
+            .maybeSingle();
 
           if (lead) {
             setEmpresaId(lead.empresa_id || '');
@@ -357,14 +356,31 @@ export function SolicitarPresupuestoPage() {
           }
         } catch (err: any) {
           console.error(err);
-          toast.error(t.loadingLead);
         } finally {
           setIsLoading(false);
         }
-      } else if (empresaIdParam) {
+      }
+
+      if (empresaIdParam) {
         setEmpresaId(empresaIdParam);
-      } else {
-        toast.error(t.toastCompanyError);
+      } else if (!leadId) {
+        // Fallback: load default active company if no empresaIdParam and no leadId
+        try {
+          const { data: defaultEmp } = await supabase
+            .schema('core_common')
+            .from('empresas')
+            .select('id')
+            .eq('is_active', true)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (defaultEmp) {
+            setEmpresaId(defaultEmp.id);
+          }
+        } catch (empErr) {
+          console.warn("Failed to fetch default company:", empErr);
+        }
       }
     }
 
@@ -406,15 +422,38 @@ export function SolicitarPresupuestoPage() {
 • ${t.lblEntryTime}: ${projectData.entryTime || t.notSpecified}
 --------------------------------`;
 
-    const finalNotes = existingNotes 
-      ? `${existingNotes}\n\n${formattedBudgetDetails}`
+    let targetLeadId = leadId;
+    let combinedNotes = existingNotes;
+
+    // If no leadId in URL, try matching by email in core_comercial.leads
+    if (!targetLeadId && contactData.email) {
+      try {
+        const { data: matchedLead } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('id, notes')
+          .eq('empresa_id', empresaId)
+          .ilike('email', contactData.email.trim())
+          .maybeSingle();
+
+        if (matchedLead) {
+          targetLeadId = matchedLead.id;
+          combinedNotes = matchedLead.notes || '';
+        }
+      } catch (matchErr) {
+        console.warn("Could not match lead by email:", matchErr);
+      }
+    }
+
+    const finalNotes = combinedNotes 
+      ? `${combinedNotes}\n\n${formattedBudgetDetails}`
       : formattedBudgetDetails;
 
     // Use selected profiles for sector field
     const primarySector = selectedPerfiles.join(', ');
 
     try {
-      if (leadId) {
+      if (targetLeadId) {
         // Fetch 'Orçamento Solicitado' stage ID
         let budgetStageId = null;
         try {
@@ -433,7 +472,7 @@ export function SolicitarPresupuestoPage() {
               .schema('core_comercial')
               .from('leads')
               .select('stage_id')
-              .eq('id', leadId)
+              .eq('id', targetLeadId)
               .single();
 
             if (leadData?.stage_id) {
@@ -471,7 +510,7 @@ export function SolicitarPresupuestoPage() {
             ...(budgetStageId ? { stage_id: budgetStageId } : {}),
             updated_at: new Date().toISOString()
           })
-          .eq('id', leadId);
+          .eq('id', targetLeadId);
 
         if (error) throw error;
       } else {
