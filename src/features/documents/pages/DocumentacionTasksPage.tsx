@@ -746,6 +746,8 @@ Muchas gracias.`;
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
+                breakPages: true,
+                experimental: true,
                 useBase64URL: true,
                 renderHeaders: true,
                 renderFooters: true,

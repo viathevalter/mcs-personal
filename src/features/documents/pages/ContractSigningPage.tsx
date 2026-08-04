@@ -160,6 +160,8 @@ export function ContractSigningPage() {
                 inWrapper: true,
                 ignoreWidth: false,
                 ignoreHeight: false,
+                breakPages: true,
+                experimental: true,
                 useBase64URL: false,
                 renderHeaders: true,
                 renderFooters: true,
