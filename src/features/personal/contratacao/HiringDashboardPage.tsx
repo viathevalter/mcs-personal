@@ -474,7 +474,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       });
     }
 
-    const isCompleted = reqQty > 0 && fulQty >= reqQty;
+    const isCompleted = reqQty === 0 || fulQty >= reqQty;
     return {
       reqQty,
       fulQty,
