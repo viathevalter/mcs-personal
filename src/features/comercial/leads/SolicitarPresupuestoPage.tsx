@@ -458,17 +458,34 @@ export function SolicitarPresupuestoPage() {
         // Fetch 'Orçamento Solicitado' stage ID
         let budgetStageId = null;
         try {
-          const { data: bStage } = await supabase
+          // 1. Try querying by empresaId if available
+          let stageQuery = supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id')
-            .eq('empresa_id', empresaId)
-            .ilike('name', '%Orçamento Solicitado%')
-            .limit(1)
-            .maybeSingle();
+            .ilike('name', '%Orçamento Solicitado%');
+
+          if (empresaId) {
+            stageQuery = stageQuery.eq('empresa_id', empresaId);
+          }
+
+          const { data: bStage } = await stageQuery.limit(1).maybeSingle();
 
           if (bStage) {
             budgetStageId = bStage.id;
+          } else {
+            // Fallback: query any stage matching 'Orçamento Solicitado' across the system
+            const { data: fallbackStage } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id')
+              .ilike('name', '%Orçamento Solicitado%')
+              .limit(1)
+              .maybeSingle();
+
+            if (fallbackStage) {
+              budgetStageId = fallbackStage.id;
+            }
           }
         } catch (e) {
           console.warn("Could not fetch 'Orçamento Solicitado' stage:", e);
@@ -497,14 +514,19 @@ export function SolicitarPresupuestoPage() {
         // Fetch default 'Orçamento Solicitado' stage
         let defaultStageId = null;
         try {
-          const { data: stages, error: stageErr } = await supabase
+          let stageQuery2 = supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id')
-            .eq('empresa_id', empresaId)
-            .eq('name', 'Orçamento Solicitado');
+            .ilike('name', '%Orçamento Solicitado%');
 
-          if (!stageErr && stages && stages.length > 0) {
+          if (empresaId) {
+            stageQuery2 = stageQuery2.eq('empresa_id', empresaId);
+          }
+
+          const { data: stages } = await stageQuery2.limit(1);
+
+          if (stages && stages.length > 0) {
             defaultStageId = stages[0].id;
           } else {
             // Fallback to first stage
@@ -512,7 +534,6 @@ export function SolicitarPresupuestoPage() {
               .schema('core_comercial')
               .from('kanban_stages')
               .select('id')
-              .eq('empresa_id', empresaId)
               .order('order_index', { ascending: true })
               .limit(1);
             if (stages2 && stages2.length > 0) {
