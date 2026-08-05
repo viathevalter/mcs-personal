@@ -1003,8 +1003,12 @@ MCS - Gestão Comercial`;
       }
     }
 
-    // For type === 'informe', we do programmatic chunked pagination!
-    const f = faturamentos.find(item => item.clientId === cardId);
+    const f = faturamentos.find(item => {
+      const expectedCardId = item.magicLinkToken 
+        ? `${item.clientId}-${item.magicLinkToken}` 
+        : `${item.clientId}-pending`;
+      return expectedCardId === cardId;
+    });
     if (!f) {
       console.warn(`Client billing summary not found: ${cardId}`);
       return null;
@@ -2062,14 +2066,18 @@ MCS - Gestão Comercial`;
       return;
     }
 
-    // For type === 'informe', we do programmatic chunked pagination!
-    toast.info("Aguarde, gerando PDF do Informe de Facturación...");
-    
-    const f = faturamentos.find(item => item.clientId === cardId);
+    const f = faturamentos.find(item => {
+      const expectedCardId = item.magicLinkToken 
+        ? `${item.clientId}-${item.magicLinkToken}` 
+        : `${item.clientId}-pending`;
+      return expectedCardId === cardId;
+    });
     if (!f) {
       toast.error('Não foi possível localizar o resumo do cliente.');
       return;
     }
+
+    toast.info("Aguarde, gerando PDF do Informe de Facturación...");
 
     const selectedObraId = selectedObraByClient[cardId];
     const hasObraFilter = selectedObraId !== undefined;
