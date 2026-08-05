@@ -461,9 +461,10 @@ export function SolicitarPresupuestoPage() {
           const { data: bStage } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
-            .select('id, order_index')
+            .select('id')
             .eq('empresa_id', empresaId)
-            .eq('name', 'Orçamento Solicitado')
+            .ilike('name', '%Orçamento Solicitado%')
+            .limit(1)
             .maybeSingle();
 
           if (bStage) {
