@@ -345,47 +345,50 @@ export function HoleritesPage() {
     }, [sortedWorkers, page, effectivePageSize, pageSize]);
 
     return (
-        <div className="flex-1 space-y-6 p-8 pt-6">
-            <div className="flex items-center space-x-2">
-                <Calculator className="h-8 w-8 text-indigo-500" />
-                <h2 className="text-3xl font-bold tracking-tight">Gestão de Folhas</h2>
+        <div className="h-[calc(100vh-100px)] flex flex-col gap-4 p-6 overflow-hidden">
+            {/* Header section */}
+            <div className="shrink-0 space-y-1">
+                <div className="flex items-center space-x-2">
+                    <Calculator className="h-7 w-7 text-indigo-500" />
+                    <h2 className="text-2xl font-bold tracking-tight">Gestão de Folhas</h2>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
+                </p>
+
+                {recentBatches.length > 0 && (
+                    <div className="flex items-center gap-2 bg-amber-50/50 rounded-lg p-2 border border-amber-100/60 mt-1">
+                        <span className="text-xs font-medium text-amber-900 flex items-center gap-1.5 shrink-0">
+                            <Undo2 className="h-3.5 w-3.5" /> Reverter Lotes:
+                        </span>
+                        <div className="flex gap-2 flex-wrap">
+                            {recentBatches.map(b => (
+                                <Button
+                                    key={b.id}
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white h-7 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 py-0"
+                                    onClick={() => handleUndoBatch(b.id)}
+                                    disabled={isDeletingBatch}
+                                >
+                                    {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            <p className="text-muted-foreground max-w-2xl">
-                Controle mensal de descontos (Adiantamentos, Multas, Sinistros) e proventos. Selecione o mês de competência para visualizar os trabalhadores.
-            </p>
-
-            {recentBatches.length > 0 && (
-                <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60 max-w-3xl">
-                    <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
-                        <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                        {recentBatches.map(b => (
-                            <Button
-                                key={b.id}
-                                variant="outline"
-                                size="sm"
-                                className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleUndoBatch(b.id)}
-                                disabled={isDeletingBatch}
-                            >
-                                Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <Card className="border-indigo-100 dark:border-indigo-900/50 shadow-sm">
-                <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20 pb-4 space-y-4">
-                    <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
+            {/* Filter Section */}
+            <Card className="shrink-0 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                <CardContent className="p-3">
+                    <div className="flex flex-col md:flex-row gap-3 items-end justify-between">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
-                            <div className="space-y-2">
-                                <Label>Mês de Competência</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Mês de Competência</Label>
                                 <Select value={mesReferencia} onValueChange={setMesReferencia}>
-                                    <SelectTrigger className="w-full bg-white dark:bg-slate-900">
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900">
+                                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
                                         <SelectValue placeholder="Selecione o mês" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -398,10 +401,10 @@ export function HoleritesPage() {
                                 </Select>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Cliente</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Cliente</Label>
                                 <Combobox
-                                    className="bg-white dark:bg-slate-900"
+                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
                                     options={clienteOptions}
                                     value={clienteFilter}
                                     onChange={(v) => setClienteFilter(v || 'all')}
@@ -410,10 +413,10 @@ export function HoleritesPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Empresa</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Empresa</Label>
                                 <Combobox
-                                    className="bg-white dark:bg-slate-900"
+                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
                                     options={contratanteOptions}
                                     value={contratanteFilter}
                                     onChange={handleContratanteChange}
@@ -422,10 +425,10 @@ export function HoleritesPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Segurança</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Segurança</Label>
                                 <Combobox
-                                    className="bg-white dark:bg-slate-900"
+                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
                                     options={seguridadOptions}
                                     value={seguridadFilter}
                                     onChange={(v) => setSeguridadFilter(v || 'all')}
@@ -434,18 +437,18 @@ export function HoleritesPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Buscar Trabalhador</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Buscar Trabalhador</Label>
                                 <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                                     <Input
                                         placeholder="Nome ou NISS..."
-                                        className="pl-9 bg-white dark:bg-slate-900"
+                                        className="pl-8 h-9 text-xs bg-white dark:bg-slate-900"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
-                                <div className="flex items-center space-x-2 pt-1">
+                                <div className="flex items-center space-x-2 pt-0.5">
                                     <input
                                         type="checkbox"
                                         id="only_with_hours"
@@ -453,222 +456,224 @@ export function HoleritesPage() {
                                         checked={onlyWithHours}
                                         onChange={(e) => setOnlyWithHours(e.target.checked)}
                                     />
-                                    <Label htmlFor="only_with_hours" className="text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                                    <Label htmlFor="only_with_hours" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
                                         Filtrar apenas colaboradores com horas/lançamentos
                                     </Label>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-end gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                             <ImportHorasDialog
                                 mesReferencia={mesReferencia}
                                 workers={workers || []}
                                 trigger={
-                                    <Button className="bg-indigo-600 hover:bg-indigo-700">
-                                        <DownloadCloud className="mr-2 h-4 w-4" />
+                                    <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                                        <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
                                         Importar Horas (Excel)
                                     </Button>
                                 }
                             />
-                            <Badge variant="secondary" className="px-3 py-1 text-sm font-medium bg-white dark:bg-slate-800 border-indigo-100 dark:border-indigo-900">
-                                {isLoadingWorkers ? '...' : totalCount} Trabalhador(es) na lista
+                            <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
+                                {isLoadingWorkers ? '...' : totalCount} Trabalhador(es)
                             </Badge>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="max-h-[calc(100vh-295px)] overflow-y-auto relative">
-                        <Table>
-                            <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900">
-                                <TableRow>
-                                    <TableHead className="pl-6 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
-                                        <div className="flex items-center">Trabalhador {renderSortIcon('nome')}</div>
-                                    </TableHead>
-                                    <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
-                                        <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
-                                    </TableHead>
-                                    <TableHead>Segurança</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Tarifa (H)</TableHead>
-                                    <TableHead className="text-right">Total Horas</TableHead>
-                                    <TableHead className="text-right">Proventos (Mês)</TableHead>
-                                    <TableHead className="text-right">Descontos (Mês)</TableHead>
-                                    <TableHead className="text-right text-indigo-700 dark:text-indigo-400 font-bold">Valor Líquido</TableHead>
-                                    <TableHead className="text-right">Ações</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoadingWorkers || isLoadingEventos ? (
-                                    <TableRow>
-                                        <TableCell colSpan={10} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
-                                    </TableRow>
-                                ) : (!workers || workers.length === 0) ? (
-                                    <TableRow>
-                                        <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
-                                            Nenhum trabalhador ativo ou pendente encontrado.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : paginatedWorkers?.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
-                                            Nenhum trabalhador correspondente na busca.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    paginatedWorkers?.map((worker) => {
-                                        const workerEvents = eventos?.filter(e => e.trabalhador_id === worker.id) || [];
-                                        const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
-                                        const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
-                                        const isExpanded = expandedRows.has(worker.id);
+                </CardContent>
+            </Card>
 
-                                        return (
-                                            <React.Fragment key={worker.id}>
-                                                <TableRow 
-                                                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/30' : ''}`}
-                                                    onClick={() => toggleRow(worker.id)}
-                                                >
-                                                    <TableCell className="pl-6 font-medium flex items-center gap-2">
-                                                        {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                                                        {worker.nome}
-                                                    </TableCell>
-                                                    <TableCell className="text-muted-foreground">
-                                                        {worker.cliente_nombre || '-'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge
-                                                            variant={worker.status_seguridad === 'Alta' ? 'default' : 'secondary'}
-                                                            className={worker.status_seguridad === 'Alta' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
-                                                        >
-                                                            {worker.status_seguridad || 'Desconhecido'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-500' : 'text-muted-foreground'}>
-                                                            {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
-                                                        {totalHoras > 0 ? `${totalHoras} h` : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
-                                                        {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
-                                                        {descontos > 0 ? `- € ${descontos.toFixed(2)}` : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-indigo-700 dark:text-indigo-400 font-bold text-base">
-                                                        € {liquido.toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="flex justify-end gap-2">
-                                                            <HoleriteLancamentosSheet
-                                                                worker={worker}
-                                                                mesReferencia={mesReferencia}
-                                                                eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                                trigger={
-                                                                    <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                                                                        <Plus className="mr-1 h-4 w-4" />
-                                                                        Lançamentos
-                                                                    </Button>
-                                                                }
-                                                            />
-                                                            <PreviewHoleriteDialog
-                                                                worker={worker}
-                                                                mesReferencia={mesReferencia}
-                                                                eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                                fallbackHours={dbHoursSummary?.get(worker.id) || 0}
-                                                                trigger={
-                                                                    <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
-                                                                        {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
-                                                                    </Button>
-                                                                }
-                                                            />
+            {/* Table & Pagination Container */}
+            <div className="flex-1 min-h-0 bg-card rounded-md border shadow-sm overflow-hidden flex flex-col justify-between">
+                <div className="flex-1 overflow-y-auto">
+                    <Table>
+                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                            <TableRow>
+                                <TableHead className="pl-6 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
+                                    <div className="flex items-center">Trabalhador {renderSortIcon('nome')}</div>
+                                </TableHead>
+                                <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
+                                    <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
+                                </TableHead>
+                                <TableHead>Segurança</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Tarifa (H)</TableHead>
+                                <TableHead className="text-right">Total Horas</TableHead>
+                                <TableHead className="text-right">Proventos (Mês)</TableHead>
+                                <TableHead className="text-right">Descontos (Mês)</TableHead>
+                                <TableHead className="text-right text-indigo-700 dark:text-indigo-400 font-bold">Valor Líquido</TableHead>
+                                <TableHead className="text-right pr-6">Ações</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoadingWorkers || isLoadingEventos ? (
+                                <TableRow>
+                                    <TableCell colSpan={10} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
+                                </TableRow>
+                            ) : (!workers || workers.length === 0) ? (
+                                <TableRow>
+                                    <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
+                                        Nenhum trabalhador ativo ou pendente encontrado.
+                                    </TableCell>
+                                </TableRow>
+                            ) : paginatedWorkers?.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
+                                        Nenhum trabalhador correspondente na busca.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                paginatedWorkers?.map((worker) => {
+                                    const workerEvents = eventos?.filter(e => e.trabalhador_id === worker.id) || [];
+                                    const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
+                                    const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
+                                    const isExpanded = expandedRows.has(worker.id);
+
+                                    return (
+                                        <React.Fragment key={worker.id}>
+                                            <TableRow 
+                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/30' : ''}`}
+                                                onClick={() => toggleRow(worker.id)}
+                                            >
+                                                <TableCell className="pl-6 font-medium flex items-center gap-2">
+                                                    {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                                                    {worker.nome}
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">
+                                                    {worker.cliente_nombre || '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        variant={worker.status_seguridad === 'Alta' ? 'default' : 'secondary'}
+                                                        className={worker.status_seguridad === 'Alta' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
+                                                    >
+                                                        {worker.status_seguridad || 'Desconhecido'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-500' : 'text-muted-foreground'}>
+                                                        {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
+                                                </TableCell>
+                                                <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
+                                                    {totalHoras > 0 ? `${totalHoras} h` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
+                                                    {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
+                                                    {descontos > 0 ? `- € ${descontos.toFixed(2)}` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-indigo-700 dark:text-indigo-400 font-bold text-base">
+                                                    € {liquido.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end gap-2">
+                                                        <HoleriteLancamentosSheet
+                                                            worker={worker}
+                                                            mesReferencia={mesReferencia}
+                                                            eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
+                                                            trigger={
+                                                                <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                                                                    <Plus className="mr-1 h-4 w-4" />
+                                                                    Lançamentos
+                                                                </Button>
+                                                            }
+                                                        />
+                                                        <PreviewHoleriteDialog
+                                                            worker={worker}
+                                                            mesReferencia={mesReferencia}
+                                                            eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
+                                                            fallbackHours={dbHoursSummary?.get(worker.id) || 0}
+                                                            trigger={
+                                                                <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                                                                    {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
+                                                                </Button>
+                                                            }
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                            {isExpanded && workerEvents.length > 0 && (
+                                                <TableRow className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                                    <TableCell colSpan={10} className="p-0 border-b">
+                                                        <div className="p-4 pl-12">
+                                                            <div className="bg-white dark:bg-slate-900 border rounded-lg shadow-sm overflow-hidden mb-2">
+                                                                <Table>
+                                                                    <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50">
+                                                                        <TableRow>
+                                                                            <TableHead className="whitespace-nowrap">Data</TableHead>
+                                                                            <TableHead>Categoria</TableHead>
+                                                                            <TableHead>Descrição</TableHead>
+                                                                            <TableHead className="text-right">Horas/Dias Ref.</TableHead>
+                                                                            <TableHead className="text-right font-medium text-emerald-600 dark:text-emerald-500">Provento</TableHead>
+                                                                            <TableHead className="text-right font-medium text-red-600 dark:text-red-500">Desconto</TableHead>
+                                                                        </TableRow>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        {workerEvents.map((evento) => (
+                                                                            <TableRow key={evento.id} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                                                                <TableCell className="text-muted-foreground whitespace-nowrap">{evento.created_at ? format(new Date(evento.created_at), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                                                <TableCell className="font-medium">
+                                                                                    {evento.categoria === 'total_horas' ? 'Total Horas' : 
+                                                                                     evento.categoria === 'dieta' ? 'Dieta' : 
+                                                                                     evento.categoria === 'alojamiento' ? 'Alojamento' : 
+                                                                                     evento.categoria}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-muted-foreground">
+                                                                                    {evento.descricao || '-'}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right">
+                                                                                    {evento.quantidade ? evento.quantidade : '-'}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">
+                                                                                    {evento.tipo === 'provento' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">
+                                                                                    {evento.tipo === 'desconto' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        ))}
+                                                                        {beneficiosFixos.map((b: any, idx: number) => (
+                                                                            <TableRow key={`fixed-${idx}`}>
+                                                                                <TableCell className="text-muted-foreground">-</TableCell>
+                                                                                <TableCell className="font-medium">{b.desc}</TableCell>
+                                                                                <TableCell className="text-muted-foreground">Valor Fixo Mensal</TableCell>
+                                                                                <TableCell className="text-right">-</TableCell>
+                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
+                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
+                                                                            </TableRow>
+                                                                        ))}
+                                                                        {descontosExtras.map((d: any, idx: number) => (
+                                                                             <TableRow key={`desc-${idx}`}>
+                                                                                <TableCell className="text-muted-foreground whitespace-nowrap">{d.reference_date ? format(new Date(d.reference_date), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                                                <TableCell className="font-medium">{d.category}</TableCell>
+                                                                                <TableCell className="text-muted-foreground">{d.description || 'Desconto extra do mês'}</TableCell>
+                                                                                <TableCell className="text-right">-</TableCell>
+                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
+                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
+                                                                             </TableRow>
+                                                                        ))}
+                                                                    </TableBody>
+                                                                </Table>
+                                                            </div>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
-                                                {isExpanded && workerEvents.length > 0 && (
-                                                    <TableRow className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                                                        <TableCell colSpan={10} className="p-0 border-b">
-                                                            <div className="p-4 pl-12">
-                                                                <div className="bg-white dark:bg-slate-900 border rounded-lg shadow-sm overflow-hidden mb-2">
-                                                                    <Table>
-                                                                        <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50">
-                                                                            <TableRow>
-                                                                                <TableHead className="whitespace-nowrap">Data</TableHead>
-                                                                                <TableHead>Categoria</TableHead>
-                                                                                <TableHead>Descrição</TableHead>
-                                                                                <TableHead className="text-right">Horas/Dias Ref.</TableHead>
-                                                                                <TableHead className="text-right font-medium text-emerald-600 dark:text-emerald-500">Provento</TableHead>
-                                                                                <TableHead className="text-right font-medium text-red-600 dark:text-red-500">Desconto</TableHead>
-                                                                            </TableRow>
-                                                                        </TableHeader>
-                                                                        <TableBody>
-                                                                            {workerEvents.map((evento) => (
-                                                                                <TableRow key={evento.id} className="hover:bg-slate-50 dark:hover:bg-slate-850">
-                                                                                    <TableCell className="text-muted-foreground whitespace-nowrap">{evento.created_at ? format(new Date(evento.created_at), 'dd/MM/yyyy') : '-'}</TableCell>
-                                                                                    <TableCell className="font-medium">
-                                                                                        {evento.categoria === 'total_horas' ? 'Total Horas' : 
-                                                                                         evento.categoria === 'dieta' ? 'Dieta' : 
-                                                                                         evento.categoria === 'alojamiento' ? 'Alojamento' : 
-                                                                                         evento.categoria}
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-muted-foreground">
-                                                                                        {evento.descricao || '-'}
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-right">
-                                                                                        {evento.quantidade ? evento.quantidade : '-'}
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">
-                                                                                        {evento.tipo === 'provento' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">
-                                                                                        {evento.tipo === 'desconto' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
-                                                                                    </TableCell>
-                                                                                </TableRow>
-                                                                            ))}
-                                                                            {beneficiosFixos.map((b: any, idx: number) => (
-                                                                                <TableRow key={`fixed-${idx}`}>
-                                                                                    <TableCell className="text-muted-foreground">-</TableCell>
-                                                                                    <TableCell className="font-medium">{b.desc}</TableCell>
-                                                                                    <TableCell className="text-muted-foreground">Valor Fixo Mensal</TableCell>
-                                                                                    <TableCell className="text-right">-</TableCell>
-                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
-                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
-                                                                                </TableRow>
-                                                                            ))}
-                                                                            {descontosExtras.map((d: any, idx: number) => (
-                                                                                 <TableRow key={`desc-${idx}`}>
-                                                                                    <TableCell className="text-muted-foreground whitespace-nowrap">{d.reference_date ? format(new Date(d.reference_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                                                                                    <TableCell className="font-medium">{d.category}</TableCell>
-                                                                                    <TableCell className="text-muted-foreground">{d.description || 'Desconto extra do mês'}</TableCell>
-                                                                                    <TableCell className="text-right">-</TableCell>
-                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
-                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
-                                                                                 </TableRow>
-                                                                            ))}
-                                                                        </TableBody>
-                                                                    </Table>
-                                                                </div>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </React.Fragment>
-                                        );
-                                    })
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
                 {/* Pagination Footer */}
-                <div className="border-t px-4 py-3 flex flex-col sm:flex-row justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-900/30 text-xs gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
+                <div className="h-12 border-t px-4 flex justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-900/30 text-xs">
+                    <div className="flex items-center gap-3">
                         <span className="text-muted-foreground">
                             Página <strong>{page}</strong> de <strong>{totalPages}</strong> (Total: {totalCount} trabalhador(es))
                         </span>
@@ -681,7 +686,7 @@ export function HoleritesPage() {
                                     setPage(1);
                                 }}
                             >
-                                <SelectTrigger className="h-8 w-[90px] text-xs bg-white dark:bg-slate-900">
+                                <SelectTrigger className="h-7 w-[90px] text-xs bg-white dark:bg-slate-900">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -695,7 +700,7 @@ export function HoleritesPage() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         <Button
                             variant="outline"
                             size="sm"
@@ -716,7 +721,7 @@ export function HoleritesPage() {
                         </Button>
                     </div>
                 </div>
-            </Card>
+            </div>
         </div>
     );
 }
