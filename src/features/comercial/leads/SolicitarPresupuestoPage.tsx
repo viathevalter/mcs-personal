@@ -557,12 +557,12 @@ export function SolicitarPresupuestoPage() {
     });
 
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 text-slate-100">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-orange-500 to-yellow-500" />
+      <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-6 text-slate-900">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-orange-500 to-amber-500" />
           
           {/* Language Selector */}
-          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-950/80 backdrop-blur border border-slate-800/80 rounded-full p-1 z-10">
+          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-100 border border-slate-300 rounded-full p-1 z-10">
             <Globe className="h-3 w-3 text-slate-500 ml-1.5 mr-0.5 shrink-0" />
             {(['es', 'it', 'fr', 'pt'] as const).map((l) => (
               <button
@@ -571,8 +571,8 @@ export function SolicitarPresupuestoPage() {
                 onClick={() => setLang(l)}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${
                   lang === l
-                    ? 'bg-orange-500 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
                 {l}
@@ -580,25 +580,25 @@ export function SolicitarPresupuestoPage() {
             ))}
           </div>
 
-          <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="h-10 w-10 animate-bounce" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-100 mb-3">{t.successTitle}</h2>
-          <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">{t.successTitle}</h2>
+          <p className="text-sm text-slate-600 mb-6 leading-relaxed">
             {t.successDesc}
           </p>
-          <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-850 text-left text-xs space-y-1.5 mb-6">
-            <div className="flex justify-between text-slate-500">
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left text-xs space-y-2 mb-6">
+            <div className="flex justify-between text-slate-600">
               <span>{t.successMetaEmpresa}</span>
-              <span className="font-semibold text-slate-300">{contactData.company_name}</span>
+              <span className="font-bold text-slate-900">{contactData.company_name}</span>
             </div>
-            <div className="flex justify-between text-slate-500">
+            <div className="flex justify-between text-slate-600">
               <span>{t.successMetaContacto}</span>
-              <span className="font-semibold text-slate-300">{contactData.name}</span>
+              <span className="font-bold text-slate-900">{contactData.name}</span>
             </div>
-            <div className="flex justify-between text-slate-500">
+            <div className="flex justify-between text-slate-600">
               <span>{t.successMetaPerfiles}</span>
-              <span className="font-semibold text-slate-300 truncate max-w-[200px]">{selectedLabels.join(', ') || t.notSpecified}</span>
+              <span className="font-bold text-slate-900 truncate max-w-[200px]">{selectedLabels.join(', ') || t.notSpecified}</span>
             </div>
           </div>
           <p className="text-[11px] text-slate-500">{t.footerCopyright}</p>
@@ -608,15 +608,15 @@ export function SolicitarPresupuestoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 text-slate-200">
-      <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+    <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 text-slate-800">
+      <div className="max-w-2xl w-full bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden">
         {/* Header Block reminiscent of the LoginPro Navy Header */}
-        <div className="bg-[#061f3d] px-8 py-6 border-b border-slate-800 text-center relative">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-yellow-500" />
+        <div className="bg-[#061f3d] px-8 py-6 border-b border-slate-200 text-center relative">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-500 to-amber-500" />
           
           {/* Language Selector */}
-          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-950/80 backdrop-blur border border-slate-800/80 rounded-full p-1 z-10">
-            <Globe className="h-3 w-3 text-slate-500 ml-1.5 mr-0.5 shrink-0" />
+          <div className="absolute top-4 right-4 flex items-center gap-1 bg-white/10 backdrop-blur border border-white/20 rounded-full p-1 z-10">
+            <Globe className="h-3 w-3 text-slate-300 ml-1.5 mr-0.5 shrink-0" />
             {(['es', 'it', 'fr', 'pt'] as const).map((l) => (
               <button
                 key={l}
@@ -624,8 +624,8 @@ export function SolicitarPresupuestoPage() {
                 onClick={() => setLang(l)}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${
                   lang === l
-                    ? 'bg-orange-500 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-200 hover:text-white hover:bg-white/20'
                 }`}
               >
                 {l}
@@ -641,62 +641,62 @@ export function SolicitarPresupuestoPage() {
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="space-y-1">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-orange-500" />
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <FileText className="h-5 w-5 text-amber-500" />
               {t.formHeading}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {t.formDesc}
             </p>
           </div>
 
           {/* Section 1: Contact Details */}
-          <div className="bg-slate-950/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-800/60 pb-1.5">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-2">
               {t.secContact}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="company_name" className="text-xs font-semibold text-slate-300">
+                <Label htmlFor="company_name" className="text-xs font-semibold text-slate-800">
                   {t.lblCompanyName}
                 </Label>
                 <div className="relative">
-                  <Building className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Building className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <Input
                     id="company_name"
                     required
                     placeholder={t.phCompanyName}
                     value={contactData.company_name}
                     onChange={e => setContactData({ ...contactData, company_name: e.target.value })}
-                    className="pl-9 bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                    className="pl-9 bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-xs font-semibold text-slate-300">
+                <Label htmlFor="name" className="text-xs font-semibold text-slate-800">
                   {t.lblContactName}
                 </Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <User className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <Input
                     id="name"
                     required
                     placeholder={t.phContactName}
                     value={contactData.name}
                     onChange={e => setContactData({ ...contactData, name: e.target.value })}
-                    className="pl-9 bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                    className="pl-9 bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-semibold text-slate-300">
+                <Label htmlFor="email" className="text-xs font-semibold text-slate-800">
                   {t.lblEmail}
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <Input
                     id="email"
                     type="email"
@@ -704,23 +704,23 @@ export function SolicitarPresupuestoPage() {
                     placeholder={t.phEmail}
                     value={contactData.email}
                     onChange={e => setContactData({ ...contactData, email: e.target.value })}
-                    className="pl-9 bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                    className="pl-9 bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-xs font-semibold text-slate-300">
+                <Label htmlFor="phone" className="text-xs font-semibold text-slate-800">
                   {t.lblPhone}
                 </Label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <Input
                     id="phone"
                     placeholder={t.phPhone}
                     value={contactData.phone}
                     onChange={e => setContactData({ ...contactData, phone: e.target.value })}
-                    className="pl-9 bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                    className="pl-9 bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                   />
                 </div>
               </div>
@@ -728,8 +728,8 @@ export function SolicitarPresupuestoPage() {
           </div>
 
           {/* Section 2: Profiles checkboxes */}
-          <div className="bg-slate-950/30 border border-slate-800/80 rounded-2xl p-5 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/60 pb-1.5">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-2">
               {t.secProfiles}
             </h3>
             <p className="text-[11px] text-slate-500">{t.descProfiles}</p>
@@ -740,17 +740,17 @@ export function SolicitarPresupuestoPage() {
                   <div 
                     key={perfil.key} 
                     onClick={() => handleProfileToggle(perfil.key)}
-                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                    className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                       isSelected 
-                        ? 'bg-orange-500/10 border-orange-500/50 text-orange-450 font-medium' 
-                        : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-900 text-slate-300'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-950 font-bold shadow-sm' 
+                        : 'bg-white border-slate-200 hover:bg-slate-100/80 text-slate-700'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       readOnly
-                      className="rounded border-slate-700 text-orange-500 focus:ring-orange-500/20 h-4 w-4 cursor-pointer"
+                      className="rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
                     />
                     <span className="text-xs select-none">{t[perfil.translationKey]}</span>
                   </div>
@@ -760,15 +760,15 @@ export function SolicitarPresupuestoPage() {
           </div>
 
           {/* Section 3: Project specific details */}
-          <div className="bg-slate-950/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/60 pb-1.5">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200 pb-2">
               {t.secProject}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="startDate" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="startDate" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblStartDate}
                 </Label>
                 <Input
@@ -776,13 +776,13 @@ export function SolicitarPresupuestoPage() {
                   type="date"
                   value={projectData.startDate}
                   onChange={e => setProjectData({ ...projectData, startDate: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="endDate" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="endDate" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblEndDate}
                 </Label>
                 <Input
@@ -790,13 +790,13 @@ export function SolicitarPresupuestoPage() {
                   placeholder={t.phEndDate}
                   value={projectData.endDate}
                   onChange={e => setProjectData({ ...projectData, endDate: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="workAddress" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="workAddress" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblWorkAddress}
                 </Label>
                 <Input
@@ -804,13 +804,13 @@ export function SolicitarPresupuestoPage() {
                   placeholder={t.phWorkAddress}
                   value={projectData.workAddress}
                   onChange={e => setProjectData({ ...projectData, workAddress: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="daysHours" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="daysHours" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblDaysHours}
                 </Label>
                 <Input
@@ -818,13 +818,13 @@ export function SolicitarPresupuestoPage() {
                   placeholder={t.phDaysHours}
                   value={projectData.daysHours}
                   onChange={e => setProjectData({ ...projectData, daysHours: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="workersCount" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="workersCount" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblWorkersCount}
                 </Label>
                 <Input
@@ -833,13 +833,13 @@ export function SolicitarPresupuestoPage() {
                   placeholder={t.phWorkersCount}
                   value={projectData.workersCount}
                   onChange={e => setProjectData({ ...projectData, workersCount: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="entryTime" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-orange-500" />
+                <Label htmlFor="entryTime" className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-amber-500" />
                   {t.lblEntryTime}
                 </Label>
                 <Input
@@ -847,7 +847,7 @@ export function SolicitarPresupuestoPage() {
                   placeholder={t.phEntryTime}
                   value={projectData.entryTime}
                   onChange={e => setProjectData({ ...projectData, entryTime: e.target.value })}
-                  className="bg-slate-950 border-slate-800 focus:border-orange-500/50 focus:ring-orange-500/20 text-sm h-10 rounded-xl"
+                  className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                 />
               </div>
             </div>
@@ -856,7 +856,7 @@ export function SolicitarPresupuestoPage() {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-bold py-3 text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 h-11"
+            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold py-3 text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 h-12"
           >
             {isLoading ? (
               <>
@@ -869,7 +869,7 @@ export function SolicitarPresupuestoPage() {
           </Button>
         </form>
 
-        <div className="bg-slate-950 border-t border-slate-850 px-8 py-4 text-center text-[10px] text-slate-500">
+        <div className="bg-slate-50 border-t border-slate-200 px-8 py-4 text-center text-[11px] text-slate-500">
           {t.footerSecurity}
         </div>
       </div>

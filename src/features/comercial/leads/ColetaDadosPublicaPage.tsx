@@ -499,15 +499,14 @@ export function ColetaDadosPublicaPage() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-yellow-500/10 via-slate-950 to-slate-950 pointer-events-none" />
-        <div className="relative w-full max-w-lg bg-slate-900/60 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
-          <div className="h-20 w-20 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="relative w-full max-w-lg bg-white border border-slate-200 p-8 rounded-2xl shadow-xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
+          <div className="h-20 w-20 bg-emerald-500/10 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
             <CheckCircle className="h-10 w-10" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">{t.successTitle}</h1>
-            <p className="text-slate-400 text-lg">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t.successTitle}</h1>
+            <p className="text-slate-600 text-lg">
               {t.successDesc}
             </p>
           </div>
@@ -520,18 +519,16 @@ export function ColetaDadosPublicaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 py-12">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-yellow-500/10 via-slate-950 to-slate-950 pointer-events-none" />
-      
-      <div className="relative w-full max-w-2xl bg-slate-900/50 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-300">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 py-12 text-slate-800">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in duration-300">
         
         {/* Decorative Top Accent Bar */}
-        <div className="h-1.5 bg-gradient-to-r from-yellow-500 to-amber-500" />
+        <div className="h-2 bg-gradient-to-r from-amber-500 to-orange-500" />
         
         <div className="relative p-8 sm:p-10 space-y-8">
           
           {/* Language Selector */}
-          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-full p-1 z-10">
+          <div className="absolute top-4 right-4 flex items-center gap-1 bg-slate-100 border border-slate-300 rounded-full p-1 z-10">
             <Globe className="h-3 w-3 text-slate-500 ml-1.5 mr-0.5 shrink-0" />
             {(['es', 'it', 'fr', 'pt'] as const).map((l) => (
               <button
@@ -540,8 +537,8 @@ export function ColetaDadosPublicaPage() {
                 onClick={() => setLang(l)}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all ${
                   lang === l
-                    ? 'bg-yellow-500 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
                 {l}
@@ -551,13 +548,13 @@ export function ColetaDadosPublicaPage() {
 
           {/* Header */}
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs font-semibold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs font-bold uppercase tracking-wider">
               {id ? t.badgeUpdate : t.badgeNew}
             </div>
-            <h1 className="text-3xl font-bold text-white tracking-tight leading-tight">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight leading-tight">
               {id ? t.titleUpdate : t.titleNew}
             </h1>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-600 text-sm">
               {id 
                 ? t.descUpdate(leadName, companyName)
                 : t.descNew}
@@ -566,52 +563,52 @@ export function ColetaDadosPublicaPage() {
 
           {isLoading && !formData.name ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Loader2 className="h-10 w-10 text-yellow-500 animate-spin" />
+              <Loader2 className="h-10 w-10 text-amber-500 animate-spin" />
               <p className="text-slate-500 text-sm">{t.loadingForm}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               
               {/* Section 1: Identification */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-                  <Building className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secIdent}</h3>
+              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <Building className="h-5 w-5 text-amber-500 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">{t.secIdent}</h3>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="company_name" className="text-slate-300">{t.lblTradeName}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="company_name" className="text-xs font-semibold text-slate-800">{t.lblTradeName}</Label>
                     <Input
                       id="company_name"
                       required
                       placeholder={t.phTradeName}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.company_name}
                       onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="legal_name" className="text-slate-300">{t.lblLegalName}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="legal_name" className="text-xs font-semibold text-slate-800">{t.lblLegalName}</Label>
                     <Input
                       id="legal_name"
                       required
                       placeholder={t.phLegalName}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.legal_name}
                       onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tax_id" className="text-slate-300">{t.lblTaxId}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tax_id" className="text-xs font-semibold text-slate-800">{t.lblTaxId}</Label>
                   <Input
                     id="tax_id"
                     required
                     placeholder={t.phTaxId}
-                    className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                    className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                     value={formData.tax_id}
                     onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
                   />
@@ -619,50 +616,50 @@ export function ColetaDadosPublicaPage() {
               </div>
 
               {/* Section 2: Contact */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-                  <User className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secContact}</h3>
+              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <User className="h-5 w-5 text-amber-500 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">{t.secContact}</h3>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-slate-300">{t.lblContactName}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-xs font-semibold text-slate-800">{t.lblContactName}</Label>
                   <Input
                     id="name"
                     required
                     placeholder={t.phContactName}
-                    className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                    className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-slate-300">{t.lblContactEmail}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-xs font-semibold text-slate-800">{t.lblContactEmail}</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                      <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                       <Input
                         id="email"
                         type="email"
                         required
                         placeholder={t.phContactEmail}
-                        className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
+                        className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 pl-10 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="billing_email" className="text-slate-300">{t.lblBillingEmail}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="billing_email" className="text-xs font-semibold text-slate-800">{t.lblBillingEmail}</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                      <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                       <Input
                         id="billing_email"
                         type="email"
                         placeholder={t.phBillingEmail}
-                        className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
+                        className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 pl-10 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                         value={formData.billing_email}
                         onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
                       />
@@ -670,15 +667,15 @@ export function ColetaDadosPublicaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-slate-300">{t.lblPhone}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="text-xs font-semibold text-slate-800">{t.lblPhone}</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                    <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                     <Input
                       id="phone"
                       required
                       placeholder={t.phPhone}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 pl-10 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 pl-10 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
@@ -687,23 +684,23 @@ export function ColetaDadosPublicaPage() {
               </div>
 
               {/* Section 3: Address */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-                  <MapPin className="h-5 w-5 text-yellow-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t.secAddress}</h3>
+              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <MapPin className="h-5 w-5 text-amber-500 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">{t.secAddress}</h3>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">{t.lblCountry}</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-800">{t.lblCountry}</Label>
                     <CountrySelector
                       value={formData.country_id || null}
                       onChange={(val) => setFormData({ ...formData, country_id: val || '', region_id: '' })}
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">{t.lblRegion}</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-800">{t.lblRegion}</Label>
                     <RegionSelector
                       countryId={formData.country_id || null}
                       value={formData.region_id || null}
@@ -713,46 +710,46 @@ export function ColetaDadosPublicaPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="province" className="text-slate-300">{t.lblProvince}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="province" className="text-xs font-semibold text-slate-800">{t.lblProvince}</Label>
                     <Input
                       id="province"
                       placeholder={t.phProvince}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.province}
                       onChange={(e) => setFormData({ ...formData, province: e.target.value })}
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="city" className="text-slate-300">{t.lblCity}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="city" className="text-xs font-semibold text-slate-800">{t.lblCity}</Label>
                     <Input
                       id="city"
                       placeholder={t.phCity}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="postal_code" className="text-slate-300">{t.lblPostalCode}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="postal_code" className="text-xs font-semibold text-slate-800">{t.lblPostalCode}</Label>
                     <Input
                       id="postal_code"
                       placeholder={t.phPostalCode}
-                      className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                       value={formData.postal_code}
                       onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="address_line" className="text-slate-300">{t.lblAddressLine}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="address_line" className="text-xs font-semibold text-slate-800">{t.lblAddressLine}</Label>
                   <Input
                     id="address_line"
                     placeholder={t.phAddressLine}
-                    className="bg-slate-950/60 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-yellow-500"
+                    className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm h-11 rounded-xl shadow-sm"
                     value={formData.address_line}
                     onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
                   />
@@ -763,7 +760,7 @@ export function ColetaDadosPublicaPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold text-base py-6 rounded-xl shadow-lg shadow-yellow-500/10 transition-all duration-300 flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-base py-3 rounded-xl shadow-md transition-all duration-300 flex items-center justify-center gap-2 h-12"
                 >
                   {isLoading ? (
                     <>
@@ -778,7 +775,6 @@ export function ColetaDadosPublicaPage() {
 
             </form>
           )}
-
         </div>
       </div>
     </div>
