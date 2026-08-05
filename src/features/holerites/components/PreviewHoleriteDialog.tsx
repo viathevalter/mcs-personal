@@ -21,10 +21,11 @@ interface PreviewHoleriteDialogProps {
     worker: Worker;
     mesReferencia: string;
     eventosMensais: HoleriteEvento[];
+    fallbackHours?: number;
     trigger: React.ReactNode;
 }
 
-export function PreviewHoleriteDialog({ worker, mesReferencia, eventosMensais, trigger }: PreviewHoleriteDialogProps) {
+export function PreviewHoleriteDialog({ worker, mesReferencia, eventosMensais, fallbackHours = 0, trigger }: PreviewHoleriteDialogProps) {
     const [open, setOpen] = useState(false);
 
     // Fetch Global Tax Rules to apply to the payslip
@@ -36,7 +37,7 @@ export function PreviewHoleriteDialog({ worker, mesReferencia, eventosMensais, t
     // 1. Calculate Base Salary & Hours
     const tarifaHora = extendedWorker['worker_beneficios_settings']?.tarifa_hora || 0;
     const totalHorasEvento = eventosMensais.find(e => e.categoria === 'total_horas');
-    const horasTrabalhadas = totalHorasEvento?.valor || 0;
+    const horasTrabalhadas = totalHorasEvento?.horas_referencia || totalHorasEvento?.referencia_dias_horas || fallbackHours;
 
     // Base Gross Salary = Hours * Rate (assuming hourly worker)
     // If there is no "total_horas" event but there are provisions, the base is 0 and we just sum provisions.

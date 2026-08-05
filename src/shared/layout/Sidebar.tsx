@@ -25,6 +25,7 @@ export function Sidebar() {
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
         { to: '/workers/history', tKey: 'Histórico de Atividade', icon: History, roles: ['admin', 'rh'] },
         { to: '/workers/salary-report', tKey: 'Informe de Salários', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'] },
+        { to: '/workers/tariffs', tKey: 'navigation.workerRates', icon: Tags, roles: ['admin', 'rh', 'finance'] },
         { to: '/documentacion/tarefas', tKey: 'Documentos e Contratos', icon: FileText, roles: ['admin', 'rh'] },
         { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },

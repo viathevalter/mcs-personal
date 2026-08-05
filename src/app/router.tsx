@@ -5,6 +5,7 @@ import { WorkersPage } from '../features/workers/WorkersPage';
 import { WorkerDetailsPage } from '../features/workers/WorkerDetailsPage';
 import { MovementHistoryPage } from '../features/workers/MovementHistoryPage';
 import { SalaryReportPage } from '../features/workers/pages/SalaryReportPage';
+import { WorkerTariffsPage } from '../features/workers/pages/WorkerTariffsPage';
 import { BenefitsPage } from '../features/benefits/BenefitsPage';
 import { TaxesPage } from '../features/taxes/pages/TaxesPage';
 import { DiscountsPage } from '../features/discounts/pages/DiscountsPage';
@@ -571,6 +572,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'workers/salary-report',
                         element: <SalaryReportPage />,
+                    },
+                    {
+                        path: 'workers/tariffs',
+                        element: <WorkerTariffsPage />,
                     },
                     {
                         path: 'workers/:id',
