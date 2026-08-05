@@ -130,36 +130,64 @@ export function HoleritesPage() {
         setPage(1);
     }, [searchTerm, clienteFilter, contratanteFilter, seguridadFilter, onlyWithHours, mesReferencia, selectedEmpresaId]);
 
-    // Query total hours already recorded in the system (core_finance.horas_trabalhadas) as a fallback
+    // Query total hours recorded in core_finance.horas_trabalhadas across the competence period span
     const { data: dbHoursSummary } = useQuery({
         queryKey: ['db-hours-summary', selectedEmpresaId, mesReferencia],
         queryFn: async () => {
-            if (!selectedEmpresaId) return new Map<string, number>();
+            if (!selectedEmpresaId || !mesReferencia) return new Map<string, number>();
 
             const year = parseInt(mesReferencia.substring(0, 4), 10);
             const month = parseInt(mesReferencia.substring(5, 7), 10);
-            const startDate = `${mesReferencia}-01`;
-            const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-            const { data, error } = await supabase
-                .schema('core_finance')
-                .from('horas_trabalhadas')
-                .select('worker_id, horas_totais')
-                .gte('data_trabalho', startDate)
-                .lte('data_trabalho', endDate);
+            let prevYear = year;
+            let prevMonth = month - 1;
+            if (prevMonth === 0) {
+                prevMonth = 12;
+                prevYear = year - 1;
+            }
 
-            if (error) {
-                console.error("Error fetching database hours for holerites:", error);
-                return new Map<string, number>();
+            const lastDay = new Date(year, month, 0).getDate();
+            const startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+            const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+            let allRows: any[] = [];
+            let pageIndex = 0;
+            const pageSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .schema('core_finance')
+                    .from('horas_trabalhadas')
+                    .select('worker_id, horas_totais')
+                    .gte('data_trabalho', startDateStr)
+                    .lte('data_trabalho', endDateStr)
+                    .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+
+                if (error) {
+                    console.error("Error fetching database hours for holerites:", error);
+                    break;
+                }
+
+                if (data && data.length > 0) {
+                    allRows = [...allRows, ...data];
+                    if (data.length < pageSize) {
+                        hasMore = false;
+                    } else {
+                        pageIndex++;
+                    }
+                } else {
+                    hasMore = false;
+                }
             }
 
             const sumMap = new Map<string, number>();
-            if (data) {
-                for (const row of data) {
+            allRows.forEach((row: any) => {
+                if (row.worker_id) {
                     const current = sumMap.get(row.worker_id) || 0;
                     sumMap.set(row.worker_id, current + Number(row.horas_totais || 0));
                 }
-            }
+            });
             return sumMap;
         },
         enabled: Boolean(selectedEmpresaId && mesReferencia),
