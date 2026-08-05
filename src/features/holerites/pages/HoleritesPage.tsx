@@ -13,7 +13,15 @@ import {
     ChevronUp,
     ArrowUpDown,
     ArrowUp,
-    ArrowDown
+    ArrowDown,
+    Users,
+    ShieldAlert,
+    Clock,
+    Banknote,
+    Copy,
+    Check,
+    CreditCard,
+    Building2
 } from 'lucide-react';
 import {
     Card,
@@ -53,6 +61,33 @@ import { ImportHorasDialog } from '../components/ImportHorasDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
+
+const PASTEL_CLIENT_STYLES = [
+    { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
+    { badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200/70' },
+    { badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200/70' },
+    { badge: 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200/70' },
+    { badge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200/70' },
+    { badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200/70' },
+    { badge: 'bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border-teal-200/70' },
+    { badge: 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border-orange-200/70' },
+];
+
+function getClientStyle(clientName: string | null) {
+    if (!clientName || clientName === '-') return PASTEL_CLIENT_STYLES[0];
+    let hash = 0;
+    for (let i = 0; i < clientName.length; i++) {
+        hash = clientName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % PASTEL_CLIENT_STYLES.length;
+    return PASTEL_CLIENT_STYLES[index];
+}
+
+function formatIban(iban: string) {
+    if (!iban) return '';
+    const clean = iban.replace(/\s+/g, '').toUpperCase();
+    return clean.replace(/(.{4})/g, '$1 ').trim();
+}
 
 export function HoleritesPage() {
     const { i18n } = useTranslation();
@@ -194,18 +229,42 @@ export function HoleritesPage() {
         refetchOnWindowFocus: false,
     });
 
-    // Estado para controlar as linhas expandidas (IDs dos trabalhadores)
+    // Estado para controlar as linhas expandidas (IDs dos trabalhadores) e cópia de IBAN
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const [copiedIbanId, setCopiedIbanId] = useState<string | null>(null);
 
-    const toggleRow = (workerId: string) => {
-        const newExpanded = new Set(expandedRows);
-        if (newExpanded.has(workerId)) {
-            newExpanded.delete(workerId);
-        } else {
-            newExpanded.add(workerId);
-        }
-        setExpandedRows(newExpanded);
+    const handleCopyIban = (workerId: string, iban: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(iban);
+        setCopiedIbanId(workerId);
+        setTimeout(() => setCopiedIbanId(null), 2000);
     };
+
+    const { data: workerIbansMap } = useQuery({
+        queryKey: ['worker-ibans-map', selectedEmpresaId],
+        queryFn: async () => {
+            if (!selectedEmpresaId) return new Map<string, { iban: string; banco: string }>();
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('worker_ibans')
+                .select('worker_id, iban, banco')
+                .eq('status', 'ATIVO');
+
+            if (error) {
+                console.error("Error fetching active worker ibans:", error);
+                return new Map<string, { iban: string; banco: string }>();
+            }
+
+            const map = new Map<string, { iban: string; banco: string }>();
+            (data || []).forEach((row: any) => {
+                if (row.worker_id && row.iban) {
+                    map.set(row.worker_id, { iban: row.iban, banco: row.banco || '' });
+                }
+            });
+            return map;
+        },
+        enabled: Boolean(selectedEmpresaId)
+    });
 
     const handleUndoBatch = (batchId: string) => {
         if (confirm('Atenção: Você está prestes a excluir TODAS as horas importadas neste lote. Continuar?')) {
@@ -362,6 +421,32 @@ export function HoleritesPage() {
         });
     }, [filteredWorkers, sortColumn, sortDirection]);
 
+    const totalLiquidoSum = React.useMemo(() => {
+        if (!sortedWorkers) return 0;
+        return sortedWorkers.reduce((acc, w) => {
+            const { liquido } = calculateWorkerTally(w);
+            return acc + liquido;
+        }, 0);
+    }, [sortedWorkers, eventos, allDiscounts, dbHoursSummary]);
+
+    const totalHorasSum = React.useMemo(() => {
+        if (!sortedWorkers) return 0;
+        return sortedWorkers.reduce((acc, w) => {
+            const { totalHoras } = calculateWorkerTally(w);
+            return acc + totalHoras;
+        }, 0);
+    }, [sortedWorkers, eventos, dbHoursSummary]);
+
+    const altaCount = React.useMemo(() => {
+        if (!sortedWorkers) return 0;
+        return sortedWorkers.filter(w => w.status_seguridad === 'Alta').length;
+    }, [sortedWorkers]);
+
+    const regCount = React.useMemo(() => {
+        if (!sortedWorkers) return 0;
+        return sortedWorkers.filter(w => w.status_seguridad !== 'Alta').length;
+    }, [sortedWorkers]);
+
     const totalCount = sortedWorkers.length;
     const effectivePageSize = pageSize === 'all' ? (totalCount || 1) : pageSize;
     const totalPages = Math.max(1, Math.ceil(totalCount / effectivePageSize));
@@ -375,36 +460,103 @@ export function HoleritesPage() {
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-4 p-6 overflow-hidden">
             {/* Header section */}
-            <div className="shrink-0 space-y-1">
-                <div className="flex items-center space-x-2">
-                    <Calculator className="h-7 w-7 text-indigo-500" />
-                    <h2 className="text-2xl font-bold tracking-tight">Gestão de Folhas</h2>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
-                </p>
-
-                {recentBatches.length > 0 && (
-                    <div className="flex items-center gap-2 bg-amber-50/50 rounded-lg p-2 border border-amber-100/60 mt-1">
-                        <span className="text-xs font-medium text-amber-900 flex items-center gap-1.5 shrink-0">
-                            <Undo2 className="h-3.5 w-3.5" /> Reverter Lotes:
-                        </span>
-                        <div className="flex gap-2 flex-wrap">
-                            {recentBatches.map(b => (
-                                <Button
-                                    key={b.id}
-                                    variant="outline"
-                                    size="sm"
-                                    className="bg-white h-7 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 py-0"
-                                    onClick={() => handleUndoBatch(b.id)}
-                                    disabled={isDeletingBatch}
-                                >
-                                    {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
-                                </Button>
-                            ))}
+            <div className="shrink-0 space-y-3">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <Calculator className="h-7 w-7 text-indigo-500" />
+                            <h2 className="text-2xl font-bold tracking-tight">Gestão de Folhas</h2>
                         </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
+                        </p>
                     </div>
-                )}
+
+                    {recentBatches.length > 0 && (
+                        <div className="flex items-center gap-2 bg-amber-50/50 rounded-lg p-2 border border-amber-100/60">
+                            <span className="text-xs font-medium text-amber-900 flex items-center gap-1.5 shrink-0">
+                                <Undo2 className="h-3.5 w-3.5" /> Reverter Lotes:
+                            </span>
+                            <div className="flex gap-2 flex-wrap">
+                                {recentBatches.map(b => (
+                                    <Button
+                                        key={b.id}
+                                        variant="outline"
+                                        size="sm"
+                                        className="bg-white h-7 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 py-0"
+                                        onClick={() => handleUndoBatch(b.id)}
+                                        disabled={isDeletingBatch}
+                                    >
+                                        {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Top KPI Cards Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                        <CardContent className="p-3.5 flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Trabalhadores</span>
+                                <div className="text-xl font-bold text-slate-900 dark:text-white">{totalCount}</div>
+                                <span className="text-[10px] text-muted-foreground">Listados na competência</span>
+                            </div>
+                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+                                <Users className="h-5 w-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+                        <CardContent className="p-3.5 flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Segurança Social</span>
+                                <div className="flex items-center gap-1.5 text-lg font-bold">
+                                    <span className="text-emerald-600 dark:text-emerald-400">{altaCount} Alta</span>
+                                    <span className="text-slate-300">/</span>
+                                    <span className="text-slate-600 dark:text-slate-400 text-sm font-semibold">{regCount} Reg.</span>
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">Status contratual atual</span>
+                            </div>
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40">
+                                <ShieldAlert className="h-5 w-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-900/50 shadow-sm">
+                        <CardContent className="p-3.5 flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total de Horas</span>
+                                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                                    {totalHorasSum.toLocaleString('pt-BR')} h
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">Apuradas no período</span>
+                            </div>
+                            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-xl text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40">
+                                <Clock className="h-5 w-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                        <CardContent className="p-3.5 flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Folha Total (Líquido)</span>
+                                <div className="text-xl font-bold text-indigo-700 dark:text-indigo-400">
+                                    € {totalLiquidoSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">Previsão líquida a pagar</span>
+                            </div>
+                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+                                <Banknote className="h-5 w-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
             {/* Filter Section */}
@@ -555,19 +707,37 @@ export function HoleritesPage() {
                                     const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
                                     const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
                                     const isExpanded = expandedRows.has(worker.id);
+                                    const clientStyle = getClientStyle(worker.cliente_nombre);
+                                    const ibanInfo = workerIbansMap?.get(worker.id);
 
                                     return (
                                         <React.Fragment key={worker.id}>
                                             <TableRow 
-                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/30' : ''}`}
+                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}
                                                 onClick={() => toggleRow(worker.id)}
                                             >
-                                                <TableCell className="pl-6 font-medium flex items-center gap-2">
-                                                    {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                                                    {worker.nome}
+                                                <TableCell className="pl-6 font-medium">
+                                                    <div className="flex items-center gap-2">
+                                                        {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                                        <div>
+                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                                                {worker.nome}
+                                                            </div>
+                                                            {worker.cod_colab && (
+                                                                <span className="text-[11px] text-muted-foreground font-mono">Cód: {worker.cod_colab}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground">
-                                                    {worker.cliente_nombre || '-'}
+                                                <TableCell>
+                                                    {worker.cliente_nombre ? (
+                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
+                                                            <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
+                                                            {worker.cliente_nombre}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-xs">-</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
@@ -578,7 +748,7 @@ export function HoleritesPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-500' : 'text-muted-foreground'}>
+                                                    <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-500 bg-indigo-50/50' : 'text-muted-foreground'}>
                                                         {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
                                                     </Badge>
                                                 </TableCell>
@@ -624,69 +794,165 @@ export function HoleritesPage() {
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                            {isExpanded && workerEvents.length > 0 && (
-                                                <TableRow className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                                                    <TableCell colSpan={10} className="p-0 border-b">
-                                                        <div className="p-4 pl-12">
-                                                            <div className="bg-white dark:bg-slate-900 border rounded-lg shadow-sm overflow-hidden mb-2">
-                                                                <Table>
-                                                                    <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50">
-                                                                        <TableRow>
-                                                                            <TableHead className="whitespace-nowrap">Data</TableHead>
-                                                                            <TableHead>Categoria</TableHead>
-                                                                            <TableHead>Descrição</TableHead>
-                                                                            <TableHead className="text-right">Horas/Dias Ref.</TableHead>
-                                                                            <TableHead className="text-right font-medium text-emerald-600 dark:text-emerald-500">Provento</TableHead>
-                                                                            <TableHead className="text-right font-medium text-red-600 dark:text-red-500">Desconto</TableHead>
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {workerEvents.map((evento) => (
-                                                                            <TableRow key={evento.id} className="hover:bg-slate-50 dark:hover:bg-slate-850">
-                                                                                <TableCell className="text-muted-foreground whitespace-nowrap">{evento.created_at ? format(new Date(evento.created_at), 'dd/MM/yyyy') : '-'}</TableCell>
-                                                                                <TableCell className="font-medium">
-                                                                                    {evento.categoria === 'total_horas' ? 'Total Horas' : 
-                                                                                     evento.categoria === 'dieta' ? 'Dieta' : 
-                                                                                     evento.categoria === 'alojamiento' ? 'Alojamento' : 
-                                                                                     evento.categoria}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-muted-foreground">
-                                                                                    {evento.descricao || '-'}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right">
-                                                                                    {evento.quantidade ? evento.quantidade : '-'}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">
-                                                                                    {evento.tipo === 'provento' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">
-                                                                                    {evento.tipo === 'desconto' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
-                                                                                </TableCell>
-                                                                            </TableRow>
-                                                                        ))}
-                                                                        {beneficiosFixos.map((b: any, idx: number) => (
-                                                                            <TableRow key={`fixed-${idx}`}>
-                                                                                <TableCell className="text-muted-foreground">-</TableCell>
-                                                                                <TableCell className="font-medium">{b.desc}</TableCell>
-                                                                                <TableCell className="text-muted-foreground">Valor Fixo Mensal</TableCell>
-                                                                                <TableCell className="text-right">-</TableCell>
-                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
-                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
-                                                                            </TableRow>
-                                                                        ))}
-                                                                        {descontosExtras.map((d: any, idx: number) => (
-                                                                             <TableRow key={`desc-${idx}`}>
-                                                                                <TableCell className="text-muted-foreground whitespace-nowrap">{d.reference_date ? format(new Date(d.reference_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                                                                                <TableCell className="font-medium">{d.category}</TableCell>
-                                                                                <TableCell className="text-muted-foreground">{d.description || 'Desconto extra do mês'}</TableCell>
-                                                                                <TableCell className="text-right">-</TableCell>
-                                                                                <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
-                                                                                <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
-                                                                             </TableRow>
-                                                                        ))}
-                                                                    </TableBody>
-                                                                </Table>
+
+                                            {isExpanded && (
+                                                <TableRow className="bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
+                                                    <TableCell colSpan={10} className="p-4 border-b">
+                                                        <div className="space-y-4 pl-4 sm:pl-8 pr-4">
+                                                            {/* Premium Worker Summary Cards */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                {/* Bank Details / IBAN Card */}
+                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-3">
+                                                                    <div className="flex items-center justify-between pb-2 border-b">
+                                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                            <CreditCard className="h-4 w-4 text-indigo-500" />
+                                                                            Dados de Transferência Bancária
+                                                                        </span>
+                                                                        {ibanInfo?.iban && (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-medium"
+                                                                                onClick={(e) => handleCopyIban(worker.id, ibanInfo.iban, e)}
+                                                                            >
+                                                                                {copiedIbanId === worker.id ? (
+                                                                                    <>
+                                                                                        <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copiado!
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <Copy className="h-3.5 w-3.5 mr-1 text-indigo-500" /> Copiar IBAN
+                                                                                    </>
+                                                                                )}
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {ibanInfo?.iban ? (
+                                                                        <div className="space-y-2">
+                                                                            <div>
+                                                                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">IBAN para Pagamento</span>
+                                                                                <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tracking-wider">
+                                                                                    {formatIban(ibanInfo.iban)}
+                                                                                </span>
+                                                                            </div>
+                                                                            {ibanInfo.banco && (
+                                                                                <div className="flex items-center gap-2 pt-1 text-xs">
+                                                                                    <span className="text-muted-foreground font-medium">Banco:</span>
+                                                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{ibanInfo.banco}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 p-2.5 rounded-lg border border-amber-200/60 flex items-center justify-between">
+                                                                            <span>Nenhum IBAN ativo cadastrado para este colaborador.</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Financial Breakdown Card */}
+                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
+                                                                    <div className="flex items-center justify-between pb-2 border-b">
+                                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                            <Banknote className="h-4 w-4 text-emerald-500" />
+                                                                            Resumo da Folha (Competência {mesReferencia})
+                                                                        </span>
+                                                                        <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
+                                                                            Líquido: € {liquido.toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Total Horas</span>
+                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{totalHoras} h</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Tarifa por Hora</span>
+                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">€ {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Proventos + Benefícios</span>
+                                                                            <span className="font-bold text-emerald-600">+ € {proventos.toFixed(2)}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Descontos Extras</span>
+                                                                            <span className="font-bold text-red-600">- € {descontos.toFixed(2)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
+
+                                                            {/* Detailed Events Table */}
+                                                            {hasDataForMonth ? (
+                                                                <div className="bg-white dark:bg-slate-900 border rounded-xl shadow-sm overflow-hidden">
+                                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b flex items-center justify-between">
+                                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                                                            Detalhamento dos Lançamentos do Mês
+                                                                        </span>
+                                                                    </div>
+                                                                    <Table>
+                                                                        <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50">
+                                                                            <TableRow>
+                                                                                <TableHead className="whitespace-nowrap">Data</TableHead>
+                                                                                <TableHead>Categoria</TableHead>
+                                                                                <TableHead>Descrição</TableHead>
+                                                                                <TableHead className="text-right">Horas/Dias Ref.</TableHead>
+                                                                                <TableHead className="text-right font-medium text-emerald-600 dark:text-emerald-500">Provento</TableHead>
+                                                                                <TableHead className="text-right font-medium text-red-600 dark:text-red-500">Desconto</TableHead>
+                                                                            </TableRow>
+                                                                        </TableHeader>
+                                                                        <TableBody>
+                                                                            {workerEvents.map((evento) => (
+                                                                                <TableRow key={evento.id} className="hover:bg-slate-50 dark:hover:bg-slate-850">
+                                                                                    <TableCell className="text-muted-foreground whitespace-nowrap">{evento.created_at ? format(new Date(evento.created_at), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                                                    <TableCell className="font-medium">
+                                                                                        {evento.categoria === 'total_horas' ? 'Total Horas' : 
+                                                                                         evento.categoria === 'dieta' ? 'Dieta' : 
+                                                                                         evento.categoria === 'alojamiento' ? 'Alojamento' : 
+                                                                                         evento.categoria}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-muted-foreground">
+                                                                                        {evento.descricao || '-'}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {evento.quantidade ? evento.quantidade : '-'}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">
+                                                                                        {evento.tipo === 'provento' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">
+                                                                                        {evento.tipo === 'desconto' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                            {beneficiosFixos.map((b: any, idx: number) => (
+                                                                                <TableRow key={`fixed-${idx}`}>
+                                                                                    <TableCell className="text-muted-foreground">-</TableCell>
+                                                                                    <TableCell className="font-medium">{b.desc}</TableCell>
+                                                                                    <TableCell className="text-muted-foreground">Valor Fixo Mensal</TableCell>
+                                                                                    <TableCell className="text-right">-</TableCell>
+                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
+                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                            {descontosExtras.map((d: any, idx: number) => (
+                                                                                <TableRow key={`desc-${idx}`}>
+                                                                                    <TableCell className="text-muted-foreground whitespace-nowrap">{d.reference_date ? format(new Date(d.reference_date), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                                                    <TableCell className="font-medium">{d.category}</TableCell>
+                                                                                    <TableCell className="text-muted-foreground">{d.description || 'Desconto extra do mês'}</TableCell>
+                                                                                    <TableCell className="text-right">-</TableCell>
+                                                                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
+                                                                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                        </TableBody>
+                                                                    </Table>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-xs text-muted-foreground text-center py-2 bg-white dark:bg-slate-900 border rounded-xl">
+                                                                    Sem lançamentos adicionais registrados para este mês.
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
