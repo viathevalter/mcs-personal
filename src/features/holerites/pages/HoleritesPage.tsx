@@ -65,6 +65,9 @@ export function HoleritesPage() {
     const [clienteFilter, setClienteFilter] = useState<string>('all');
     const [contratanteFilter, setContratanteFilter] = useState<string>('all');
     const [onlyWithHours, setOnlyWithHours] = useState<boolean>(true);
+    const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
+    const [page, setPage] = useState<number>(1);
+    const [pageSize, setPageSize] = useState<number | 'all'>(25);
     const [sortColumn, setSortColumn] = useState<'nome' | 'cliente_nombre'>('nome');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -121,6 +124,11 @@ export function HoleritesPage() {
             }
         }
     }, [selectedEmpresaId, empresas, contratantesUnicos]);
+
+    // Reset pagination to page 1 whenever filters change
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, clienteFilter, contratanteFilter, seguridadFilter, onlyWithHours, mesReferencia, selectedEmpresaId]);
 
     // Query total hours already recorded in the system (core_finance.horas_trabalhadas) as a fallback
     const { data: dbHoursSummary } = useQuery({
@@ -210,6 +218,8 @@ export function HoleritesPage() {
     const clientesUnicos = (Array.from(new Set(workers?.map(w => w.cliente_nombre).filter(Boolean))) as string[])
         .sort((a, b) => a.localeCompare(b));
     const contratantesUnicosSorted = [...contratantesUnicos].sort((a, b) => a.localeCompare(b));
+    const seguridadUnica = (Array.from(new Set(workers?.map(w => w.status_seguridad).filter(Boolean))) as string[])
+        .sort((a, b) => a.localeCompare(b));
 
     const clienteOptions = [
         { value: 'all', label: 'Todos os clientes' },
@@ -219,6 +229,11 @@ export function HoleritesPage() {
     const contratanteOptions = [
         { value: 'all', label: 'Todas as empresas' },
         ...contratantesUnicosSorted.map(c => ({ value: c, label: c }))
+    ];
+
+    const seguridadOptions = [
+        { value: 'all', label: 'Todas as seguranças' },
+        ...seguridadUnica.map(s => ({ value: s, label: s }))
     ];
 
     // Helper to calc net
@@ -290,8 +305,9 @@ export function HoleritesPage() {
         const matchesSearch = worker.nome.toLowerCase().includes(searchTerm.toLowerCase()) || worker.niss?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCliente = clienteFilter === 'all' || worker.cliente_nombre === clienteFilter;
         const matchesContratante = contratanteFilter === 'all' || worker.contratante === contratanteFilter || (worker.contratante && worker.contratante.includes(contratanteFilter));
+        const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 
-        if (!matchesSearch || !matchesCliente || !matchesContratante) return false;
+        if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
         if (onlyWithHours) {
             const { totalHoras, proventos, descontos } = calculateWorkerTally(worker);
@@ -317,6 +333,16 @@ export function HoleritesPage() {
             return sortDirection === 'asc' ? res : -res;
         });
     }, [filteredWorkers, sortColumn, sortDirection]);
+
+    const totalCount = sortedWorkers.length;
+    const effectivePageSize = pageSize === 'all' ? (totalCount || 1) : pageSize;
+    const totalPages = Math.max(1, Math.ceil(totalCount / effectivePageSize));
+
+    const paginatedWorkers = React.useMemo(() => {
+        if (pageSize === 'all') return sortedWorkers;
+        const start = (page - 1) * effectivePageSize;
+        return sortedWorkers.slice(start, start + effectivePageSize);
+    }, [sortedWorkers, page, effectivePageSize, pageSize]);
 
     return (
         <div className="flex-1 space-y-6 p-8 pt-6">
@@ -354,7 +380,7 @@ export function HoleritesPage() {
             <Card className="border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                 <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20 pb-4 space-y-4">
                     <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
                             <div className="space-y-2">
                                 <Label>Mês de Competência</Label>
                                 <Select value={mesReferencia} onValueChange={setMesReferencia}>
@@ -397,6 +423,18 @@ export function HoleritesPage() {
                             </div>
 
                             <div className="space-y-2">
+                                <Label>Segurança</Label>
+                                <Combobox
+                                    className="bg-white dark:bg-slate-900"
+                                    options={seguridadOptions}
+                                    value={seguridadFilter}
+                                    onChange={(v) => setSeguridadFilter(v || 'all')}
+                                    placeholder="Buscar segurança..."
+                                    emptyText="Nenhum status encontrado."
+                                />
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label>Buscar Trabalhador</Label>
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -434,7 +472,7 @@ export function HoleritesPage() {
                                 }
                             />
                             <Badge variant="secondary" className="px-3 py-1 text-sm font-medium bg-white dark:bg-slate-800 border-indigo-100 dark:border-indigo-900">
-                                {isLoadingWorkers ? '...' : (filteredWorkers?.length || 0)} Trabalhador(es) na lista
+                                {isLoadingWorkers ? '...' : totalCount} Trabalhador(es) na lista
                             </Badge>
                         </div>
                     </div>
@@ -471,14 +509,14 @@ export function HoleritesPage() {
                                             Nenhum trabalhador ativo ou pendente encontrado.
                                         </TableCell>
                                     </TableRow>
-                                ) : sortedWorkers?.length === 0 ? (
+                                ) : paginatedWorkers?.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
                                             Nenhum trabalhador correspondente na busca.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    sortedWorkers?.map((worker) => {
+                                    paginatedWorkers?.map((worker) => {
                                         const workerEvents = eventos?.filter(e => e.trabalhador_id === worker.id) || [];
                                         const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
                                         const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
@@ -627,6 +665,57 @@ export function HoleritesPage() {
                         </Table>
                     </div>
                 </CardContent>
+
+                {/* Pagination Footer */}
+                <div className="border-t px-4 py-3 flex flex-col sm:flex-row justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-900/30 text-xs gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-muted-foreground">
+                            Página <strong>{page}</strong> de <strong>{totalPages}</strong> (Total: {totalCount} trabalhador(es))
+                        </span>
+                        <div className="flex items-center gap-1.5 ml-2">
+                            <span className="text-muted-foreground font-medium">Exibir:</span>
+                            <Select
+                                value={pageSize.toString()}
+                                onValueChange={(val) => {
+                                    setPageSize(val === 'all' ? 'all' : Number(val));
+                                    setPage(1);
+                                }}
+                            >
+                                <SelectTrigger className="h-8 w-[90px] text-xs bg-white dark:bg-slate-900">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="10">10</SelectItem>
+                                    <SelectItem value="25">25</SelectItem>
+                                    <SelectItem value="50">50</SelectItem>
+                                    <SelectItem value="100">100</SelectItem>
+                                    <SelectItem value="all">Todos</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 text-xs"
+                            disabled={page <= 1 || pageSize === 'all'}
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                        >
+                            Anterior
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 text-xs"
+                            disabled={page >= totalPages || pageSize === 'all'}
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        >
+                            Próximo
+                        </Button>
+                    </div>
+                </div>
             </Card>
         </div>
     );
