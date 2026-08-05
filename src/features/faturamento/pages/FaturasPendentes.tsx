@@ -935,33 +935,326 @@ MCS - Gestão Comercial`;
   };
 
   const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
-    const elementId = `${type}-sheet-${cardId}`;
-    let element = document.getElementById(elementId);
-    if (!element) {
-      console.warn(`Element not found for PDF capture: ${elementId}`);
+    if (type === 'factura') {
+      const elementId = `${type}-sheet-${cardId}`;
+      let element = document.getElementById(elementId);
+      if (!element) {
+        console.warn(`Element not found for PDF capture: ${elementId}`);
+        return null;
+      }
+
+      const parentWrapper = element.closest('.hidden');
+      const wasHidden = !!parentWrapper;
+
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('hidden');
+        parentWrapper.classList.add('block');
+        (parentWrapper as HTMLElement).style.position = 'absolute';
+        (parentWrapper as HTMLElement).style.left = '-9999px';
+        (parentWrapper as HTMLElement).style.top = '0';
+        (parentWrapper as HTMLElement).style.width = '800px';
+      }
+
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 1.5,
+          useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+        
+        const pdfBase64 = pdf.output('datauristring').split(',')[1];
+        const filename = 'Factura_Pro-forma.pdf';
+
+        if (wasHidden && parentWrapper) {
+          parentWrapper.classList.remove('block');
+          parentWrapper.classList.add('hidden');
+          (parentWrapper as HTMLElement).style.position = '';
+          (parentWrapper as HTMLElement).style.left = '';
+          (parentWrapper as HTMLElement).style.top = '';
+          (parentWrapper as HTMLElement).style.width = '';
+        }
+
+        return {
+          name: filename,
+          contentType: 'application/pdf',
+          contentBytes: pdfBase64
+        };
+      } catch (err) {
+        console.error(`Error generating ${type} PDF:`, err);
+        if (wasHidden && parentWrapper) {
+          parentWrapper.classList.remove('block');
+          parentWrapper.classList.add('hidden');
+          (parentWrapper as HTMLElement).style.position = '';
+          (parentWrapper as HTMLElement).style.left = '';
+          (parentWrapper as HTMLElement).style.top = '';
+          (parentWrapper as HTMLElement).style.width = '';
+        }
+        return null;
+      }
+    }
+
+    // For type === 'informe', we do programmatic chunked pagination!
+    const f = faturamentos.find(item => item.clientId === cardId);
+    if (!f) {
+      console.warn(`Client billing summary not found: ${cardId}`);
       return null;
     }
 
-    const parentWrapper = element.closest('.hidden');
-    const wasHidden = !!parentWrapper;
+    const selectedObraId = selectedObraByClient[cardId];
+    const hasObraFilter = selectedObraId !== undefined;
+    const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
+    
+    const filteredWorkers = f.workers.map(w => {
+      const filteredHorasDiarias = hasObraFilter
+        ? Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+            if (h.obra_id === selectedObraId) {
+              acc[date] = h;
+            }
+            return acc;
+          }, {} as Record<string, any>)
+        : w.horasDiarias;
 
-    if (wasHidden && parentWrapper) {
-      parentWrapper.classList.remove('hidden');
-      parentWrapper.classList.add('block');
-      (parentWrapper as HTMLElement).style.position = 'absolute';
-      (parentWrapper as HTMLElement).style.left = '-9999px';
-      (parentWrapper as HTMLElement).style.top = '0';
-      (parentWrapper as HTMLElement).style.width = '800px';
+      const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+      return {
+        ...w,
+        horasDiarias: filteredHorasDiarias,
+        totalHoras: wTotalHoras,
+        totalValor: wTotalValor
+      };
+    }).filter(w => w.totalHoras > 0);
+
+    const displayTotalHoras = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalHoras || 0)
+      : f.totalHoras;
+
+    const displayTotalValor = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
+      : f.totalValor;
+
+    const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
+    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const totalBase = displayTotalValor;
+    const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
+
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.background = '#ffffff';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+
+    const logoHtml = f.empresaInvoiceLogoUrl 
+      ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${f.empresaInvoiceLogoUrl}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
+      : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
+
+    const docNumber = `IF-${f.year}/${String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
+    const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
+    const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
+
+    const workers = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced);
+    const firstPageLimit = 8;
+    const subsequentPageLimit = 16;
+    
+    let currentIndex = 0;
+    let pageNum = 1;
+    const totalPagesCount = workers.length <= firstPageLimit ? 1 : 1 + Math.ceil((workers.length - firstPageLimit) / subsequentPageLimit);
+
+    while (currentIndex < workers.length || pageNum === 1) {
+      const isFirstPage = pageNum === 1;
+      const limit = isFirstPage ? firstPageLimit : subsequentPageLimit;
+      const chunk = workers.slice(currentIndex, currentIndex + limit);
+      currentIndex += limit;
+
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'pdf-portrait-page';
+      pageDiv.style.width = '800px';
+      pageDiv.style.height = '1130px';
+      pageDiv.style.padding = '50px 45px';
+      pageDiv.style.boxSizing = 'border-box';
+      pageDiv.style.background = '#ffffff';
+      pageDiv.style.position = 'relative';
+      pageDiv.style.display = 'flex';
+      pageDiv.style.flexDirection = 'column';
+
+      let pageHtml = '';
+
+      if (isFirstPage) {
+        pageHtml = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 16px;">
+            <div>
+              ${logoHtml}
+              <p style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; margin: 4px 0 0 0;">Informe de Facturación</p>
+              <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">MCS - Gestão Comercial</p>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #475569; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 9px; margin: 0;">Documento</p>
+              <p style="font-weight: 800; color: #0f172a; font-size: 12px; margin: 2px 0 6px 0;">${docNumber}</p>
+              <p style="margin: 0;">Emissão: <strong style="color: #334155;">${emissionDateStr}</strong></p>
+              <p style="margin: 0;">Vencimento: <strong style="color: #334155;">${vencimentoDateStr}</strong></p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; gap: 20px; margin-bottom: 20px;">
+            <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Emissor</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaNome}</p>
+              <p style="color: #64748b; margin: 0;">NIF: ${f.empresaTaxId || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${f.empresaAddressLine || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+            </div>
+            <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Cliente</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientName}</p>
+              <p style="color: #64748b; margin: 0;">NIF: ${f.taxId || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${f.clientAddressLine || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+
+          <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 8px 0;">Resumen de Importe</h5>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 6px 10px; text-align: left; font-weight: 700; color: #475569;">Concepto</th>
+                <th style="padding: 6px 10px; text-align: right; font-weight: 700; color: #475569; width: 110px;">Valor (€)</th>
+                <th style="padding: 6px 10px; text-align: left; font-weight: 700; color: #475569;">Descripción</th>
+                <th style="padding: 6px 10px; text-align: right; font-weight: 700; color: #475569; width: 120px;">Total (€)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 10px; font-weight: 600; color: #1e293b;">Importe total</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #64748b;">${adj.descricaoServico}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ${Number(adj.incrementos) > 0 ? `
+              <tr style="border-bottom: 1px solid #e2e8f0; color: #059669;">
+                <td style="padding: 6px 10px; font-weight: 600;">Incrementos</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #059669;">${adj.incrementosDesc || 'Adicional'}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ` : ''}
+              ${Number(adj.reducoes) > 0 ? `
+              <tr style="border-bottom: 1px solid #e2e8f0; color: #e11d48;">
+                <td style="padding: 6px 10px; font-weight: 600;">Reducciones</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #e11d48;">${adj.reducoesDesc || 'Desconto'}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ` : ''}
+              <tr style="background-color: #f8fafc; font-weight: 750;">
+                <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;" colSpan="3">Total a facturar</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; font-family: monospace; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 6px 0;">Resumo de Horas por Obra</h5>
+          <div style="text-align: center; font-weight: 700; font-size: 11px; background-color: #f1f5f9; padding: 6px; border-radius: 4px; color: #334155; margin-bottom: 20px;">
+            OBRA: ${selectedObra ? selectedObra.name.toUpperCase() : 'TODAS AS OBRAS'}
+          </div>
+        `;
+      } else {
+        pageHtml = `
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px;">
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientName} (${docNumber})</span>
+            <span style="font-size: 10px; color: #64748b;">Período: ${getMonthName(f.month)} / ${f.year}</span>
+          </div>
+        `;
+      }
+
+      let tableHeaderHtml = `
+        <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 8px 0;">Relación de Trabajadores</h5>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: auto;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 8px 12px; text-align: left; font-weight: 700; color: #475569;">Trabajador</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Cantidad de horas</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Precio hora (€)</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Total (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      let tableBodyRowsHtml = '';
+      chunk.forEach(w => {
+        const specialBadge = w.isException 
+          ? `<span style="font-size: 8px; font-weight: 700; color: #d97706; background-color: #fef3c7; border: 1px solid #fde68a; padding: 2px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.02em; margin-left: 8px;">Tarifa Especial</span>`
+          : '';
+        tableBodyRowsHtml += `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+              <span>${w.workerName}</span>
+              ${specialBadge}
+            </td>
+            <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
+            <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+            <td style="padding: 7px 12px; text-align: right; font-weight: 700; font-family: monospace;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      });
+
+      let tableFooterHtml = '';
+      const isLastPage = currentIndex >= workers.length;
+
+      if (isLastPage) {
+        tableFooterHtml = `
+          <tr style="background-color: #f8fafc; font-weight: 750; border-top: 2px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-weight: 700; color: #1e293b;">Totales</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 700;">${displayTotalHoras.toFixed(2)}h</td>
+            <td style="padding: 8px 12px; text-align: right;">-</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      }
+
+      tableHeaderHtml += tableBodyRowsHtml + tableFooterHtml + `
+          </tbody>
+        </table>
+      `;
+
+      let bankHtml = '';
+      if (isLastPage && adj.iban) {
+        bankHtml = `
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 16px; font-size: 11px; color: #64748b; font-weight: 500; white-space: pre-line; line-height: 1.4;">
+            <span style="font-weight: 700; text-transform: uppercase; color: #94a3b8; font-size: 8px; display: block; margin-bottom: 2px;">Dados de Depósito / IBAN</span>
+            ${adj.iban}
+          </div>
+        `;
+      }
+
+      const footerHtml = `
+        <div style="margin-top: auto; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px;">
+          <span>MCS - Gestão Comercial</span>
+          <span>Página ${pageNum} de ${totalPagesCount}</span>
+        </div>
+      `;
+
+      pageDiv.innerHTML = pageHtml + tableHeaderHtml + bankHtml + footerHtml;
+      container.appendChild(pageDiv);
+
+      pageNum++;
     }
 
+    document.body.appendChild(container);
+
     try {
-      const canvas = await html2canvas(element, {
-        scale: 1.5,
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.82);
-      
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -969,34 +1262,26 @@ MCS - Gestão Comercial`;
         compress: true
       });
       
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageElements = container.querySelectorAll('.pdf-portrait-page');
       
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= 297;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= 297;
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 1.5,
+          useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        
+        if (i > 0) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
       
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
-      const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
-
-      if (wasHidden && parentWrapper) {
-        parentWrapper.classList.remove('block');
-        parentWrapper.classList.add('hidden');
-        (parentWrapper as HTMLElement).style.position = '';
-        (parentWrapper as HTMLElement).style.left = '';
-        (parentWrapper as HTMLElement).style.top = '';
-        (parentWrapper as HTMLElement).style.width = '';
-      }
-
+      const filename = 'Informe_Facturacion.pdf';
       return {
         name: filename,
         contentType: 'application/pdf',
@@ -1004,15 +1289,9 @@ MCS - Gestão Comercial`;
       };
     } catch (err) {
       console.error(`Error generating ${type} PDF:`, err);
-      if (wasHidden && parentWrapper) {
-        parentWrapper.classList.remove('block');
-        parentWrapper.classList.add('hidden');
-        (parentWrapper as HTMLElement).style.position = '';
-        (parentWrapper as HTMLElement).style.left = '';
-        (parentWrapper as HTMLElement).style.top = '';
-        (parentWrapper as HTMLElement).style.width = '';
-      }
       return null;
+    } finally {
+      document.body.removeChild(container);
     }
   };
 
@@ -1746,53 +2025,330 @@ MCS - Gestão Comercial`;
   };
 
   const handleExportA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
-    const elementId = `${type}-sheet-${cardId}`;
-    const element = document.getElementById(elementId);
-    
-    if (!element) {
-      toast.error(`Não foi possível localizar o elemento visual do ${type === 'informe' ? 'Informe' : 'Pro-forma'}.`);
+    if (type === 'factura') {
+      const elementId = `${type}-sheet-${cardId}`;
+      const element = document.getElementById(elementId);
+      
+      if (!element) {
+        toast.error(`Não foi possível localizar o elemento visual da Fatura Pró-forma.`);
+        return;
+      }
+      
+      toast.info(`Aguarde, gerando PDF da Fatura Pró-forma...`);
+      
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+        
+        const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+        pdf.save(filename);
+        toast.success(`PDF do Pro-forma gerado com sucesso!`);
+      } catch (error: any) {
+        console.error("Erro ao gerar PDF:", error);
+        toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+      }
       return;
     }
+
+    // For type === 'informe', we do programmatic chunked pagination!
+    toast.info("Aguarde, gerando PDF do Informe de Facturación...");
     
-    toast.info(`Aguarde, gerando PDF do ${type === 'informe' ? 'Informe de Facturación' : 'Fatura Pró-forma'}...`);
+    const f = faturamentos.find(item => item.clientId === cardId);
+    if (!f) {
+      toast.error('Não foi possível localizar o resumo do cliente.');
+      return;
+    }
+
+    const selectedObraId = selectedObraByClient[cardId];
+    const hasObraFilter = selectedObraId !== undefined;
+    const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
     
-    try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true
+    const filteredWorkers = f.workers.map(w => {
+      const filteredHorasDiarias = hasObraFilter
+        ? Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+            if (h.obra_id === selectedObraId) {
+              acc[date] = h;
+            }
+            return acc;
+          }, {} as Record<string, any>)
+        : w.horasDiarias;
+
+      const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+      return {
+        ...w,
+        horasDiarias: filteredHorasDiarias,
+        totalHoras: wTotalHoras,
+        totalValor: wTotalValor
+      };
+    }).filter(w => w.totalHoras > 0);
+
+    const displayTotalHoras = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalHoras || 0)
+      : f.totalHoras;
+
+    const displayTotalValor = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
+      : f.totalValor;
+
+    const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
+    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const totalBase = displayTotalValor;
+    const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
+
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.background = '#ffffff';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+
+    const logoHtml = f.empresaInvoiceLogoUrl 
+      ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${f.empresaInvoiceLogoUrl}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
+      : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
+
+    const docNumber = `IF-${f.year}/${String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
+    const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
+    const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
+
+    const workers = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced);
+    const firstPageLimit = 8;
+    const subsequentPageLimit = 16;
+    
+    let currentIndex = 0;
+    let pageNum = 1;
+    const totalPagesCount = workers.length <= firstPageLimit ? 1 : 1 + Math.ceil((workers.length - firstPageLimit) / subsequentPageLimit);
+
+    while (currentIndex < workers.length || pageNum === 1) {
+      const isFirstPage = pageNum === 1;
+      const limit = isFirstPage ? firstPageLimit : subsequentPageLimit;
+      const chunk = workers.slice(currentIndex, currentIndex + limit);
+      currentIndex += limit;
+
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'pdf-portrait-page';
+      pageDiv.style.width = '800px';
+      pageDiv.style.height = '1130px';
+      pageDiv.style.padding = '50px 45px';
+      pageDiv.style.boxSizing = 'border-box';
+      pageDiv.style.background = '#ffffff';
+      pageDiv.style.position = 'relative';
+      pageDiv.style.display = 'flex';
+      pageDiv.style.flexDirection = 'column';
+
+      let pageHtml = '';
+
+      if (isFirstPage) {
+        pageHtml = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 16px;">
+            <div>
+              ${logoHtml}
+              <p style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; margin: 4px 0 0 0;">Informe de Facturación</p>
+              <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">MCS - Gestão Comercial</p>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #475569; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 9px; margin: 0;">Documento</p>
+              <p style="font-weight: 800; color: #0f172a; font-size: 12px; margin: 2px 0 6px 0;">${docNumber}</p>
+              <p style="margin: 0;">Emissão: <strong style="color: #334155;">${emissionDateStr}</strong></p>
+              <p style="margin: 0;">Vencimento: <strong style="color: #334155;">${vencimentoDateStr}</strong></p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-cols: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; gap: 20px; margin-bottom: 20px;">
+            <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Emissor</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaNome}</p>
+              <p style="color: #64748b; margin: 0;">NIF: ${f.empresaTaxId || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${f.empresaAddressLine || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+            </div>
+            <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
+              <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Cliente</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientName}</p>
+              <p style="color: #64748b; margin: 0;">NIF: ${f.taxId || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${f.clientAddressLine || 'N/A'}</p>
+              <p style="color: #64748b; margin: 0;">${[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+
+          <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 8px 0;">Resumen de Importe</h5>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 6px 10px; text-align: left; font-weight: 700; color: #475569;">Concepto</th>
+                <th style="padding: 6px 10px; text-align: right; font-weight: 700; color: #475569; width: 110px;">Valor (€)</th>
+                <th style="padding: 6px 10px; text-align: left; font-weight: 700; color: #475569;">Descripción</th>
+                <th style="padding: 6px 10px; text-align: right; font-weight: 700; color: #475569; width: 120px;">Total (€)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 10px; font-weight: 600; color: #1e293b;">Importe total</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #64748b;">${adj.descricaoServico}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ${Number(adj.incrementos) > 0 ? `
+              <tr style="border-bottom: 1px solid #e2e8f0; color: #059669;">
+                <td style="padding: 6px 10px; font-weight: 600;">Incrementos</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #059669;">${adj.incrementosDesc || 'Adicional'}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ` : ''}
+              ${Number(adj.reducoes) > 0 ? `
+              <tr style="border-bottom: 1px solid #e2e8f0; color: #e11d48;">
+                <td style="padding: 6px 10px; font-weight: 600;">Reducciones</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; color: #e11d48;">${adj.reducoesDesc || 'Desconto'}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ` : ''}
+              <tr style="background-color: #f8fafc; font-weight: 750;">
+                <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;" colSpan="3">Total a facturar</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; font-family: monospace; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 6px 0;">Resumo de Horas por Obra</h5>
+          <div style="text-align: center; font-weight: 700; font-size: 11px; background-color: #f1f5f9; padding: 6px; border-radius: 4px; color: #334155; margin-bottom: 20px;">
+            OBRA: ${selectedObra ? selectedObra.name.toUpperCase() : 'TODAS AS OBRAS'}
+          </div>
+        `;
+      } else {
+        pageHtml = `
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px;">
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientName} (${docNumber})</span>
+            <span style="font-size: 10px; color: #64748b;">Período: ${getMonthName(f.month)} / ${f.year}</span>
+          </div>
+        `;
+      }
+
+      let tableHeaderHtml = `
+        <h5 style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: #94a3b8; tracking: 0.05em; margin: 0 0 8px 0;">Relación de Trabajadores</h5>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: auto;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 8px 12px; text-align: left; font-weight: 700; color: #475569;">Trabajador</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Cantidad de horas</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Precio hora (€)</th>
+              <th style="padding: 8px 12px; text-align: right; font-weight: 700; color: #475569; width: 140px;">Total (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      let tableBodyRowsHtml = '';
+      chunk.forEach(w => {
+        const specialBadge = w.isException 
+          ? `<span style="font-size: 8px; font-weight: 700; color: #d97706; background-color: #fef3c7; border: 1px solid #fde68a; padding: 2px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.02em; margin-left: 8px;">Tarifa Especial</span>`
+          : '';
+        tableBodyRowsHtml += `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+              <span>${w.workerName}</span>
+              ${specialBadge}
+            </td>
+            <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
+            <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+            <td style="padding: 7px 12px; text-align: right; font-weight: 700; font-family: monospace;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
       });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
-      
-      // Standard A4 portrait is 210mm x 297mm
+
+      let tableFooterHtml = '';
+      const isLastPage = currentIndex >= workers.length;
+
+      if (isLastPage) {
+        tableFooterHtml = `
+          <tr style="background-color: #f8fafc; font-weight: 750; border-top: 2px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-weight: 700; color: #1e293b;">Totales</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 700;">${displayTotalHoras.toFixed(2)}h</td>
+            <td style="padding: 8px 12px; text-align: right;">-</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      }
+
+      tableHeaderHtml += tableBodyRowsHtml + tableFooterHtml + `
+          </tbody>
+        </table>
+      `;
+
+      let bankHtml = '';
+      if (isLastPage && adj.iban) {
+        bankHtml = `
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 16px; font-size: 11px; color: #64748b; font-weight: 500; white-space: pre-line; line-height: 1.4;">
+            <span style="font-weight: 700; text-transform: uppercase; color: #94a3b8; font-size: 8px; display: block; margin-bottom: 2px;">Dados de Depósito / IBAN</span>
+            ${adj.iban}
+          </div>
+        `;
+      }
+
+      const footerHtml = `
+        <div style="margin-top: auto; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px;">
+          <span>MCS - Gestão Comercial</span>
+          <span>Página ${pageNum} de ${totalPagesCount}</span>
+        </div>
+      `;
+
+      pageDiv.innerHTML = pageHtml + tableHeaderHtml + bankHtml + footerHtml;
+      container.appendChild(pageDiv);
+
+      pageNum++;
+    }
+
+    document.body.appendChild(container);
+
+    try {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageElements = container.querySelectorAll('.pdf-portrait-page');
       
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= 297;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= 297;
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 1.5,
+          useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        
+        if (i > 0) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
       
       const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
       pdf.save(filename);
-      toast.success(`PDF do ${type === 'informe' ? 'Informe' : 'Pro-forma'} gerado com sucesso!`);
+      toast.success(`PDF do Informe gerado com sucesso!`);
     } catch (error: any) {
       console.error("Erro ao gerar PDF:", error);
       toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+    } finally {
+      document.body.removeChild(container);
     }
   };
 
