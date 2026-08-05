@@ -227,6 +227,7 @@ const translations = {
 };
 
 export function SolicitarPresupuestoPage() {
+  const [searchParams] = useSearchParams();
   const rawLeadId = searchParams.get('lead_id');
   const rawEmpresaIdParam = searchParams.get('empresa_id');
   const leadId = rawLeadId && rawLeadId !== 'undefined' && rawLeadId !== 'null' ? rawLeadId : null;
