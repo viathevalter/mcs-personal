@@ -1,7 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, Send, Loader2, Building2 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { 
+  ArrowLeft, 
+  Save, 
+  Send, 
+  Loader2, 
+  Building2,
+  FileText,
+  Pin,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  UserCheck,
+  Building,
+  Mail,
+  Phone,
+  Briefcase,
+  Calendar,
+  Users,
+  MapPin,
+  Clock
+} from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useEstimacionMutations } from './hooks/useEstimacionMutations';
 import { useEstimacionDetail } from './hooks/useEstimacionDetail';
@@ -15,9 +43,39 @@ import { useTranslation } from 'react-i18next';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { toast } from 'sonner';
 
+// Helper to parse lead notes string into key-value budget request details
+function parseBudgetNotes(notes?: string | null) {
+  if (!notes) return null;
+  const isBudgetForm = notes.includes('SOLICITAÇÃO DE ORÇAMENTO') || notes.includes('Orçamento') || notes.includes('Presupuesto');
+  
+  const parsed: Record<string, string> = {};
+  const lines = notes.split('\n');
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('•')) {
+      const parts = trimmed.substring(1).split(':');
+      if (parts.length >= 2) {
+        const key = parts[0].trim();
+        const value = parts.slice(1).join(':').trim();
+        parsed[key] = value;
+      }
+    }
+  });
+
+  return {
+    isBudgetForm,
+    raw: notes,
+    parsed: Object.keys(parsed).length > 0 ? parsed : null
+  };
+}
+
 export function NewEstimacionPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const urlLeadId = searchParams.get('lead_id');
+
   const { t } = useTranslation();
   const { selectedEmpresaId, empresas = [] } = useEmpresa();
   const { criarEstimacion, atualizarEstimacion } = useEstimacionMutations();
@@ -25,12 +83,16 @@ export function NewEstimacionPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [comercialSettings, setComercialSettings] = useState<any>(null);
   const [selectedClientData, setSelectedClientData] = useState<any>(null);
+
+  // Lead Reference State (Post-It Widget)
+  const [attachedLead, setAttachedLead] = useState<any>(null);
+  const [isPostItMinimized, setIsPostItMinimized] = useState(false);
   
-  // Mestre do Estado (Payload)
+  // Master Payload State
   const [payload, setPayload] = useState<any>({
     empresa_id: selectedEmpresaId,
     client_id: '',
-    lead_id: '',
+    lead_id: urlLeadId || '',
     client_site_id: '',
     country_id: '',
     postal_code: '',
@@ -70,19 +132,59 @@ export function NewEstimacionPage() {
   });
 
   const { data: sites = [] } = useClientSites(payload.client_id || undefined);
-
   const { data: estimacion, isLoading } = useEstimacionDetail(id);
 
-  // Carregar Configurações Comerciais
+  // Fetch Attached Lead from URL search parameter
+  useEffect(() => {
+    async function fetchLeadContext() {
+      const targetLeadId = payload.lead_id || urlLeadId;
+      if (!targetLeadId) return;
+
+      try {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('*')
+          .eq('id', targetLeadId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          setAttachedLead(data);
+          
+          // Auto-prefill payload fields if creating a new estimation
+          if (!id) {
+            const budgetInfo = parseBudgetNotes(data.notes);
+
+            setPayload((prev: any) => ({
+              ...prev,
+              lead_id: data.id,
+              empresa_id: prev.empresa_id || data.empresa_id || selectedEmpresaId,
+              contact_name: data.name || prev.contact_name,
+              contact_email: data.email || prev.contact_email,
+              postal_code: budgetInfo?.parsed?.['Endereço da obra e Código Postal'] || data.address_line || prev.postal_code,
+              general_notes: data.notes ? `--- NOTAS DO LEAD (${data.company_name}) ---\n${data.notes}` : prev.general_notes
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Error loading lead context:', err);
+      }
+    }
+    fetchLeadContext();
+  }, [urlLeadId, payload.lead_id, id, selectedEmpresaId]);
+
+  // Load Comercial Settings
   useEffect(() => {
     async function fetchSettings() {
-      if (!selectedEmpresaId) return;
+      const targetEmpresa = payload.empresa_id || selectedEmpresaId;
+      if (!targetEmpresa) return;
       try {
         const { data, error } = await supabase
           .schema('core_comercial')
           .from('comercial_settings')
           .select('*')
-          .eq('empresa_id', selectedEmpresaId)
+          .eq('empresa_id', targetEmpresa)
           .maybeSingle();
         if (error) throw error;
         if (data) {
@@ -150,9 +252,9 @@ export function NewEstimacionPage() {
       }
     }
     fetchSettings();
-  }, [selectedEmpresaId, id]);
+  }, [payload.empresa_id, selectedEmpresaId, id]);
 
-  // Carregar dados do Cliente Selecionado
+  // Load Client Data
   useEffect(() => {
     async function fetchClient() {
       if (!payload.client_id) {
@@ -175,7 +277,7 @@ export function NewEstimacionPage() {
     fetchClient();
   }, [payload.client_id]);
 
-  // Carregar dados existentes em caso de edição
+  // Load Existing Estimation in Edit Mode
   useEffect(() => {
     if (estimacion) {
       const mappedItems = estimacion.current_version?.items?.map((item: any) => ({
@@ -276,10 +378,6 @@ export function NewEstimacionPage() {
           toast.error(t('comercial.stepGeneral.validation.selectCountry'));
           return;
         }
-        if (!payload.postal_code) {
-          toast.error(t('comercial.stepGeneral.validation.fillPostalCode'));
-          return;
-        }
       } else {
         toast.error(t('comercial.stepGeneral.validation.selectTarget'));
         return;
@@ -301,7 +399,7 @@ export function NewEstimacionPage() {
   const handleSave = (status: 'draft' | 'review' | 'sent') => {
     const finalPayload = {
       ...payload,
-      empresa_id: selectedEmpresaId,
+      empresa_id: payload.empresa_id || selectedEmpresaId,
       status,
       client_id: payload.client_id || null,
       lead_id: payload.lead_id || null,
@@ -351,6 +449,10 @@ export function NewEstimacionPage() {
 
   const isMutationPending = criarEstimacion.isPending || atualizarEstimacion.isPending;
 
+  const parsedLeadBudget = useMemo(() => {
+    return parseBudgetNotes(attachedLead?.notes);
+  }, [attachedLead]);
+
   if (id && isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] space-y-4">
@@ -374,113 +476,171 @@ export function NewEstimacionPage() {
   }
 
   return (
-    <div className="flex flex-col space-y-3 p-4 pt-1 max-w-7xl mx-auto pb-36">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(id ? `/comercial/estimaciones/${id}` : '/comercial/estimaciones')}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                {id ? t('comercial.detail.editEstimationTitle') : t('comercial.detail.newEstimationTitle')}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {id ? t('comercial.detail.editEstimationDesc', { code: estimacion?.codigo }) : t('comercial.detail.newEstimationDesc')}{' '}
-                {t('comercial.detail.stepProgress', { currentStep })}
-              </p>
+    <div className="relative flex flex-col space-y-3 p-4 pt-1 max-w-7xl mx-auto pb-36">
+      {/* Sticky Post-It Lead Budget Reference Drawer / Floating Card */}
+      {attachedLead && (
+        <div className="fixed top-20 right-4 lg:right-8 z-40 w-80 sm:w-96 shadow-2xl rounded-2xl bg-amber-500/10 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-500/40 text-slate-900 dark:text-slate-100 transition-all duration-300 overflow-hidden">
+          {/* Post-It Header */}
+          <div 
+            onClick={() => setIsPostItMinimized(!isPostItMinimized)}
+            className="flex items-center justify-between p-3 bg-amber-500 text-slate-950 font-bold cursor-pointer select-none"
+          >
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider">
+              <Pin className="h-4 w-4" />
+              <span>Lead: {attachedLead.company_name || attachedLead.name}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] bg-slate-950/20 px-1.5 py-0.5 rounded font-mono">
+                {isPostItMinimized ? 'Expandir' : 'Recolher'}
+              </span>
+              {isPostItMinimized ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </div>
           </div>
-          <div 
-            className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-350 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700 cursor-not-allowed" 
-            title="A empresa está vinculada a esta estimativa."
-          >
-            <Building2 size={16} className="text-slate-500 shrink-0" />
-            <span>
-              {(() => {
-                const emp = empresas.find(e => e.id === selectedEmpresaId);
-                return emp?.trade_name || emp?.legal_name || emp?.nome || 'Empresa';
-              })()}
-            </span>
-          </div>
-        </div>
 
-        {/* Progresso visual simples */}
-        <div className="flex space-x-2 mb-2">
-          {[1, 2, 3, 4].map(step => (
-            <div 
-              key={step} 
-              className={`h-2 flex-1 rounded-full ${currentStep >= step ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800'}`}
-            />
-          ))}
-        </div>
+          {/* Post-It Content */}
+          {!isPostItMinimized && (
+            <div className="p-4 space-y-3 max-h-[450px] overflow-y-auto text-xs bg-amber-50/80 dark:bg-slate-900/90">
+              <div className="grid grid-cols-2 gap-2 border-b border-amber-500/20 pb-2">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Contato</span>
+                  <span className="font-semibold">{attachedLead.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">E-mail</span>
+                  <span className="font-semibold truncate block">{attachedLead.email || 'N/A'}</span>
+                </div>
+              </div>
 
-        <div className="bg-card rounded-md border p-4 min-h-[400px]">
-          {currentStep === 1 && <EstimacionGeneralStep data={payload} onChange={updatePayload} />}
-          {currentStep === 2 && <EstimacionItemsStep data={payload} onChange={updatePayload} />}
-          {currentStep === 3 && <EstimacionCostsStep data={payload} onChange={updatePayload} />}
-          {currentStep === 4 && (
-            <EstimacionReviewStep 
-              data={payload} 
-              client={selectedClientData} 
-              settings={comercialSettings} 
-            />
+              {parsedLeadBudget?.parsed ? (
+                <div className="space-y-2">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-amber-700 dark:text-amber-400 block">
+                    Solicitação de Orçamento
+                  </span>
+                  
+                  {Object.entries(parsedLeadBudget.parsed).map(([key, val]) => (
+                    <div key={key} className="bg-white/80 dark:bg-slate-950/60 border border-amber-500/20 p-2 rounded-lg space-y-0.5">
+                      <span className="font-bold text-amber-800 dark:text-amber-300 block text-[10px] uppercase">
+                        {key}
+                      </span>
+                      <p className="font-medium text-slate-800 dark:text-slate-200">
+                        {val}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : attachedLead.notes ? (
+                <div className="space-y-1">
+                  <span className="font-bold text-amber-700 dark:text-amber-400 block text-[10px] uppercase">Notas</span>
+                  <p className="whitespace-pre-wrap bg-white/80 dark:bg-slate-950 p-2 rounded border border-amber-500/20 text-slate-700 dark:text-slate-300">
+                    {attachedLead.notes}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
+      )}
 
-        {/* Fixed Footer Actions */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-between z-10 md:pl-64">
-          <div className="max-w-7xl mx-auto w-full flex justify-between px-4">
-            <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || isMutationPending}>
-              {t('comercial.detail.btnPrev')}
-            </Button>
+      {/* Main Form Navigation & Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(id ? `/comercial/estimaciones/${id}` : '/comercial/estimaciones')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {id ? t('comercial.detail.editEstimationTitle') : t('comercial.detail.newEstimationTitle')}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {id ? t('comercial.detail.editEstimationDesc', { code: estimacion?.codigo }) : t('comercial.detail.newEstimationDesc')}{' '}
+              {t('comercial.detail.stepProgress', { currentStep })}
+            </p>
+          </div>
+        </div>
 
-            <div className="flex space-x-3">
-              {currentStep < 4 ? (
-                <Button onClick={handleNext}>{t('comercial.detail.btnNext')}</Button>
-              ) : (
-                <>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleSave('draft')}
-                    disabled={isMutationPending}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {t('comercial.detail.btnSaveDraft')}
-                  </Button>
-                  
-                  {(() => {
-                    const viability = calculateViability(payload, selectedClientData, comercialSettings, t);
-                    const needsApproval = (viability.status === 'warning' || viability.status === 'critical') && !payload.is_approved_by_manager;
-                    if (needsApproval) {
-                      return (
-                        <Button 
-                          className="bg-amber-600 hover:bg-amber-700 text-white"
-                          onClick={() => handleSave('review')}
-                          disabled={isMutationPending}
-                        >
-                          <Send className="mr-2 h-4 w-4" />
-                          {t('comercial.detail.btnRequestApproval')}
-                        </Button>
-                      );
-                    } else {
-                      return (
-                        <Button 
-                          className="bg-blue-600 hover:bg-blue-700"
-                          onClick={() => handleSave('sent')}
-                          disabled={isMutationPending}
-                        >
-                          <Send className="mr-2 h-4 w-4" />
-                          {t('comercial.detail.btnSaveSent')}
-                        </Button>
-                      );
-                    }
-                  })()}
-                </>
-              )}
-            </div>
+        {/* Empresa do Grupo Selector */}
+        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+          <Building2 size={16} className="text-amber-500 shrink-0" />
+          <div className="space-y-0.5">
+            <span className="text-[10px] font-bold uppercase text-slate-400 block">Empresa Emissora</span>
+            <Select
+              value={payload.empresa_id || selectedEmpresaId}
+              onValueChange={(val) => updatePayload({ empresa_id: val })}
+            >
+              <SelectTrigger className="w-[180px] h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold">
+                <SelectValue placeholder="Selecione a empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {empresas.map(e => (
+                  <SelectItem key={e.id} value={e.id} className="text-xs">
+                    {e.trade_name || e.legal_name || e.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
+
+      {/* Step Progress Bar */}
+      <div className="flex space-x-2 mb-2">
+        {[1, 2, 3, 4].map(step => (
+          <div 
+            key={step} 
+            className={`h-2 flex-1 rounded-full transition-all duration-300 ${currentStep >= step ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-800'}`}
+          />
+        ))}
+      </div>
+
+      {/* Step Content Container */}
+      <div className="bg-card rounded-2xl border border-slate-200 dark:border-slate-800 p-6 min-h-[420px] shadow-sm">
+        {currentStep === 1 && <EstimacionGeneralStep data={payload} onChange={updatePayload} />}
+        {currentStep === 2 && <EstimacionItemsStep data={payload} onChange={updatePayload} />}
+        {currentStep === 3 && <EstimacionCostsStep data={payload} onChange={updatePayload} />}
+        {currentStep === 4 && (
+          <EstimacionReviewStep 
+            data={payload} 
+            client={selectedClientData} 
+            settings={comercialSettings} 
+          />
+        )}
+      </div>
+
+      {/* Fixed Footer Actions Bar */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-between z-30 md:pl-64">
+        <div className="max-w-7xl mx-auto w-full flex justify-between px-4">
+          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || isMutationPending}>
+            {t('comercial.detail.btnPrev')}
+          </Button>
+
+          <div className="flex space-x-3">
+            {currentStep < 4 ? (
+              <Button onClick={handleNext} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6">
+                {t('comercial.detail.btnNext')}
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleSave('draft')}
+                  disabled={isMutationPending}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {t('comercial.detail.btnSaveDraft')}
+                </Button>
+                <Button 
+                  onClick={() => handleSave('sent')}
+                  disabled={isMutationPending}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Salvar e Finalizar
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
-
