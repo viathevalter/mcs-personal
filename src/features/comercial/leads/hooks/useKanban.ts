@@ -114,6 +114,22 @@ export function useMutateKanban() {
     },
   });
 
+  const reorderStages = useMutation({
+    mutationFn: async (orderedStages: { id: string; order_index: number }[]) => {
+      for (const item of orderedStages) {
+        const { error } = await supabase
+          .schema('core_comercial')
+          .from('kanban_stages')
+          .update({ order_index: item.order_index })
+          .eq('id', item.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', selectedEmpresaId] });
+    },
+  });
+
   return {
     createStage: createStage.mutateAsync,
     isCreatingStage: createStage.isPending,
@@ -121,6 +137,8 @@ export function useMutateKanban() {
     isUpdatingStage: updateStage.isPending,
     deleteStage: deleteStage.mutateAsync,
     isDeletingStage: deleteStage.isPending,
+    reorderStages: reorderStages.mutateAsync,
+    isReorderingStages: reorderStages.isPending,
     moveLead: moveLead.mutateAsync,
     isMovingLead: moveLead.isPending,
   };
