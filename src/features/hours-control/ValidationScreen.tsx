@@ -147,18 +147,26 @@ export function ValidationScreen({
             };
 
             const normTarget = normalizeName(clienteNome);
+            // 1. Try exact match first
             let matched = allClients?.find(c => {
                 const normLegal = normalizeName(c.legal_name);
                 const normTrade = normalizeName(c.trade_name);
-                return (
-                    normLegal === normTarget || 
-                    normTrade === normTarget ||
-                    (normLegal.length > 3 && normTarget.includes(normLegal)) ||
-                    (normTarget.length > 3 && normLegal.includes(normTarget)) ||
-                    (normTrade.length > 3 && normTarget.includes(normTrade)) ||
-                    (normTarget.length > 3 && normTrade.includes(normTarget))
-                );
+                return normLegal === normTarget || normTrade === normTarget;
             });
+
+            // 2. If no exact match, try partial match fallback
+            if (!matched) {
+                matched = allClients?.find(c => {
+                    const normLegal = normalizeName(c.legal_name);
+                    const normTrade = normalizeName(c.trade_name);
+                    return (
+                        (normLegal.length > 3 && normTarget.includes(normLegal)) ||
+                        (normTarget.length > 3 && normLegal.includes(normTarget)) ||
+                        (normTrade.length > 3 && normTarget.includes(normTrade)) ||
+                        (normTarget.length > 3 && normTrade.includes(normTarget))
+                    );
+                });
+            }
 
             if (!matched) {
                 const { data: newClient, error: insertError } = await supabase
