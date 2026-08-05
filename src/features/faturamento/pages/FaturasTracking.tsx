@@ -286,7 +286,18 @@ export function FaturasTracking() {
         const imgWidth = 210;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= 297;
+        
+        while (heightLeft >= 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+          heightLeft -= 297;
+        }
         
         const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
         pdf.save(filename);
@@ -676,7 +687,18 @@ export function FaturasTracking() {
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= 297;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= 297;
+      }
       
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const filename = type === 'informe' ? 'Informe_Facturacion.pdf' : 'Factura_Pro-forma.pdf';
@@ -715,7 +737,6 @@ export function FaturasTracking() {
     container.style.left = '-9999px';
     container.style.top = '0';
     container.style.width = '1120px';
-    container.style.padding = '40px';
     container.style.background = '#ffffff';
     container.style.color = '#000000';
     container.style.fontFamily = 'Inter, system-ui, sans-serif';
@@ -748,19 +769,6 @@ export function FaturasTracking() {
     const totalHorasVal = hours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
     const totalTarifaVal = hours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 27.00)), 0);
 
-    container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">${labels.title}</h2>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.client}: <strong>${clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-size: 13px; color: #64748b; margin: 0;">${labels.totalHours}: <strong style="color: #1e293b; font-size: 16px;">${totalHorasVal.toFixed(2)}h</strong></p>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">${labels.baseBilling}: <strong style="color: #1e293b; font-size: 16px;">€ ${totalTarifaVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
-        </div>
-      </div>
-    `;
-
     const workersMap = new Map<string, {
       workerId: string;
       workerName: string;
@@ -786,95 +794,167 @@ export function FaturasTracking() {
     const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
     const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
 
-    let tableHtml = `
-      <div style="margin-bottom: 40px; page-break-inside: avoid;">
-        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
-          OBRA: TODAS AS OBRAS
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
-          <thead>
-            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">${labels.worker}</th>
-    `;
-
-    daysArray.forEach(dInfo => {
-      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
-      const dayOfWeek = cellDate.getDay();
-      const isSunday = dayOfWeek === 0;
-      const isSaturday = dayOfWeek === 6;
-      const weekdays = lang === 'pt' ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] : lang === 'es' ? ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const label = weekdays[dayOfWeek];
-      
-      let headerColor = '#64748b';
-      let headerBg = '';
-      if (isSunday) {
-        headerColor = '#e11d48';
-        headerBg = 'background-color: #ffe4e6;';
-      } else if (isSaturday) {
-        headerColor = '#d97706';
-        headerBg = 'background-color: #fef3c7;';
+    const tablesToRender = [
+      {
+        title: 'OBRA: TODAS AS OBRAS',
+        workers: groupedWorkers,
+        totalHoras: totalHorasVal,
+        totalValor: totalTarifaVal
       }
+    ];
 
-      tableHtml += `
-        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
-          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
-          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
-        </th>
-      `;
-    });
+    let overallPageNum = 1;
 
-    tableHtml += `
-              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    groupedWorkers.forEach(w => {
-      const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
-      tableHtml += `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
-      `;
-
-      daysArray.forEach(dInfo => {
-        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
+    tablesToRender.forEach((table) => {
+      const workers = table.workers;
+      const firstPageLimit = 13;
+      const subsequentPageLimit = 16;
+      
+      let currentIndex = 0;
+      let tablePageNum = 1;
+      
+      while (currentIndex < workers.length) {
+        const isFirstPage = tablePageNum === 1;
+        const limit = isFirstPage ? firstPageLimit : subsequentPageLimit;
+        const chunk = workers.slice(currentIndex, currentIndex + limit);
+        currentIndex += limit;
         
-        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
-        const dayOfWeek = cellDate.getDay();
-        const isSunday = dayOfWeek === 0;
-        const isSaturday = dayOfWeek === 6;
-
-        let cellStyle = 'color: #94a3b8;';
-        let cellBg = '';
-        if (hoursVal > 0) {
-          cellStyle = 'color: #2563eb; font-weight: 700;';
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'pdf-page-hours-tracking-attachment';
+        pageDiv.style.width = '1120px';
+        pageDiv.style.height = '792px';
+        pageDiv.style.padding = '40px';
+        pageDiv.style.boxSizing = 'border-box';
+        pageDiv.style.background = '#ffffff';
+        pageDiv.style.position = 'relative';
+        pageDiv.style.display = 'flex';
+        pageDiv.style.flexDirection = 'column';
+        
+        let headerHtml = '';
+        if (isFirstPage) {
+          headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px;">
+              <div>
+                <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">${labels.title}</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">${labels.client}: <strong>${clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 13px; color: #64748b; margin: 0;">${labels.totalHours}: <strong style="color: #1e293b; font-size: 16px;">${totalHorasVal.toFixed(2)}h</strong></p>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">${labels.baseBilling}: <strong style="color: #1e293b; font-size: 16px;">€ ${totalTarifaVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+              </div>
+            </div>
+            <div style="text-align: center; font-weight: 800; font-size: 13px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 8px; color: #334155; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+              ${table.title}
+            </div>
+          `;
+        } else {
+          headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">${labels.title} — ${clientName} (${table.title})</span>
+              <span style="font-size: 11px; color: #64748b;">${labels.period}: ${periodStr}</span>
+            </div>
+          `;
         }
-        if (isSunday) {
-          cellBg = 'background-color: #fff1f2;';
-        } else if (isSaturday) {
-          cellBg = 'background-color: #fffbeb;';
-        }
-
-        tableHtml += `
-          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
-            ${hoursVal > 0 ? hoursVal : '-'}
-          </td>
+        
+        let tableHtml = `
+          <table style="width: 100%; border-collapse: collapse; font-size: 10px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: auto;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 8px 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0; width: 180px;">${labels.worker}</th>
         `;
-      });
-
-      tableHtml += `
-          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
-        </tr>
-      `;
+        
+        daysArray.forEach(dInfo => {
+          const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+          const dayOfWeek = cellDate.getDay();
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+          const weekdays = lang === 'pt' ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] : lang === 'es' ? ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const label = weekdays[dayOfWeek];
+          
+          let headerColor = '#64748b';
+          let headerBg = '';
+          if (isSunday) {
+            headerColor = '#e11d48';
+            headerBg = 'background-color: #ffe4e6;';
+          } else if (isSaturday) {
+            headerColor = '#d97706';
+            headerBg = 'background-color: #fef3c7;';
+          }
+          
+          tableHtml += `
+            <th style="text-align: center; padding: 6px 1px; min-width: 22px; ${headerBg} border-right: 1px solid #e2e8f0;">
+              <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700; line-height: 1;">${label}</div>
+              <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px; line-height: 1;">${String(dInfo.day).padStart(2, '0')}</div>
+            </th>
+          `;
+        });
+        
+        tableHtml += `
+                <th style="padding: 8px 10px; text-align: right; font-weight: 700; color: #475569; width: 60px;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        chunk.forEach(w => {
+          const workerTotal = daysArray.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+          tableHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 7px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+          `;
+          
+          daysArray.forEach(dInfo => {
+            const dateKey = dInfo.dateStr;
+            const hoursVal = w.horasDiarias[dateKey] || 0;
+            
+            const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+            const dayOfWeek = cellDate.getDay();
+            const isSunday = dayOfWeek === 0;
+            const isSaturday = dayOfWeek === 6;
+            
+            let cellStyle = 'color: #94a3b8;';
+            let cellBg = '';
+            if (hoursVal > 0) {
+              cellStyle = 'color: #2563eb; font-weight: 700;';
+            }
+            if (isSunday) {
+              cellBg = 'background-color: #fff1f2;';
+            } else if (isSaturday) {
+              cellBg = 'background-color: #fffbeb;';
+            }
+            
+            tableHtml += `
+              <td style="text-align: center; padding: 6px 1px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0; font-size: 10px;">
+                ${hoursVal > 0 ? hoursVal : '-'}
+              </td>
+            `;
+          });
+          
+          tableHtml += `
+              <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #1e293b; font-size: 10px;">${workerTotal.toFixed(1)}h</td>
+            </tr>
+          `;
+        });
+        
+        tableHtml += `
+            </tbody>
+          </table>
+        `;
+        
+        const footerHtml = `
+          <div style="margin-top: auto; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px;">
+            <span>MCS - Gestão Comercial</span>
+            <span>Página ${overallPageNum}</span>
+          </div>
+        `;
+        
+        pageDiv.innerHTML = headerHtml + tableHtml + footerHtml;
+        container.appendChild(pageDiv);
+        
+        tablePageNum++;
+        overallPageNum++;
+      }
     });
-
-    tableHtml += `
-          </tbody>
-        </table>
-      </div>
-    `;
-    container.innerHTML += tableHtml;
 
     document.body.appendChild(container);
 
@@ -893,23 +973,23 @@ export function FaturasTracking() {
         compress: true
       });
       
-      const imgWidth = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageElements = container.querySelectorAll('.pdf-page-hours-tracking-attachment');
       
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= 210;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= 210;
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i] as HTMLElement;
+        const canvasEl = await html2canvas(pageEl, {
+          scale: 1.5,
+          useCORS: true
+        });
+        const imgDataEl = canvasEl.toDataURL('image/jpeg', 0.85);
+        if (i > 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(imgDataEl, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
       }
       
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      document.body.removeChild(container);
       return {
         name: 'Relatorio_Datas_Trabalhadas.pdf',
         contentType: 'application/pdf',
@@ -917,9 +997,10 @@ export function FaturasTracking() {
       };
     } catch (error: any) {
       console.error("Erro ao gerar PDF:", error);
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
       return null;
-    } finally {
-      document.body.removeChild(container);
     }
   };
 
