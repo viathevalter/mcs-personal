@@ -233,6 +233,16 @@ export function HoleritesPage() {
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [copiedIbanId, setCopiedIbanId] = useState<string | null>(null);
 
+    const toggleRow = (workerId: string) => {
+        const newExpanded = new Set(expandedRows);
+        if (newExpanded.has(workerId)) {
+            newExpanded.delete(workerId);
+        } else {
+            newExpanded.add(workerId);
+        }
+        setExpandedRows(newExpanded);
+    };
+
     const handleCopyIban = (workerId: string, iban: string, e: React.MouseEvent) => {
         e.stopPropagation();
         navigator.clipboard.writeText(iban);
