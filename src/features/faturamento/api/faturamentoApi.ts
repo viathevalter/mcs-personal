@@ -699,8 +699,9 @@ export async function getHorasPendentesFaturamento(
 
         const sampleHour = wHours[0];
         
-        // Resolve worker from unknownWorkersMap
-        const uw = unknownWorkersMap.get(wId);
+        // Resolve worker from activeWorkers or unknownWorkersMap
+        const activeW = activeWorkers.find(w => w.id === wId);
+        const uw = activeW || unknownWorkersMap.get(wId);
         const wName = uw?.nome || 'Trabalhador Desconhecido';
         const wCodColab = uw?.cod_colab || 'N/A';
         const wStatus = uw?.status_trabajador || 'Ativo';
