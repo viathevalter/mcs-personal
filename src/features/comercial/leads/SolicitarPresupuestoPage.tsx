@@ -467,30 +467,7 @@ export function SolicitarPresupuestoPage() {
             .maybeSingle();
 
           if (bStage) {
-            let currentOrderIndex = 0;
-            // Fetch current lead's stage order index
-            const { data: leadData } = await supabase
-              .schema('core_comercial')
-              .from('leads')
-              .select('stage_id')
-              .eq('id', targetLeadId)
-              .single();
-
-            if (leadData?.stage_id) {
-              const { data: curStage } = await supabase
-                .schema('core_comercial')
-                .from('kanban_stages')
-                .select('order_index')
-                .eq('id', leadData.stage_id)
-                .maybeSingle();
-              if (curStage) {
-                currentOrderIndex = curStage.order_index;
-              }
-            }
-
-            if (bStage.order_index > currentOrderIndex) {
-              budgetStageId = bStage.id;
-            }
+            budgetStageId = bStage.id;
           }
         } catch (e) {
           console.warn("Could not fetch 'Orçamento Solicitado' stage:", e);
