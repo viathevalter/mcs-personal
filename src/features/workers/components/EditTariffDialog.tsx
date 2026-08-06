@@ -19,9 +19,10 @@ interface EditTariffDialogProps {
     worker: (Worker & { worker_beneficios_settings?: any }) | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onOpenAuthorization?: (worker: Worker & { worker_beneficios_settings?: any }) => void;
 }
 
-export function EditTariffDialog({ worker, open, onOpenChange }: EditTariffDialogProps) {
+export function EditTariffDialog({ worker, open, onOpenChange, onOpenAuthorization }: EditTariffDialogProps) {
     const { t } = useTranslation();
     const { mutateAsync: updateTariff, isPending } = useUpdateWorkerTariff();
     const [tarifaVal, setTarifaVal] = useState<string>('0.00');
@@ -57,34 +58,34 @@ export function EditTariffDialog({ worker, open, onOpenChange }: EditTariffDialo
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[450px]">
+            <DialogContent className="sm:max-w-[480px]">
                 <form onSubmit={handleSave}>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-indigo-500" />
+                        <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                            <DollarSign className="w-5 h-5 text-indigo-600" />
                             Editar Tarifa do Trabalhador
                         </DialogTitle>
-                        <DialogDescription>
-                            Atualize a tarifa horária de faturamento do colaborador no sistema.
+                        <DialogDescription className="text-xs">
+                            Atualize a tarifa horária de remuneração ou solicite termo de autorização assinado pelo gerente.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
                         <div className="bg-slate-50 dark:bg-slate-900 border rounded-lg p-3 space-y-2 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Trabalhador:</span>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">{worker.nome}</span>
+                                <span className="text-muted-foreground text-xs">Trabalhador:</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{worker.nome}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Função:</span>
-                                <span className="font-medium">{worker.funcion || '-'}</span>
+                                <span className="text-muted-foreground text-xs">Função:</span>
+                                <span className="font-medium text-xs">{worker.funcion || '-'}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Cliente:</span>
-                                <span className="font-medium">{worker.cliente_nombre || '-'}</span>
+                                <span className="text-muted-foreground text-xs">Cliente:</span>
+                                <span className="font-medium text-xs">{worker.cliente_nombre || '-'}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Empresa:</span>
+                                <span className="text-muted-foreground text-xs">Empresa:</span>
                                 <span className="font-medium text-xs bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded text-indigo-700 dark:text-indigo-300">
                                     {worker.contratante || '-'}
                                 </span>
@@ -96,46 +97,65 @@ export function EditTariffDialog({ worker, open, onOpenChange }: EditTariffDialo
                                 Tarifa por Hora (€)
                             </Label>
                             <div className="relative">
-                                <span className="absolute left-3 top-2.5 text-muted-foreground font-mono">€</span>
+                                <span className="absolute left-3 top-2.5 text-muted-foreground font-mono text-xs">€</span>
                                 <Input
                                     id="tariff_input"
                                     type="text"
-                                    className="pl-7 font-mono"
+                                    className="pl-7 font-mono text-xs font-bold text-indigo-700 dark:text-indigo-400"
                                     value={tarifaVal}
                                     onChange={(e) => setTarifaVal(e.target.value)}
                                     autoComplete="new-password"
                                     placeholder="0.00"
                                 />
                             </div>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-[11px] text-muted-foreground">
                                 Este valor será utilizado para multiplicar as horas trabalhadas na folha de pagamento.
                             </p>
                         </div>
                     </div>
 
-                    <DialogFooter>
-                        <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={() => onOpenChange(false)}
-                            disabled={isPending}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button 
-                            type="submit" 
-                            className="bg-indigo-600 hover:bg-indigo-700"
-                            disabled={isPending}
-                        >
-                            {isPending ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Salvando...
-                                </>
-                            ) : (
-                                'Salvar Tarifa'
-                            )}
-                        </Button>
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                        {onOpenAuthorization && (
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="h-9 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200"
+                                onClick={() => {
+                                    onOpenChange(false);
+                                    onOpenAuthorization(worker);
+                                }}
+                            >
+                                Solicit. Termo Gerente
+                            </Button>
+                        )}
+                        <div className="flex gap-2 justify-end flex-1">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => onOpenChange(false)}
+                                disabled={isPending}
+                                className="h-9 text-xs"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button 
+                                type="submit" 
+                                size="sm"
+                                className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold"
+                                disabled={isPending}
+                            >
+                                {isPending ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Salvando...
+                                    </>
+                                ) : (
+                                    'Salvar Direto'
+                                )}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </form>
             </DialogContent>

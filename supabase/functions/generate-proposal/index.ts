@@ -746,6 +746,7 @@ serve(async (req) => {
       }
 
       let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
+      let finalSenderEmail = senderEmail;
       if (empresa && empresa.microsoft_tenant_id && empresa.microsoft_client_id && empresa.microsoft_client_secret) {
         msCredentials = {
           tenantId: empresa.microsoft_tenant_id,
@@ -753,9 +754,12 @@ serve(async (req) => {
           clientSecret: empresa.microsoft_client_secret
         };
       }
+      if (!finalSenderEmail) {
+        finalSenderEmail = "valter@gestaologinpro.com";
+      }
 
       const mailResult = await sendMailViaGraph(
-        senderEmail,
+        finalSenderEmail,
         senderName,
         targetEmail,
         subject,

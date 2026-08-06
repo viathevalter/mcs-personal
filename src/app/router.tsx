@@ -135,6 +135,11 @@ export const router = createBrowserRouter([
         errorElement: <RootErrorBoundary />,
     },
     {
+        path: '/tariffs/authorization/:token',
+        element: <TariffSigningPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
         path: '/assinar/:token',
         element: <ContractSigningPage />,
         errorElement: <RootErrorBoundary />,

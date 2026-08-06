@@ -50,7 +50,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImportTarifasDialog } from '../components/ImportTarifasDialog';
 import { EditTariffDialog } from '../components/EditTariffDialog';
+import { TariffAuthorizationModal } from '../components/TariffAuthorizationModal';
+import { TariffAuditLogDialog } from '../components/TariffAuditLogDialog';
 import type { Worker } from '@/shared/types/corePersonal';
+import { toast } from 'sonner';
 
 const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
@@ -100,6 +103,11 @@ export function WorkerTariffsPage() {
     const [selectedWorker, setSelectedWorker] = useState<(Worker & { worker_beneficios_settings?: any }) | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [copiedIbanId, setCopiedIbanId] = useState<string | null>(null);
+
+    // Multi-selection state for batch authorization terms
+    const [selectedWorkerIds, setSelectedWorkerIds] = useState<Set<string>>(new Set());
+    const [authModalOpen, setAuthModalOpen] = useState(false);
+    const [authModalWorkers, setAuthModalWorkers] = useState<(Worker & { worker_beneficios_settings?: any })[]>([]);
 
     const toggleRow = (workerId: string) => {
         const newExpanded = new Set(expandedRows);
@@ -346,6 +354,24 @@ export function WorkerTariffsPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <TariffAuditLogDialog />
+                    <Button 
+                        variant="outline"
+                        size="sm"
+                        className="h-9 text-xs font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 gap-1.5"
+                        onClick={() => {
+                            const selected = sortedWorkers.filter(w => selectedWorkerIds.has(w.id));
+                            if (selected.length === 0) {
+                                toast.info("Selecione um ou mais colaboradores na tabela para gerar o termo de autorização.");
+                                return;
+                            }
+                            setAuthModalWorkers(selected);
+                            setAuthModalOpen(true);
+                        }}
+                    >
+                        <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+                        Solicitar Termo ({selectedWorkerIds.size})
+                    </Button>
                     <ImportTarifasDialog 
                         trigger={
                             <Button className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs font-medium">
@@ -526,6 +552,20 @@ export function WorkerTariffsPage() {
                     <Table>
                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
                             <TableRow>
+                                <TableHead className="w-[40px] pl-4">
+                                    <input
+                                        type="checkbox"
+                                        className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={sortedWorkers.length > 0 && selectedWorkerIds.size === sortedWorkers.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedWorkerIds(new Set(sortedWorkers.map(w => w.id)));
+                                            } else {
+                                                setSelectedWorkerIds(new Set());
+                                            }
+                                        }}
+                                    />
+                                </TableHead>
                                 <TableHead className="w-[80px] font-semibold cursor-pointer select-none" onClick={() => handleSort('cod_colab')}>
                                     <div className="flex items-center">Cód {renderSortIcon('cod_colab')}</div>
                                 </TableHead>
@@ -553,7 +593,7 @@ export function WorkerTariffsPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center h-48">
+                                    <TableCell colSpan={9} className="text-center h-48">
                                         <div className="flex items-center justify-center gap-2">
                                             <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
                                             <span>Carregando tarifas...</span>
@@ -562,7 +602,7 @@ export function WorkerTariffsPage() {
                                 </TableRow>
                             ) : !sortedWorkers || sortedWorkers.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center h-48 text-muted-foreground italic">
+                                    <TableCell colSpan={9} className="text-center h-48 text-muted-foreground italic">
                                         Nenhum trabalhador correspondente encontrado.
                                     </TableCell>
                                 </TableRow>
@@ -572,13 +612,30 @@ export function WorkerTariffsPage() {
                                     const isExpanded = expandedRows.has(worker.id);
                                     const clientStyle = getClientStyle(worker.cliente_nombre);
                                     const ibanInfo = workerIbansMap?.get(worker.id);
+                                    const isSelected = selectedWorkerIds.has(worker.id);
 
                                     return (
                                         <React.Fragment key={worker.id}>
                                             <TableRow 
-                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}
+                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isSelected ? 'bg-indigo-50/40 dark:bg-indigo-950/40' : isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}
                                                 onClick={() => toggleRow(worker.id)}
                                             >
+                                                <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            const next = new Set(selectedWorkerIds);
+                                                            if (e.target.checked) {
+                                                                next.add(worker.id);
+                                                            } else {
+                                                                next.delete(worker.id);
+                                                            }
+                                                            setSelectedWorkerIds(next);
+                                                        }}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="font-mono text-xs text-muted-foreground">
                                                     <div className="flex items-center gap-1.5">
                                                         {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-indigo-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
@@ -612,53 +669,52 @@ export function WorkerTariffsPage() {
                                                         {worker.status_seguridad || 'Desconhecido'}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="text-right font-mono font-semibold text-emerald-600 dark:text-emerald-500">
+                                                <TableCell className="text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                                                     € {Number(tariff).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                     <Button
                                                         variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 hover:text-indigo-600 hover:bg-indigo-50"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0 text-slate-600 hover:text-indigo-600"
                                                         onClick={() => openEditDialog(worker)}
                                                     >
-                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                        <Edit2 className="h-3.5 w-3.5" />
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
 
+                                            {/* Expanded details row */}
                                             {isExpanded && (
-                                                <TableRow className="bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
-                                                    <TableCell colSpan={8} className="p-4 border-b">
-                                                        <div className="space-y-4 pl-4 sm:pl-8 pr-4">
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                {/* Contract & Function Info Card */}
-                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
-                                                                    <div className="flex items-center justify-between pb-2 border-b">
-                                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                                                            <Briefcase className="h-4 w-4 text-indigo-500" />
-                                                                            Atribuição & Histórico Contratual
-                                                                        </span>
+                                                <TableRow className="bg-slate-50/80 dark:bg-slate-900/60 border-b">
+                                                    <TableCell colSpan={9} className="p-4 pl-12">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
+                                                                <div className="flex items-center justify-between pb-2 border-b">
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                        <Briefcase className="h-4 w-4 text-indigo-500" />
+                                                                        Atribuição & Histórico Contratual
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1.5 text-xs">
+                                                                    <div>
+                                                                        <span className="text-muted-foreground block">Função do Trabalhador</span>
+                                                                        <span className="font-bold text-slate-800 dark:text-slate-200">{worker.funcion || 'Não informada'}</span>
                                                                     </div>
-                                                                    <div className="space-y-1.5 text-xs">
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Função do Trabalhador</span>
-                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{worker.funcion || 'Não informada'}</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Cliente Alocado</span>
-                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.cliente_nombre || 'Não informado'}</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Empresa Contratante</span>
-                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.contratante || 'Não informada'}</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">NISS</span>
-                                                                            <span className="font-mono text-slate-600 dark:text-slate-400">{worker.niss || 'Não informado'}</span>
-                                                                        </div>
+                                                                    <div>
+                                                                        <span className="text-muted-foreground block">Cliente Alocado</span>
+                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.cliente_nombre || 'Não informado'}</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-muted-foreground block">Empresa Contratante</span>
+                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.contratante || 'Não informada'}</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-muted-foreground block">NISS</span>
+                                                                        <span className="font-mono text-slate-600 dark:text-slate-400">{worker.niss || 'Não informado'}</span>
                                                                     </div>
                                                                 </div>
+                                                            </div>
 
                                                                 {/* Remuneration Settings Card */}
                                                                 <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
@@ -747,8 +803,7 @@ export function WorkerTariffsPage() {
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    </TableCell>
+                                                        </TableCell>
                                                 </TableRow>
                                             )}
                                         </React.Fragment>
@@ -796,6 +851,20 @@ export function WorkerTariffsPage() {
                 open={editOpen}
                 onOpenChange={setEditOpen}
                 worker={selectedWorker}
+                onOpenAuthorization={(w) => {
+                    setAuthModalWorkers([w]);
+                    setAuthModalOpen(true);
+                }}
+            />
+
+            {/* Tariff Authorization Term Modal */}
+            <TariffAuthorizationModal
+                open={authModalOpen}
+                onOpenChange={setAuthModalOpen}
+                workers={authModalWorkers}
+                onSuccess={() => {
+                    setSelectedWorkerIds(new Set());
+                }}
             />
         </div>
     );
