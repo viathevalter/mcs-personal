@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Building2,
   MapPin,
@@ -49,30 +50,18 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(activeEmpresaId);
   
-  // Lightweight query to fetch active worker profiles for this company (avoiding heavy holerite query)
+  // Fetch all worker profiles for this company directly
   const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
     queryKey: ['lightweightActiveWorkers', activeEmpresaId],
     queryFn: async () => {
       if (!activeEmpresaId) return [];
       
-      // Fetch active contract worker IDs
-      const { data: contracts, error: contractsError } = await supabase
-        .schema('core_personal')
-        .from('contracts')
-        .select('worker_id')
-        .eq('empresa_id', activeEmpresaId);
-        
-      if (contractsError) throw contractsError;
-      if (!contracts || contracts.length === 0) return [];
-      
-      const workerIds = Array.from(new Set(contracts.map(c => c.worker_id).filter(Boolean)));
-      
-      // Fetch worker profiles
       const { data: workers, error: workersError } = await supabase
         .schema('core_personal')
         .from('workers')
         .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
-        .in('id', workerIds);
+        .eq('empresa_id', activeEmpresaId)
+        .order('nome', { ascending: true });
         
       if (workersError) throw workersError;
       return workers || [];
@@ -826,27 +815,22 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
           <div className="space-y-4 py-3">
             <div className="space-y-1.5">
               <Label htmlFor="dialog_worker_select">Selecione o Trabalhador</Label>
-              <Select value={selectedWorkerId} onValueChange={setSelectedWorkerId}>
-                <SelectTrigger id="dialog_worker_select" className="bg-slate-50 w-full overflow-hidden [&>span]:line-clamp-1 [&>span]:text-left">
-                  <SelectValue placeholder="Selecione o trabalhador..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[220px]">
-                  {loadingWorkers ? (
-                    <SelectItem value="loading" disabled>Carregando trabalhadores...</SelectItem>
-                  ) : (
-                    filteredWorkers.map(w => {
-                      const isInactive = w.status_trabajador && 
-                        !w.status_trabajador.toLowerCase().includes('ativ') && 
-                        !w.status_trabajador.toLowerCase().includes('activ');
-                      return (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.nome} ({w.funcion || 'Sem Função'}){isInactive ? ` - ${w.status_trabajador}` : ''}
-                        </SelectItem>
-                      );
-                    })
-                  )}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={filteredWorkers.map(w => {
+                  const isInactive = w.status_trabajador && 
+                    !w.status_trabajador.toLowerCase().includes('ativ') && 
+                    !w.status_trabajador.toLowerCase().includes('activ');
+                  return {
+                    value: w.id,
+                    label: `${w.nome} (${w.funcion || 'Sem Função'})${isInactive ? ` - ${w.status_trabajador}` : ''}`
+                  };
+                })}
+                value={selectedWorkerId || null}
+                onChange={(val) => setSelectedWorkerId(val || '')}
+                placeholder={loadingWorkers ? "Carregando trabalhadores..." : "Selecione o trabalhador..."}
+                emptyText="Nenhum trabalhador encontrado."
+                className="bg-slate-50 w-full"
+              />
 
               <div className="flex items-center gap-2 pt-1 pb-1">
                 <input
