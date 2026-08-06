@@ -17,6 +17,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { ContractSigningPage } from '../features/documents/pages/ContractSigningPage';
 import { WorkerDocCapturePage } from '../features/documents/pages/WorkerDocCapturePage';
 import { ProposalSigningPage } from '../features/documents/pages/ProposalSigningPage';
+import { TariffSigningPage } from '../features/workers/pages/TariffSigningPage';
 import UsersPage from '../features/admin/UsersPage';
 import { CategoriesSettingsPage } from '../features/settings/pages/CategoriesSettingsPage';
 import { JobFunctionsPage } from '../features/master-data/job-functions/pages/JobFunctionsPage';
