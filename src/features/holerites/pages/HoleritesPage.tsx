@@ -89,6 +89,26 @@ function formatIban(iban: string) {
     return clean.replace(/(.{4})/g, '$1 ').trim();
 }
 
+function formatDateClean(dateStr?: string | null) {
+    if (!dateStr) return '';
+    try {
+        const parts = dateStr.split('T')[0].split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+    } catch {
+        return dateStr;
+    }
+}
+
+function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
+    if (!mesCompetencia) return false;
+    const dIngresso = worker.data_ingresso || worker.data_alta_seguridad || worker.created_at;
+    if (!dIngresso) return false;
+    return String(dIngresso).startsWith(mesCompetencia);
+}
+
 export function HoleritesPage() {
     const { i18n } = useTranslation();
     const currentLocale = i18n.language.startsWith('pt') ? pt : es;
@@ -100,6 +120,7 @@ export function HoleritesPage() {
     const [clienteFilter, setClienteFilter] = useState<string>('all');
     const [contratanteFilter, setContratanteFilter] = useState<string>('all');
     const [onlyWithHours, setOnlyWithHours] = useState<boolean>(true);
+    const [workerTypeFilter, setWorkerTypeFilter] = useState<'only_hours' | 'new_workers' | 'all'>('only_hours');
     const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
     const [page, setPage] = useState<number>(1);
     const [pageSize, setPageSize] = useState<number | 'all'>(25);
@@ -401,16 +422,22 @@ export function HoleritesPage() {
     }
 
     const filteredWorkers = workers?.filter(worker => {
-        const matchesSearch = worker.nome.toLowerCase().includes(searchTerm.toLowerCase()) || worker.niss?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = worker.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                              worker.niss?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              worker.cod_colab?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCliente = clienteFilter === 'all' || worker.cliente_nombre === clienteFilter;
         const matchesContratante = contratanteFilter === 'all' || worker.contratante === contratanteFilter || (worker.contratante && worker.contratante.includes(contratanteFilter));
         const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
-        if (onlyWithHours) {
+        if (workerTypeFilter === 'only_hours') {
             const { totalHoras, proventos, descontos } = calculateWorkerTally(worker);
             return totalHoras > 0 || proventos > 0 || descontos > 0;
+        }
+
+        if (workerTypeFilter === 'new_workers') {
+            return isNewWorkerInMonth(worker, mesReferencia);
         }
 
         return true;
@@ -586,7 +613,7 @@ export function HoleritesPage() {
             <Card className="shrink-0 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                 <CardContent className="p-3">
                     <div className="flex flex-col md:flex-row gap-3 items-end justify-between">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 flex-1">
                             <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-muted-foreground">Mês de Competência</Label>
                                 <Select value={mesReferencia} onValueChange={setMesReferencia}>
@@ -641,6 +668,20 @@ export function HoleritesPage() {
                             </div>
 
                             <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Exibir Colaboradores</Label>
+                                <Select value={workerTypeFilter} onValueChange={(v: any) => setWorkerTypeFilter(v)}>
+                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900 font-medium">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="only_hours">Apenas com Horas / Lançamentos</SelectItem>
+                                        <SelectItem value="new_workers">Apenas Novos (Admitidos no Mês)</SelectItem>
+                                        <SelectItem value="all">Todos os Colaboradores</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-muted-foreground">Buscar Trabalhador</Label>
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -650,18 +691,6 @@ export function HoleritesPage() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
-                                </div>
-                                <div className="flex items-center space-x-2 pt-0.5">
-                                    <input
-                                        type="checkbox"
-                                        id="only_with_hours"
-                                        className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                        checked={onlyWithHours}
-                                        onChange={(e) => setOnlyWithHours(e.target.checked)}
-                                    />
-                                    <Label htmlFor="only_with_hours" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
-                                        Filtrar apenas colaboradores com horas/lançamentos
-                                    </Label>
                                 </div>
                             </div>
                         </div>
@@ -736,6 +765,7 @@ export function HoleritesPage() {
                                     const isExpanded = expandedRows.has(worker.id);
                                     const clientStyle = getClientStyle(worker.cliente_nombre);
                                     const ibanInfo = workerIbansMap?.get(worker.id);
+                                    const isNewWorker = isNewWorkerInMonth(worker, mesReferencia);
 
                                     return (
                                         <React.Fragment key={worker.id}>
@@ -747,12 +777,22 @@ export function HoleritesPage() {
                                                     <div className="flex items-center gap-2">
                                                         {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                                                         <div>
-                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                                                {worker.nome}
+                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                                                <span>{worker.nome}</span>
+                                                                {isNewWorker && (
+                                                                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] py-0 px-1.5 font-semibold">
+                                                                        Novo no Mês
+                                                                    </Badge>
+                                                                )}
                                                             </div>
-                                                            {worker.cod_colab && (
-                                                                <span className="text-[11px] text-muted-foreground font-mono">Cód: {worker.cod_colab}</span>
-                                                            )}
+                                                            <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+                                                                {worker.cod_colab && <span>Cód: {worker.cod_colab}</span>}
+                                                                {worker.data_ingresso && (
+                                                                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                                                                        • Início: {formatDateClean(worker.data_ingresso)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </TableCell>

@@ -35,11 +35,11 @@ interface ParsedRow {
 export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
     const { selectedEmpresaId } = useEmpresa();
 
-    // We fetch all workers for the selected company to match the codes without pagination filter
+    // We fetch all workers across all companies to match codes flexibly
     const { data: workersData } = useWorkersList({
-        empresaId: selectedEmpresaId || '',
+        empresaId: 'all',
         page: 1,
-        pageSize: 10000 // A large enough number to get all workers to match
+        pageSize: 10000
     });
 
     const workers = workersData?.data || [];
@@ -68,6 +68,13 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
         return undefined;
     };
 
+    // Robust code normalization (extracts numeric digits e.g. "E0089" -> "89", "89" -> "89")
+    const getCodeNumeric = (code: string) => {
+        if (!code) return '';
+        const digits = code.replace(/\D/g, '');
+        return digits ? digits.replace(/^0+/, '') : code.trim().toUpperCase();
+    };
+
     const parseExcel = async (file: File) => {
         setIsParsing(true);
         try {
@@ -83,31 +90,44 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
 
             for (const row of rawJson) {
                 // Determine COD_Colab
-                const codColabKey = findKeyIgnoreCase(row, ['cod_colab', 'codigo', 'cod', 'cod colab', 'cod trabalhador']);
+                const codColabKey = findKeyIgnoreCase(row, ['cod_colab', 'codigo', 'cod', 'cod colab', 'cod trabalhador', 'id', 'colaborador_id']);
                 // Determine Tarifa
-                const tarifaKey = findKeyIgnoreCase(row, ['tarifa', 'tarifa hora', 'valor']);
-                // Determine Worker Name purely for display
-                const nomeKey = findKeyIgnoreCase(row, ['trabalhador', 'nome', 'nombre', 'colaborador']);
+                const tarifaKey = findKeyIgnoreCase(row, ['tarifa', 'tarifa hora', 'valor', 'tarifa_hora', 'rate', 'precio']);
+                // Determine Worker Name purely for display / fallback match
+                const nomeKey = findKeyIgnoreCase(row, ['trabalhador', 'nome', 'nombre', 'colaborador', 'funcionario']);
 
                 const rawCod = codColabKey ? String(row[codColabKey]).trim().toUpperCase() : '';
-                // Excel numbers could be strings or floats
                 const rawTarifa = tarifaKey ? parseFloat(String(row[tarifaKey]).replace(',', '.')) : 0;
-                const rawNome = nomeKey ? String(row[nomeKey]) : '';
+                const rawNome = nomeKey ? String(row[nomeKey]).trim() : '';
 
-                if (!rawCod) continue; // Skip rows without an ID
+                if (!rawCod && !rawNome) continue; // Skip empty rows
 
-                const matchedWorker = workers?.find(w => w.cod_colab.toUpperCase() === rawCod);
+                const codNum = getCodeNumeric(rawCod);
+                const rawClean = rawCod.replace(/[^A-Z0-9]/gi, '');
+
+                // Multi-level worker matching:
+                let matchedWorker = workers.find(w => w.cod_colab && w.cod_colab.toUpperCase() === rawCod);
+
+                if (!matchedWorker && rawClean) {
+                    matchedWorker = workers.find(w => w.cod_colab && w.cod_colab.replace(/[^A-Z0-9]/gi, '').toUpperCase() === rawClean);
+                }
+
+                if (!matchedWorker && codNum) {
+                    matchedWorker = workers.find(w => w.cod_colab && getCodeNumeric(w.cod_colab) === codNum);
+                }
+
+                if (!matchedWorker && rawNome) {
+                    const normNome = rawNome.toLowerCase();
+                    matchedWorker = workers.find(w => w.nome && w.nome.trim().toLowerCase() === normNome);
+                }
 
                 let status: ParsedRow['status'] = 'not_found';
                 if (matchedWorker) {
                     status = (isNaN(rawTarifa) || rawTarifa < 0) ? 'invalid_tariff' : 'ok';
                 }
 
-                // If user wants only valid values > 0, we can drop rows with zero, but they might want to zero out a tariff.
-                // Let's assume ok if it's a valid number.
-
                 rows.push({
-                    cod_colab: rawCod,
+                    cod_colab: rawCod || matchedWorker?.cod_colab || '-',
                     nome_planilha: rawNome,
                     tarifa: isNaN(rawTarifa) ? 0 : rawTarifa,
                     workerId: matchedWorker?.id,

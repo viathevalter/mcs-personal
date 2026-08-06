@@ -73,6 +73,12 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         getValue: (w) => w.funcion || '-'
     },
     {
+        id: 'data_ingresso',
+        label: 'Data de Início / Admissão',
+        category: 'cadastro',
+        getValue: (w) => w.data_ingresso || w.data_alta_seguridad || '-'
+    },
+    {
         id: 'status_seguridad',
         label: 'Segurança Social',
         category: 'cadastro',
