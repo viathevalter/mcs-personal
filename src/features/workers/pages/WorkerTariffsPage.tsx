@@ -91,7 +91,7 @@ export function WorkerTariffsPage() {
     const funcion = searchParams.get('funcion') || null;
     const statusSeguridad = searchParams.get('statusSeguridad') || null;
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
     const sortColumn = searchParams.get('sortColumn') || 'nome';
     const sortDirection = (searchParams.get('sortDirection') as 'asc' | 'desc') || 'asc';
 
@@ -711,49 +711,30 @@ export function WorkerTariffsPage() {
                 <div className="h-12 border-t px-4 flex justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-900/30 text-xs">
                     <div className="flex items-center gap-3">
                         <span className="text-muted-foreground">
-                            Página <strong>{page}</strong> de <strong>{totalPages}</strong> (Total: {totalCount})
+                            Exibindo <strong>{workersList.length}</strong> de <strong>{totalCount}</strong> Trabalhador(es)
                         </span>
 
                         <div className="flex items-center gap-1.5 ml-2">
-                            <span className="text-muted-foreground font-medium">Exibir:</span>
+                            <span className="text-muted-foreground font-medium">Exibir por página:</span>
                             <Select
                                 value={pageSize.toString()}
                                 onValueChange={(val) => {
                                     updateSearchParams({ pageSize: val, page: '1' });
                                 }}
                             >
-                                <SelectTrigger className="h-7 w-[90px] text-xs bg-white dark:bg-slate-900">
+                                <SelectTrigger className="h-7 w-[100px] text-xs bg-white dark:bg-slate-900">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="10">10</SelectItem>
                                     <SelectItem value="25">25</SelectItem>
                                     <SelectItem value="50">50</SelectItem>
                                     <SelectItem value="100">100</SelectItem>
+                                    <SelectItem value="250">250</SelectItem>
+                                    <SelectItem value="500">500</SelectItem>
+                                    <SelectItem value="10000">Todos</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            disabled={page === 1}
-                            onClick={() => updateSearchParams({ page: (page - 1).toString() })}
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            disabled={page === totalPages}
-                            onClick={() => updateSearchParams({ page: (page + 1).toString() })}
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </Button>
                     </div>
                 </div>
             </div>
