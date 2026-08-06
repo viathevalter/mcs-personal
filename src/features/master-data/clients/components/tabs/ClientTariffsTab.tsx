@@ -84,11 +84,13 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
       let allocatedCodes: string[] = [];
       if (empresaData?.nome) {
+        // Extract the first word of the company name to avoid suffix mismatches (e.g. "Stocco, Lda" vs "Stocco")
+        const firstWord = empresaData.nome.split(/[\s,]+/)[0];
         const { data: allocations, error: allocationsError } = await supabase
           .schema('core_personal')
           .from('vw_worker_allocations')
           .select('cod_colab')
-          .ilike('contratante', empresaData.nome);
+          .ilike('contratante', `%${firstWord}%`);
           
         if (!allocationsError && allocations) {
           allocatedCodes = allocations.map(a => a.cod_colab).filter(Boolean) as string[];
