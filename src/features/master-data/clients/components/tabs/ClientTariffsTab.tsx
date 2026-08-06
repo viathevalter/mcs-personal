@@ -99,29 +99,43 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       const contractWorkerIds = contracts?.map(c => c.worker_id) || [];
       const assignmentWorkerIds = assignments?.map(a => a.worker_id) || [];
       const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds].filter(Boolean))) as string[];
+      const uniqueCodes = Array.from(new Set(allocatedCodes)) as string[];
       
-      if (workerIds.length === 0 && allocatedCodes.length === 0) return [];
+      if (workerIds.length === 0 && uniqueCodes.length === 0) return [];
       
-      // 4. Fetch worker profiles matching either ID or code
-      let queryBuilder = supabase
-        .schema('core_personal')
-        .from('workers')
-        .select('id, nome, cod_colab, funcion, cliente, status_trabajador');
-
-      if (workerIds.length > 0 && allocatedCodes.length > 0) {
-        const idInClause = `id.in.(${workerIds.join(',')})`;
-        const codeInClause = `cod_colab.in.(${allocatedCodes.join(',')})`;
-        queryBuilder = queryBuilder.or(`${idInClause},${codeInClause}`);
-      } else if (workerIds.length > 0) {
-        queryBuilder = queryBuilder.in('id', workerIds);
-      } else if (allocatedCodes.length > 0) {
-        queryBuilder = queryBuilder.in('cod_colab', allocatedCodes);
+      // 4. Fetch worker profiles by ID
+      let workersById: any[] = [];
+      if (workerIds.length > 0) {
+        const { data, error } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
+          .in('id', workerIds);
+        if (!error && data) workersById = data;
       }
 
-      const { data: workers, error: workersError } = await queryBuilder.order('nome', { ascending: true });
-        
-      if (workersError) throw workersError;
-      return workers || [];
+      // 5. Fetch worker profiles by Code
+      let workersByCode: any[] = [];
+      if (uniqueCodes.length > 0) {
+        const { data, error } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
+          .in('cod_colab', uniqueCodes);
+        if (!error && data) workersByCode = data;
+      }
+
+      // Merge and deduplicate by worker ID
+      const mergedWorkersMap = new Map<string, any>();
+      for (const w of [...workersById, ...workersByCode]) {
+        mergedWorkersMap.set(w.id, w);
+      }
+
+      const workers = Array.from(mergedWorkersMap.values());
+      // Sort alphabetically by name
+      workers.sort((a, b) => a.nome.localeCompare(b.nome));
+
+      return workers;
     },
     enabled: Boolean(activeEmpresaId),
     refetchOnWindowFocus: false,
