@@ -9,11 +9,25 @@ import './i18n/config';
 import React from 'react';
 
 if (typeof window !== 'undefined') {
+  const isResizeObserverError = (msg: any) => {
+    if (!msg) return false;
+    const str = typeof msg === 'object' ? (msg.message || String(msg)) : String(msg);
+    return str.includes('ResizeObserver') || str.includes('Script error');
+  };
+
   window.addEventListener('error', (e) => {
-    if (e.message && (e.message.includes('ResizeObserver') || e.message.includes('Script error'))) {
+    if (isResizeObserverError(e.message) || isResizeObserverError(e.error)) {
+      e.preventDefault();
       e.stopImmediatePropagation();
     }
-  });
+  }, true);
+
+  window.addEventListener('unhandledrejection', (e) => {
+    if (isResizeObserverError(e.reason)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
 }
 
 class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}> {
