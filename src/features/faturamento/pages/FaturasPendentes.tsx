@@ -957,11 +957,11 @@ MCS - Gestão Comercial`;
 
       try {
         const canvas = await html2canvas(element, {
-          scale: 1.5,
+          scale: 1.0,
           useCORS: true
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        const imgData = canvas.toDataURL('image/jpeg', 0.70);
         
         const pdf = new jsPDF({
           orientation: 'portrait',
@@ -1271,11 +1271,11 @@ MCS - Gestão Comercial`;
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i] as HTMLElement;
         const canvas = await html2canvas(pageEl, {
-          scale: 1.5,
+          scale: 1.0,
           useCORS: true
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        const imgData = canvas.toDataURL('image/jpeg', 0.70);
         
         if (i > 0) {
           pdf.addPage();
@@ -1531,11 +1531,11 @@ MCS - Gestão Comercial`;
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i] as HTMLElement;
         const canvas = await html2canvas(pageEl, {
-          scale: 1.5, // slightly lower scale to keep email size small
+          scale: 1.0, // optimized scale to prevent Microsoft Graph size limit
           useCORS: true
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const imgData = canvas.toDataURL('image/jpeg', 0.70);
         
         if (i > 0) {
           pdf.addPage();
