@@ -279,3 +279,37 @@ export async function listSystemUsers(): Promise<SystemUser[]> {
         }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
 }
+
+export async function listTariffAuthorizationRequests(): Promise<(TariffAuthorizationRequest & { url: string })[]> {
+    const { data, error } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error || !data) {
+        console.error("Error listing tariff authorization requests:", error);
+        return [];
+    }
+
+    const baseUrl = window.location.origin;
+
+    return data.map(r => ({
+        id: r.id,
+        codigo_termo: r.codigo_termo,
+        solicitante_id: r.solicitante_id,
+        solicitante_nome: r.solicitante_nome,
+        gerente_nome: r.gerente_nome,
+        gerente_email: r.gerente_email,
+        gerente_phone: r.gerente_phone,
+        motivo_alteracao: r.motivo_alteracao,
+        status: r.status,
+        token_assinatura: r.token_assinatura,
+        itens_solicitacao: r.itens_solicitacao || [],
+        assinatura_base64: r.assinatura_base64,
+        assinado_em: r.assinado_em,
+        created_at: r.created_at,
+        url: `${baseUrl}/tariffs/authorization/${r.token_assinatura}`
+    }));
+}
