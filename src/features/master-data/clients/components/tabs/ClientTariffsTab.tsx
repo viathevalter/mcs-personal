@@ -50,7 +50,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(activeEmpresaId);
   
-  // Fetch all worker profiles for this company (via contracts or allocations)
+  // Fetch all worker profiles for this company (via contracts, allocations or historical/manual allocations)
   const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
     queryKey: ['lightweightActiveWorkers', activeEmpresaId],
     queryFn: async () => {
@@ -74,20 +74,45 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
         
       if (assignmentsError) throw assignmentsError;
       
-      // Combine unique worker IDs
+      // 3. Fetch worker codes from vw_worker_allocations matching the company name
+      const activeEmpresa = empresas.find(e => e.id === activeEmpresaId);
+      let allocatedCodes: string[] = [];
+      if (activeEmpresa?.nome) {
+        const { data: allocations, error: allocationsError } = await supabase
+          .schema('core_personal')
+          .from('vw_worker_allocations')
+          .select('cod_colab')
+          .ilike('contratante', activeEmpresa.nome);
+          
+        if (!allocationsError && allocations) {
+          allocatedCodes = allocations.map(a => a.cod_colab).filter(Boolean) as string[];
+        }
+      }
+
+      // Combine unique worker IDs and codes
       const contractWorkerIds = contracts?.map(c => c.worker_id) || [];
       const assignmentWorkerIds = assignments?.map(a => a.worker_id) || [];
-      const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds].filter(Boolean)));
+      const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds].filter(Boolean))) as string[];
       
-      if (workerIds.length === 0) return [];
+      if (workerIds.length === 0 && allocatedCodes.length === 0) return [];
       
-      // 3. Fetch worker profiles
-      const { data: workers, error: workersError } = await supabase
+      // 4. Fetch worker profiles matching either ID or code
+      let queryBuilder = supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
-        .in('id', workerIds)
-        .order('nome', { ascending: true });
+        .select('id, nome, cod_colab, funcion, cliente, status_trabajador');
+
+      if (workerIds.length > 0 && allocatedCodes.length > 0) {
+        const idInClause = `id.in.(${workerIds.join(',')})`;
+        const codeInClause = `cod_colab.in.(${allocatedCodes.join(',')})`;
+        queryBuilder = queryBuilder.or(`${idInClause},${codeInClause}`);
+      } else if (workerIds.length > 0) {
+        queryBuilder = queryBuilder.in('id', workerIds);
+      } else if (allocatedCodes.length > 0) {
+        queryBuilder = queryBuilder.in('cod_colab', allocatedCodes);
+      }
+
+      const { data: workers, error: workersError } = await queryBuilder.order('nome', { ascending: true });
         
       if (workersError) throw workersError;
       return workers || [];
