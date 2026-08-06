@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { DownloadCloud, Loader2, AlertCircle } from 'lucide-react';
+import { DownloadCloud, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -15,9 +15,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 import { useImportTarifas, type UpdateTarifaPayload } from '../hooks/useImportTarifas';
-import { useWorkersList } from '../hooks/useWorkersList';
-import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 interface ImportTarifasDialogProps {
     trigger: React.ReactNode;
@@ -33,31 +33,31 @@ interface ParsedRow {
 }
 
 export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
-    const { selectedEmpresaId } = useEmpresa();
-
-    // We fetch all workers across all companies to match codes flexibly
-    const { data: workersData } = useWorkersList({
-        empresaId: 'all',
-        page: 1,
-        pageSize: 10000
-    });
-
-    const workers = workersData?.data || [];
-
     const [isOpen, setIsOpen] = useState(false);
     const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
     const [isParsing, setIsParsing] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    // Query ALL 570+ workers directly from core_personal.workers (bypasses RPC company filters)
+    const { data: allWorkers = [], isLoading: isLoadingWorkers } = useQuery({
+        queryKey: ['all-workers-direct-for-import'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, nome, cliente_nombre, contratante');
+
+            if (error || !data) {
+                console.error("Error fetching all workers directly for tariff import:", error);
+                return [];
+            }
+            return data;
+        },
+        enabled: isOpen,
+        staleTime: 60 * 1000
+    });
 
     const { mutateAsync: importTarifas, isPending: isImporting } = useImportTarifas();
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            parseExcel(selectedFile);
-        } else {
-            setParsedRows([]);
-        }
-    };
 
     const findKeyIgnoreCase = (obj: any, searchKeys: string[]): string | undefined => {
         const keys = Object.keys(obj);
@@ -68,7 +68,7 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
         return undefined;
     };
 
-    // Robust code normalization (extracts numeric digits e.g. "E0089" -> "89", "89" -> "89")
+    // Extract numeric digits from worker code (e.g. "E0089" -> "89", "0089" -> "89", "89" -> "89")
     const getCodeNumeric = (code: string) => {
         if (!code) return '';
         const digits = code.replace(/\D/g, '');
@@ -89,10 +89,10 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
             const rows: ParsedRow[] = [];
 
             for (const row of rawJson) {
-                // Determine COD_Colab
-                const codColabKey = findKeyIgnoreCase(row, ['cod_colab', 'codigo', 'cod', 'cod colab', 'cod trabalhador', 'id', 'colaborador_id']);
-                // Determine Tarifa
-                const tarifaKey = findKeyIgnoreCase(row, ['tarifa', 'tarifa hora', 'valor', 'tarifa_hora', 'rate', 'precio']);
+                // Determine COD_Colab (supports 'código', 'cod_colab', 'cod', etc.)
+                const codColabKey = findKeyIgnoreCase(row, ['cod_colab', 'codigo', 'código', 'cod', 'cod colab', 'cod trabalhador', 'id', 'colaborador_id', 'colaborador']);
+                // Determine Tarifa (supports 'tarifa', 'tarifa hora', 'valor', etc.)
+                const tarifaKey = findKeyIgnoreCase(row, ['tarifa', 'tarifa hora', 'valor', 'tarifa_hora', 'rate', 'precio', 'tarifa (h)']);
                 // Determine Worker Name purely for display / fallback match
                 const nomeKey = findKeyIgnoreCase(row, ['trabalhador', 'nome', 'nombre', 'colaborador', 'funcionario']);
 
@@ -105,20 +105,20 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
                 const codNum = getCodeNumeric(rawCod);
                 const rawClean = rawCod.replace(/[^A-Z0-9]/gi, '');
 
-                // Multi-level worker matching:
-                let matchedWorker = workers.find(w => w.cod_colab && w.cod_colab.toUpperCase() === rawCod);
+                // Multi-level worker matching against all database workers:
+                let matchedWorker = allWorkers.find(w => w.cod_colab && w.cod_colab.toUpperCase() === rawCod);
 
                 if (!matchedWorker && rawClean) {
-                    matchedWorker = workers.find(w => w.cod_colab && w.cod_colab.replace(/[^A-Z0-9]/gi, '').toUpperCase() === rawClean);
+                    matchedWorker = allWorkers.find(w => w.cod_colab && w.cod_colab.replace(/[^A-Z0-9]/gi, '').toUpperCase() === rawClean);
                 }
 
                 if (!matchedWorker && codNum) {
-                    matchedWorker = workers.find(w => w.cod_colab && getCodeNumeric(w.cod_colab) === codNum);
+                    matchedWorker = allWorkers.find(w => w.cod_colab && getCodeNumeric(w.cod_colab) === codNum);
                 }
 
                 if (!matchedWorker && rawNome) {
                     const normNome = rawNome.toLowerCase();
-                    matchedWorker = workers.find(w => w.nome && w.nome.trim().toLowerCase() === normNome);
+                    matchedWorker = allWorkers.find(w => w.nome && w.nome.trim().toLowerCase() === normNome);
                 }
 
                 let status: ParsedRow['status'] = 'not_found';
@@ -131,7 +131,7 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
                     nome_planilha: rawNome,
                     tarifa: isNaN(rawTarifa) ? 0 : rawTarifa,
                     workerId: matchedWorker?.id,
-                    nomeBanco: matchedWorker?.nome,
+                    nomeBanco: matchedWorker?.nome || rawNome || 'Desconhecido',
                     status
                 });
             }
@@ -144,97 +144,160 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
         }
     };
 
-    const handleImport = async () => {
-        if (!parsedRows.length) return;
-
-        // Process only rows that have a worker match and valid tariff
-        const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId);
-
-        const payloads: UpdateTarifaPayload[] = validRows.map(r => ({
-            workerId: r.workerId!,
-            tarifa: Number(r.tarifa.toFixed(2))
-        }));
-
-        if (payloads.length === 0) return;
-
-        try {
-            await importTarifas(payloads);
-            setIsOpen(false);
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            parseExcel(file);
+        } else {
+            setSelectedFile(null);
             setParsedRows([]);
-        } catch (error) {
-            // Error handled in hook
         }
     };
 
-    const validCount = parsedRows.filter(r => r.status === 'ok').length;
+    const handleImport = async () => {
+        if (!parsedRows.length) return;
+
+        const validPayloads: UpdateTarifaPayload[] = parsedRows
+            .filter(r => r.status === 'ok' && r.workerId)
+            .map(r => ({
+                workerId: r.workerId!,
+                tarifa: r.tarifa
+            }));
+
+        if (validPayloads.length === 0) return;
+
+        try {
+            await importTarifas(validPayloads);
+            setIsOpen(false);
+            setParsedRows([]);
+            setSelectedFile(null);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const readyCount = parsedRows.filter(r => r.status === 'ok').length;
     const notFoundCount = parsedRows.filter(r => r.status === 'not_found').length;
+    const invalidTariffCount = parsedRows.filter(r => r.status === 'invalid_tariff').length;
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+            setIsOpen(open);
+            if (!open) {
+                setParsedRows([]);
+                setSelectedFile(null);
+            }
+        }}>
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px]">
+            <DialogContent className="sm:max-w-[720px]">
                 <DialogHeader>
-                    <DialogTitle>Importar Tarifas (Excel)</DialogTitle>
-                    <DialogDescription>
-                        Faça o upload da planilha contendo a coluna <strong>Cód Trabalhador</strong> e <strong>Tarifa</strong> para atualizar o cadastro dos trabalhadores.
+                    <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                        <DownloadCloud className="w-5 h-5 text-indigo-600" />
+                        Importar Tarifas (Excel)
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                        Faça o upload da planilha contendo a coluna <strong>Código</strong> e <strong>Tarifa</strong> para atualizar o cadastro de qualquer colaborador quantas vezes precisar.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4">
-                    <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="excel_file_tarifas">Arquivo XLSX</Label>
+                <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="excel-file" className="text-xs font-semibold">Arquivo XLSX ou CSV</Label>
                         <Input
-                            id="excel_file_tarifas"
+                            id="excel-file"
                             type="file"
-                            accept=".xlsx, .xls"
+                            accept=".xlsx, .xls, .csv"
                             onChange={handleFileChange}
-                            disabled={isParsing || isImporting}
+                            disabled={isParsing || isImporting || isLoadingWorkers}
+                            className="text-xs h-9 cursor-pointer"
                         />
+                        {isLoadingWorkers && (
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
+                                <Loader2 className="w-3 h-3 animate-spin text-indigo-500" /> Carregando base total de trabalhadores ({allWorkers.length})...
+                            </span>
+                        )}
                     </div>
 
                     {isParsing && (
-                        <div className="flex items-center justify-center p-8">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                            <span className="text-muted-foreground">Lendo arquivo...</span>
+                        <div className="flex items-center justify-center p-6 gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+                            <span className="text-xs text-muted-foreground">Cruzando códigos e validando tarifas da planilha...</span>
                         </div>
                     )}
 
                     {!isParsing && parsedRows.length > 0 && (
-                        <div className="border rounded-md overflow-hidden flex flex-col">
-                            <div className="bg-muted px-4 py-2 flex justify-between items-center text-sm">
-                                <div>
-                                    Encontradas <strong>{parsedRows.length}</strong> linhas.
-                                    {notFoundCount > 0 && <span className="text-destructive font-medium ml-2">({notFoundCount} colab. não encontrados)</span>}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border">
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">
+                                    Encontradas <strong>{parsedRows.length}</strong> linhas na planilha.
+                                </span>
+                                <div className="flex gap-2">
+                                    {notFoundCount > 0 && (
+                                        <Badge variant="destructive" className="text-[10px]">
+                                            {notFoundCount} não encontrados
+                                        </Badge>
+                                    )}
+                                    {invalidTariffCount > 0 && (
+                                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                                            {invalidTariffCount} tarifas inválidas
+                                        </Badge>
+                                    )}
+                                    <Badge variant="default" className="bg-emerald-600 text-white font-semibold text-[10px]">
+                                        {readyCount} Prontos para importação
+                                    </Badge>
                                 </div>
-                                <Badge variant="secondary">{validCount} Prontos para importação</Badge>
                             </div>
-                            <ScrollArea className="h-[250px] w-full">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0">
+
+                            <ScrollArea className="h-[280px] rounded-md border p-1 bg-white dark:bg-slate-950">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 font-semibold text-slate-700 dark:text-slate-300">
                                         <tr>
-                                            <th className="px-4 py-2 text-left font-medium w-24">Cód</th>
-                                            <th className="px-4 py-2 text-left font-medium">Trabalhador</th>
-                                            <th className="px-4 py-2 text-right font-medium">Tarifa Atualizada</th>
+                                            <th className="p-2 text-left">Cód</th>
+                                            <th className="p-2 text-left">Trabalhador no Sistema</th>
+                                            <th className="p-2 text-right">Tarifa (Hora)</th>
+                                            <th className="p-2 text-center">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {parsedRows.map((row, i) => (
-                                            <tr key={i} className="border-t hover:bg-muted/50">
-                                                <td className="px-4 py-2 text-muted-foreground">
+                                    <tbody className="divide-y">
+                                        {parsedRows.map((row, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                                <td className="p-2 font-mono font-bold text-slate-800 dark:text-slate-200">
                                                     {row.cod_colab}
                                                 </td>
-                                                <td className="px-4 py-2">
-                                                    <div className="flex items-center gap-2">
-                                                        {row.status === 'not_found' && <span title="Colaborador não encontrado"><AlertCircle className="w-4 h-4 text-destructive" /></span>}
-                                                        <span className={row.status === 'not_found' ? 'text-destructive font-medium' : ''}>
-                                                            {row.nomeBanco || row.nome_planilha || 'Sem Nome'}
+                                                <td className="p-2 font-medium">
+                                                    {row.status === 'ok' ? (
+                                                        <span className="text-slate-900 dark:text-slate-100 font-semibold">
+                                                            {row.nomeBanco}
                                                         </span>
-                                                    </div>
+                                                    ) : (
+                                                        <span className="text-red-500 italic font-normal flex items-center gap-1">
+                                                            <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                                                            {row.nome_planilha || 'Trabalhador não encontrado no sistema'}
+                                                        </span>
+                                                    )}
                                                 </td>
-                                                <td className="px-4 py-2 text-right font-mono font-medium text-emerald-600 dark:text-emerald-500">
+                                                <td className="p-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                                                     € {row.tarifa.toFixed(2)}
+                                                </td>
+                                                <td className="p-2 text-center">
+                                                    {row.status === 'ok' && (
+                                                        <Badge variant="outline" className="border-emerald-500 text-emerald-700 bg-emerald-50 text-[10px]">
+                                                            Pronto
+                                                        </Badge>
+                                                    )}
+                                                    {row.status === 'not_found' && (
+                                                        <Badge variant="destructive" className="text-[10px]">
+                                                            Não Encontrado
+                                                        </Badge>
+                                                    )}
+                                                    {row.status === 'invalid_tariff' && (
+                                                        <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50 text-[10px]">
+                                                            Valor Inválido
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -245,24 +308,24 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
                     )}
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isImporting}>
+                <DialogFooter className="pt-2">
+                    <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isImporting} className="h-9 text-xs">
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleImport}
-                        disabled={isImporting || isParsing || validCount === 0}
-                        className="bg-indigo-600 hover:bg-indigo-700"
+                        disabled={readyCount === 0 || isImporting || isParsing}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold h-9 gap-1.5"
                     >
                         {isImporting ? (
                             <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Salvando...
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Atualizando {readyCount} Tarifas...
                             </>
                         ) : (
                             <>
-                                <DownloadCloud className="mr-2 h-4 w-4" />
-                                Confirmar Atualização ({validCount})
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Confirmar Atualização ({readyCount})
                             </>
                         )}
                     </Button>
