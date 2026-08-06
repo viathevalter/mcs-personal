@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { DownloadCloud, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { DownloadCloud, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -78,8 +78,20 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
     const parseExcel = async (file: File) => {
         setIsParsing(true);
         try {
-            const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
+            // Guarantee workers list is populated inline even if React Query is still loading
+            let currentWorkers = allWorkers;
+            if (!currentWorkers || currentWorkers.length === 0) {
+                const { data } = await supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, cod_colab, nome, cliente_nombre, contratante');
+                if (data && data.length > 0) {
+                    currentWorkers = data;
+                }
+            }
+
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
 
@@ -105,20 +117,20 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
                 const codNum = getCodeNumeric(rawCod);
                 const rawClean = rawCod.replace(/[^A-Z0-9]/gi, '');
 
-                // Multi-level worker matching against all database workers:
-                let matchedWorker = allWorkers.find(w => w.cod_colab && w.cod_colab.toUpperCase() === rawCod);
+                // Multi-level worker matching against currentWorkers:
+                let matchedWorker = currentWorkers.find(w => w.cod_colab && w.cod_colab.trim().toUpperCase() === rawCod);
 
                 if (!matchedWorker && rawClean) {
-                    matchedWorker = allWorkers.find(w => w.cod_colab && w.cod_colab.replace(/[^A-Z0-9]/gi, '').toUpperCase() === rawClean);
+                    matchedWorker = currentWorkers.find(w => w.cod_colab && w.cod_colab.replace(/[^A-Z0-9]/gi, '').toUpperCase() === rawClean);
                 }
 
                 if (!matchedWorker && codNum) {
-                    matchedWorker = allWorkers.find(w => w.cod_colab && getCodeNumeric(w.cod_colab) === codNum);
+                    matchedWorker = currentWorkers.find(w => w.cod_colab && getCodeNumeric(w.cod_colab) === codNum);
                 }
 
                 if (!matchedWorker && rawNome) {
                     const normNome = rawNome.toLowerCase();
-                    matchedWorker = allWorkers.find(w => w.nome && w.nome.trim().toLowerCase() === normNome);
+                    matchedWorker = currentWorkers.find(w => w.nome && w.nome.trim().toLowerCase() === normNome);
                 }
 
                 let status: ParsedRow['status'] = 'not_found';
@@ -143,6 +155,13 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
             setIsParsing(false);
         }
     };
+
+    // Re-parse file automatically if workers finish loading after file selection
+    useEffect(() => {
+        if (selectedFile && allWorkers && allWorkers.length > 0 && parsedRows.length > 0 && parsedRows.every(r => r.status === 'not_found')) {
+            parseExcel(selectedFile);
+        }
+    }, [allWorkers]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -211,12 +230,12 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
                             type="file"
                             accept=".xlsx, .xls, .csv"
                             onChange={handleFileChange}
-                            disabled={isParsing || isImporting || isLoadingWorkers}
+                            disabled={isParsing || isImporting}
                             className="text-xs h-9 cursor-pointer"
                         />
                         {isLoadingWorkers && (
                             <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
-                                <Loader2 className="w-3 h-3 animate-spin text-indigo-500" /> Carregando base total de trabalhadores ({allWorkers.length})...
+                                <Loader2 className="w-3 h-3 animate-spin text-indigo-500" /> Carregando base total de trabalhadores...
                             </span>
                         )}
                     </div>

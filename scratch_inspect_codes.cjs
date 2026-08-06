@@ -6,16 +6,28 @@ const supabase = createClient(
 );
 
 async function test() {
-    const { data: allWorkers, error } = await supabase
+    const { data: allWorkers } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, cod_colab, nome, cliente, contratante');
+        .select('id, cod_colab, nome');
 
-    console.log("Total workers in core_personal.workers:", allWorkers?.length || 0, error?.message || '');
+    console.log("Total workers fetched:", allWorkers?.length || 0);
 
-    const targetCodes = ['E2199', 'E2193', 'E0462', 'E0449', 'E1454', 'E1726'];
-    const found = allWorkers?.filter(w => targetCodes.includes(w.cod_colab));
-    console.log("Found target codes in direct query:", found);
+    const testTargets = ['E2199', 'E2193', 'E0462', 'E0449', 'E1454', 'E1726'];
+
+    for (const t of testTargets) {
+        const exact = allWorkers.find(w => w.cod_colab === t);
+        const trimmed = allWorkers.find(w => w.cod_colab && w.cod_colab.trim() === t);
+        const upper = allWorkers.find(w => w.cod_colab && w.cod_colab.trim().toUpperCase() === t);
+        const digits = allWorkers.find(w => w.cod_colab && w.cod_colab.replace(/\D/g, '') === t.replace(/\D/g, ''));
+
+        console.log(`Searching '${t}':`, {
+            exact: exact ? `${exact.cod_colab} (${exact.nome})` : 'NOT FOUND',
+            trimmed: trimmed ? `${trimmed.cod_colab} (${trimmed.nome})` : 'NOT FOUND',
+            upper: upper ? `${upper.cod_colab} (${upper.nome})` : 'NOT FOUND',
+            digits: digits ? `${digits.cod_colab} (${digits.nome})` : 'NOT FOUND'
+        });
+    }
 }
 
 test();
