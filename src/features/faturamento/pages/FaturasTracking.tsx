@@ -2312,7 +2312,7 @@ MCS - Gestão Comercial`;
                 <DialogHeader>
                   <DialogTitle className={`flex items-center gap-2 ${selectedDispute.status === 'disputed' ? 'text-red-700' : 'text-blue-700 dark:text-blue-400'}`}>
                     {selectedDispute.status === 'disputed' ? <XCircle className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
-                    {selectedDispute.status === 'disputed' ? 'Análise de Contestação' : 'Detalhes do Faturamento'} - Fatura {selectedDispute.fatura_numero ? `IF-${selectedDispute.year}/${String(selectedDispute.fatura_numero).padStart(4, '0')}` : `#${selectedDispute.id.substring(0, 8).toUpperCase()}`}
+                    {selectedDispute.status === 'disputed' ? 'Análise de Contestação' : 'Detalhes do Faturamento'} - {selectedDispute.fatura_numero ? (String(selectedDispute.fatura_numero).startsWith('Factura') || String(selectedDispute.fatura_numero).startsWith('FAT') || String(selectedDispute.fatura_numero).startsWith('IF') ? selectedDispute.fatura_numero : `Fatura IF-${selectedDispute.year || new Date().getFullYear()}/${String(selectedDispute.fatura_numero).padStart(4, '0')}`) : `Fatura #${selectedDispute.id.substring(0, 8).toUpperCase()}`}
                   </DialogTitle>
                   <DialogDescription className="text-base pt-1">
                     {selectedDispute.status === 'disputed'
@@ -2725,26 +2725,26 @@ MCS - Gestão Comercial`;
                         </div>
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
                               {/* Top row */}
-                              <div className="flex justify-between items-start mb-6">
+                              <div className="flex justify-between items-start mb-8">
                                 <div>
-                                  <h3 className="text-base font-extrabold text-slate-900">
-                                    Factura {selectedDispute.year}/{String(selectedDispute.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                                  <h3 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight">
+                                    {selectedDispute.fatura_numero || `Factura nº${disputeEmpresa?.invoice_series || '1'} ${selectedDispute.year || new Date().getFullYear()}/${disputeEmpresa?.next_invoice_number || 1}`}
                                   </h3>
-                                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                                  <p className="text-xs font-bold text-slate-950 mt-1 uppercase tracking-wider">ORIGINAL</p>
                                 </div>
                                 {/* QR Code dinâmico */}
-                                <div className="flex flex-col items-end gap-1">
-                                  <span className="text-[8px] font-bold text-slate-700 font-sans">
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="text-[9px] font-bold text-slate-700 font-sans">
                                     ATCUD: {selectedDispute.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${selectedDispute.fatura_numero || 1}`}
                                   </span>
-                                  <div className="border border-slate-200 p-1 bg-white rounded shadow-sm">
+                                  <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
                                     <QRCodeSVG
                                       value={`${window.location.origin}/aprovacao-cliente/${selectedDispute.magic_link_token || 'draft'}`}
-                                      size={50}
+                                      size={90}
                                       level="H"
                                       includeMargin={false}
                                     />
@@ -2752,136 +2752,159 @@ MCS - Gestão Comercial`;
                                 </div>
                               </div>
 
-                              {/* De / Para */}
-                              <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                              {/* De / Para / Detalhes (3 Colunas) */}
+                              <div className="grid grid-cols-3 gap-6 mb-8 text-[11px] leading-relaxed border-t border-slate-100 pt-4">
+                                {/* Coluna 1: De */}
                                 <div>
-                                  <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
                                   <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
-                                  <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
-                                  <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
-                                  <p className="text-muted-foreground">NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
-                                  <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
-                                  <p className="text-muted-foreground font-mono text-[9px] whitespace-pre-line">
-                                    {(adjustments.iban || disputeEmpresa?.iban || 'N/A').split('\n')[0]}
-                                  </p>
+                                  <p className="text-slate-600">{disputeEmpresa?.address_line || 'N/A'}</p>
+                                  <p className="text-slate-600">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                                  <p className="text-slate-600">{disputeEmpresa?.province || 'Portugal'}</p>
+                                  {disputeEmpresa?.email && <p className="text-slate-600">{disputeEmpresa.email}</p>}
+                                  <p className="text-slate-600">Nº Contribuinte: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                                  {disputeEmpresa?.capital_social && <p className="text-slate-600">Capital Social: {disputeEmpresa.capital_social}</p>}
+                                  {disputeEmpresa?.conservatoria && <p className="text-slate-600">Cons. Reg. Com.: {disputeEmpresa.conservatoria}</p>}
+                                  {disputeEmpresa?.matricula && <p className="text-slate-600">Matrícula: {disputeEmpresa.matricula}</p>}
                                 </div>
+
+                                {/* Coluna 2: Detalhes */}
                                 <div>
-                                  <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">ATCUD</p>
+                                  <p className="font-semibold text-slate-900">{selectedDispute.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${selectedDispute.fatura_numero || 1}`}</p>
+                                  
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Emissão</p>
+                                  <p className="text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                                  
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
+                                  <p className="text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                                </div>
+                                                         
+                                {/* Coluna 3: Para */}
+                                <div>
+                                  <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
                                   <p className="font-bold text-slate-900">{selectedDispute.client?.nombre_comercial}</p>
-                                  <p className="text-muted-foreground">{selectedDispute.client?.address_line || 'N/A'}</p>
-                                  <p className="text-muted-foreground">{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
-                                  <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                                  <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                                  <p className="text-slate-600">{selectedDispute.client?.address_line || 'N/A'}</p>
+                                  <p className="text-slate-600">{[selectedDispute.client?.postal_code, selectedDispute.client?.city].filter(Boolean).join(' ')}</p>
+                                  <p className="text-slate-600">{selectedDispute.client?.province || 'Espanha'}</p>
+                                  <p className="text-slate-600 mt-2">Nº Contribuinte: {selectedDispute.client?.cif_nif || selectedDispute.client?.taxId || 'N/A'}</p>
                                 </div>
                               </div>
 
-                              {/* Tabela de Itens */}
-                              <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                              {/* Tabela de Itens (Coral Accent) */}
+                              <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
                                 Lista de Artigos
                               </div>
-                              <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
-                                <TableHeader className="bg-slate-50">
-                                  <TableRow>
-                                    <TableHead className="font-bold text-slate-700 pl-3">Artigo</TableHead>
-                                    <TableHead className="font-bold text-slate-700">Descrição</TableHead>
-                                    <TableHead className="text-right font-bold text-slate-700 w-24">Qtd.</TableHead>
-                                    <TableHead className="font-bold text-slate-700 w-16">Un.</TableHead>
-                                    <TableHead className="text-right font-bold text-slate-700 w-24">Pr. Unitário</TableHead>
-                                    <TableHead className="text-right font-bold text-slate-700 w-24 pr-3">Valor</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  <TableRow>
-                                    <TableCell className="font-semibold pl-3">PREST-SERV</TableCell>
-                                    <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                                    <TableCell className="text-right">{totalHorasCalculadas.toFixed(2)}</TableCell>
-                                    <TableCell>UN</TableCell>
-                                    <TableCell className="text-right">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
+                              <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
+                                <thead>
+                                  <tr className="bg-[#f2a87a] text-white border-b border-[#ec8a5e]/40">
+                                    <th className="font-bold text-white pl-3 py-1 text-left">DESCRIÇÃO DO ARTIGO</th>
+                                    <th className="text-right font-bold text-white w-20 py-1">QUANT.</th>
+                                    <th className="text-right font-bold text-white w-24 py-1">PREÇO</th>
+                                    <th className="text-right font-bold text-white w-16 py-1">DESC.</th>
+                                    <th className="text-right font-bold text-white w-20 py-1">IVA (%)</th>
+                                    <th className="text-right font-bold text-white w-24 pr-3 py-1">TOTAL</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr className="border-b border-[#ec8a5e]/30">
+                                    <td className="pl-3 py-1 text-slate-800">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
+                                    <td className="text-right py-1 text-slate-800">{totalHorasCalculadas.toFixed(2)}</td>
+                                    <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right py-1 text-slate-800">0,00</td>
+                                    <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                    <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
                                   {Number(adjustments.incrementos) > 0 && (
-                                    <TableRow>
-                                      <TableCell className="font-semibold text-emerald-600 pl-3">INC-ADIC</TableCell>
-                                      <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Incremento Adicional'}</TableCell>
-                                      <TableCell className="text-right">1.00</TableCell>
-                                      <TableCell>UN</TableCell>
-                                      <TableCell className="text-right">€ {Number(adjustments.incrementos).toFixed(2)}</TableCell>
-                                      <TableCell className="text-right font-bold text-emerald-600 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                    </TableRow>
+                                    <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
+                                      <td className="pl-3 py-1">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>
+                                      <td className="text-right py-1">1.00</td>
+                                      <td className="text-right py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right py-1">0,00</td>
+                                      <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    </tr>
                                   )}
                                   {Number(adjustments.reducoes) > 0 && (
-                                    <TableRow>
-                                      <TableCell className="font-semibold text-rose-600 pl-3">DESC-COM</TableCell>
-                                      <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Redução Comercial'}</TableCell>
-                                      <TableCell className="text-right">1.00</TableCell>
-                                      <TableCell>UN</TableCell>
-                                      <TableCell className="text-right">€ -{Number(adjustments.reducoes).toFixed(2)}</TableCell>
-                                      <TableCell className="text-right font-bold text-rose-600 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                    </TableRow>
+                                    <tr className="border-b border-[#ec8a5e]/30 text-rose-700">
+                                      <td className="pl-3 py-1">{adjustments.reducoesDesc || 'Redução Comercial'}</td>
+                                      <td className="text-right py-1">1.00</td>
+                                      <td className="text-right py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right py-1">0,00</td>
+                                      <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                      <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    </tr>
                                   )}
-                                </TableBody>
-                              </Table>
+                                </tbody>
+                              </table>
 
-                              {/* Resumo da Fatura */}
-                              <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                                Resumo
+                              {/* Resumo da Fatura (Coral Accent) */}
+                              <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
+                                Resumo da Factura
                               </div>
-                              <Table className="border border-slate-200 rounded-b mb-4 text-[10px]">
-                                <TableBody>
-                                  <TableRow>
-                                    <TableCell className="font-bold" colSpan={3}>Subtotal da Obra</TableCell>
-                                    <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell className="font-bold" colSpan={3}>IVA {adjustments.ivaPct}%</TableCell>
-                                    <TableCell className="text-right font-bold w-40 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                  <TableRow className="bg-orange-50/50">
-                                    <TableCell className="font-extrabold text-orange-850" colSpan={3}>Total da Fatura</TableCell>
-                                    <TableCell className="text-right font-extrabold text-orange-950 text-[11px] pr-3 font-mono">
-                                      € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                    </TableCell>
-                                  </TableRow>
-                                </TableBody>
-                              </Table>
+                              <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
+                                <tbody>
+                                  <tr className="border-b border-[#ec8a5e]/30">
+                                    <td className="pl-3 py-1 font-semibold text-slate-800">Subtotal da Factura</td>
+                                    <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  <tr className="border-b border-[#ec8a5e]/30">
+                                    <td className="pl-3 py-1 font-semibold text-slate-800">IVA {Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: € {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
+                                    <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  <tr className="bg-[#fdf3ee] text-[#ec8a5e]">
+                                    <td className="pl-3 py-1 font-extrabold text-sm">Total da Factura</td>
+                                    <td className="text-right font-extrabold pr-3 font-mono py-1 text-sm">
+                                      € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
 
                               {/* Condições de IVA */}
-                              <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                              <div className="text-[10px] text-slate-500 mb-6 font-semibold">
                                 Condições de Enquadramento de IVA:<br/>
-                                (1) {Number(adjustments.ivaPct) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+                                (1) {Number(adjustments.ivaPct || 0) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
                               </div>
                             </div>
 
-                            {/* Wrapper do rodapé */}
+                            {/* Seção inferior empurrada para baixo */}
                             <div className="space-y-4">
-                              {/* Footer de moradas */}
-                              <div className="border-t border-slate-200 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                              {/* Certified software text */}
+                              <div className="text-center text-[10px] text-slate-700 italic font-semibold">
+                                {disputeEmpresa?.certified_software_text || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+                              </div>
+
+                              {/* Rodapé de moradas e contas */}
+                              <div className="border-t border-slate-200 pt-3 flex justify-between text-[9px] text-slate-500 font-medium">
                                 <div>
                                   <p className="font-bold uppercase mb-0.5">Local de Carga</p>
                                   <p>{disputeEmpresa?.address_line || 'N/ Morada'}</p>
                                   <p>{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
                                 </div>
+                                {(adjustments.iban || disputeEmpresa?.iban) && (
+                                  <div className="text-center">
+                                    <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
+                                    <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adjustments.iban || disputeEmpresa?.iban}</div>
+                                  </div>
+                                )}
                                 <div className="text-right">
                                   <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
                                   <p>{selectedDispute.client?.address_line || 'V/ Morada'}</p>
                                   <p>{[selectedDispute.client?.postal_code, selectedDispute.client?.city, selectedDispute.client?.province].filter(Boolean).join(', ')}</p>
                                 </div>
                               </div>
-
-                              {/* Certified Software */}
-                              <div className="text-center text-[8px] text-slate-700 italic font-semibold mb-2">
-                                {disputeEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
-                              </div>
                             </div>
 
-                            {/* Barra preta com logotipo decorativo */}
-                            <div className="absolute bottom-0 left-0 right-0 h-[35px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-6 text-[7px] font-sans rounded-b select-none overflow-hidden">
-                              <div className="absolute left-0 bottom-0 top-0 w-16 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                            {/* Barra preta com logotipo decorativo no canto inferior esquerdo */}
+                            <div className="absolute bottom-0 left-0 right-0 h-[45px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-10 text-[9px] font-sans rounded-b select-none overflow-hidden">
+                              {/* Decoração laranja no canto inferior esquerdo */}
+                              <div className="absolute left-0 bottom-0 top-0 w-24 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
                               <span className="relative z-10 font-medium">
                                 Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
                               </span>
                               <span className="relative z-10 font-bold">
-                                ORIGINAL
+                                Pág. 1/1
                               </span>
                             </div>
                           </div>
@@ -3326,135 +3349,191 @@ MCS - Gestão Comercial`;
                     </table>
                   </div>
 
-                  {/* Factura Pró-forma Template */}
                   <div id={`factura-sheet-tracking-${emailData.faturaId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
-                    <div>
-                      <div className="flex justify-between items-start mb-6">
+                    {/* Wrapper do conteúdo flex-1 */}
+                    <div className="flex-1">
+                      {/* Top row */}
+                      <div className="flex justify-between items-start mb-8">
                         <div>
-                          <h3 className="text-base font-extrabold text-slate-900">
-                            Factura Pró-forma FP-{new Date(emailData.fatura.created_at || emailData.fatura.data_emissao).getFullYear()}/{String(emailData.fatura.fatura_numero || currentEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                          <h3 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight">
+                            {emailData.fatura.fatura_numero || `Factura nº${currentEmpresa?.invoice_series || '1'} ${new Date().getFullYear()}/${currentEmpresa?.next_invoice_number || 1}`}
                           </h3>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">PRÓ-FORMA</p>
+                          <p className="text-xs font-bold text-slate-950 mt-1 uppercase tracking-wider">ORIGINAL</p>
                         </div>
-                        {currentEmpresa?.invoice_logo_url && (
-                          <div className="h-10 flex items-center">
-                            <img src={currentEmpresa.invoice_logo_url} alt={currentEmpresa.nome} className="max-h-full max-w-[180px] object-contain" />
+                        {/* QR Code dinâmico */}
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="text-[9px] font-bold text-slate-700 font-sans">
+                            ATCUD: {emailData.fatura.atcud || `${currentEmpresa?.atcud_prefix || 'J6XBVVRV'}-${emailData.fatura.fatura_numero || 1}`}
+                          </span>
+                          <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
+                            <QRCodeSVG
+                              value={`${window.location.origin}/aprovacao-cliente/${emailData.fatura.magic_link_token || 'draft'}`}
+                              size={90}
+                              level="H"
+                              includeMargin={false}
+                            />
                           </div>
-                        )}
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                      {/* De / Para / Detalhes (3 Colunas) */}
+                      <div className="grid grid-cols-3 gap-6 mb-8 text-[11px] leading-relaxed border-t border-slate-100 pt-4">
+                        {/* Coluna 1: De */}
                         <div>
-                          <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
-                          <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'STOCCO LDA'}</p>
-                          <p className="text-muted-foreground">{currentEmpresa?.address_line || 'Rua Padre António Maria Pinho, n.º 353'}</p>
-                          <p className="text-muted-foreground">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
-                          <p className="text-muted-foreground">NIF: {currentEmpresa?.tax_id || 'PT517834747'}</p>
-                          <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
-                          <p className="text-muted-foreground font-mono text-[9px]">{currentEmpresa?.iban || 'N/A'}</p>
+                          <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
+                          <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'MCS'}</p>
+                          <p className="text-slate-600">{currentEmpresa?.address_line || 'N/A'}</p>
+                          <p className="text-slate-600">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
+                          <p className="text-slate-600">{currentEmpresa?.province || 'Portugal'}</p>
+                          {currentEmpresa?.email && <p className="text-slate-600">{currentEmpresa.email}</p>}
+                          <p className="text-slate-600">Nº Contribuinte: {currentEmpresa?.tax_id || 'N/A'}</p>
+                          {currentEmpresa?.capital_social && <p className="text-slate-600">Capital Social: {currentEmpresa.capital_social}</p>}
+                          {currentEmpresa?.conservatoria && <p className="text-slate-600">Cons. Reg. Com.: {currentEmpresa.conservatoria}</p>}
+                          {currentEmpresa?.matricula && <p className="text-slate-600">Matrícula: {currentEmpresa.matricula}</p>}
                         </div>
+
+                        {/* Coluna 2: Detalhes */}
                         <div>
-                          <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
-                          <p className="font-bold text-slate-900">{emailData.clientName}</p>
-                          <p className="text-muted-foreground">{emailData.fatura.client?.address_line || 'N/A'}</p>
-                          <p className="text-muted-foreground">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city, emailData.fatura.client?.province].filter(Boolean).join(', ')}</p>
-                          <p className="text-muted-foreground">NIF: {emailData.fatura.client?.taxId || 'N/A'}</p>
-                          <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                          <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700">{(() => {
+                          <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">ATCUD</p>
+                          <p className="font-semibold text-slate-900">{emailData.fatura.atcud || `${currentEmpresa?.atcud_prefix || 'J6XBVVRV'}-${emailData.fatura.fatura_numero || 1}`}</p>
+                          
+                          <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Emissão</p>
+                          <p className="text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                          
+                          <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
+                          <p className="text-slate-700">{(() => {
                             const emission = new Date(emailData.fatura.data_emissao || new Date());
                             emission.setDate(emission.getDate() + (emailData.fatura.client?.paymentTermDays || 30));
                             return emission.toLocaleDateString('pt-PT');
-                          })()}</span></p>
+                          })()}</p>
+                        </div>
+                                                 
+                        {/* Coluna 3: Para */}
+                        <div>
+                          <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
+                          <p className="font-bold text-slate-900">{emailData.clientName}</p>
+                          <p className="text-slate-600">{emailData.fatura.client?.address_line || 'N/A'}</p>
+                          <p className="text-slate-600">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(' ')}</p>
+                          <p className="text-slate-600">{emailData.fatura.client?.province || 'Espanha'}</p>
+                          <p className="text-slate-600 mt-2">Nº Contribuinte: {emailData.fatura.client?.cif_nif || emailData.fatura.client?.taxId || 'N/A'}</p>
                         </div>
                       </div>
 
-                      <table className="w-full text-[9px] text-left border-collapse mb-6">
+                      {/* Tabela de Itens (Coral Accent) */}
+                      <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
+                        Lista de Artigos
+                      </div>
+                      <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                         <thead>
-                          <tr className="bg-slate-100 text-slate-500 uppercase font-bold border-b text-[7px] tracking-wider">
-                            <th className="p-2 pl-3">Código</th>
-                            <th className="p-2">Descrição</th>
-                            <th className="p-2 text-right">Qtd</th>
-                            <th className="p-2 text-center">Un.</th>
-                            <th className="p-2 text-right">Preço (€)</th>
-                            <th className="p-2 text-right pr-3">Total (€)</th>
+                          <tr className="bg-[#f2a87a] text-white border-b border-[#ec8a5e]/40">
+                            <th className="font-bold text-white pl-3 py-1 text-left">DESCRIÇÃO DO ARTIGO</th>
+                            <th className="text-right font-bold text-white w-20 py-1">QUANT.</th>
+                            <th className="text-right font-bold text-white w-24 py-1">PREÇO</th>
+                            <th className="text-right font-bold text-white w-16 py-1">DESC.</th>
+                            <th className="text-right font-bold text-white w-20 py-1">IVA (%)</th>
+                            <th className="text-right font-bold text-white w-24 pr-3 py-1">TOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b">
-                            <td className="p-2 pl-3 font-semibold text-indigo-650">SERV-HORAS</td>
-                            <td className="p-2 text-muted-foreground">{currentAdj.descricao_servico || 'Serviços Prestados'}</td>
-                            <td className="p-2 text-right">{emailData.totalHoras.toFixed(2)}</td>
-                            <td className="p-2 text-center">UN</td>
-                            <td className="p-2 text-right">€ {(emailData.totalHoras > 0 ? (currentTotalBase / emailData.totalHoras) : 0).toFixed(2)}</td>
-                            <td className="p-2 text-right font-semibold pr-3 font-mono">€ {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <tr className="border-b border-[#ec8a5e]/30">
+                            <td className="pl-3 py-1 text-slate-800">{currentAdj.descricao_servico || 'Prestação de Serviços'}</td>
+                            <td className="text-right py-1 text-slate-800">{emailData.totalHoras.toFixed(2)}</td>
+                            <td className="text-right py-1 text-slate-800">{(currentTotalBase / (emailData.totalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="text-right py-1 text-slate-800">0,00</td>
+                            <td className="text-right py-1 text-slate-800">{Number(currentAdj.iva_pct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                            <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           </tr>
                           {Number(currentAdj.incrementos) > 0 && (
-                            <tr className="border-b text-emerald-600">
-                              <td className="p-2 pl-3 font-semibold">INC-OBRA</td>
-                              <td className="p-2 text-muted-foreground">{currentAdj.incrementos_desc || 'Incremento Adicional'}</td>
-                              <td className="p-2 text-right">1.00</td>
-                              <td className="p-2 text-center">UN</td>
-                              <td className="p-2 text-right">€ {Number(currentAdj.incrementos).toFixed(2)}</td>
-                              <td className="p-2 text-right font-bold pr-3 font-mono">€ {Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
+                              <td className="pl-3 py-1">{currentAdj.incrementos_desc || 'Incremento Adicional'}</td>
+                              <td className="text-right py-1">1.00</td>
+                              <td className="text-right py-1">{Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td className="text-right py-1">0,00</td>
+                              <td className="text-right py-1">{Number(currentAdj.iva_pct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                              <td className="text-right font-bold pr-3 font-mono py-1">{Number(currentAdj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>
                           )}
                           {Number(currentAdj.reducoes) > 0 && (
-                            <tr className="border-b text-rose-600">
-                              <td className="p-2 pl-3 font-semibold">DESC-COM</td>
-                              <td className="p-2 text-muted-foreground">{currentAdj.reducoes_desc || 'Redução Comercial'}</td>
-                              <td className="p-2 text-right">1.00</td>
-                              <td className="p-2 text-center">UN</td>
-                              <td className="p-2 text-right">€ -{Number(currentAdj.reducoes).toFixed(2)}</td>
-                              <td className="p-2 text-right font-bold pr-3 font-mono">€ -{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            <tr className="border-b border-[#ec8a5e]/30 text-rose-700">
+                              <td className="pl-3 py-1">{currentAdj.reducoes_desc || 'Redução Comercial'}</td>
+                              <td className="text-right py-1">1.00</td>
+                              <td className="text-right py-1">-{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td className="text-right py-1">0,00</td>
+                              <td className="text-right py-1">{Number(currentAdj.iva_pct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                              <td className="text-right font-bold pr-3 font-mono py-1">-{Number(currentAdj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>
                           )}
                         </tbody>
                       </table>
 
-                      <div className="bg-slate-800 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                        Resumo Financeiro
+                      {/* Resumo da Fatura (Coral Accent) */}
+                      <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
+                        Resumo da Factura
                       </div>
-                      <table className="w-full border border-slate-200 rounded-b mb-6 text-[10px] text-left border-collapse">
+                      <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                         <tbody>
-                          <tr className="border-b">
-                            <td className="p-2 font-bold" colSpan={3}>Subtotal</td>
-                            <td className="p-2 text-right font-bold w-40 pr-3 font-mono">€ {(currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <tr className="border-b border-[#ec8a5e]/30">
+                            <td className="pl-3 py-1 font-semibold text-slate-800">Subtotal da Factura</td>
+                            <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {(currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           </tr>
-                          <tr className="border-b">
-                            <td className="p-2 font-bold" colSpan={3}>IVA {currentAdj.iva_pct || 0}%</td>
-                            <td className="p-2 text-right font-bold w-40 pr-3 font-mono">€ {((currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * Number(currentAdj.iva_pct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          <tr className="border-b border-[#ec8a5e]/30">
+                            <td className="pl-3 py-1 font-semibold text-slate-800">IVA {Number(currentAdj.iva_pct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: € {(currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
+                            <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {((currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * Number(currentAdj.iva_pct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           </tr>
-                          <tr className="bg-slate-50 font-extrabold text-blue-900 border-t">
-                            <td className="p-2 text-blue-900 font-extrabold" colSpan={3}>Total FP</td>
-                            <td className="p-2 text-right font-extrabold text-blue-950 text-[11px] pr-3 font-mono">
-                              € {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                          <tr className="bg-[#fdf3ee] text-[#ec8a5e]">
+                            <td className="pl-3 py-1 font-extrabold text-sm">Total da Factura</td>
+                            <td className="text-right font-extrabold pr-3 font-mono py-1 text-sm">
+                              € {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
                         </tbody>
                       </table>
 
-                      <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                      {/* Condições de IVA */}
+                      <div className="text-[10px] text-slate-500 mb-6 font-semibold">
                         Condições de Enquadramento de IVA:<br/>
-                        (1) Autoliquidação de IVA
+                        (1) {Number(currentAdj.iva_pct || 0) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
                       </div>
                     </div>
 
-                    <div>
-                      <div className="border-t border-slate-100 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                    {/* Seção inferior empurrada para baixo */}
+                    <div className="space-y-4">
+                      {/* Certified software text */}
+                      <div className="text-center text-[10px] text-slate-700 italic font-semibold">
+                        {currentEmpresa?.certified_software_text || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+                      </div>
+
+                      {/* Rodapé de moradas e contas */}
+                      <div className="border-t border-slate-200 pt-3 flex justify-between text-[9px] text-slate-500 font-medium">
                         <div>
                           <p className="font-bold uppercase mb-0.5">Local de Carga</p>
-                          <p>{currentEmpresa?.address_line || 'Rua Conselheiro Fonseca, n.º 157'}</p>
+                          <p>{currentEmpresa?.address_line || 'N/ Morada'}</p>
                           <p>{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
                         </div>
+                        {(currentAdj.iban || currentEmpresa?.iban) && (
+                          <div className="text-center">
+                            <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
+                            <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{currentAdj.iban || currentEmpresa?.iban}</div>
+                          </div>
+                        )}
                         <div className="text-right">
                           <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
-                          <p>{emailData.fatura.client?.address_line || 'N/A'}</p>
-                          <p>{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(' ')}</p>
+                          <p>{emailData.fatura.client?.address_line || 'V/ Morada'}</p>
+                          <p>{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city, emailData.fatura.client?.province].filter(Boolean).join(', ')}</p>
                         </div>
                       </div>
-                      <div className="text-center text-[7px] text-muted-foreground italic font-semibold">
-                        {currentEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
-                      </div>
+                    </div>
+
+                    {/* Barra preta com logotipo decorativo no canto inferior esquerdo */}
+                    <div className="absolute bottom-0 left-0 right-0 h-[45px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-10 text-[9px] font-sans rounded-b select-none overflow-hidden">
+                      {/* Decoração laranja no canto inferior esquerdo */}
+                      <div className="absolute left-0 bottom-0 top-0 w-24 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                      <span className="relative z-10 font-medium">
+                        Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
+                      </span>
+                      <span className="relative z-10 font-bold">
+                        Pág. 1/1
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -3857,23 +3936,26 @@ MCS - Gestão Comercial`;
                 </div>
               </div>
             ) : (
-              <div id={`pdf-render-factura-sheet-${fat.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+              <div id={`pdf-render-factura-sheet-${fat.id}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                {/* Wrapper do conteúdo flex-1 */}
                 <div className="flex-1">
-                  <div className="flex justify-between items-start mb-6">
+                  {/* Top row */}
+                  <div className="flex justify-between items-start mb-8">
                     <div>
-                      <h3 className="text-base font-extrabold text-slate-900">
-                        Factura {fat.year}/{String(fat.fatura_numero || disputeEmpresa?.next_invoice_number || '0001').padStart(4, '0')}
+                      <h3 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight">
+                        {fat.fatura_numero || `Factura nº${disputeEmpresa?.invoice_series || '1'} ${fat.year || new Date().getFullYear()}/${disputeEmpresa?.next_invoice_number || 1}`}
                       </h3>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">ORIGINAL</p>
+                      <p className="text-xs font-bold text-slate-950 mt-1 uppercase tracking-wider">ORIGINAL</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-[8px] font-bold text-slate-700 font-sans">
+                    {/* QR Code dinâmico */}
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="text-[9px] font-bold text-slate-700 font-sans">
                         ATCUD: {fat.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${fat.fatura_numero || 1}`}
                       </span>
-                      <div className="border border-slate-200 p-1 bg-white rounded shadow-sm">
+                      <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
                         <QRCodeSVG
                           value={`${window.location.origin}/aprovacao-cliente/${fat.magic_link_token || 'draft'}`}
-                          size={50}
+                          size={90}
                           level="H"
                           includeMargin={false}
                         />
@@ -3881,128 +3963,159 @@ MCS - Gestão Comercial`;
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6 mb-6 leading-relaxed text-[10px]">
+                  {/* De / Para / Detalhes (3 Colunas) */}
+                  <div className="grid grid-cols-3 gap-6 mb-8 text-[11px] leading-relaxed border-t border-slate-100 pt-4">
+                    {/* Coluna 1: De */}
                     <div>
-                      <p className="font-bold text-[7px] text-slate-400 uppercase">De</p>
+                      <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
                       <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
-                      <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
-                      <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
-                      <p className="text-muted-foreground">NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
-                      <p className="text-muted-foreground mt-1.5 font-semibold">Conta:</p>
-                      <p className="text-muted-foreground font-mono text-[9px] whitespace-pre-line">
-                        {(adjustments.iban || disputeEmpresa?.iban || 'N/A').split('\n')[0]}
-                      </p>
+                      <p className="text-slate-600">{disputeEmpresa?.address_line || 'N/A'}</p>
+                      <p className="text-slate-600">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
+                      <p className="text-slate-600">{disputeEmpresa?.province || 'Portugal'}</p>
+                      {disputeEmpresa?.email && <p className="text-slate-600">{disputeEmpresa.email}</p>}
+                      <p className="text-slate-600">Nº Contribuinte: {disputeEmpresa?.tax_id || 'N/A'}</p>
+                      {disputeEmpresa?.capital_social && <p className="text-slate-600">Capital Social: {disputeEmpresa.capital_social}</p>}
+                      {disputeEmpresa?.conservatoria && <p className="text-slate-600">Cons. Reg. Com.: {disputeEmpresa.conservatoria}</p>}
+                      {disputeEmpresa?.matricula && <p className="text-slate-600">Matrícula: {disputeEmpresa.matricula}</p>}
                     </div>
+
+                    {/* Coluna 2: Detalhes */}
                     <div>
-                      <p className="font-bold text-[7px] text-slate-400 uppercase">Para</p>
+                      <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">ATCUD</p>
+                      <p className="font-semibold text-slate-900">{fat.atcud || `${disputeEmpresa?.atcud_prefix || 'J6XBVVRV'}-${fat.fatura_numero || 1}`}</p>
+                      
+                      <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Emissão</p>
+                      <p className="text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                      
+                      <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
+                      <p className="text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
+                    </div>
+                                             
+                    {/* Coluna 3: Para */}
+                    <div>
+                      <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
                       <p className="font-bold text-slate-900">{fat.client?.nombre_comercial}</p>
-                      <p className="text-muted-foreground">{fat.client?.address_line || 'N/A'}</p>
-                      <p className="text-muted-foreground">{[fat.client?.postal_code, fat.client?.city, fat.client?.province].filter(Boolean).join(', ')}</p>
-                      <p className="text-muted-foreground mt-1.5">Data Emissão: <span className="font-bold text-slate-700">{new Date(dataEmissaoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                      <p className="text-muted-foreground">Data Vencimento: <span className="font-bold text-slate-700">{new Date(dataVencimentoStr + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
+                      <p className="text-slate-600">{fat.client?.address_line || 'N/A'}</p>
+                      <p className="text-slate-600">{[fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ')}</p>
+                      <p className="text-slate-600">{fat.client?.province || 'Espanha'}</p>
+                      <p className="text-slate-600 mt-2">Nº Contribuinte: {fat.client?.cif_nif || fat.client?.taxId || 'N/A'}</p>
                     </div>
                   </div>
 
-                  <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
+                  {/* Tabela de Itens (Coral Accent) */}
+                  <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
                     Lista de Artigos
                   </div>
-                  <table className="w-full border border-slate-200 border-collapse mb-4 text-[10px]">
+                  <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-[9px]">
-                        <th className="font-bold text-slate-700 text-left p-2 pl-3">Artigo</th>
-                        <th className="font-bold text-slate-700 text-left p-2">Descrição</th>
-                        <th className="text-right font-bold text-slate-700 w-24 p-2">Qtd.</th>
-                        <th className="font-bold text-slate-700 text-left w-16 p-2">Un.</th>
-                        <th className="text-right font-bold text-slate-700 w-24 p-2">Pr. Unitário</th>
-                        <th className="text-right font-bold text-slate-700 w-24 p-2 pr-3">Valor</th>
+                      <tr className="bg-[#f2a87a] text-white border-b border-[#ec8a5e]/40">
+                        <th className="font-bold text-white pl-3 py-1 text-left">DESCRIÇÃO DO ARTIGO</th>
+                        <th className="text-right font-bold text-white w-20 py-1">QUANT.</th>
+                        <th className="text-right font-bold text-white w-24 py-1">PREÇO</th>
+                        <th className="text-right font-bold text-white w-16 py-1">DESC.</th>
+                        <th className="text-right font-bold text-white w-20 py-1">IVA (%)</th>
+                        <th className="text-right font-bold text-white w-24 pr-3 py-1">TOTAL</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-slate-200">
-                        <td className="font-semibold p-2 pl-3">PREST-SERV</td>
-                        <td className="text-muted-foreground p-2">{adjustments.descricaoServico}</td>
-                        <td className="text-right p-2">{totalHorasCalculadas.toFixed(2)}</td>
-                        <td className="p-2">UN</td>
-                        <td className="text-right p-2">€ {(totalBaseVal / (totalHorasCalculadas || 1)).toFixed(2)}</td>
-                        <td className="text-right font-bold p-2 pr-3 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      <tr className="border-b border-[#ec8a5e]/30">
+                        <td className="pl-3 py-1 text-slate-800">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
+                        <td className="text-right py-1 text-slate-800">{totalHorasCalculadas.toFixed(2)}</td>
+                        <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="text-right py-1 text-slate-800">0,00</td>
+                        <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                        <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </tr>
                       {Number(adjustments.incrementos) > 0 && (
-                        <tr className="border-b border-slate-200">
-                          <td className="font-semibold text-emerald-600 p-2 pl-3">INC-ADIC</td>
-                          <td className="text-muted-foreground p-2">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>
-                          <td className="text-right p-2">1.00</td>
-                          <td className="p-2">UN</td>
-                          <td className="text-right p-2">€ {Number(adjustments.incrementos).toFixed(2)}</td>
-                          <td className="text-right font-bold text-emerald-600 p-2 pr-3 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
+                          <td className="pl-3 py-1">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>
+                          <td className="text-right py-1">1.00</td>
+                          <td className="text-right py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right py-1">0,00</td>
+                          <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                          <td className="text-right font-bold pr-3 font-mono py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                       )}
                       {Number(adjustments.reducoes) > 0 && (
-                        <tr className="border-b border-slate-200">
-                          <td className="font-semibold text-rose-600 p-2 pl-3">DESC-COM</td>
-                          <td className="text-muted-foreground p-2">{adjustments.reducoesDesc || 'Redução Comercial'}</td>
-                          <td className="text-right p-2">1.00</td>
-                          <td className="p-2">UN</td>
-                          <td className="text-right p-2">€ -{Number(adjustments.reducoes).toFixed(2)}</td>
-                          <td className="text-right font-bold text-rose-600 p-2 pr-3 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                        <tr className="border-b border-[#ec8a5e]/30 text-rose-700">
+                          <td className="pl-3 py-1">{adjustments.reducoesDesc || 'Redução Comercial'}</td>
+                          <td className="text-right py-1">1.00</td>
+                          <td className="text-right py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right py-1">0,00</td>
+                          <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                          <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
 
-                  <div className="bg-orange-500 text-white font-bold uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0 text-[8px]">
-                    Resumo
+                  {/* Resumo da Fatura (Coral Accent) */}
+                  <div className="bg-[#ec8a5e] text-white font-bold text-xs uppercase tracking-wider px-3 py-1 text-center rounded-t mb-0">
+                    Resumo da Factura
                   </div>
-                  <table className="w-full border border-slate-200 border-collapse mb-4 text-[10px]">
+                  <table className="w-full border-collapse border border-[#ec8a5e]/40 rounded-b text-[11px] mb-6">
                     <tbody>
-                      <tr className="border-b border-slate-200">
-                        <td className="font-bold p-2 pl-3" colSpan={3}>Subtotal da Obra</td>
-                        <td className="text-right font-bold w-40 p-2 pr-3 font-mono">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      <tr className="border-b border-[#ec8a5e]/30">
+                        <td className="pl-3 py-1 font-semibold text-slate-800">Subtotal da Factura</td>
+                        <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="font-bold p-2 pl-3" colSpan={3}>IVA {adjustments.ivaPct}%</td>
-                        <td className="text-right font-bold w-40 p-2 pr-3 font-mono">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                      <tr className="border-b border-[#ec8a5e]/30">
+                        <td className="pl-3 py-1 font-semibold text-slate-800">IVA {Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: € {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
+                        <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </tr>
-                      <tr className="bg-orange-50/50 font-bold">
-                        <td className="font-extrabold text-orange-850 p-2 pl-3" colSpan={3}>Total da Fatura</td>
-                        <td className="text-right font-extrabold text-orange-950 text-[11px] p-2 pr-3 font-mono">
-                          € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                      <tr className="bg-[#fdf3ee] text-[#ec8a5e]">
+                        <td className="pl-3 py-1 font-extrabold text-sm">Total da Factura</td>
+                        <td className="text-right font-extrabold pr-3 font-mono py-1 text-sm">
+                          € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     </tbody>
                   </table>
 
-                  <div className="text-[8px] text-muted-foreground mb-4 font-semibold">
+                  {/* Condições de IVA */}
+                  <div className="text-[10px] text-slate-500 mb-6 font-semibold">
                     Condições de Enquadramento de IVA:<br/>
-                    (1) {Number(adjustments.ivaPct) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+                    (1) {Number(adjustments.ivaPct || 0) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
                   </div>
                 </div>
 
+                {/* Seção inferior empurrada para baixo */}
                 <div className="space-y-4">
-                  <div className="border-t border-slate-200 pt-3 flex justify-between text-[8px] text-muted-foreground font-medium mb-2">
+                  {/* Certified software text */}
+                  <div className="text-center text-[10px] text-slate-700 italic font-semibold">
+                    {disputeEmpresa?.certified_software_text || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+                  </div>
+
+                  {/* Rodapé de moradas e contas */}
+                  <div className="border-t border-slate-200 pt-3 flex justify-between text-[9px] text-slate-500 font-medium">
                     <div>
                       <p className="font-bold uppercase mb-0.5">Local de Carga</p>
                       <p>{disputeEmpresa?.address_line || 'N/ Morada'}</p>
                       <p>{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
                     </div>
+                    {(adjustments.iban || disputeEmpresa?.iban) && (
+                      <div className="text-center">
+                        <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
+                        <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adjustments.iban || disputeEmpresa?.iban}</div>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
                       <p>{fat.client?.address_line || 'V/ Morada'}</p>
                       <p>{[fat.client?.postal_code, fat.client?.city, fat.client?.province].filter(Boolean).join(', ')}</p>
                     </div>
                   </div>
-
-                  <div className="text-center text-[8px] text-slate-700 italic font-semibold mb-2">
-                    {disputeEmpresa?.certified_software_text || 'Rexx - Processado por Programa Certificado nº 1123/AT'}
-                  </div>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 h-[35px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-6 text-[7px] font-sans rounded-b select-none overflow-hidden">
-                  <div className="absolute left-0 bottom-0 top-0 w-16 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
+                {/* Barra preta com logotipo decorativo no canto inferior esquerdo */}
+                <div className="absolute bottom-0 left-0 right-0 h-[45px] bg-[#1a1a1a] text-slate-300 flex items-center justify-between px-10 text-[9px] font-sans rounded-b select-none overflow-hidden">
+                  {/* Decoração laranja no canto inferior esquerdo */}
+                  <div className="absolute left-0 bottom-0 top-0 w-24 bg-gradient-to-r from-orange-500 to-transparent opacity-20 skew-x-12 transform origin-bottom-left"></div>
                   <span className="relative z-10 font-medium">
                     Produzido por weoInvoice - Sistema de Facturação Online Gratuito - www.weoinvoice.com
                   </span>
                   <span className="relative z-10 font-bold">
-                    ORIGINAL
+                    Pág. 1/1
                   </span>
                 </div>
               </div>
