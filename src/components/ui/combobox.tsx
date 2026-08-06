@@ -58,15 +58,17 @@ export function Combobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn("w-full justify-between font-normal", className)}
+                    className={cn("w-full justify-between font-normal text-left", className)}
                 >
-                    {value
-                        ? options.find((option) => option.value === value)?.label
-                        : placeholder}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <span className="truncate mr-2 text-left flex-1">
+                        {value
+                            ? options.find((option) => option.value === value)?.label
+                            : placeholder}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                 <Command filter={() => 1}>
                     <CommandInput 
                         placeholder="Buscar..." 
