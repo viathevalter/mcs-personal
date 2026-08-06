@@ -8,9 +8,22 @@ import './i18n/config';
 
 import React from 'react';
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    if (e.message && (e.message.includes('ResizeObserver') || e.message.includes('Script error'))) {
+      e.stopImmediatePropagation();
+    }
+  });
+}
+
 class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}> {
   state = { hasError: false, error: null };
-  static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
+  static getDerivedStateFromError(error: any) { 
+    if (error && String(error).includes('ResizeObserver')) {
+      return { hasError: false, error: null };
+    }
+    return { hasError: true, error }; 
+  }
   componentDidCatch(error: any, info: any) { console.error("GLOBAL CRASH:", error, info); }
   render() {
     if (this.state.hasError) {

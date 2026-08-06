@@ -57,7 +57,7 @@ import { useHoleriteEventos } from '../hooks/useHoleriteEventos';
 import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
 import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
-import { ImportHorasDialog } from '../components/ImportHorasDialog';
+import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
@@ -141,6 +141,8 @@ export function HoleritesPage() {
             if (matched && matched.id !== selectedEmpresaId) {
                 setSelectedEmpresaId(matched.id);
             }
+        } else if (nextVal === 'all') {
+            setSelectedEmpresaId('');
         }
     };
 
@@ -167,9 +169,9 @@ export function HoleritesPage() {
 
     // Query total hours recorded in core_finance.horas_trabalhadas across the competence period span
     const { data: dbHoursSummary } = useQuery({
-        queryKey: ['db-hours-summary', selectedEmpresaId, mesReferencia],
+        queryKey: ['db-hours-summary', selectedEmpresaId || 'all', mesReferencia],
         queryFn: async () => {
-            if (!selectedEmpresaId || !mesReferencia) return new Map<string, number>();
+            if (!mesReferencia) return new Map<string, number>();
 
             const year = parseInt(mesReferencia.substring(0, 4), 10);
             const month = parseInt(mesReferencia.substring(5, 7), 10);
@@ -225,7 +227,7 @@ export function HoleritesPage() {
             });
             return sumMap;
         },
-        enabled: Boolean(selectedEmpresaId && mesReferencia),
+        enabled: Boolean(mesReferencia),
         refetchOnWindowFocus: false,
     });
 
@@ -467,19 +469,30 @@ export function HoleritesPage() {
         return sortedWorkers.slice(start, start + effectivePageSize);
     }, [sortedWorkers, page, effectivePageSize, pageSize]);
 
+    const eventosMap = React.useMemo(() => {
+        const map = new Map<string, { totalProventos: number; totalDescontos: number }>();
+        if (!workers) return map;
+
+        workers.forEach(w => {
+            const { proventos, descontos } = calculateWorkerTally(w);
+            map.set(w.id, { totalProventos: proventos, totalDescontos: descontos });
+        });
+        return map;
+    }, [workers, eventos, allDiscounts, dbHoursSummary]);
+
     return (
-        <div className="h-[calc(100vh-100px)] flex flex-col gap-4 p-6 overflow-hidden">
+        <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
             {/* Header section */}
             <div className="shrink-0 space-y-3">
                 <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center space-x-2">
-                            <Calculator className="h-7 w-7 text-indigo-500" />
-                            <h2 className="text-2xl font-bold tracking-tight">Gestão de Folhas</h2>
+                    <div className="flex items-center space-x-2">
+                        <Calculator className="h-6 w-6 text-indigo-500" />
+                        <div>
+                            <h2 className="text-xl font-bold tracking-tight">Gestão de Folhas</h2>
+                            <p className="text-xs text-muted-foreground">
+                                Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
+                            </p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
-                        </p>
                     </div>
 
                     {recentBatches.length > 0 && (
@@ -654,15 +667,18 @@ export function HoleritesPage() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                            <ImportHorasDialog
-                                mesReferencia={mesReferencia}
-                                workers={workers || []}
+                            <ExportHoleritesDialog
                                 trigger={
-                                    <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                                    <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-xs font-medium">
                                         <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
-                                        Importar Horas (Excel)
+                                        Exportar Dados (Excel)
                                     </Button>
                                 }
+                                workers={filteredWorkers || []}
+                                mesReferencia={mesReferencia}
+                                dbHoursSummary={dbHoursSummary}
+                                workerIbansMap={workerIbansMap}
+                                eventosMap={eventosMap}
                             />
                             <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
                                 {isLoadingWorkers ? '...' : totalCount} Trabalhador(es)
@@ -684,6 +700,7 @@ export function HoleritesPage() {
                                 <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
                                     <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
                                 </TableHead>
+                                <TableHead className="font-semibold select-none">Empresa</TableHead>
                                 <TableHead>Segurança</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Tarifa (H)</TableHead>
@@ -697,17 +714,17 @@ export function HoleritesPage() {
                         <TableBody>
                             {isLoadingWorkers || isLoadingEventos ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
+                                    <TableCell colSpan={11} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
                                 </TableRow>
                             ) : (!workers || workers.length === 0) ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
                                         Nenhum trabalhador ativo ou pendente encontrado.
                                     </TableCell>
                                 </TableRow>
                             ) : paginatedWorkers?.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
                                         Nenhum trabalhador correspondente na busca.
                                     </TableCell>
                                 </TableRow>
@@ -748,6 +765,9 @@ export function HoleritesPage() {
                                                     ) : (
                                                         <span className="text-muted-foreground text-xs">-</span>
                                                     )}
+                                                </TableCell>
+                                                <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                                    {worker.contratante || '-'}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge

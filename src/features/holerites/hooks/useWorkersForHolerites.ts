@@ -7,10 +7,8 @@ export const WORKERS_HOLERITES_QUERY_KEY = 'workers_holerites';
 
 export function useWorkersForHolerites(empresaId: string | undefined) {
     return useQuery({
-        queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId],
+        queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId || 'all'],
         queryFn: async () => {
-            if (!empresaId) return [];
-
             // The search_workers RPC is capped at 1000 results internally, so we must paginate to get all workers.
             let allWorkersData: any[] = [];
             let currentPage = 1;
@@ -19,7 +17,7 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
 
             while (hasMore) {
                 const workersResponse = await listWorkers({
-                    empresaId,
+                    empresaId: empresaId || '',
                     statusTrabajador: ['ativos', 'pendientes_ingreso'],
                     page: currentPage,
                     pageSize: pageSize,
