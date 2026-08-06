@@ -50,17 +50,43 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(activeEmpresaId);
   
-  // Fetch all worker profiles for this company directly
+  // Fetch all worker profiles for this company (via contracts or allocations)
   const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
     queryKey: ['lightweightActiveWorkers', activeEmpresaId],
     queryFn: async () => {
       if (!activeEmpresaId) return [];
       
+      // 1. Fetch worker IDs from contracts
+      const { data: contracts, error: contractsError } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .select('worker_id')
+        .eq('empresa_id', activeEmpresaId);
+        
+      if (contractsError) throw contractsError;
+      
+      // 2. Fetch worker IDs from worker_assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select('worker_id')
+        .eq('empresa_id', activeEmpresaId);
+        
+      if (assignmentsError) throw assignmentsError;
+      
+      // Combine unique worker IDs
+      const contractWorkerIds = contracts?.map(c => c.worker_id) || [];
+      const assignmentWorkerIds = assignments?.map(a => a.worker_id) || [];
+      const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds].filter(Boolean)));
+      
+      if (workerIds.length === 0) return [];
+      
+      // 3. Fetch worker profiles
       const { data: workers, error: workersError } = await supabase
         .schema('core_personal')
         .from('workers')
         .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
-        .eq('empresa_id', activeEmpresaId)
+        .in('id', workerIds)
         .order('nome', { ascending: true });
         
       if (workersError) throw workersError;
