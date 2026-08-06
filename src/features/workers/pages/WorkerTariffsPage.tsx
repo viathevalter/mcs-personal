@@ -237,6 +237,58 @@ export function WorkerTariffsPage() {
         };
     }, [workersList]);
 
+    const sortedWorkers = React.useMemo(() => {
+        if (!listData?.data) return [];
+        const copy = [...listData.data];
+
+        return copy.sort((a, b) => {
+            let valA: string | number = '';
+            let valB: string | number = '';
+
+            switch (sortColumn) {
+                case 'cliente_nombre':
+                    valA = (a.cliente_nombre || 'ZZZZ').trim();
+                    valB = (b.cliente_nombre || 'ZZZZ').trim();
+                    break;
+                case 'cod_colab':
+                    valA = (a.cod_colab || '').trim();
+                    valB = (b.cod_colab || '').trim();
+                    break;
+                case 'funcion':
+                    valA = (a.funcion || '').trim();
+                    valB = (b.funcion || '').trim();
+                    break;
+                case 'contratante':
+                    valA = (a.contratante || '').trim();
+                    valB = (b.contratante || '').trim();
+                    break;
+                case 'status_seguridad':
+                    valA = (a.status_seguridad || '').trim();
+                    valB = (b.status_seguridad || '').trim();
+                    break;
+                case 'tarifa':
+                case 'tarifa_hora':
+                    valA = Number(a.worker_beneficios_settings?.tarifa_hora || 0);
+                    valB = Number(b.worker_beneficios_settings?.tarifa_hora || 0);
+                    return sortDirection === 'asc' ? valA - valB : valB - valA;
+                case 'nome':
+                default:
+                    valA = (a.nome || '').trim();
+                    valB = (b.nome || '').trim();
+                    break;
+            }
+
+            if (typeof valA === 'string' && typeof valB === 'string') {
+                const cmp = valA.localeCompare(valB, 'pt', { sensitivity: 'base' });
+                if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp;
+                // Secondary tie-breaker by worker name
+                return (a.nome || '').localeCompare(b.nome || '', 'pt', { sensitivity: 'base' });
+            }
+
+            return 0;
+        });
+    }, [listData?.data, sortColumn, sortDirection]);
+
     const handleSort = (column: string) => {
         if (sortColumn === column) {
             updateSearchParams({ sortDirection: sortDirection === 'asc' ? 'desc' : 'asc', page: '1' });
@@ -492,8 +544,8 @@ export function WorkerTariffsPage() {
                                 <TableHead className="font-semibold cursor-pointer select-none text-center" onClick={() => handleSort('status_seguridad')}>
                                     <div className="flex items-center justify-center">Segurança {renderSortIcon('status_seguridad')}</div>
                                 </TableHead>
-                                <TableHead className="text-right font-semibold w-[140px]">
-                                    Tarifa (Hora)
+                                <TableHead className="text-right font-semibold w-[140px] cursor-pointer select-none" onClick={() => handleSort('tarifa')}>
+                                    <div className="flex items-center justify-end">Tarifa (Hora) {renderSortIcon('tarifa')}</div>
                                 </TableHead>
                                 <TableHead className="text-right font-semibold w-[100px]">Ações</TableHead>
                             </TableRow>
@@ -508,14 +560,14 @@ export function WorkerTariffsPage() {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : !listData || listData.data.length === 0 ? (
+                            ) : !sortedWorkers || sortedWorkers.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={8} className="text-center h-48 text-muted-foreground italic">
                                         Nenhum trabalhador correspondente encontrado.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                listData.data.map((worker) => {
+                                sortedWorkers.map((worker) => {
                                     const tariff = worker.worker_beneficios_settings?.tarifa_hora ?? 0;
                                     const isExpanded = expandedRows.has(worker.id);
                                     const clientStyle = getClientStyle(worker.cliente_nombre);

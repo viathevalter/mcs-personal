@@ -32,9 +32,10 @@ export function useWorkersWithTariffs(params: {
             params.sortDirection
         ],
         queryFn: async () => {
-            if (!params.empresaId) return { data: [], count: 0 };
-
-            const response = await listWorkers(params as any);
+            const response = await listWorkers({
+                ...params,
+                empresaId: params.empresaId || ''
+            } as any);
             const workers = response.data;
             const count = response.count;
 
