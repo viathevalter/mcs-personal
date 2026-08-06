@@ -38,14 +38,14 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
     const [isParsing, setIsParsing] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-    // Query ALL 570+ workers directly from core_personal.workers (bypasses RPC company filters)
+    // Query ALL 580+ workers directly from core_personal.workers (bypasses RPC company filters)
     const { data: allWorkers = [], isLoading: isLoadingWorkers } = useQuery({
         queryKey: ['all-workers-direct-for-import'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, cliente_nombre, contratante');
+                .select('id, cod_colab, nome, cliente, contratante');
 
             if (error || !data) {
                 console.error("Error fetching all workers directly for tariff import:", error);
@@ -81,12 +81,14 @@ export function ImportTarifasDialog({ trigger }: ImportTarifasDialogProps) {
             // Guarantee workers list is populated inline even if React Query is still loading
             let currentWorkers = allWorkers;
             if (!currentWorkers || currentWorkers.length === 0) {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, cod_colab, nome, cliente_nombre, contratante');
+                    .select('id, cod_colab, nome, cliente, contratante');
                 if (data && data.length > 0) {
                     currentWorkers = data;
+                } else if (error) {
+                    console.error("Inline fetch workers error:", error);
                 }
             }
 
