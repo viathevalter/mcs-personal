@@ -58,7 +58,7 @@ export function Combobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn("w-full justify-between font-normal text-left", className)}
+                    className={cn("w-full min-w-0 max-w-full overflow-hidden justify-between font-normal text-left", className)}
                 >
                     <span className="truncate mr-2 text-left flex-1">
                         {value
