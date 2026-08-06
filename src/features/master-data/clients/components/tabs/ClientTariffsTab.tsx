@@ -74,15 +74,21 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
         
       if (assignmentsError) throw assignmentsError;
       
-      // 3. Fetch worker codes from vw_worker_allocations matching the company name
-      const activeEmpresa = empresas.find(e => e.id === activeEmpresaId);
+      // 3. Fetch company name from core_common.empresas directly to avoid race conditions
+      const { data: empresaData } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('nome')
+        .eq('id', activeEmpresaId)
+        .maybeSingle();
+
       let allocatedCodes: string[] = [];
-      if (activeEmpresa?.nome) {
+      if (empresaData?.nome) {
         const { data: allocations, error: allocationsError } = await supabase
           .schema('core_personal')
           .from('vw_worker_allocations')
           .select('cod_colab')
-          .ilike('contratante', activeEmpresa.nome);
+          .ilike('contratante', empresaData.nome);
           
         if (!allocationsError && allocations) {
           allocatedCodes = allocations.map(a => a.cod_colab).filter(Boolean) as string[];
