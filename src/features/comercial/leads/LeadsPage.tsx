@@ -614,8 +614,8 @@ export function LeadsPage() {
       return;
     }
 
-    // Buscar estágio inicial
-    const defaultStage = stages.find(s => s.name === 'Novo');
+    // Buscar estágio inicial (Novo / Sem Contato ou primeiro estágio)
+    const defaultStage = stages.find(s => s.name === 'Novo' || s.name.includes('Novo')) || stages[0];
     const defaultStageId = defaultStage?.id || null;
 
     const inserts: any[] = [];
