@@ -13,10 +13,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShieldCheck, Share2, Copy, Check, MessageSquare, Send } from 'lucide-react';
+import { Combobox } from '@/components/ui/combobox';
+import { Loader2, ShieldCheck, Copy, Check, MessageSquare, Send, Bold, List, Heading, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import type { Worker } from '@/shared/types/corePersonal';
-import { createTariffAuthorizationRequest, type TariffItemRequest } from '../api/tariffGovernanceApi';
+import { 
+    createTariffAuthorizationRequest, 
+    listSystemUsers, 
+    type TariffItemRequest, 
+    type SystemUser 
+} from '../api/tariffGovernanceApi';
 import { useAuth } from '@/app/providers/AuthProvider';
 
 interface TariffAuthorizationModalProps {
@@ -28,6 +35,13 @@ interface TariffAuthorizationModalProps {
 
 export function TariffAuthorizationModal({ open, onOpenChange, workers, onSuccess }: TariffAuthorizationModalProps) {
     const { user } = useAuth();
+
+    const { data: systemUsers } = useQuery({
+        queryKey: ['system-users-for-tariffs'],
+        queryFn: listSystemUsers,
+        enabled: open,
+        refetchOnWindowFocus: false
+    });
     
     const [solicitanteNome, setSolicitanteNome] = useState('');
     const [gerenteNome, setGerenteNome] = useState('');
@@ -42,10 +56,14 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        if (user?.email) {
-            setSolicitanteNome(user.email.split('@')[0].toUpperCase());
+        if (user?.email && systemUsers && systemUsers.length > 0) {
+            const currentEmail = user.email.toLowerCase();
+            const matched = systemUsers.find(u => u.email.toLowerCase() === currentEmail);
+            if (matched) {
+                setSolicitanteNome(matched.nome);
+            }
         }
-    }, [user]);
+    }, [user, systemUsers]);
 
     useEffect(() => {
         if (workers && workers.length > 0) {
@@ -58,6 +76,16 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         }
     }, [workers]);
 
+    const handleSelectGerente = (value: string) => {
+        setGerenteNome(value);
+        if (systemUsers) {
+            const matched = systemUsers.find(u => u.nome === value);
+            if (matched && matched.phone) {
+                setGerentePhone(matched.phone);
+            }
+        }
+    };
+
     const handleTariffChange = (workerId: string, value: string) => {
         setProposedTariffs(prev => ({
             ...prev,
@@ -65,16 +93,24 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         }));
     };
 
+    // Rich text helper shortcuts for justification text
+    const insertFormatting = (prefix: string, suffix: string = '') => {
+        setMotivoAlteracao(prev => {
+            if (!prev) return `${prefix}Justificativa...${suffix}`;
+            return `${prev}\n${prefix}${suffix}`;
+        });
+    };
+
     const handleGenerateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!solicitanteNome.trim()) {
-            toast.error("Informe o nome do solicitante.");
+            toast.error("Selecione ou informe o nome do solicitante.");
             return;
         }
 
         if (!gerenteNome.trim()) {
-            toast.error("Informe o nome do gerente autorizador.");
+            toast.error("Selecione ou informe o nome do gerente autorizador.");
             return;
         }
 
@@ -155,18 +191,24 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         onOpenChange(newOpen);
     };
 
+    // User options for comboboxes
+    const userComboboxOptions = (systemUsers || []).map(u => ({
+        value: u.nome,
+        label: `${u.nome} (${u.email || 'Usuário'})`
+    }));
+
     if (!workers || workers.length === 0) return null;
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[780px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
                         <ShieldCheck className="w-5 h-5 text-indigo-600" />
                         Solicitar Termo de Autorização de Tarifa
                     </DialogTitle>
                     <DialogDescription className="text-xs">
-                        Gere um termo com link de assinatura eletrônica para o gerente aprovar o reajuste das tarifas.
+                        Gere um termo com link de assinatura eletrônica para o gerente aprovar o reajuste das tarifas dos colaboradores selecionados.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -220,26 +262,29 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                     </div>
                 ) : (
                     <form onSubmit={handleGenerateRequest} className="space-y-4 py-2">
+                        {/* Users selection section */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="space-y-1">
-                                <Label className="text-xs font-semibold">Solicitante (Seu Nome)</Label>
-                                <Input
-                                    required
+                                <Label className="text-xs font-semibold">Solicitante (Usuário do Sistema)</Label>
+                                <Combobox
+                                    className="w-full h-9 text-xs bg-white dark:bg-slate-900"
+                                    options={userComboboxOptions}
                                     value={solicitanteNome}
-                                    onChange={(e) => setSolicitanteNome(e.target.value)}
-                                    placeholder="Ex: Carlos Santos (RH)"
-                                    className="h-9 text-xs"
+                                    onChange={(v) => setSolicitanteNome(v)}
+                                    placeholder="Buscar usuário solicitante..."
+                                    emptyText="Nenhum usuário encontrado."
                                 />
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-xs font-semibold">Gerente Autorizador</Label>
-                                <Input
-                                    required
+                                <Label className="text-xs font-semibold">Gerente Autorizador (Usuário do Sistema)</Label>
+                                <Combobox
+                                    className="w-full h-9 text-xs bg-white dark:bg-slate-900"
+                                    options={userComboboxOptions}
                                     value={gerenteNome}
-                                    onChange={(e) => setGerenteNome(e.target.value)}
-                                    placeholder="Ex: Rodrigo Silva (Diretor Operações)"
-                                    className="h-9 text-xs"
+                                    onChange={handleSelectGerente}
+                                    placeholder="Buscar gerente autorizador..."
+                                    emptyText="Nenhum usuário encontrado."
                                 />
                             </div>
                         </div>
@@ -254,20 +299,10 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                     className="h-9 text-xs"
                                 />
                             </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold">Justificativa / Motivo do Reajuste</Label>
-                                <Input
-                                    value={motivoAlteracao}
-                                    onChange={(e) => setMotivoAlteracao(e.target.value)}
-                                    placeholder="Ex: Reajuste anual acordado em contrato"
-                                    className="h-9 text-xs"
-                                />
-                            </div>
                         </div>
 
                         {/* Workers Table with Proposed Tariffs */}
-                        <div className="space-y-1.5 pt-2">
+                        <div className="space-y-1.5 pt-1">
                             <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                 Definir Novas Tarifas Propostas ({workers.length} Colaborador(es)):
                             </Label>
@@ -310,6 +345,56 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                     </TableBody>
                                 </Table>
                             </div>
+                        </div>
+
+                        {/* Expanded Rich Formatting Justification Textarea */}
+                        <div className="space-y-1.5 pt-2">
+                            <div className="flex justify-between items-center">
+                                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                                    Justificativa Completa / Motivo do Reajuste de Tarifa:
+                                </Label>
+                                <div className="flex gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={() => insertFormatting('### ')}
+                                    >
+                                        <Heading className="w-3 h-3 mr-1" /> Título
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={() => insertFormatting('**', '**')}
+                                    >
+                                        <Bold className="w-3 h-3 mr-1" /> Negrito
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={() => insertFormatting('• ')}
+                                    >
+                                        <List className="w-3 h-3 mr-1" /> Tópico
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <Textarea
+                                rows={5}
+                                value={motivoAlteracao}
+                                onChange={(e) => setMotivoAlteracao(e.target.value)}
+                                placeholder="Descreva aqui o motivo detalhado do reajuste de tarifa (ex: Aditivo contratual com o cliente, reajuste por mérito/função, reajuste anual acordado em convenção...)"
+                                className="text-xs bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 leading-relaxed font-sans"
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Este texto será impresso no corpo do Termo de Autorização apresentado ao gerente autorizador para assinatura.
+                            </p>
                         </div>
 
                         <DialogFooter className="pt-2">

@@ -241,9 +241,14 @@ export function TariffSigningPage() {
                         </div>
 
                         {request.motivo_alteracao && (
-                            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-lg border border-indigo-100 text-xs space-y-1">
-                                <span className="font-semibold text-indigo-900 dark:text-indigo-300">Justificativa do Reajuste:</span>
-                                <p className="text-slate-700 dark:text-slate-300 italic">{request.motivo_alteracao}</p>
+                            <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-lg border border-indigo-100 dark:border-indigo-900/50 text-xs space-y-1.5">
+                                <span className="font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                    Justificativa Detalhada do Reajuste:
+                                </span>
+                                <div className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans pt-1">
+                                    {request.motivo_alteracao}
+                                </div>
                             </div>
                         )}
 

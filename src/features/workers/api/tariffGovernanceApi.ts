@@ -238,3 +238,44 @@ export async function listWorkerTariffAuditLogs(): Promise<WorkerTariffAuditLog[
         };
     });
 }
+
+export interface SystemUser {
+    id: string;
+    email: string;
+    nome: string;
+    phone?: string;
+}
+
+export async function listSystemUsers(): Promise<SystemUser[]> {
+    const { data: mcsUsers } = await supabase
+        .from('mcs_users')
+        .select('*');
+
+    if (!mcsUsers || mcsUsers.length === 0) {
+        const { data: opUsers } = await supabase
+            .schema('core_operacoes')
+            .from('mcs_users')
+            .select('*');
+
+        if (opUsers && opUsers.length > 0) {
+            return opUsers
+                .map(u => ({
+                    id: u.id,
+                    email: u.email || '',
+                    nome: u.display_name || u.nome || u.email || 'Usuário',
+                    phone: u.phone || u.telefone || ''
+                }))
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+        }
+        return [];
+    }
+
+    return mcsUsers
+        .map(u => ({
+            id: u.id,
+            email: u.email || '',
+            nome: u.display_name || u.nome || u.email || 'Usuário',
+            phone: u.phone || u.telefone || ''
+        }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+}
