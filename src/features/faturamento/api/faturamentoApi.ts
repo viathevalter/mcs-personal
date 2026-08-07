@@ -1322,12 +1322,10 @@ export async function processarContestacaoFatura(
     descricao_servico?: string;
   }
 ): Promise<void> {
-  if (financialAdjustments) {
-    await updateFaturaAjustes(faturaId, {
-      ...financialAdjustments,
-      ...(proposedHours && { disputed_hours: proposedHours })
-    });
-  }
+  await updateFaturaAjustes(faturaId, {
+    ...(financialAdjustments || {}),
+    ...(proposedHours && { disputed_hours: proposedHours })
+  });
 
   if (aceitar && proposedHours) {
     // Fetch fatura info for client_id and empresa_id fallbacks

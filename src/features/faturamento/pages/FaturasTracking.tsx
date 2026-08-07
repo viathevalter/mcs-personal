@@ -2483,7 +2483,8 @@ MCS - Gestão Comercial`;
                 }
 
                 const wObj = workersMap.get(wId)!;
-                wObj.horasDiarias[h.data_trabalho] = h.horas_totais;
+                const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+                wObj.horasDiarias[dKey] = h.horas_totais;
               });
 
               return Array.from(workersMap.values());
@@ -2491,9 +2492,12 @@ MCS - Gestão Comercial`;
 
             const { disputeYear, disputeMonth } = (() => {
               if (disputeHours && disputeHours.length > 0) {
-                const firstDate = disputeHours[0].data_trabalho;
+                const rawDate = disputeHours[0].data_trabalho || '';
+                const firstDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
                 const parts = firstDate.split('-');
-                return { disputeYear: parseInt(parts[0]), disputeMonth: parseInt(parts[1]) - 1 };
+                if (parts.length >= 2) {
+                  return { disputeYear: parseInt(parts[0]), disputeMonth: parseInt(parts[1]) - 1 };
+                }
               }
               const today = new Date();
               return { disputeYear: today.getFullYear(), disputeMonth: today.getMonth() };
