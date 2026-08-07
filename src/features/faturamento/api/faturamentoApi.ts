@@ -1258,6 +1258,8 @@ export async function processarContestacaoFatura(
             .select('tarifa_faturada, client_id, funcao_id')
             .eq('fatura_id', faturaId)
             .eq('worker_id', workerId)
+            .not('tarifa_faturada', 'is', null)
+            .gt('tarifa_faturada', 0)
             .limit(1)
             .maybeSingle();
 
@@ -1270,7 +1272,7 @@ export async function processarContestacaoFatura(
               data_trabalho: dateKey,
               horas_totais: newHours,
               client_id: sampleRow?.client_id || fatData?.client_id,
-              tarifa_faturada: sampleRow?.tarifa_faturada || 24.28,
+              tarifa_faturada: sampleRow?.tarifa_faturada || 0,
               funcao_id: sampleRow?.funcao_id || null,
               status: 'invoiced'
             });

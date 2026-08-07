@@ -157,6 +157,11 @@ export function FaturasTracking() {
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [sendEmailCheckbox, setSendEmailCheckbox] = useState(true);
   const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+  const [selectedAttachments, setSelectedAttachments] = useState<{ relatorio: boolean; informe: boolean; factura: boolean }>({
+    relatorio: true,
+    informe: true,
+    factura: true
+  });
 
   const [emailCache, setEmailCache] = useState<Record<string, {
     selectedEmails: string[];
@@ -1770,6 +1775,7 @@ MCS - Gestão Comercial`;
         });
       }
       
+      setSelectedAttachments({ relatorio: true, informe: true, factura: true });
       toast.dismiss(toastId);
       setIsEmailModalOpen(true);
     } catch (err: any) {
@@ -1824,15 +1830,23 @@ MCS - Gestão Comercial`;
     try {
       setSendingEmail(true);
 
-      // Generate actual PDFs
-      const relatorioAttachment = await generateHoursPDFAttachmentTracking(emailData.fatura, emailHours, emailLanguage);
-      const informeAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'informe');
-      const facturaAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'factura');
-
+      // Generate actual selected PDFs
       const custom_attachments = [];
-      if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
-      if (informeAttachment) custom_attachments.push(informeAttachment);
-      if (facturaAttachment) custom_attachments.push(facturaAttachment);
+
+      if (selectedAttachments.relatorio) {
+        const relatorioAttachment = await generateHoursPDFAttachmentTracking(emailData.fatura, emailHours, emailLanguage);
+        if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
+      }
+
+      if (selectedAttachments.informe) {
+        const informeAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'informe');
+        if (informeAttachment) custom_attachments.push(informeAttachment);
+      }
+
+      if (selectedAttachments.factura) {
+        const facturaAttachment = await generatePDFAttachmentTracking(emailData.faturaId, emailData.clientName, 'factura');
+        if (facturaAttachment) custom_attachments.push(facturaAttachment);
+      }
       
       // Detect URL and convert to a clickable HTML link
       const linkRegex = /(https?:\/\/[^\s]+)/g;
@@ -3075,34 +3089,63 @@ MCS - Gestão Comercial`;
                   {/* Documentos Anexados */}
                   <div className="space-y-2">
                     <h4 className="font-bold text-indigo-600 dark:text-indigo-400 border-b dark:border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Documentos Anexos (PDF)</h4>
-                    <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => handleExportHoursPDFTracking(emailData.fatura)}
-                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
-                        title="Clique para visualizar/baixar o Relatório de Horas"
-                      >
-                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                        <span>Relatorio_Datas_Trabalhadas.pdf</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'informe')}
-                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
-                        title="Clique para visualizar/baixar o Informe de Faturamento"
-                      >
-                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                        <span>Informe_Facturacion.pdf</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'factura')}
-                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all"
-                        title="Clique para visualizar/baixar a Factura Única"
-                      >
-                        <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                        <span>Factura_Pró-forma.pdf</span>
-                      </button>
+                    <div className="flex flex-col gap-2.5 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_relatorio"
+                          checked={selectedAttachments.relatorio}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, relatorio: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleExportHoursPDFTracking(emailData.fatura)}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar o Relatório de Horas"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Relatorio_Datas_Trabalhadas.pdf</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_informe"
+                          checked={selectedAttachments.informe}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, informe: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'informe')}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar o Informe de Faturamento"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Informe_Facturacion.pdf</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_factura"
+                          checked={selectedAttachments.factura}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, factura: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'factura')}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar a Factura Única"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Factura_Pró-forma.pdf</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
