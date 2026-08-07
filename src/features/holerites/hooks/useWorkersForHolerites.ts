@@ -9,17 +9,11 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
         queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId || 'all'],
         queryFn: async () => {
             // Direct query on core_personal.workers to fetch ALL workers (both active and inactive who worked during the period)
-            let query = supabase
+            const { data: rawWorkers, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
                 .select('*')
                 .order('nome', { ascending: true });
-
-            if (empresaId && empresaId !== 'all') {
-                query = query.eq('empresa_id', empresaId);
-            }
-
-            const { data: rawWorkers, error } = await query;
 
             if (error) {
                 console.error("Error fetching workers for holerites:", error);

@@ -169,12 +169,11 @@ export function HoleritesPage() {
 
     useEffect(() => {
         if (selectedEmpresaId && empresas && contratantesUnicos.length > 0) {
-            const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
+            const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
             if (currentEmpresa) {
+                const empName = (currentEmpresa.nome_pbi || currentEmpresa.nombre_comercial || currentEmpresa.razon_social || '').toLowerCase();
                 const matchedOption = contratantesUnicos.find(c => 
-                    c.toLowerCase().includes(currentEmpresa.codigo.toLowerCase()) ||
-                    currentEmpresa.codigo.toLowerCase().includes(c.toLowerCase()) ||
-                    currentEmpresa.nome.toLowerCase().includes(c.toLowerCase())
+                    c.toLowerCase().includes(empName) || empName.includes(c.toLowerCase())
                 );
                 if (matchedOption && matchedOption !== contratanteFilter) {
                     setContratanteFilter(matchedOption);
