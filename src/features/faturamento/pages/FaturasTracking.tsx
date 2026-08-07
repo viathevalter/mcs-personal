@@ -1911,8 +1911,8 @@ MCS - Gestão Comercial`;
         });
       });
 
-      const finalTotalHoras = effTotalHoras > 0 ? effTotalHoras : fatura.total_horas;
-      const finalTotalValor = effTotalValor > 0 ? effTotalValor : fatura.total_valor;
+      const finalTotalHoras = effTotalHoras;
+      const finalTotalValor = effTotalValor;
 
       const cached = emailCache[fatura.id];
       if (cached) {
@@ -2693,7 +2693,15 @@ MCS - Gestão Comercial`;
                                   step="0.01" 
                                   min="0" 
                                   value={disputeReductions} 
-                                  onChange={e => setDisputeReductions(Number(e.target.value))}
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    setDisputeReductions(val);
+                                    if (selectedDispute) {
+                                      const updatedAdj = { ...(selectedDispute.ajustes_json || {}), reducoes: val };
+                                      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                    }
+                                  }}
                                   className="h-7 text-xs font-extrabold bg-white text-rose-700 dark:bg-slate-950 border-rose-300 dark:border-rose-800" 
                                 />
                               </div>
@@ -2703,7 +2711,15 @@ MCS - Gestão Comercial`;
                                   type="text" 
                                   placeholder="Ex: EPIs / Alimentação" 
                                   value={disputeReductionsDesc} 
-                                  onChange={e => setDisputeReductionsDesc(e.target.value)}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setDisputeReductionsDesc(val);
+                                    if (selectedDispute) {
+                                      const updatedAdj = { ...(selectedDispute.ajustes_json || {}), reducoes_desc: val };
+                                      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                    }
+                                  }}
                                   className="h-7 text-xs bg-white dark:bg-slate-950 border-rose-300 dark:border-rose-800" 
                                 />
                               </div>
@@ -2721,7 +2737,15 @@ MCS - Gestão Comercial`;
                                   step="0.01" 
                                   min="0" 
                                   value={disputeIncrements} 
-                                  onChange={e => setDisputeIncrements(Number(e.target.value))}
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    setDisputeIncrements(val);
+                                    if (selectedDispute) {
+                                      const updatedAdj = { ...(selectedDispute.ajustes_json || {}), incrementos: val };
+                                      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                    }
+                                  }}
                                   className="h-7 text-xs font-extrabold bg-white text-emerald-700 dark:bg-slate-950 border-emerald-300 dark:border-emerald-800" 
                                 />
                               </div>
@@ -2731,7 +2755,15 @@ MCS - Gestão Comercial`;
                                   type="text" 
                                   placeholder="Ex: Adicional Obra / Viagem" 
                                   value={disputeIncrementsDesc} 
-                                  onChange={e => setDisputeIncrementsDesc(e.target.value)}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setDisputeIncrementsDesc(val);
+                                    if (selectedDispute) {
+                                      const updatedAdj = { ...(selectedDispute.ajustes_json || {}), incrementos_desc: val };
+                                      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                    }
+                                  }}
                                   className="h-7 text-xs bg-white dark:bg-slate-950 border-emerald-300 dark:border-emerald-800" 
                                 />
                               </div>
@@ -2748,7 +2780,15 @@ MCS - Gestão Comercial`;
                               min="0" 
                               max="100" 
                               value={disputeIvaPct} 
-                              onChange={e => setDisputeIvaPct(Number(e.target.value))}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setDisputeIvaPct(val);
+                                if (selectedDispute) {
+                                  const updatedAdj = { ...(selectedDispute.ajustes_json || {}), iva_pct: val };
+                                  setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                  setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                }
+                              }}
                               className="h-7 w-20 text-xs font-bold bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700" 
                             />
                           </div>
