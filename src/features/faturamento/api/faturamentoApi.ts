@@ -1255,7 +1255,7 @@ export async function processarContestacaoFatura(
           const { data: sampleRow } = await supabase
             .schema('core_finance')
             .from('horas_trabalhadas')
-            .select('tarifa_faturada, client_id, empresa_id, funcao_id')
+            .select('tarifa_faturada, client_id, funcao_id')
             .eq('fatura_id', faturaId)
             .eq('worker_id', workerId)
             .limit(1)
@@ -1270,7 +1270,6 @@ export async function processarContestacaoFatura(
               data_trabalho: dateKey,
               horas_totais: newHours,
               client_id: sampleRow?.client_id || fatData?.client_id,
-              empresa_id: sampleRow?.empresa_id || fatData?.empresa_id,
               tarifa_faturada: sampleRow?.tarifa_faturada || 24.28,
               funcao_id: sampleRow?.funcao_id || null,
               status: 'invoiced'

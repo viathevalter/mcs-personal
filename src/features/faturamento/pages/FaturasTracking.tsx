@@ -88,6 +88,7 @@ export function FaturasTracking() {
   const [loadingDisputeHours, setLoadingDisputeHours] = useState(false);
   const [resolvingDispute, setResolvingDispute] = useState(false);
   const [adminModifiedHours, setAdminModifiedHours] = useState<Record<string, Record<string, number>>>({});
+  const adminModifiedHoursRef = useRef<Record<string, Record<string, number>>>({});
   const [adminEditingCell, setAdminEditingCell] = useState<{ workerId: string; dateKey: string } | null>(null);
   const [disputeActiveTab, setDisputeActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [isGeneratingCobro, setIsGeneratingCobro] = useState(false);
@@ -232,7 +233,9 @@ export function FaturasTracking() {
 
   const handleOpenDispute = async (fatura: any) => {
     setSelectedDispute(fatura);
-    setAdminModifiedHours(fatura.ajustes_json?.disputed_hours || {});
+    const initialHours = fatura.ajustes_json?.disputed_hours || {};
+    setAdminModifiedHours(initialHours);
+    adminModifiedHoursRef.current = initialHours;
     setAdminEditingCell(null);
     setDisputeHours([]);
     setLoadingDisputeHours(true);
@@ -1407,23 +1410,23 @@ export function FaturasTracking() {
   const handleAdminCellEdit = (workerId: string, dateKey: string, hours: number, originalHours: number) => {
     if (isNaN(hours) || hours < 0) return;
 
-    setAdminModifiedHours(prev => {
-      const workerPrev = { ...(prev[workerId] || {}) };
-      if (hours === originalHours) {
-        delete workerPrev[dateKey];
-      } else {
-        workerPrev[dateKey] = hours;
-      }
+    const current = { ...adminModifiedHoursRef.current };
+    const workerPrev = { ...(current[workerId] || {}) };
+    if (hours === originalHours) {
+      delete workerPrev[dateKey];
+    } else {
+      workerPrev[dateKey] = hours;
+    }
 
-      const next = { ...prev };
-      if (Object.keys(workerPrev).length === 0) {
-        delete next[workerId];
-      } else {
-        next[workerId] = workerPrev;
-      }
-      return next;
-    });
-    setAdminEditingCell(null);
+    const next = { ...current };
+    if (Object.keys(workerPrev).length === 0) {
+      delete next[workerId];
+    } else {
+      next[workerId] = workerPrev;
+    }
+    
+    adminModifiedHoursRef.current = next;
+    setAdminModifiedHours(next);
   };
 
   const handleResolveDispute = async (aceitar: boolean) => {
@@ -1431,7 +1434,7 @@ export function FaturasTracking() {
     try {
       setResolvingDispute(true);
       
-      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? adminModifiedHours : null);
+      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? adminModifiedHoursRef.current : null);
       
       toast.success(
         aceitar 
@@ -2484,10 +2487,26 @@ MCS - Gestão Comercial`;
                                                 max="24"
                                                 defaultValue={displayVal || 0}
                                                 className="w-9 h-7 text-center text-xs p-0 border border-blue-500 rounded bg-blue-50 text-blue-900 font-extrabold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
-                                                onBlur={(e) => handleAdminCellEdit(worker.workerId, dateKey, Number(e.target.value), originalVal)}
+                                                onChange={(e) => {
+                                                  const val = Number(e.target.value);
+                                                  if (!isNaN(val) && val >= 0) {
+                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                  }
+                                                }}
+                                                onBlur={(e) => {
+                                                  const val = Number(e.target.value);
+                                                  if (!isNaN(val) && val >= 0) {
+                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                  }
+                                                  setAdminEditingCell(null);
+                                                }}
                                                 onKeyDown={(e) => {
                                                   if (e.key === 'Enter') {
-                                                    handleAdminCellEdit(worker.workerId, dateKey, Number((e.target as HTMLInputElement).value), originalVal);
+                                                    const val = Number((e.target as HTMLInputElement).value);
+                                                    if (!isNaN(val) && val >= 0) {
+                                                      handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                    }
+                                                    setAdminEditingCell(null);
                                                   } else if (e.key === 'Escape') {
                                                     setAdminEditingCell(null);
                                                   }
