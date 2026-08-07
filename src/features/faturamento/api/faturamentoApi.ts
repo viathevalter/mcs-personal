@@ -1172,17 +1172,12 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       if (faturaIds.length > 0) {
         hoursSums = await fetchInChunks(faturaIds, 30, async (chunk) => {
           return fetchAllPages(async (from, to) => {
-            let query = supabase
+            return supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
-              .select('fatura_id, client_id, worker_id, data_trabalho, horas_totais, tarifa_faturada');
-            
-            if (clientIds.length > 0) {
-              query = query.or(`fatura_id.in.(${chunk.join(',')}),client_id.in.(${clientIds.join(',')})`);
-            } else {
-              query = query.in('fatura_id', chunk);
-            }
-            return query.range(from, to);
+              .select('fatura_id, worker_id, data_trabalho, horas_totais, tarifa_faturada')
+              .in('fatura_id', chunk)
+              .range(from, to);
           });
         });
       }
@@ -1191,7 +1186,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       const valueMap = new Map<string, number>();
 
       faturas.forEach(f => {
-        const faturaHours = hoursSums.filter(h => h.fatura_id === f.id || (!h.fatura_id && h.client_id === f.client_id));
+        const faturaHours = hoursSums.filter(h => h.fatura_id === f.id);
         const disputedObj = f.ajustes_json?.disputed_hours || {};
         
         let totHoras = 0;

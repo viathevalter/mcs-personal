@@ -1572,6 +1572,47 @@ export function FaturasTracking() {
         adminModifiedHoursRef.current
       );
 
+      let effH = 0;
+      let effBaseV = 0;
+      const processed = new Set<string>();
+
+      (disputeHours || []).forEach((h: any) => {
+        const wId = h.worker_id;
+        if (!wId) return;
+        const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+        processed.add(`${wId}_${dKey}`);
+
+        const proposed = activeEdits[wId]?.[dKey];
+        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+        const rate = Number(h.tarifa_faturada || 0);
+
+        effH += hoursVal;
+        effBaseV += hoursVal * rate;
+      });
+
+      Object.keys(activeEdits).forEach(wId => {
+        const dates = activeEdits[wId] || {};
+        const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
+        const rate = Number(sample?.tarifa_faturada || 0);
+
+        Object.keys(dates).forEach(dKey => {
+          if (!processed.has(`${wId}_${dKey}`)) {
+            const hoursVal = Number(dates[dKey] || 0);
+            if (hoursVal > 0) {
+              effH += hoursVal;
+              effBaseV += hoursVal * rate;
+            }
+          }
+        });
+      });
+
+      if (effH === 0 && selectedDispute.total_horas) {
+        effH = selectedDispute.total_horas;
+        effBaseV = selectedDispute.total_valor_base || selectedDispute.total_valor || 0;
+      }
+
+      const finalNet = (effBaseV + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100);
+
       await updateFaturaAjustes(selectedDispute.id, {
         incrementos: disputeIncrements,
         incrementos_desc: disputeIncrementsDesc,
@@ -1591,23 +1632,23 @@ export function FaturasTracking() {
         disputed_hours: activeEdits
       };
 
-      const baseVal = selectedDispute.total_valor_base || selectedDispute.total_valor || 0;
-      const finalNet = (baseVal + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100);
-
       setSelectedDispute((prev: any) => prev ? { 
         ...prev, 
+        total_horas: effH,
+        total_valor_base: effBaseV,
         total_valor: finalNet,
         ajustes_json: updatedAdj 
       } : null);
 
       setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { 
         ...f, 
+        total_horas: effH,
+        total_valor_base: effBaseV,
         total_valor: finalNet,
         ajustes_json: updatedAdj 
       } : f));
 
       toast.success('Ajustes salvos com sucesso!');
-      await fetchFaturas();
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao salvar ajustes: ' + err.message);
