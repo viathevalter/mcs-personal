@@ -340,10 +340,35 @@ export function CampaignsPage() {
   const [isNewAudienceDialogOpen, setIsNewAudienceDialogOpen] = useState(false); // To build and save an audience directly in the audiences tab
   const [viewLeadsAudience, setViewLeadsAudience] = useState<any | null>(null); // For viewing leads inside a saved audience
 
-  // Grid Selection & Search & Pagination
-  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  const [leadGridSearch, setLeadGridSearch] = useState('');
-  const [gridPage, setGridPage] = useState(1);
+  // Dynamic Sector and Service options extracted directly from database leads
+  const dynamicSectorOptions = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach(l => {
+      if (l.sector) set.add(l.sector.trim());
+    });
+    // Add common defaults if DB has few
+    ['CALDEREREIA', 'CONSTRUCCIONES', 'ESTRUCTURAS', 'INDUSTRIA', 'MECANICA', 'METALURGICA', 'MONTAJES', 'SOLDADURA', 'TALLERES', 'SERRALLERIA'].forEach(s => set.add(s));
+    
+    return Array.from(set).sort().map(sec => ({
+      label: sec.toUpperCase(),
+      value: sec
+    }));
+  }, [allLeads]);
+
+  const dynamicServiceOptions = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach(l => {
+      if (l.servicio_producto && !l.servicio_producto.includes('@') && !l.servicio_producto.includes(',,,')) {
+        set.add(l.servicio_producto.trim());
+      }
+    });
+    ['Soldadores TIG / MIG / MAG', 'Caldeiraria Industrial', 'Montagem de Estruturas', 'Tubagem / Tubadores', 'Manutenção Industrial'].forEach(s => set.add(s));
+
+    return Array.from(set).sort().map(srv => ({
+      label: srv,
+      value: srv
+    }));
+  }, [allLeads]);
 
   useEffect(() => {
     if (selectedEmpresaId) {
@@ -1756,15 +1781,15 @@ export function CampaignsPage() {
                 <div className="space-y-3">
                   <MultiSelectCombobox
                     label="Setores da Empresa (Multiseleção)"
-                    options={sectorOptions}
+                    options={dynamicSectorOptions}
                     selectedValues={audienceFilters.selectedSectors}
                     onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedSectors: vals })}
-                    placeholder="Selecione um ou mais setores..."
+                    placeholder="Selecione um ou mais setores (ex: CALDEREREIA, TALLERES)..."
                   />
 
                   <MultiSelectCombobox
                     label="Serviços / Produtos de Interesse (Multiseleção)"
-                    options={serviceOptions}
+                    options={dynamicServiceOptions}
                     selectedValues={audienceFilters.selectedServices}
                     onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedServices: vals })}
                     placeholder="Selecione um ou mais serviços..."
@@ -2060,15 +2085,15 @@ export function CampaignsPage() {
                 <div className="space-y-3">
                   <MultiSelectCombobox
                     label="Setores da Empresa (Multiseleção)"
-                    options={sectorOptions}
+                    options={dynamicSectorOptions}
                     selectedValues={audienceFilters.selectedSectors}
                     onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedSectors: vals })}
-                    placeholder="Selecione um ou mais setores..."
+                    placeholder="Selecione um ou mais setores (ex: CALDEREREIA, TALLERES)..."
                   />
 
                   <MultiSelectCombobox
                     label="Serviços / Produtos de Interesse (Multiseleção)"
-                    options={serviceOptions}
+                    options={dynamicServiceOptions}
                     selectedValues={audienceFilters.selectedServices}
                     onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedServices: vals })}
                     placeholder="Selecione um ou mais serviços..."
