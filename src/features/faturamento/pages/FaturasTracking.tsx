@@ -1495,6 +1495,19 @@ export function FaturasTracking() {
           }
         };
       });
+
+      setFaturas((prevList: any[]) => prevList.map(f => {
+        if (f.id === selectedDispute.id) {
+          return {
+            ...f,
+            ajustes_json: {
+              ...f.ajustes_json,
+              disputed_hours: next
+            }
+          };
+        }
+        return f;
+      }));
     }
   };
 
@@ -1502,12 +1515,17 @@ export function FaturasTracking() {
     if (!selectedDispute) return;
     try {
       setIsSavingAdjustments(true);
+      const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
+        ? adminModifiedHoursRef.current
+        : (selectedDispute.ajustes_json?.disputed_hours || {});
+
       await updateFaturaAjustes(selectedDispute.id, {
         incrementos: disputeIncrements,
         incrementos_desc: disputeIncrementsDesc,
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
-        iva_pct: disputeIvaPct
+        iva_pct: disputeIvaPct,
+        disputed_hours: activeEdits
       });
 
       const updatedAdj = {
@@ -1516,15 +1534,18 @@ export function FaturasTracking() {
         incrementos_desc: disputeIncrementsDesc,
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
-        iva_pct: disputeIvaPct
+        iva_pct: disputeIvaPct,
+        disputed_hours: activeEdits
       };
 
       setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
-      toast.success('Ajustes financeiros salvos com sucesso!');
+      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+
+      toast.success('Ajustes salvos com sucesso!');
       await fetchFaturas();
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao salvar ajustes financeiros: ' + err.message);
+      toast.error('Erro ao salvar ajustes: ' + err.message);
     } finally {
       setIsSavingAdjustments(false);
     }
@@ -1820,10 +1841,31 @@ MCS - Gestão Comercial`;
         });
       };
 
-      addEmails(fatura.client?.billingEmail || fatura.client?.billing_email);
-      addEmails(fatura.client?.clientEmail || fatura.client?.email);
+      const activeEdits = (selectedDispute && selectedDispute.id === fatura.id && Object.keys(adminModifiedHoursRef.current).length > 0)
+        ? adminModifiedHoursRef.current
+        : (fatura.ajustes_json?.disputed_hours || {});
 
-      const adj = fatura.ajustes_json || {};
+      const currentReducoes = selectedDispute?.id === fatura.id ? disputeReductions : (fatura.ajustes_json?.reducoes || 0);
+      const currentReducoesDesc = selectedDispute?.id === fatura.id ? disputeReductionsDesc : (fatura.ajustes_json?.reducoes_desc || '');
+      const currentIncrementos = selectedDispute?.id === fatura.id ? disputeIncrements : (fatura.ajustes_json?.incrementos || 0);
+      const currentIncrementosDesc = selectedDispute?.id === fatura.id ? disputeIncrementsDesc : (fatura.ajustes_json?.incrementos_desc || '');
+      const currentIvaPct = selectedDispute?.id === fatura.id ? disputeIvaPct : (fatura.ajustes_json?.iva_pct || 0);
+
+      const adj = {
+        ...(fatura.ajustes_json || {}),
+        disputed_hours: activeEdits,
+        reducoes: currentReducoes,
+        reducoes_desc: currentReducoesDesc,
+        incrementos: currentIncrementos,
+        incrementos_desc: currentIncrementosDesc,
+        iva_pct: currentIvaPct
+      };
+
+      const faturaWithEdits = {
+        ...fatura,
+        ajustes_json: adj
+      };
+
       const disputedObj = adj.disputed_hours || {};
       let effTotalHoras = 0;
       let effTotalValor = 0;
@@ -1885,7 +1927,7 @@ MCS - Gestão Comercial`;
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
           paymentTermDays: fatura.client?.paymentTermDays || 0,
-          fatura
+          fatura: faturaWithEdits
         });
       } else {
         setSelectedEmails(defaultEmails);
@@ -1906,7 +1948,7 @@ MCS - Gestão Comercial`;
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
           paymentTermDays: fatura.client?.paymentTermDays || 0,
-          fatura
+          fatura: faturaWithEdits
         });
 
         updateEmailCache(fatura.id, {

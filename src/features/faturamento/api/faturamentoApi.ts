@@ -1271,6 +1271,7 @@ export async function updateFaturaAjustes(
     reducoes_desc?: string;
     iva_pct?: number;
     descricao_servico?: string;
+    disputed_hours?: any;
   }
 ): Promise<void> {
   const { data: currentFat, error: fetchErr } = await supabase
@@ -1290,7 +1291,8 @@ export async function updateFaturaAjustes(
     ...(adjustments.reducoes !== undefined && { reducoes: Number(adjustments.reducoes || 0) }),
     ...(adjustments.reducoes_desc !== undefined && { reducoes_desc: adjustments.reducoes_desc }),
     ...(adjustments.iva_pct !== undefined && { iva_pct: Number(adjustments.iva_pct || 0) }),
-    ...(adjustments.descricao_servico !== undefined && { descricao_servico: adjustments.descricao_servico })
+    ...(adjustments.descricao_servico !== undefined && { descricao_servico: adjustments.descricao_servico }),
+    ...(adjustments.disputed_hours !== undefined && { disputed_hours: adjustments.disputed_hours })
   };
 
   const { error: updErr } = await supabase
