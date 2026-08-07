@@ -170,14 +170,15 @@ serve(async (req) => {
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
       
-      let rawSender = company?.marketing_sender_email || company?.proposal_sender_email || "alex@mail.gestaologinpro.com";
+      let rawSender = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
       let validSenderEmail = rawSender;
-      if (!rawSender.includes("gestaologinpro.com") && !rawSender.includes("mastercorp")) {
+      const lowerSender = rawSender.toLowerCase();
+      if (!lowerSender.includes("gestaologinpro.com") && !lowerSender.includes("luminousalley.com") && !lowerSender.includes("mastercorp")) {
         validSenderEmail = "alex@mail.gestaologinpro.com";
       }
 
-      const senderName = company?.trade_name || "Mastercorp";
-      const fromHeader = `${senderName} <${validSenderEmail}>`;
+      const senderName = company?.trade_name || "Luminous";
+      const fromHeader = rawSender.includes("<") ? rawSender : `${senderName} <${validSenderEmail}>`;
 
       try {
         if (!resendApiKey) {
