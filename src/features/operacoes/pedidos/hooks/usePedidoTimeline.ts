@@ -13,12 +13,10 @@ export interface TimelineEvent {
 }
 
 export function usePedidoTimeline(pedidoId: string | undefined, solicitudIds: string[]) {
-  const { selectedEmpresaId } = useEmpresa();
-
   return useQuery({
-    queryKey: ['pedidoTimeline', pedidoId, solicitudIds, selectedEmpresaId],
+    queryKey: ['pedidoTimeline', pedidoId, solicitudIds],
     queryFn: async () => {
-      if (!selectedEmpresaId || !pedidoId) return [];
+      if (!pedidoId) return [];
 
       const promises = [
         supabase
@@ -94,6 +92,6 @@ export function usePedidoTimeline(pedidoId: string | undefined, solicitudIds: st
       // Sort by created_at desc (newest first)
       return allEvents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     },
-    enabled: !!selectedEmpresaId && !!pedidoId,
+    enabled: !!pedidoId,
   });
 }

@@ -4,24 +4,21 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { Pedido, PedidoItem } from '../types';
 
 export function usePedidoDetail(pedidoId: string | undefined) {
-  const { selectedEmpresaId } = useEmpresa();
-
   return useQuery({
-    queryKey: ['pedido', pedidoId, selectedEmpresaId],
+    queryKey: ['pedido', pedidoId],
     queryFn: async () => {
-      if (!selectedEmpresaId || !pedidoId) throw new Error('Empresa ou Pedido não selecionado');
+      if (!pedidoId) throw new Error('Pedido não selecionado');
 
-      // Fetch pedido
+      // Fetch pedido by unique ID
       const { data: pedido, error: pedidoError } = await supabase
         .schema('core_comercial')
         .from('pedidos')
         .select('*')
         .eq('id', pedidoId)
-        .eq('empresa_id', selectedEmpresaId)
         .maybeSingle();
 
       if (pedidoError) throw pedidoError;
-      if (!pedido) throw new Error('Pedido não encontrado ou você não tem acesso a ele nesta empresa.');
+      if (!pedido) throw new Error('Pedido não encontrado.');
 
       // Fetch related common data
       const [{ data: client }, { data: site }] = await Promise.all([
@@ -59,6 +56,6 @@ export function usePedidoDetail(pedidoId: string | undefined) {
         items: mappedItems as PedidoItem[]
       };
     },
-    enabled: !!selectedEmpresaId && !!pedidoId,
+    enabled: !!pedidoId,
   });
 }

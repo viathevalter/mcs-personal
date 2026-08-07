@@ -4,19 +4,16 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudOperativa } from '../types';
 
 export function usePedidoSolicitudes(pedidoId: string | undefined) {
-  const { selectedEmpresaId } = useEmpresa();
-
   return useQuery({
-    queryKey: ['pedidoSolicitudes', pedidoId, selectedEmpresaId],
+    queryKey: ['pedidoSolicitudes', pedidoId],
     queryFn: async () => {
-      if (!selectedEmpresaId || !pedidoId) throw new Error('Empresa ou Pedido não selecionado');
+      if (!pedidoId) return [];
 
       const { data, error } = await supabase
         .schema('core_operacoes')
         .from('solicitudes_operativas')
         .select('*')
         .eq('pedido_id', pedidoId)
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -25,6 +22,6 @@ export function usePedidoSolicitudes(pedidoId: string | undefined) {
       }
       return (data || []) as unknown as SolicitudOperativa[];
     },
-    enabled: !!selectedEmpresaId && !!pedidoId,
+    enabled: !!pedidoId,
   });
 }
