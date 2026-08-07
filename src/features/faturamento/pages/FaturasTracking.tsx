@@ -1583,8 +1583,20 @@ export function FaturasTracking() {
         disputed_hours: activeEdits
       };
 
-      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
-      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+      const baseVal = selectedDispute.total_valor_base || selectedDispute.total_valor || 0;
+      const finalNet = (baseVal + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100);
+
+      setSelectedDispute((prev: any) => prev ? { 
+        ...prev, 
+        total_valor: finalNet,
+        ajustes_json: updatedAdj 
+      } : null);
+
+      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { 
+        ...f, 
+        total_valor: finalNet,
+        ajustes_json: updatedAdj 
+      } : f));
 
       toast.success('Ajustes salvos com sucesso!');
       await fetchFaturas();
