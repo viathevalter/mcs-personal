@@ -60,7 +60,7 @@ serve(async (req) => {
 
     const activeCampaignIds = activeCampaigns.map((c) => c.id);
 
-    // 3. Buscar até 5 e-mails pendentes na fila dessas campanhas (Throttling / Batch de 5 por minuto)
+    // 3. Buscar até 50 e-mails pendentes na fila dessas campanhas
     const { data: queueItems, error: errQueue } = await supabase
       .from("marketing_campaign_queue")
       .select(`
@@ -85,7 +85,7 @@ serve(async (req) => {
       `)
       .eq("status", "pending")
       .in("campaign_id", activeCampaignIds)
-      .limit(5);
+      .limit(50);
 
     if (errQueue) throw errQueue;
 
@@ -170,9 +170,14 @@ serve(async (req) => {
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
       
-      const senderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial@mastercorp.pt";
+      let rawSender = company?.marketing_sender_email || company?.proposal_sender_email || "alex@mail.gestaologinpro.com";
+      let validSenderEmail = rawSender;
+      if (!rawSender.includes("gestaologinpro.com") && !rawSender.includes("mastercorp")) {
+        validSenderEmail = "alex@mail.gestaologinpro.com";
+      }
+
       const senderName = company?.trade_name || "Mastercorp";
-      const fromHeader = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
+      const fromHeader = `${senderName} <${validSenderEmail}>`;
 
       try {
         if (!resendApiKey) {
@@ -208,19 +213,18 @@ serve(async (req) => {
               subject: emailSubject,
               html: htmlBody,
               tags: [
-                { name: "campaign_id", value: item.campaign_id },
-                { name: "queue_id", value: item.id },
-                { name: "lead_id", value: item.lead_id }
-              ]
+                { name: "campaign_id", value: campaign.id },
+                { name: "lead_id", value: lead.id },
+              ],
             }),
           });
 
+          const resData = await res.json();
+
           if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`Erro na API do Resend: ${errText}`);
+            throw new Error(`Erro na API do Resend: ${JSON.stringify(resData)}`);
           }
 
-          const resData = await res.json();
           console.log(`E-mail enviado para ${lead.email} via Resend. ID: ${resData.id}`);
 
           await supabase
@@ -259,25 +263,23 @@ serve(async (req) => {
   }
 });
 
-// Helper para mover o lead para a coluna 'E-mail Enviado' se ele estiver no estágio inicial
+// Helper para mover o lead para a coluna 'E-mail Enviado'
 async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string) {
   try {
-    // Buscar o ID do estágio 'E-mail Enviado' daquela empresa
     const { data: stageData } = await supabase
       .from("kanban_stages")
       .select("id")
-      .eq("empresa_id", empresaId)
-      .eq("name", "E-mail Enviado")
-      .single();
+      .or(`name.eq.E-mail Enviado,order_index.eq.2`)
+      .limit(1)
+      .maybeSingle();
 
     if (stageData) {
       await supabase
         .from("leads")
         .update({ stage_id: stageData.id, updated_at: new Date().toISOString() })
-        .eq("email", leadEmail)
-        .eq("empresa_id", empresaId);
+        .eq("email", leadEmail);
     }
   } catch (e: any) {
-    console.error("Erro ao mover lead para estágio 'E-mail Enviado':", e.message);
+    console.error("Erro ao atualizar estágio do lead:", e);
   }
 }

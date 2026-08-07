@@ -45,7 +45,7 @@ import {
   Send,
   Globe
 } from 'lucide-react';
-import { useKanbanStages, useMutateKanban, KanbanStage } from './hooks/useKanban';
+import { useKanbanStages, useAllKanbanStages, useMutateKanban, KanbanStage } from './hooks/useKanban';
 import { useLeads, useMutateLead } from './hooks/useLeads';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useTranslation } from 'react-i18next';
@@ -87,9 +87,18 @@ export function KanbanPage() {
 
   // Queries & Mutations
   const { data: stages = [], isLoading: loadingStages } = useKanbanStages();
+  const { data: allStages = [] } = useAllKanbanStages();
   const { data: leads = [], isLoading: loadingLeads } = useLeads();
   const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban();
   const { createLead } = useMutateLead();
+
+  const stageIdToOrderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allStages.forEach(st => {
+      map.set(st.id, st.order_index);
+    });
+    return map;
+  }, [allStages]);
 
   // Local UI State
   const [searchTerm, setSearchTerm] = useState('');
@@ -295,8 +304,15 @@ export function KanbanPage() {
     });
   }, [leads, searchTerm]);
 
-  const getLeadsInStage = (stageId: string) => {
-    return filteredLeads.filter(lead => lead.stage_id === stageId);
+  const getLeadsInStage = (stage: KanbanStage) => {
+    return filteredLeads.filter(lead => {
+      if (lead.stage_id === stage.id) return true;
+      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
+      if (leadOrderIndex !== undefined) {
+        return leadOrderIndex === stage.order_index;
+      }
+      return stage.order_index === 1;
+    });
   };
 
   const formatDate = (dateString?: string) => {
@@ -395,7 +411,7 @@ export function KanbanPage() {
           </div>
         ) : (
           stages.map(stage => {
-            const stageLeads = getLeadsInStage(stage.id);
+            const stageLeads = getLeadsInStage(stage);
             const stageTitle = getStageTitle(stage);
 
             return (

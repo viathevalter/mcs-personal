@@ -35,6 +35,22 @@ export function useKanbanStages() {
   });
 }
 
+export function useAllKanbanStages() {
+  return useQuery({
+    queryKey: ['kanban_stages', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('kanban_stages')
+        .select('*')
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      return data as KanbanStage[];
+    },
+  });
+}
+
 export function useMutateKanban() {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();

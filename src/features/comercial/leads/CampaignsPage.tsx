@@ -297,6 +297,28 @@ export function CampaignsPage() {
     enabled: campaigns.length > 0,
   });
 
+  // Auto queue processor for active sending/scheduled campaigns
+  useEffect(() => {
+    const hasActiveCampaign = campaigns.some((c: any) => c.status === 'sending' || c.status === 'scheduled');
+    if (!hasActiveCampaign) return;
+
+    // Immediately trigger processing on load
+    supabase.functions.invoke('process-marketing-queue').then(() => {
+      refetchQueueCounts();
+    }).catch(() => {});
+
+    const interval = setInterval(async () => {
+      try {
+        await supabase.functions.invoke('process-marketing-queue');
+        refetchQueueCounts();
+      } catch (e) {
+        console.warn('Auto queue invoke:', e);
+      }
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [campaigns, refetchQueueCounts]);
+
   // Query: Estágios do Kanban da empresa (para filtro)
   const { data: kanbanStages = [] } = useQuery({
     queryKey: ['kanban_stages', selectedEmpresaId],
