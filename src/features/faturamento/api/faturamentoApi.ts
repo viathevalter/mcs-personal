@@ -878,6 +878,29 @@ export async function solicitarAprovacaoCliente(
   let faturaNumero: string | null = null;
   let atcud: string | null = null;
 
+  if (customToken) {
+    const { data: existingFat } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .select('id, magic_link_token')
+      .eq('magic_link_token', customToken)
+      .maybeSingle();
+
+    if (existingFat) {
+      const { error: updErr } = await supabase
+        .schema('core_finance')
+        .from('faturas')
+        .update({
+          ajustes_json: ajustes || null,
+          data_emissao: ajustes?.data_emissao || new Date().toISOString().split('T')[0]
+        })
+        .eq('id', existingFat.id);
+
+      if (updErr) throw mapSupabaseError(updErr);
+      return customToken;
+    }
+  }
+
   if (empresaId) {
     // 1. Fetch active company numbering info
     const { data: empresa } = await supabase
@@ -1204,11 +1227,63 @@ export async function contestarHorasCliente(
   if (horasError) throw mapSupabaseError(horasError);
 }
 
+export async function updateFaturaAjustes(
+  faturaId: string,
+  adjustments: {
+    incrementos?: number;
+    incrementos_desc?: string;
+    reducoes?: number;
+    reducoes_desc?: string;
+    iva_pct?: number;
+    descricao_servico?: string;
+  }
+): Promise<void> {
+  const { data: currentFat, error: fetchErr } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .select('ajustes_json')
+    .eq('id', faturaId)
+    .single();
+
+  if (fetchErr) throw mapSupabaseError(fetchErr);
+
+  const currentAdj = currentFat?.ajustes_json || {};
+  const updatedAdj = {
+    ...currentAdj,
+    ...(adjustments.incrementos !== undefined && { incrementos: Number(adjustments.incrementos || 0) }),
+    ...(adjustments.incrementos_desc !== undefined && { incrementos_desc: adjustments.incrementos_desc }),
+    ...(adjustments.reducoes !== undefined && { reducoes: Number(adjustments.reducoes || 0) }),
+    ...(adjustments.reducoes_desc !== undefined && { reducoes_desc: adjustments.reducoes_desc }),
+    ...(adjustments.iva_pct !== undefined && { iva_pct: Number(adjustments.iva_pct || 0) }),
+    ...(adjustments.descricao_servico !== undefined && { descricao_servico: adjustments.descricao_servico })
+  };
+
+  const { error: updErr } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .update({ ajustes_json: updatedAdj })
+    .eq('id', faturaId);
+
+  if (updErr) throw mapSupabaseError(updErr);
+}
+
 export async function processarContestacaoFatura(
   faturaId: string,
   aceitar: boolean,
-  proposedHours?: any
+  proposedHours?: any,
+  financialAdjustments?: {
+    incrementos?: number;
+    incrementos_desc?: string;
+    reducoes?: number;
+    reducoes_desc?: string;
+    iva_pct?: number;
+    descricao_servico?: string;
+  }
 ): Promise<void> {
+  if (financialAdjustments) {
+    await updateFaturaAjustes(faturaId, financialAdjustments);
+  }
+
   if (aceitar && proposedHours) {
     // Fetch fatura info for client_id and empresa_id fallbacks
     const { data: fatData } = await supabase

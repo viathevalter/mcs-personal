@@ -2,10 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2 } from 'lucide-react';
+import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -90,6 +90,14 @@ export function FaturasTracking() {
   const [adminModifiedHours, setAdminModifiedHours] = useState<Record<string, Record<string, number>>>({});
   const adminModifiedHoursRef = useRef<Record<string, Record<string, number>>>({});
   const [adminEditingCell, setAdminEditingCell] = useState<{ workerId: string; dateKey: string } | null>(null);
+
+  // Financial Adjustments state for Tracking
+  const [disputeIncrements, setDisputeIncrements] = useState<number>(0);
+  const [disputeIncrementsDesc, setDisputeIncrementsDesc] = useState<string>('');
+  const [disputeReductions, setDisputeReductions] = useState<number>(0);
+  const [disputeReductionsDesc, setDisputeReductionsDesc] = useState<string>('');
+  const [disputeIvaPct, setDisputeIvaPct] = useState<number>(0);
+  const [isSavingAdjustments, setIsSavingAdjustments] = useState(false);
   const [disputeActiveTab, setDisputeActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [isGeneratingCobro, setIsGeneratingCobro] = useState(false);
   const { selectedEmpresaId, empresas } = useEmpresa();
@@ -242,6 +250,13 @@ export function FaturasTracking() {
     setAdminModifiedHours(initialHours);
     adminModifiedHoursRef.current = initialHours;
     setAdminEditingCell(null);
+
+    const adj = fatura.ajustes_json || {};
+    setDisputeIncrements(Number(adj.incrementos || 0));
+    setDisputeIncrementsDesc(adj.incrementos_desc || adj.incrementosDesc || '');
+    setDisputeReductions(Number(adj.reducoes || 0));
+    setDisputeReductionsDesc(adj.reducoes_desc || adj.reducoesDesc || '');
+    setDisputeIvaPct(Number(adj.iva_pct ?? 0));
     setDisputeHours([]);
     setLoadingDisputeHours(true);
     try {
@@ -1434,12 +1449,52 @@ export function FaturasTracking() {
     setAdminModifiedHours(next);
   };
 
+  const handleSaveFinancialAdjustments = async () => {
+    if (!selectedDispute) return;
+    try {
+      setIsSavingAdjustments(true);
+      await updateFaturaAjustes(selectedDispute.id, {
+        incrementos: disputeIncrements,
+        incrementos_desc: disputeIncrementsDesc,
+        reducoes: disputeReductions,
+        reducoes_desc: disputeReductionsDesc,
+        iva_pct: disputeIvaPct
+      });
+
+      const updatedAdj = {
+        ...(selectedDispute.ajustes_json || {}),
+        incrementos: disputeIncrements,
+        incrementos_desc: disputeIncrementsDesc,
+        reducoes: disputeReductions,
+        reducoes_desc: disputeReductionsDesc,
+        iva_pct: disputeIvaPct
+      };
+
+      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+      toast.success('Ajustes financeiros salvos com sucesso!');
+      await fetchFaturas();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao salvar ajustes financeiros: ' + err.message);
+    } finally {
+      setIsSavingAdjustments(false);
+    }
+  };
+
   const handleResolveDispute = async (aceitar: boolean) => {
     if (!selectedDispute) return;
     try {
       setResolvingDispute(true);
       
-      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? adminModifiedHoursRef.current : null);
+      const financialAdjustments = {
+        incrementos: disputeIncrements,
+        incrementos_desc: disputeIncrementsDesc,
+        reducoes: disputeReductions,
+        reducoes_desc: disputeReductionsDesc,
+        iva_pct: disputeIvaPct
+      };
+
+      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? adminModifiedHoursRef.current : null, financialAdjustments);
       
       toast.success(
         aceitar 
@@ -2431,6 +2486,107 @@ MCS - Gestão Comercial`;
                         </div>
                       </div>
 
+                      {/* Ajustes Financeiros Block */}
+                      <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 mb-4 text-left">
+                        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                              Ajustes Financeiros da Fatura (Descontos / Acréscimos)
+                            </span>
+                            <span className="text-[9px] text-muted-foreground hidden sm:inline">
+                              (Descontos de EPIs, Dieta de Alimentação, Acréscimos de Obra)
+                            </span>
+                          </div>
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={handleSaveFinancialAdjustments}
+                            disabled={isSavingAdjustments}
+                            className="h-7 text-[10px] font-extrabold border-indigo-500 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                          >
+                            {isSavingAdjustments ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
+                            Salvar Ajustes
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          {/* Descontos / Reduções */}
+                          <div className="space-y-1.5 bg-rose-50/50 dark:bg-rose-950/20 p-3 rounded-lg border border-rose-200 dark:border-rose-900/40">
+                            <span className="text-[10px] font-extrabold text-rose-700 dark:text-rose-400 uppercase tracking-wider block">Desconto / Redução (€)</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">Valor (€)</label>
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  min="0" 
+                                  value={disputeReductions} 
+                                  onChange={e => setDisputeReductions(Number(e.target.value))}
+                                  className="h-7 text-xs font-extrabold bg-white text-rose-700 dark:bg-slate-950 border-rose-300 dark:border-rose-800" 
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">Motivo / Descrição</label>
+                                <Input 
+                                  type="text" 
+                                  placeholder="Ex: EPIs / Alimentação" 
+                                  value={disputeReductionsDesc} 
+                                  onChange={e => setDisputeReductionsDesc(e.target.value)}
+                                  className="h-7 text-xs bg-white dark:bg-slate-950 border-rose-300 dark:border-rose-800" 
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Acréscimos / Incrementos */}
+                          <div className="space-y-1.5 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/40">
+                            <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">Acréscimo / Incremento (€)</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">Valor (€)</label>
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  min="0" 
+                                  value={disputeIncrements} 
+                                  onChange={e => setDisputeIncrements(Number(e.target.value))}
+                                  className="h-7 text-xs font-extrabold bg-white text-emerald-700 dark:bg-slate-950 border-emerald-300 dark:border-emerald-800" 
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">Motivo / Descrição</label>
+                                <Input 
+                                  type="text" 
+                                  placeholder="Ex: Adicional Obra / Viagem" 
+                                  value={disputeIncrementsDesc} 
+                                  onChange={e => setDisputeIncrementsDesc(e.target.value)}
+                                  className="h-7 text-xs bg-white dark:bg-slate-950 border-emerald-300 dark:border-emerald-800" 
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800 text-[10px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Taxa de IVA (%):</span>
+                            <Input 
+                              type="number" 
+                              step="1" 
+                              min="0" 
+                              max="100" 
+                              value={disputeIvaPct} 
+                              onChange={e => setDisputeIvaPct(Number(e.target.value))}
+                              className="h-7 w-20 text-xs font-bold bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700" 
+                            />
+                          </div>
+                          <div className="text-right text-slate-600 dark:text-slate-400 font-medium">
+                            Resumo: Base (€ {totalBaseVal.toFixed(2)}) - Desconto (€ {disputeReductions.toFixed(2)}) + Acréscimo (€ {disputeIncrements.toFixed(2)}) = <strong className="text-blue-600 font-mono text-xs">Total Final € {((totalBaseVal + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100)).toFixed(2)}</strong>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Tabela de Diferenças (Horizontal Matrix) */}
                       <div className="space-y-2">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-1 border-b dark:border-slate-800">
@@ -2956,6 +3112,15 @@ MCS - Gestão Comercial`;
                 <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
                   <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
                     Fechar
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleSaveFinancialAdjustments} 
+                    disabled={isSavingAdjustments || resolvingDispute}
+                    className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                  >
+                    {isSavingAdjustments ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    Salvar Ajustes
                   </Button>
                   {selectedDispute.status === 'disputed' && (
                     <>
