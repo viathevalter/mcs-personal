@@ -39,10 +39,164 @@ import {
   FileCode,
   Info,
   Eye,
-  Loader2
+  Loader2,
+  ChevronDown,
+  X
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { Badge } from '@/components/ui/badge';
+
+const sectorOptions = [
+  { label: 'Caldeiraria & Estruturas', value: 'caldereria' },
+  { label: 'Construção & Obras', value: 'construcc' },
+  { label: 'Estruturas Metálicas', value: 'estructuras' },
+  { label: 'Indústria & Fábricas', value: 'industria' },
+  { label: 'Mecânica & Usinagem', value: 'mecanica' },
+  { label: 'Metalurgia & Metalomecânica', value: 'metal' },
+  { label: 'Montagens Industriais', value: 'montajes' },
+  { label: 'Soldadura & Solda', value: 'soldadura' },
+  { label: 'Talleres & Oficinas', value: 'talleres' },
+];
+
+const serviceOptions = [
+  { label: 'Soldadores (TIG, MIG, MAG)', value: 'soldador' },
+  { label: 'Tubistas & Encanadores', value: 'tubista' },
+  { label: 'Caldeireiros Industriais', value: 'caldeireiro' },
+  { label: 'Montadores Industriais', value: 'montador' },
+  { label: 'Mão de Obra para Obras', value: 'obra' },
+  { label: 'Mecanizados & Tornearia', value: 'mecanizado' },
+  { label: 'Engenharia & Projetos', value: 'ingenieria' },
+];
+
+interface MultiSelectComboboxProps {
+  label: string;
+  options: { label: string; value: string }[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+}
+
+function MultiSelectCombobox({
+  label,
+  options,
+  selectedValues = [],
+  onChange,
+  placeholder = "Selecione opções..."
+}: MultiSelectComboboxProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(search.toLowerCase()) ||
+    opt.value.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleOption = (val: string) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter(v => v !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const removeValue = (val: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(selectedValues.filter(v => v !== val));
+  };
+
+  return (
+    <div className="space-y-1.5 relative">
+      <Label className="text-xs font-semibold">{label}</Label>
+      
+      {/* Trigger Area */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full min-h-[38px] border border-slate-300 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 px-2.5 py-1 text-xs cursor-pointer flex flex-wrap items-center gap-1.5 focus-within:ring-2 focus-within:ring-amber-500/20 shadow-2xs hover:border-amber-500/50 transition-colors"
+      >
+        {selectedValues.length === 0 ? (
+          <span className="text-slate-400 text-xs py-0.5">{placeholder}</span>
+        ) : (
+          selectedValues.map(val => {
+            const match = options.find(o => o.value === val);
+            const labelText = match ? match.label : val;
+            return (
+              <span 
+                key={val} 
+                className="bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-500/30 rounded-md text-[11px] px-2 py-0.5 flex items-center gap-1 font-bold"
+              >
+                {labelText}
+                <X 
+                  className="h-3 w-3 hover:text-red-600 cursor-pointer shrink-0" 
+                  onClick={(e) => removeValue(val, e)} 
+                />
+              </span>
+            );
+          })
+        )}
+        <ChevronDown className="h-4 w-4 text-slate-400 ml-auto shrink-0" />
+      </div>
+
+      {/* Popover Dropdown */}
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-60 overflow-y-auto">
+            <Input
+              placeholder="Pesquisar..."
+              className="h-8 text-xs bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            <div className="space-y-1">
+              {filteredOptions.length === 0 ? (
+                <div className="text-[11px] text-slate-400 p-2 text-center">Nenhuma opção encontrada</div>
+              ) : (
+                filteredOptions.map(opt => {
+                  const isChecked = selectedValues.includes(opt.value);
+                  return (
+                    <div
+                      key={opt.value}
+                      onClick={() => toggleOption(opt.value)}
+                      className={`flex items-center gap-2 p-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                        isChecked 
+                          ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold' 
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
+                      />
+                      <span className="truncate">{opt.label}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {selectedValues.length > 0 && (
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center text-[11px]">
+                <span className="text-slate-500 font-bold">{selectedValues.length} selecionados</span>
+                <button
+                  type="button"
+                  onClick={() => onChange([])}
+                  className="text-red-500 hover:underline font-bold"
+                >
+                  Limpar seleção
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 
@@ -151,10 +305,23 @@ export function CampaignsPage() {
   // State: Seleção de Destinatários / Público-Alvo
   const [isAudienceModalOpen, setIsAudienceModalOpen] = useState(false);
   const [selectedCampaignIdForAudience, setSelectedCampaignIdForAudience] = useState<string | null>(null);
-  const [audienceFilters, setAudienceFilters] = useState({
+  const [audienceFilters, setAudienceFilters] = useState<{
+    stageId: string;
+    origin: string;
+    intelligence: string;
+    selectedSectors: string[];
+    selectedServices: string[];
+    sectorKeyword: string;
+    cargoKeyword: string;
+    provinceKeyword: string;
+    limit: string;
+    offset: string;
+  }>({
     stageId: '',
     origin: '',
-    intelligence: 'all', // 'all', 'never_sent', 'no_active'
+    intelligence: 'all',
+    selectedSectors: [],
+    selectedServices: [],
     sectorKeyword: '',
     cargoKeyword: '',
     provinceKeyword: '',
@@ -524,7 +691,31 @@ export function CampaignsPage() {
         return false;
       }
 
-      // 3. Filter by Sector Keyword
+      // 3. Filter by Selected Sectors (Multi-select)
+      if (audienceFilters.selectedSectors && audienceFilters.selectedSectors.length > 0) {
+        const hasSectorMatch = audienceFilters.selectedSectors.some(sec => {
+          const sLower = sec.toLowerCase();
+          const lSector = (l.sector || '').toLowerCase();
+          const lCompany = (l.company_name || '').toLowerCase();
+          const lNotes = (l.notes || '').toLowerCase();
+          return lSector.includes(sLower) || lCompany.includes(sLower) || lNotes.includes(sLower);
+        });
+        if (!hasSectorMatch) return false;
+      }
+
+      // 3b. Filter by Selected Services (Multi-select)
+      if (audienceFilters.selectedServices && audienceFilters.selectedServices.length > 0) {
+        const hasServiceMatch = audienceFilters.selectedServices.some(srv => {
+          const sLower = srv.toLowerCase();
+          const lService = (l.servicio_producto || '').toLowerCase();
+          const lNotes = (l.notes || '').toLowerCase();
+          const lCompany = (l.company_name || '').toLowerCase();
+          return lService.includes(sLower) || lNotes.includes(sLower) || lCompany.includes(sLower);
+        });
+        if (!hasServiceMatch) return false;
+      }
+
+      // 3c. Filter by Sector Keyword
       if (audienceFilters.sectorKeyword) {
         const keyword = audienceFilters.sectorKeyword.toLowerCase();
         const sectorText = (l.sector || '').toLowerCase();
@@ -1561,31 +1752,26 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
-                {/* Setor e Serviço Dropdowns */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="audSectorSelect" className="text-xs">Setor da Empresa</Label>
-                    <select
-                      id="audSectorSelect"
-                      value={audienceFilters.sectorKeyword}
-                      onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
-                      className="w-full h-9 border rounded-lg bg-card px-3 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
-                    >
-                      <option value="">Todos os Setores</option>
-                      <option value="metal">Metalurgia / Metalomecânica</option>
-                      <option value="caldeiraria">Caldeiraria & Estruturas</option>
-                      <option value="solda">Soldadura / Tubagem</option>
-                      <option value="construcao">Construção & Obras</option>
-                      <option value="montagem">Montagens Industriais</option>
-                      <option value="manutencao">Manutenção Industrial</option>
-                      {Array.from(new Set(allLeads.map(l => l.sector).filter(Boolean))).map((s: any) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Multi-Select Comboboxes para Setor e Serviço */}
+                <div className="space-y-3">
+                  <MultiSelectCombobox
+                    label="Setores da Empresa (Multiseleção)"
+                    options={sectorOptions}
+                    selectedValues={audienceFilters.selectedSectors}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedSectors: vals })}
+                    placeholder="Selecione um ou mais setores..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Serviços / Produtos de Interesse (Multiseleção)"
+                    options={serviceOptions}
+                    selectedValues={audienceFilters.selectedServices}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedServices: vals })}
+                    placeholder="Selecione um ou mais serviços..."
+                  />
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="audSectorKeyword" className="text-xs">Palavra-Chave Busca</Label>
+                    <Label htmlFor="audSectorKeyword" className="text-xs">Palavra-Chave (Busca Livre em Textos/Notas)</Label>
                     <Input
                       id="audSectorKeyword"
                       placeholder="Ex: caldeiraria, soldador..."
@@ -1870,15 +2056,34 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="newAudSector" className="text-xs">Setor / Atividade (Palavra-chave)</Label>
-                  <Input
-                    id="newAudSector"
-                    placeholder="Ex: caldeiraria, soldador, metal..."
-                    className="h-9 text-xs"
-                    value={audienceFilters.sectorKeyword}
-                    onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
+                {/* Multi-Select Comboboxes para Setor e Serviço em Novo Público Salvo */}
+                <div className="space-y-3">
+                  <MultiSelectCombobox
+                    label="Setores da Empresa (Multiseleção)"
+                    options={sectorOptions}
+                    selectedValues={audienceFilters.selectedSectors}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedSectors: vals })}
+                    placeholder="Selecione um ou mais setores..."
                   />
+
+                  <MultiSelectCombobox
+                    label="Serviços / Produtos de Interesse (Multiseleção)"
+                    options={serviceOptions}
+                    selectedValues={audienceFilters.selectedServices}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedServices: vals })}
+                    placeholder="Selecione um ou mais serviços..."
+                  />
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newAudSector" className="text-xs">Palavra-Chave (Busca Livre em Textos/Notas)</Label>
+                    <Input
+                      id="newAudSector"
+                      placeholder="Ex: caldeiraria, soldador, metal..."
+                      className="h-9 text-xs"
+                      value={audienceFilters.sectorKeyword}
+                      onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
