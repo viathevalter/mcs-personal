@@ -265,23 +265,36 @@ export function CampaignsPage() {
 
   // Query: Fila de disparos/leads associados a cada campanha
   const { data: queueCounts = {}, refetch: refetchQueueCounts } = useQuery({
-    queryKey: ['campaign_queue_counts', selectedEmpresaId, campaigns],
+    queryKey: ['campaign_queue_counts', campaigns],
     queryFn: async () => {
-      if (!selectedEmpresaId) return {};
-      const { data, error } = await supabase
-        .schema('core_comercial')
-        .from('marketing_campaign_queue')
-        .select('campaign_id');
-
-      if (error) throw error;
-
       const counts: Record<string, number> = {};
-      data?.forEach((item: any) => {
-        counts[item.campaign_id] = (counts[item.campaign_id] || 0) + 1;
-      });
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('marketing_campaign_queue')
+          .select('campaign_id')
+          .range(from, from + step - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          data.forEach((item: any) => {
+            counts[item.campaign_id] = (counts[item.campaign_id] || 0) + 1;
+          });
+          from += step;
+          if (data.length < step) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+
       return counts;
     },
-    enabled: !!selectedEmpresaId && campaigns.length > 0,
+    enabled: campaigns.length > 0,
   });
 
   // Query: Estágios do Kanban da empresa (para filtro)
