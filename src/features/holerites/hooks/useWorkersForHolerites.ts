@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import type { Worker } from '@/shared/types/corePersonal';
-import { listWorkers } from '@/features/workers/api/workersApi';
 
 export const WORKERS_HOLERITES_QUERY_KEY = 'workers_holerites';
 
@@ -9,33 +8,33 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
     return useQuery({
         queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId || 'all'],
         queryFn: async () => {
-            // The search_workers RPC is capped at 1000 results internally, so we must paginate to get all workers.
-            let allWorkersData: any[] = [];
-            let currentPage = 1;
-            const pageSize = 1000;
-            let hasMore = true;
+            // Direct query on core_personal.workers to fetch ALL workers (both active and inactive who worked during the period)
+            let query = supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('*')
+                .order('nome', { ascending: true });
 
-            while (hasMore) {
-                const workersResponse = await listWorkers({
-                    empresaId: empresaId || '',
-                    statusTrabajador: ['ativos', 'pendientes_ingreso'],
-                    page: currentPage,
-                    pageSize: pageSize,
-                    sortColumn: 'nome',
-                    sortDirection: 'asc'
-                });
-
-                const pageData = workersResponse.data.filter(w => w.nome && w.nome.trim() !== '');
-                allWorkersData = [...allWorkersData, ...pageData];
-
-                if (workersResponse.data.length < pageSize) {
-                    hasMore = false;
-                } else {
-                    currentPage++;
-                }
+            if (empresaId && empresaId !== 'all') {
+                query = query.eq('empresa_id', empresaId);
             }
 
-            if (!allWorkersData || allWorkersData.length === 0) return [];
+            const { data: rawWorkers, error } = await query;
+
+            if (error) {
+                console.error("Error fetching workers for holerites:", error);
+                throw error;
+            }
+
+            if (!rawWorkers || rawWorkers.length === 0) return [];
+
+            // Filter out empty names and map `cliente` to `cliente_nombre` for compatibility
+            const allWorkersData = rawWorkers
+                .filter(w => w.nome && w.nome.trim() !== '')
+                .map(w => ({
+                    ...w,
+                    cliente_nombre: w.cliente || w.cliente_nombre || null
+                }));
 
             const workerIds = allWorkersData.map(w => w.id).filter(Boolean);
 
@@ -43,37 +42,28 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
 
             // Fetch settings in chunks to avoid URL length limit (414)
             const chunkSize = 150;
-            const settingsData: any[] = [];
-            
+            const settingsMap = new Map<string, any>();
+
             for (let i = 0; i < workerIds.length; i += chunkSize) {
                 const chunk = workerIds.slice(i, i + chunkSize);
-                const { data, error } = await supabase
+                const { data: settings, error: settingsError } = await supabase
                     .schema('core_personal')
                     .from('worker_beneficios_settings')
                     .select('*')
                     .in('worker_id', chunk);
 
-                if (error) {
-                    console.error("Error fetching benefits settings for holerites (chunk):", error);
-                    // Não bloquear a listagem de folha por causa do fallback default de tarifa_hora
-                }
-                
-                if (data) {
-                    settingsData.push(...data);
+                if (settingsError) {
+                    console.error("Error fetching benefits settings for holerites (chunk):", settingsError);
+                } else if (settings) {
+                    settings.forEach(s => settingsMap.set(s.worker_id, s));
                 }
             }
 
-            const mergedData = allWorkersData.map(w => {
-                const setting = settingsData?.find(s => s.worker_id === w.id);
-                return {
-                    ...w,
-                    worker_beneficios_settings: setting || null
-                };
-            });
-
-            return mergedData as (Worker & { worker_beneficios_settings?: any })[];
+            return allWorkersData.map(w => ({
+                ...w,
+                worker_beneficios_settings: settingsMap.get(w.id) || null
+            })) as (Worker & { worker_beneficios_settings?: any })[];
         },
-        enabled: Boolean(empresaId),
-        refetchOnWindowFocus: false,
+        staleTime: 60 * 1000,
     });
 }

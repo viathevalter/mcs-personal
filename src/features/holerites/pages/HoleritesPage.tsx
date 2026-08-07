@@ -784,6 +784,11 @@ export function HoleritesPage() {
                                                                         Novo no Mês
                                                                     </Badge>
                                                                 )}
+                                                                {(worker.status_trabajador === 'INATIVO' || worker.status_trabajador === 'Inativo' || worker.data_baixa) && (
+                                                                    <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 text-[10px] py-0 px-1.5 font-semibold">
+                                                                        Inativo{worker.data_baixa ? ` em ${formatDateClean(worker.data_baixa)}` : ''}
+                                                                    </Badge>
+                                                                )}
                                                             </div>
                                                             <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
                                                                 {worker.cod_colab && <span>Cód: {worker.cod_colab}</span>}
