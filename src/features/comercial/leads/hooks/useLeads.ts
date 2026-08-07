@@ -34,6 +34,7 @@ export function useLeads() {
       }
       return allLeads;
     },
+    refetchInterval: 10000,
   });
 }
 
