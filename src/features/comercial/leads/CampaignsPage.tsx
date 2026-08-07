@@ -90,7 +90,10 @@ const updateHtmlContent = (html: string, oldConfig: any, newConfig: any) => {
 
 export function CampaignsPage() {
   const { t, i18n } = useTranslation();
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, empresas } = useEmpresa();
+  const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
+  const activeSenderEmail = currentEmpresa?.marketing_sender_email || 'comercial1@luminousalley.com';
+  const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || 'Equipe Comercial';
   const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
   const { data: campaigns = [], isLoading: loadingCampaigns } = useMarketingCampaigns();
   
@@ -1388,7 +1391,7 @@ export function CampaignsPage() {
                 {/* Simulated email header */}
                 <div className="bg-slate-50 border-b p-3 text-xs text-slate-500 space-y-1">
                   <div><strong>Assunto:</strong> <span className="text-slate-800">{previewTemplate.subject}</span></div>
-                  <div><strong>De:</strong> <span className="text-slate-800">Alex Archiles &lt;alex@mail.gestaologinpro.com&gt;</span></div>
+                  <div><strong>De:</strong> <span className="text-slate-800">{activeSenderName} &lt;{activeSenderEmail}&gt;</span></div>
                 </div>
                 <iframe 
                   srcDoc={(() => {
