@@ -662,7 +662,7 @@ export function LeadsPage() {
       }
 
       // Invalidar cache de leads do react-query
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
 
       toast.success(
         `Importação concluída! ${importedCount} novos leads cadastrados e ${updatedCount} leads existentes atualizados.`
@@ -735,7 +735,6 @@ export function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <EmpresaSelector />
           <Button onClick={handleCopyNewLeadLink} variant="outline" className="border-slate-300 dark:border-slate-800">
             <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
             Link de Cadastro

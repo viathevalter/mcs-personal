@@ -4,10 +4,8 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { Lead } from '../../estimaciones/types';
 
 export function useLeads() {
-  const { selectedEmpresaId } = useEmpresa();
-
   return useQuery({
-    queryKey: ['leads', 'global', selectedEmpresaId],
+    queryKey: ['leads', 'global'],
     queryFn: async () => {
       let allLeads: Lead[] = [];
       let from = 0;
