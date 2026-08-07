@@ -123,7 +123,9 @@ export function FaturasTracking() {
           }
           const canvas = await html2canvas(element, {
             scale: 2,
-            useCORS: true
+            useCORS: true,
+            width: 800,
+            windowWidth: 800
           });
           
           const imgData = canvas.toDataURL('image/jpeg', 0.85);
@@ -679,7 +681,9 @@ export function FaturasTracking() {
       try {
         const canvas = await html2canvas(element, {
           scale: 2,
-          useCORS: true
+          useCORS: true,
+          width: 800,
+          windowWidth: 800
         });
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
         const pdf = new jsPDF({
@@ -1057,7 +1061,9 @@ export function FaturasTracking() {
       try {
         const canvas = await html2canvas(element, {
           scale: 1.5,
-          useCORS: true
+          useCORS: true,
+          width: 800,
+          windowWidth: 800
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.82);
@@ -2557,7 +2563,7 @@ MCS - Gestão Comercial`;
                         </div>
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                          <div id={`informe-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+                          <div id={`informe-sheet-${selectedDispute.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
                               {/* Header */}
@@ -2725,7 +2731,7 @@ MCS - Gestão Comercial`;
                         </div>
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                          <div id={`factura-sheet-${selectedDispute.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
                               {/* Top row */}
@@ -3349,7 +3355,7 @@ MCS - Gestão Comercial`;
                     </table>
                   </div>
 
-                  <div id={`factura-sheet-tracking-${emailData.faturaId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                  <div id={`factura-sheet-tracking-${emailData.faturaId}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                     {/* Wrapper do conteúdo flex-1 */}
                     <div className="flex-1">
                       {/* Top row */}
@@ -3795,7 +3801,7 @@ MCS - Gestão Comercial`;
         return (
           <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
             {type === 'informe' ? (
-              <div id={`pdf-render-informe-sheet-${fat.id}`} className="w-full max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
+              <div id={`pdf-render-informe-sheet-${fat.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white text-slate-800 p-8 pb-20 border border-slate-200 rounded text-left relative flex flex-col justify-between shadow-md select-none">
                 <div className="flex-1">
                   {/* Header */}
                   <div className="flex justify-between items-start border-b-2 border-slate-100 pb-4 mb-4">
@@ -3936,7 +3942,7 @@ MCS - Gestão Comercial`;
                 </div>
               </div>
             ) : (
-              <div id={`pdf-render-factura-sheet-${fat.id}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+              <div id={`pdf-render-factura-sheet-${fat.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                 {/* Wrapper do conteúdo flex-1 */}
                 <div className="flex-1">
                   {/* Top row */}

@@ -958,7 +958,9 @@ MCS - Gestão Comercial`;
       try {
         const canvas = await html2canvas(element, {
           scale: 1.0,
-          useCORS: true
+          useCORS: true,
+          width: 800,
+          windowWidth: 800
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.70);
@@ -2043,7 +2045,9 @@ MCS - Gestão Comercial`;
       try {
         const canvas = await html2canvas(element, {
           scale: 2,
-          useCORS: true
+          useCORS: true,
+          width: 800,
+          windowWidth: 800
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
@@ -3957,7 +3961,7 @@ MCS - Gestão Comercial`;
                             </Button>
                           </div>
                           {/* Folha A4 da Fatura */}
-                          <div id={`factura-sheet-${cardId}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                          <div id={`factura-sheet-${cardId}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
@@ -4849,7 +4853,7 @@ MCS - Gestão Comercial`;
                       </div>
                       
                       <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
-                        <div id={`factura-sheet-${selectedFatura.id}`} className="w-full max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
+                        <div id={`factura-sheet-${selectedFatura.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                           {/* Wrapper do conteúdo flex-1 */}
                           <div className="flex-1">
                             {selectedObra && (
