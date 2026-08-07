@@ -152,15 +152,13 @@ export function HoleritesPage() {
     const handleContratanteChange = (v: string) => {
         const nextVal = v || 'all';
         setContratanteFilter(nextVal);
-        if (nextVal && nextVal !== 'all') {
-            const matched = empresas?.find(e => 
-                nextVal.toLowerCase().includes(e.codigo.toLowerCase()) || 
-                e.codigo.toLowerCase().includes(nextVal.toLowerCase()) ||
-                e.nome.toLowerCase().includes(nextVal.toLowerCase()) ||
-                nextVal.toLowerCase().includes(e.nome.toLowerCase())
-            );
-            if (matched && matched.id !== selectedEmpresaId) {
-                setSelectedEmpresaId(matched.id);
+        if (nextVal && nextVal !== 'all' && empresas) {
+            const matched = empresas.find(e => {
+                const empName = (e.nome_pbi || e.nombre_comercial || e.razon_social || '').toLowerCase();
+                return empName.includes(nextVal.toLowerCase()) || nextVal.toLowerCase().includes(empName);
+            });
+            if (matched && String(matched.id) !== String(selectedEmpresaId)) {
+                setSelectedEmpresaId(String(matched.id));
             }
         } else if (nextVal === 'all') {
             setSelectedEmpresaId('');
@@ -168,6 +166,13 @@ export function HoleritesPage() {
     };
 
     useEffect(() => {
+        if (!selectedEmpresaId || selectedEmpresaId === 'all') {
+            if (contratanteFilter !== 'all') {
+                setContratanteFilter('all');
+            }
+            return;
+        }
+
         if (selectedEmpresaId && empresas && contratantesUnicos.length > 0) {
             const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
             if (currentEmpresa) {

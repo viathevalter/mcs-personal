@@ -15,6 +15,12 @@ if (typeof window !== 'undefined') {
     return str.includes('ResizeObserver') || str.includes('Script error');
   };
 
+  const origConsoleError = console.error;
+  console.error = (...args: any[]) => {
+    if (args.some(isResizeObserverError)) return;
+    origConsoleError.apply(console, args);
+  };
+
   window.addEventListener('error', (e) => {
     if (isResizeObserverError(e.message) || isResizeObserverError(e.error)) {
       e.preventDefault();
