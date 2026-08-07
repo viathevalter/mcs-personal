@@ -655,19 +655,9 @@ export function CampaignsPage() {
     }
   };
 
-  // Handle Audience / Target Selector
-  const handleOpenAudienceModal = async (campaignId: string) => {
-    setSelectedCampaignIdForAudience(campaignId);
-    setAudienceFilters({
-      stageId: '',
-      origin: '',
-      intelligence: 'all',
-    });
+  const fetchAudienceLeads = async () => {
     setLoadingAudienceLeads(true);
-    setIsAudienceModalOpen(true);
-    
     try {
-      // 1. Fetch all global leads across holding group
       let allFetchedLeads: any[] = [];
       let from = 0;
       const step = 1000;
@@ -694,7 +684,6 @@ export function CampaignsPage() {
 
       setAllLeads(allFetchedLeads);
 
-      // 2. Fetch all queue items (history) to check for opt-out/active rules
       const { data: queue, error: queueErr } = await supabase
         .schema('core_comercial')
         .from('marketing_campaign_queue')
@@ -707,6 +696,25 @@ export function CampaignsPage() {
     } finally {
       setLoadingAudienceLeads(false);
     }
+  };
+
+  // Handle Audience / Target Selector
+  const handleOpenAudienceModal = async (campaignId: string) => {
+    setSelectedCampaignIdForAudience(campaignId);
+    setAudienceFilters({
+      stageId: '',
+      origin: '',
+      intelligence: 'all',
+      selectedSectors: [],
+      selectedServices: [],
+      sectorKeyword: '',
+      cargoKeyword: '',
+      provinceKeyword: '',
+      limit: '',
+      offset: '',
+    });
+    setIsAudienceModalOpen(true);
+    await fetchAudienceLeads();
   };
 
   const getFilteredLeads = () => {
