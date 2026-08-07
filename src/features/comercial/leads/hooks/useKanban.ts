@@ -6,6 +6,7 @@ export interface KanbanStage {
   id: string;
   empresa_id: string;
   name: string;
+  name_es?: string;
   color: string;
   order_index: number;
   is_system: boolean;
@@ -39,7 +40,7 @@ export function useMutateKanban() {
   const { selectedEmpresaId } = useEmpresa();
 
   const createStage = useMutation({
-    mutationFn: async (payload: { name: string; color?: string; order_index: number }) => {
+    mutationFn: async (payload: { name: string; name_es?: string; color?: string; order_index: number }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       const { data, error } = await supabase
         .schema('core_comercial')
@@ -110,7 +111,7 @@ export function useMutateKanban() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 
