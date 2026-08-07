@@ -1239,6 +1239,14 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         const termName = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
         const termDays = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null) : null;
   
+        const computedH = hoursMap.get(f.id);
+        const computedV = valueMap.get(f.id);
+        const storedH = f.ajustes_json?.total_horas;
+        const storedV = f.ajustes_json?.total_valor;
+
+        const finalH = (computedH && computedH > 0) ? computedH : (storedH !== undefined ? storedH : (f.total_horas || 0));
+        const finalV = (computedV && computedV > 0) ? computedV : (storedV !== undefined ? storedV : (f.total_valor || 0));
+
         return {
           ...f,
           client: client ? { 
@@ -1259,9 +1267,9 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             city: client.city || null,
             province: client.province || null
           } : undefined,
-        total_horas: hoursMap.get(f.id) || 0,
-        total_valor: valueMap.get(f.id) || 0
-      };
+          total_horas: finalH,
+          total_valor: finalV
+        };
     });
   } catch (error: any) {
     console.error('Erro em getFaturasTracking:', error);
@@ -1346,6 +1354,9 @@ export async function updateFaturaAjustes(
     iva_pct?: number;
     descricao_servico?: string;
     disputed_hours?: any;
+    total_horas?: number;
+    total_valor_base?: number;
+    total_valor?: number;
   }
 ): Promise<void> {
   const { data: currentFat, error: fetchErr } = await supabase
@@ -1366,7 +1377,10 @@ export async function updateFaturaAjustes(
     ...(adjustments.reducoes_desc !== undefined && { reducoes_desc: adjustments.reducoes_desc }),
     ...(adjustments.iva_pct !== undefined && { iva_pct: Number(adjustments.iva_pct || 0) }),
     ...(adjustments.descricao_servico !== undefined && { descricao_servico: adjustments.descricao_servico }),
-    ...(adjustments.disputed_hours !== undefined && { disputed_hours: normalizeDisputedHours(adjustments.disputed_hours) })
+    ...(adjustments.disputed_hours !== undefined && { disputed_hours: normalizeDisputedHours(adjustments.disputed_hours) }),
+    ...(adjustments.total_horas !== undefined && { total_horas: adjustments.total_horas }),
+    ...(adjustments.total_valor_base !== undefined && { total_valor_base: adjustments.total_valor_base }),
+    ...(adjustments.total_valor !== undefined && { total_valor: adjustments.total_valor })
   };
 
   const { error: updErr } = await supabase

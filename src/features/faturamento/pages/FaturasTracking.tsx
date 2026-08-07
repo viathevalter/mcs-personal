@@ -1619,7 +1619,10 @@ export function FaturasTracking() {
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
         iva_pct: disputeIvaPct,
-        disputed_hours: activeEdits
+        disputed_hours: activeEdits,
+        total_horas: effH,
+        total_valor_base: effBaseV,
+        total_valor: finalNet
       });
 
       const updatedAdj = {
