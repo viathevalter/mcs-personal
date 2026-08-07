@@ -3487,8 +3487,11 @@ MCS - Gestão Comercial`;
                         <span className="font-bold text-slate-900 dark:text-slate-100">{emailData.totalHoras.toFixed(2)}h</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Valor de Base</span>
-                        <span className="font-bold text-blue-600">€ {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">Valor Total (A Faturar)</span>
+                        <span className="font-extrabold text-blue-600 text-sm">€ {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>
+                        {Math.abs(currentTotalBase - currentFinalTotal) > 0.01 && (
+                          <span className="text-[9px] text-slate-400 block font-normal">Base: € {currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>
+                        )}
                       </div>
                     </div>
                   </div>
