@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -1465,7 +1465,10 @@ export function FaturasTracking() {
   const handleAdminCellEdit = (workerId: string, dateKey: string, hours: number, originalHours: number) => {
     if (isNaN(hours) || hours < 0) return;
 
-    const current = { ...adminModifiedHoursRef.current };
+    const current = deepMergeDisputedHours(
+      selectedDispute?.ajustes_json?.disputed_hours || {},
+      adminModifiedHoursRef.current
+    );
     const workerPrev = { ...(current[workerId] || {}) };
     if (hours === originalHours) {
       delete workerPrev[dateKey];
@@ -1564,9 +1567,10 @@ export function FaturasTracking() {
     if (!selectedDispute) return;
     try {
       setIsSavingAdjustments(true);
-      const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
-        ? adminModifiedHoursRef.current
-        : (selectedDispute.ajustes_json?.disputed_hours || {});
+      const activeEdits = deepMergeDisputedHours(
+        selectedDispute.ajustes_json?.disputed_hours || {},
+        adminModifiedHoursRef.current
+      );
 
       await updateFaturaAjustes(selectedDispute.id, {
         incrementos: disputeIncrements,

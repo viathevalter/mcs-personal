@@ -1069,6 +1069,27 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
   return normalized;
 }
 
+export function deepMergeDisputedHours(existing: any, modified: any): Record<string, Record<string, number>> {
+  const merged: Record<string, Record<string, number>> = {};
+  
+  if (existing && typeof existing === 'object') {
+    Object.keys(existing).forEach(wId => {
+      merged[wId] = { ...(existing[wId] || {}) };
+    });
+  }
+
+  if (modified && typeof modified === 'object') {
+    Object.keys(modified).forEach(wId => {
+      if (!merged[wId]) merged[wId] = {};
+      Object.keys(modified[wId] || {}).forEach(dateKey => {
+        merged[wId][dateKey] = Number(modified[wId][dateKey]);
+      });
+    });
+  }
+
+  return normalizeDisputedHours(merged);
+}
+
 export function getDisputedHourValue(disputedObj: any, wId: string, rawDateKey: string, defaultVal: number): number {
   if (!disputedObj || !disputedObj[wId]) return defaultVal;
   const wObj = disputedObj[wId];
