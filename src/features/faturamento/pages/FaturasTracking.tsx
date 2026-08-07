@@ -1823,7 +1823,8 @@ MCS - Gestão Comercial`;
       addEmails(fatura.client?.billingEmail || fatura.client?.billing_email);
       addEmails(fatura.client?.clientEmail || fatura.client?.email);
 
-      const disputedObj = fatura.ajustes_json?.disputed_hours || {};
+      const adj = fatura.ajustes_json || {};
+      const disputedObj = adj.disputed_hours || {};
       let effTotalHoras = 0;
       let effTotalValor = 0;
       const processedKeys = new Set<string>();
