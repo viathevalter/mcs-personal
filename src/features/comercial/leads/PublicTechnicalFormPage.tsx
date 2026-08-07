@@ -18,7 +18,35 @@ interface QuestionWithJobFunction {
   options: string[];
 }
 
-const translations = {
+type SupportedLang = 'es' | 'pt' | 'en' | 'fr' | 'it';
+
+const translations: Record<SupportedLang, {
+  title: string;
+  proposalCode: string;
+  hello: string;
+  introText: string;
+  subIntroText: string;
+  projectSummary: string;
+  startDate: string;
+  endDate: string;
+  profiles: string;
+  notSpecified: string;
+  profileLabel: string;
+  otherPlaceholder: string;
+  booleanDetailsPlaceholder: string;
+  submitBtn: string;
+  submittingBtn: string;
+  requiredError: string;
+  successTitle: string;
+  successHello: string;
+  successBody1: string;
+  successBody2: string;
+  langLabel: string;
+  technicalOfficial: string;
+  selectDefault: string;
+  yesOption: string;
+  noOption: string;
+}> = {
   pt: {
     title: 'Formulário Técnico de Requisitos',
     proposalCode: 'Proposta Comercial',
@@ -42,7 +70,9 @@ const translations = {
     successBody2: 'Você já pode fechar esta aba do seu navegador.',
     langLabel: 'Idioma',
     technicalOfficial: 'Formulário Técnico Oficial',
-    selectDefault: 'Selecione uma opção...'
+    selectDefault: 'Selecione uma opção...',
+    yesOption: 'Sim',
+    noOption: 'Não'
   },
   es: {
     title: 'Formulario Técnico de Requisitos',
@@ -67,7 +97,9 @@ const translations = {
     successBody2: 'Ya puede cerrar esta pestaña de su navegador.',
     langLabel: 'Idioma',
     technicalOfficial: 'Formulario Técnico Oficial',
-    selectDefault: 'Seleccione una opción...'
+    selectDefault: 'Seleccione una opción...',
+    yesOption: 'Sí',
+    noOption: 'No'
   },
   en: {
     title: 'Technical Requirements Form',
@@ -92,11 +124,238 @@ const translations = {
     successBody2: 'You can now close this browser tab.',
     langLabel: 'Language',
     technicalOfficial: 'Official Technical Form',
-    selectDefault: 'Select an option...'
+    selectDefault: 'Select an option...',
+    yesOption: 'Yes',
+    noOption: 'No'
+  },
+  fr: {
+    title: 'Formulaire Technique d\'Exigences',
+    proposalCode: 'Proposition Commerciale',
+    hello: 'Bonjour',
+    introText: 'Afin de poursuivre le processus de recrutement des professionnels correspondant aux profils demandés, veuillez remplir ce formulaire technique afin de nous fournir toutes les informations nécessaires.',
+    subIntroText: 'Grâce à ces détails, notre équipe de Ressources Humaines et de Sélection recherchera les professionnels ayant la qualification parfaite pour votre projet.',
+    projectSummary: 'Résumé du Projet',
+    startDate: 'Date de Début Prévue',
+    endDate: 'Date de Fin Prévue',
+    profiles: 'Profils Requis',
+    notSpecified: 'Non spécifié',
+    profileLabel: 'Profil',
+    otherPlaceholder: 'Précisez l\'autre option...',
+    booleanDetailsPlaceholder: 'Décrivez les détails et exigences supplémentaires...',
+    submitBtn: 'Envoyer les Réponses du Formulaire',
+    submittingBtn: 'Envoi des Réponses...',
+    requiredError: 'Veuillez répondre à la question obligatoire : "{text}"',
+    successTitle: 'Réponses Envoyées avec Succès !',
+    successHello: 'Bonjour {name}, nous vous remercions vivement pour votre collaboration.',
+    successBody1: 'Les spécifications techniques des profils demandés ont été enregistrées. Notre équipe opérationnelle de recrutement travaille déjà à la recherche des professionnels parfaits pour votre projet.',
+    successBody2: 'Vous pouvez maintenant fermer cet onglet de votre navigateur.',
+    langLabel: 'Langue',
+    technicalOfficial: 'Formulaire Technique Officiel',
+    selectDefault: 'Sélectionnez une option...',
+    yesOption: 'Oui',
+    noOption: 'Non'
+  },
+  it: {
+    title: 'Modulo Tecnico dei Requisiti',
+    proposalCode: 'Offerta Commerciale',
+    hello: 'Buongiorno',
+    introText: 'Per proseguire con il processo di reclutamento dei professionisti relativi ai profili richiesti, La preghiamo di compilare questo modulo tecnico in modo da fornirci tutte le informazioni necessarie.',
+    subIntroText: 'Grazie a questi dettagli, il nostro team di Risorse Umane e Selezione cercherà i professionisti con la qualifica perfetta per il Suo progetto.',
+    projectSummary: 'Riepilogo del Progetto',
+    startDate: 'Data di Inizio Prevista',
+    endDate: 'Data di Fine Prevista',
+    profiles: 'Profili Richiesti',
+    notSpecified: 'Non specificato',
+    profileLabel: 'Profilo',
+    otherPlaceholder: 'Specificare l\'altra opzione...',
+    booleanDetailsPlaceholder: 'Descrivere i dettagli e i requisiti aggiuntivi...',
+    submitBtn: 'Invia le Risposte del Modulo',
+    submittingBtn: 'Invio delle Risposte in corso...',
+    requiredError: 'Si prega di rispondere alla domanda obbligatoria: "{text}"',
+    successTitle: 'Risposte Inviate con Successo!',
+    successHello: 'Buongiorno {name}, La ringraziamo molto per la Sua collaborazione.',
+    successBody1: 'Le specifiche tecniche dei profili richiesti sono state salvate. Il nostro team operativo di reclutamento sta già lavorando alla ricerca dei professionisti perfetti per il Suo progetto.',
+    successBody2: 'È possibile chiudere questa scheda del browser.',
+    langLabel: 'Lingua',
+    technicalOfficial: 'Modulo Tecnico Ufficiale',
+    selectDefault: 'Selezionare un\'opzione...',
+    yesOption: 'Sì',
+    noOption: 'No'
   }
 };
 
-function formatDateString(dateStr: string, lang: 'pt' | 'es' | 'en') {
+const translationDict: Record<string, { fr: string; pt: string; en: string; it: string }> = {
+  // Question texts
+  "¿Qué categoría necesita para este perfil?": {
+    fr: "Quelle catégorie demandez-vous pour ce profil ?",
+    pt: "Qual categoria você precisa para este perfil?",
+    en: "What category do you need for this profile?",
+    it: "Quale categoria è richiesta per questo profilo?"
+  },
+  "¿Qué material soldará principalmente?": {
+    fr: "Quel matériau soudera-t-il principalement ?",
+    pt: "Qual material soldará principalmente?",
+    en: "What material will they weld mainly?",
+    it: "Quale materiale salderà principalmente?"
+  },
+  "¿Qué fabricará o montará principalmente?": {
+    fr: "Que fabriquerá ou montera-t-il principalement ?",
+    pt: "O que fabricará ou montará principalmente?",
+    en: "What will they fabricate or assemble mainly?",
+    it: "Cosa fabbricherà o monterà principalmente?"
+  },
+  "¿Qué tipo de tubería realizará?": {
+    fr: "Quel type de tuyauterie réalisera-t-il ?",
+    pt: "Que tipo de tubulação executará?",
+    en: "What type of piping will they work on?",
+    it: "Che tipo di tubazioni eseguirà?"
+  },
+  "¿Desea indicar algún requisito o conocimiento adicional?": {
+    fr: "Souhaitez-vous indiquer une exigence ou connaissance supplémentaire ?",
+    pt: "Deseja indicar algum requisito ou conhecimento adicional?",
+    en: "Would you like to indicate any additional requirements or skills?",
+    it: "Desidera indicare requisiti o competenze aggiuntive?"
+  },
+  "¿Qué tipo de trabajo realizará?": {
+    fr: "Quel type de travail réalisera-t-il ?",
+    pt: "Qual tipo de trabalho realizará?",
+    en: "What type of work will they perform?",
+    it: "Che tipo di lavoro eseguirà?"
+  },
+  "¿Dónde desarrollará su trabajo?": {
+    fr: "Où réalisera-t-il son travail ?",
+    pt: "Onde desenvolverá o seu trabalho?",
+    en: "Where will they work?",
+    it: "Dove svolgerà il proprio lavoro?"
+  },
+  "¿En qué entorno trabajará?": {
+    fr: "Dans quel environnement travaillera-t-il ?",
+    pt: "Em qual ambiente trabalhará?",
+    en: "In which environment will they work?",
+    it: "In quale ambiente lavorerà?"
+  },
+  "¿Qué proceso de soldadura utilizará principalmente?": {
+    fr: "Quel procédé de soudage utilisera-t-il principalement ?",
+    pt: "Qual processo de soldagem utilizará principalmente?",
+    en: "What welding process will they use mainly?",
+    it: "Quale procedimento di saldatura utilizzerà principalmente?"
+  },
+  "¿Qué tipo de instalación realizará?": {
+    fr: "Quel type d'installation réalisera-t-il ?",
+    pt: "Qual tipo de instalação realizará?",
+    en: "What type of installation will they perform?",
+    it: "Che tipo di installazione eseguirà?"
+  },
+  "¿Sobre qué equipos trabajará principalmente?": {
+    fr: "Sur quels équipements travaillera-t-il principalement ?",
+    pt: "Em quais equipamentos trabalhará principalmente?",
+    en: "Which equipment will they work on mainly?",
+    it: "Su quali apparecchiature lavorerà principalmente?"
+  },
+  "¿Sobre qué trabajará principalmente?": {
+    fr: "Sur quoi travaillera-t-il principalement ?",
+    pt: "Em que trabalhará principalmente?",
+    en: "What will they work on mainly?",
+    it: "Su cosa lavorerà principalmente?"
+  },
+  "¿Qué conocimientos básicos necesita?": {
+    fr: "Quelles connaissances de base sont requises ?",
+    pt: "Quais conhecimentos básicos necessita?",
+    en: "What basic knowledge is required?",
+    it: "Quali conoscenze di base sono richieste?"
+  },
+  "¿Qué tipo de tubería soldará?": {
+    fr: "Quel type de tuyauterie soudera-t-il ?",
+    pt: "Que tipo de tubulação soldará?",
+    en: "What type of piping will they weld?",
+    it: "Che tipo di tubazioni salderà?"
+  },
+  "¿Qué tipo de encofrado realizará?": {
+    fr: "Quel type de coffrage réalisera-t-il ?",
+    pt: "Que tipo de cofragem realizará?",
+    en: "What type of formwork will they perform?",
+    it: "Che tipo di casseforme realizzerà?"
+  },
+  "¿Qué tipo de estructura montará?": {
+    fr: "Quel type de structure montera-t-il ?",
+    pt: "Que tipo de estrutura montará?",
+    en: "What type of structure will they assemble?",
+    it: "Che tipo di struttura monterà?"
+  },
+  "¿Qué tipo de piezas fabricará?": {
+    fr: "Quel type de pièces fabriquerá-t-il ?",
+    pt: "Que tipo de peças fabricará?",
+    en: "What type of parts will they fabricate?",
+    it: "Che tipo di pezzi fabbricherà?"
+  },
+  "¿Qué tipo de piezas soldará?": {
+    fr: "Quel type de pièces soudera-t-il ?",
+    pt: "Que tipo de peças soldará?",
+    en: "What type of parts will they weld?",
+    it: "Che tipo di pezzi salderà?"
+  },
+  "¿Qué tipo de plataforma utilizará?": {
+    fr: "Quel type de plateforme utilisera-t-il ?",
+    pt: "Que tipo de plataforma utilizará?",
+    en: "What type of platform will they use?",
+    it: "Che tipo di piattaforma utilizzerà?"
+  },
+  "¿Qué tipo de maquinaria utilizará?": {
+    fr: "Quel type de machine utilisera-t-il ?",
+    pt: "Que tipo de maquinário utilizará?",
+    en: "What type of machinery will they use?",
+    it: "Che tipo di macchinario utilizzerà?"
+  },
+
+  // Option choices
+  "De primera": { fr: "Première / Qualifié(e)", pt: "De primeira", en: "First Class / Senior", it: "Specializzato / Di prima categoria" },
+  "Ayudante": { fr: "Aide / Assistant(e)", pt: "Ajudante", en: "Helper / Junior", it: "Aiutante / Manovale" },
+  "Oficial": { fr: "Ouvrier qualifié", pt: "Oficial", en: "Skilled worker", it: "Operaio qualificato" },
+  "Acero inoxidable": { fr: "Acier inoxydable", pt: "Aço inoxidável", en: "Stainless steel", it: "Acciaio inossidabile" },
+  "Acero al carbono": { fr: "Acier au carbone", pt: "Aço carbono", en: "Carbon steel", it: "Acciaio al carbonio" },
+  "Aluminio": { fr: "Aluminium", pt: "Alumínio", en: "Aluminum", it: "Alluminio" },
+  "Titanio": { fr: "Titane", pt: "Titânio", en: "Titanium", it: "Titanio" },
+  "Fabricación": { fr: "Fabrication", pt: "Fabricação", en: "Fabrication", it: "Fabbricazione" },
+  "Montaje": { fr: "Montage", pt: "Montagem", en: "Assembly", it: "Montaggio" },
+  "Mantenimiento": { fr: "Maintenance", pt: "Manutenção", en: "Maintenance", it: "Manutenzione" },
+  "Reparación": { fr: "Réparation", pt: "Reparação", en: "Repair", it: "Riparazione" },
+  "Proceso": { fr: "Procédé / Process", pt: "Processo", en: "Process", it: "Processo / Impianto" },
+  "Servicios": { fr: "Services / Utilités", pt: "Serviços", en: "Services", it: "Servizi / Utilities" },
+  "Alta presión": { fr: "Haute pression", pt: "Alta pressão", en: "High pressure", it: "Alta pressione" },
+  "Alimentaria": { fr: "Agroalimentaire", pt: "Alimentícia", en: "Food grade", it: "Alimentare" },
+  "Farmacéutica": { fr: "Pharmaceutique", pt: "Farmacêutica", en: "Pharmaceutical", it: "Farmaceutico" },
+  "Industrial": { fr: "Industrielle", pt: "Industrial", en: "Industrial", it: "Industriale" },
+  "Taller": { fr: "Atelier", pt: "Oficina", en: "Workshop", it: "Officina" },
+  "Obra": { fr: "Chantier", pt: "Obra", en: "Job site", it: "Cantiere" },
+  "Instalaciones del cliente": { fr: "Installations du client", pt: "Instalações do cliente", en: "Client facilities", it: "Impianti del cliente" },
+  "Oficinas": { fr: "Bureaux", pt: "Escritórios", en: "Offices", it: "Uffici" },
+  "Estructuras metálicas": { fr: "Structures métalliques", pt: "Estruturas metálicas", en: "Metallic structures", it: "Carpenteria metallica / Strutture metalliche" },
+  "Tuberías": { fr: "Tuyauteries", pt: "Tubulações", en: "Piping", it: "Tubazioni" },
+  "Depósitos": { fr: "Réservoirs / Cuves", pt: "Tanques / Depósitos", en: "Tanks / Vessels", it: "Serbatoi di stoccaggio" },
+  "Cuadros eléctricos": { fr: "Armoires électriques", pt: "Quadros elétricos", en: "Electrical panels", it: "Quadri elettrici" },
+  "Cableado y bandejas": { fr: "Câblage et chemins de câbles", pt: "Cabeamento e calhas", en: "Wiring and trays", it: "Cablaggio e canaline" },
+  "Motores y equipos": { fr: "Moteurs et équipements", pt: "Motores e equipamentos", en: "Motors and equipment", it: "Motori e apparecchiature" },
+  "Electrodo": { fr: "Électrode", pt: "Eletrodo", en: "Electrode", it: "Elettrodo" },
+  "Electrodos": { fr: "Électrodes", pt: "Eletrodos", en: "Electrodes", it: "Elettrodi" },
+  "Otros": { fr: "Autres", pt: "Outros", en: "Others", it: "Altro" },
+  "Otras": { fr: "Autres", pt: "Outras", en: "Others", it: "Altro" }
+};
+
+function translateText(text: string, targetLang: SupportedLang): string {
+  if (!text || targetLang === 'es') return text;
+  const match = translationDict[text.trim()];
+  if (match && match[targetLang]) {
+    return match[targetLang];
+  }
+  return text;
+}
+
+function isOtherOption(opt: string): boolean {
+  if (!opt) return false;
+  return /^(otros|otras|autres|autre|outros|outras|others|other|altro|altri)$/i.test(opt.trim());
+}
+
+function formatDateString(dateStr: string, lang: SupportedLang) {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
@@ -124,7 +383,7 @@ export function PublicTechnicalFormPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   
   // Set default language based on estimate or browser
-  const [lang, setLang] = useState<'es' | 'pt' | 'en'>('es');
+  const [lang, setLang] = useState<SupportedLang>('es');
 
   useEffect(() => {
     async function loadData() {
@@ -161,9 +420,13 @@ export function PublicTechnicalFormPage() {
 
         setEstimacion(est);
         
-        // Match default language
+        // Match default language (including FR and IT)
         const estLang = (est.document_language || 'es').toLowerCase();
-        if (estLang === 'pt' || estLang === 'portugues') {
+        if (estLang === 'it' || estLang === 'italiano' || estLang === 'italian') {
+          setLang('it');
+        } else if (estLang === 'fr' || estLang === 'francais' || estLang === 'frances' || estLang === 'french') {
+          setLang('fr');
+        } else if (estLang === 'pt' || estLang === 'portugues') {
           setLang('pt');
         } else if (estLang === 'en' || estLang === 'english') {
           setLang('en');
@@ -245,8 +508,7 @@ export function PublicTechnicalFormPage() {
       if (checked) {
         const alreadyHas = currentList.some(item => 
           item === option || 
-          (option === 'Otros' && item.startsWith('Otros:')) ||
-          (option === 'Otras' && item.startsWith('Otras:'))
+          (isOtherOption(option) && (isOtherOption(item) || item.includes(':')))
         );
         if (!alreadyHas) {
           newList = [...currentList, option];
@@ -256,8 +518,7 @@ export function PublicTechnicalFormPage() {
       } else {
         newList = currentList.filter(item => 
           !(item === option || 
-            (option === 'Otros' && item.startsWith('Otros:')) ||
-            (option === 'Otras' && item.startsWith('Otras:')))
+            (isOtherOption(option) && (isOtherOption(item) || item.includes(':'))))
         );
       }
       return {
@@ -273,15 +534,18 @@ export function PublicTechnicalFormPage() {
 
     // Validate required questions
     for (const q of questions) {
-      if (q.required && (!answers[q.questionId] || answers[q.questionId].trim() === '')) {
-        toast.error(t.requiredError.replace('{text}', q.questionText));
+      const displayQuestionText = translateText(q.questionText, lang);
+      const answerVal = answers[q.questionId];
+
+      if (q.required && (!answerVal || answerVal.trim() === '')) {
+        toast.error(t.requiredError.replace('{text}', displayQuestionText));
         return;
       }
     }
 
     setSubmitting(true);
     try {
-      // Call public DDF function using rpc
+      // Call public DDF function using rpc (public schema wrapper)
       const { error } = await supabase.rpc('save_client_technical_answers', {
         p_estimacion_id: id,
         p_answers: answers
@@ -289,10 +553,22 @@ export function PublicTechnicalFormPage() {
 
       if (error) throw error;
       setSuccess(true);
-      toast.success(lang === 'pt' ? 'Questionário técnico enviado!' : lang === 'en' ? 'Form submitted!' : '¡Formulario enviado!');
+      toast.success(
+        lang === 'it' ? 'Modulo tecnico inviato!' :
+        lang === 'fr' ? 'Formulaire technique envoyé !' :
+        lang === 'pt' ? 'Questionário técnico enviado!' :
+        lang === 'en' ? 'Form submitted!' :
+        '¡Formulario enviado!'
+      );
     } catch (err: any) {
       console.error('Error submitting technical questions:', err);
-      toast.error(lang === 'pt' ? 'Erro ao enviar respostas.' : lang === 'en' ? 'Submission error.' : 'Error al enviar.');
+      toast.error(
+        lang === 'it' ? 'Errore durante l\'invio.' :
+        lang === 'fr' ? 'Erreur lors de l\'envoi.' :
+        lang === 'pt' ? 'Erro ao enviar respostas.' :
+        lang === 'en' ? 'Submission error.' :
+        'Error al enviar.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -348,7 +624,7 @@ export function PublicTechnicalFormPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50/30 via-slate-50 to-slate-100/50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950/50 py-12 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto space-y-8">
         
-        {/* Header Branding */}
+        {/* Header Branding & Language Switcher */}
         <div className="flex items-center justify-between border-b pb-6 border-slate-200 dark:border-slate-800">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-indigo-600 rounded-xl text-white">
@@ -362,7 +638,7 @@ export function PublicTechnicalFormPage() {
           <div className="flex items-center space-x-4">
             {/* Language Selector */}
             <div className="flex bg-slate-100 dark:bg-slate-850 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
-              {(['es', 'pt', 'en'] as const).map(l => (
+              {(['es', 'pt', 'en', 'fr', 'it'] as const).map(l => (
                 <button
                   key={l}
                   type="button"
@@ -393,7 +669,7 @@ export function PublicTechnicalFormPage() {
               {t.title}
             </h1>
             <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-              {t.proposalCode}: {estimacion.codigo}
+              {t.proposalCode}: {estimacion?.codigo}
             </p>
           </div>
 
@@ -402,20 +678,20 @@ export function PublicTechnicalFormPage() {
             <div className="space-y-1">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.startDate}</span>
               <p className="font-bold text-slate-800 dark:text-slate-200">
-                {estimacion.expected_start_date ? formatDateString(estimacion.expected_start_date, lang) : t.notSpecified}
+                {estimacion?.expected_start_date ? formatDateString(estimacion.expected_start_date, lang) : t.notSpecified}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.endDate}</span>
               <p className="font-bold text-slate-800 dark:text-slate-200">
-                {estimacion.expected_end_date ? formatDateString(estimacion.expected_end_date, lang) : t.notSpecified}
+                {estimacion?.expected_end_date ? formatDateString(estimacion.expected_end_date, lang) : t.notSpecified}
               </p>
             </div>
             <div className="space-y-1 sm:col-span-1">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{t.profiles}</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {(() => {
-                  const activeVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id) || estimacion.versions?.[0];
+                  const activeVersion = estimacion?.versions?.find((v: any) => v.id === estimacion.current_version_id) || estimacion?.versions?.[0];
                   return (activeVersion?.items || []).map((item: any) => (
                     <span 
                       key={item.id} 
@@ -452,186 +728,185 @@ export function PublicTechnicalFormPage() {
                 </h3>
                 
                 <div className="space-y-6">
-                  {jfQuestions.map(q => (
-                    <div key={q.questionId} className="space-y-2.5">
-                      <Label htmlFor={`q-${q.questionId}`} className="text-sm font-bold text-slate-700 dark:text-slate-350">
-                        {q.questionText} {q.required && <span className="text-red-500 font-extrabold">*</span>}
-                      </Label>
+                  {jfQuestions.map(q => {
+                    const displayQuestionText = translateText(q.questionText, lang);
 
-                      {q.questionType === 'long_text' ? (
-                        <Textarea
-                          id={`q-${q.questionId}`}
-                          placeholder="..."
-                          value={answers[q.questionId] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                          className="min-h-[70px] text-sm"
-                        />
-                      ) : q.questionType === 'date' ? (
-                        <Input
-                          id={`q-${q.questionId}`}
-                          type="date"
-                          value={answers[q.questionId] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                        />
-                      ) : q.questionType === 'number' ? (
-                        <Input
-                          id={`q-${q.questionId}`}
-                          type="number"
-                          value={answers[q.questionId] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                        />
-                      ) : q.questionType === 'boolean' ? (
-                        <div className="space-y-2">
-                          <select
+                    return (
+                      <div key={q.questionId} className="space-y-2.5">
+                        <Label htmlFor={`q-${q.questionId}`} className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                          {displayQuestionText} {q.required && <span className="text-red-500 font-extrabold">*</span>}
+                        </Label>
+
+                        {q.questionType === 'long_text' ? (
+                          <Textarea
                             id={`q-${q.questionId}`}
-                            value={answers[q.questionId]?.startsWith('Si') ? 'Si' : 'No'}
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            onChange={e => {
-                              const val = e.target.value;
-                              setAnswers(prev => ({
-                                ...prev,
-                                [q.questionId]: val === 'Si' ? 'Si - ' : 'No'
-                              }));
-                            }}
-                          >
-                            <option value="No">{lang === 'pt' ? 'Não' : lang === 'en' ? 'No' : 'No'}</option>
-                            <option value="Si">{lang === 'pt' ? 'Sim' : lang === 'en' ? 'Yes' : 'Sí'}</option>
-                          </select>
-                          {answers[q.questionId]?.startsWith('Si') && (
-                            <Textarea
-                              placeholder={t.booleanDetailsPlaceholder}
-                              value={answers[q.questionId].startsWith('Si - ') ? answers[q.questionId].substring(5) : ''}
+                            placeholder="..."
+                            value={answers[q.questionId] || ''}
+                            onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
+                            className="min-h-[70px] text-sm"
+                          />
+                        ) : q.questionType === 'date' ? (
+                          <Input
+                            id={`q-${q.questionId}`}
+                            type="date"
+                            value={answers[q.questionId] || ''}
+                            onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
+                          />
+                        ) : q.questionType === 'number' ? (
+                          <Input
+                            id={`q-${q.questionId}`}
+                            type="number"
+                            value={answers[q.questionId] || ''}
+                            onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
+                          />
+                        ) : q.questionType === 'boolean' ? (
+                          <div className="space-y-2">
+                            <select
+                              id={`q-${q.questionId}`}
+                              value={answers[q.questionId]?.startsWith('Si') ? 'Si' : 'No'}
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
                               onChange={e => {
-                                const text = e.target.value;
+                                const val = e.target.value;
                                 setAnswers(prev => ({
                                   ...prev,
-                                  [q.questionId]: `Si - ${text}`
+                                  [q.questionId]: val === 'Si' ? 'Si - ' : 'No'
                                 }));
                               }}
-                              className="min-h-[70px] text-sm mt-2"
-                            />
-                          )}
-                        </div>
-                      ) : q.questionType === 'single_choice' ? (
-                        <div className="space-y-2">
-                          <select
-                            id={`q-${q.questionId}`}
-                            value={
-                              answers[q.questionId]?.startsWith('Otros') ? 'Otros' :
-                              answers[q.questionId]?.startsWith('Otras') ? 'Otras' :
-                              answers[q.questionId] || ''
-                            }
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            onChange={e => {
-                              const val = e.target.value;
-                              setAnswers(prev => ({
-                                ...prev,
-                                [q.questionId]: (val === 'Otros' || val === 'Otras') ? `${val} - ` : val
-                              }));
-                            }}
-                          >
-                            <option value="" disabled>{t.selectDefault}</option>
-                            {(q.options || []).map((opt, idx) => (
-                              <option key={idx} value={opt}>{opt}</option>
-                            ))}
-                          </select>
-                          {(answers[q.questionId]?.startsWith('Otros') || answers[q.questionId]?.startsWith('Otras')) && (
-                            <Textarea
-                              placeholder={t.otherPlaceholder}
+                            >
+                              <option value="No">{t.noOption}</option>
+                              <option value="Si">{t.yesOption}</option>
+                            </select>
+                            {answers[q.questionId]?.startsWith('Si') && (
+                              <Textarea
+                                placeholder={t.booleanDetailsPlaceholder}
+                                value={answers[q.questionId].startsWith('Si - ') ? answers[q.questionId].substring(5) : ''}
+                                onChange={e => {
+                                  const text = e.target.value;
+                                  setAnswers(prev => ({
+                                    ...prev,
+                                    [q.questionId]: `Si - ${text}`
+                                  }));
+                                }}
+                                className="min-h-[70px] text-sm mt-2"
+                              />
+                            )}
+                          </div>
+                        ) : q.questionType === 'single_choice' ? (
+                          <div className="space-y-2">
+                            <select
+                              id={`q-${q.questionId}`}
                               value={
-                                answers[q.questionId].startsWith('Otros - ') ? answers[q.questionId].substring(8) :
-                                answers[q.questionId].startsWith('Otras - ') ? answers[q.questionId].substring(8) : ''
+                                isOtherOption(answers[q.questionId] || '') ? 'Otros' :
+                                (answers[q.questionId] || '')
                               }
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
                               onChange={e => {
-                                const text = e.target.value;
-                                const prefix = answers[q.questionId].startsWith('Otros') ? 'Otros' : 'Otras';
+                                const val = e.target.value;
                                 setAnswers(prev => ({
                                   ...prev,
-                                  [q.questionId]: `${prefix} - ${text}`
+                                  [q.questionId]: isOtherOption(val) ? 'Otros - ' : val
                                 }));
                               }}
-                              className="min-h-[70px] text-sm mt-2"
-                            />
-                          )}
-                        </div>
-                      ) : q.questionType === 'multi_choice' ? (
-                        <div className="space-y-2.5 border rounded-xl p-4 bg-slate-50/50 dark:bg-slate-950">
-                          {(q.options || []).map((opt, idx) => {
-                            const currentVal = answers[q.questionId] || '';
-                            const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
-                            const isChecked = currentList.some(item => 
-                              item === opt || 
-                              (opt === 'Otros' && item.startsWith('Otros:')) ||
-                              (opt === 'Otras' && item.startsWith('Otras:'))
-                            );
-                            return (
-                              <div key={idx} className="flex items-center space-x-2.5">
-                                <input
-                                  type="checkbox"
-                                  id={`q-${q.questionId}-opt-${idx}`}
-                                  checked={isChecked}
-                                  onChange={e => handleToggleMultiChoice(q.questionId, opt, e.target.checked)}
-                                  className="h-4 w-4 rounded border border-slate-350 text-indigo-650 focus:ring-indigo-500 cursor-pointer"
-                                />
-                                <label
-                                  htmlFor={`q-${q.questionId}-opt-${idx}`}
-                                  className="text-sm font-semibold leading-none cursor-pointer text-slate-650 dark:text-slate-350"
-                                >
-                                  {opt}
-                                </label>
-                              </div>
-                            );
-                          })}
-                          {(() => {
-                            const currentVal = answers[q.questionId] || '';
-                            const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
-                            const hasOtros = currentList.some(item => item.startsWith('Otros') || item.startsWith('Otras'));
-                            
-                            if (hasOtros) {
-                              const otrosItem = currentList.find(item => item.startsWith('Otros') || item.startsWith('Otras')) || '';
-                              let otrosText = '';
-                              if (otrosItem.includes(':')) {
-                                otrosText = otrosItem.split(':')[1].trim();
-                              }
-                              
-                              return (
-                                <Textarea
-                                  placeholder={t.otherPlaceholder}
-                                  value={otrosText}
-                                  onChange={e => {
-                                    const text = e.target.value;
-                                    const prefix = otrosItem.startsWith('Otros') ? 'Otros' : 'Otras';
-                                    
-                                    setAnswers(prev => {
-                                      const cVal = prev[q.questionId] || '';
-                                      const cList = cVal ? cVal.split(',').map(s => s.trim()) : [];
-                                      const updatedList = cList.map(item => {
-                                        if (item.startsWith('Otros') || item.startsWith('Otras')) {
-                                          return text ? `${prefix}: ${text}` : prefix;
-                                        }
-                                        return item;
-                                      });
-                                      return { ...prev, [q.questionId]: updatedList.join(', ') };
-                                    });
-                                  }}
-                                  className="min-h-[70px] text-sm mt-2"
-                                />
+                            >
+                              <option value="" disabled>{t.selectDefault}</option>
+                              {(q.options || []).map((opt, idx) => (
+                                <option key={idx} value={opt}>
+                                  {translateText(opt, lang)}
+                                </option>
+                              ))}
+                            </select>
+                            {isOtherOption(answers[q.questionId] || '') && (
+                              <Textarea
+                                placeholder={t.otherPlaceholder}
+                                value={answers[q.questionId]?.includes('- ') ? answers[q.questionId].split('- ')[1] : ''}
+                                onChange={e => {
+                                  const text = e.target.value;
+                                  setAnswers(prev => ({
+                                    ...prev,
+                                    [q.questionId]: `Otros - ${text}`
+                                  }));
+                                }}
+                                className="min-h-[70px] text-sm mt-2"
+                              />
+                            )}
+                          </div>
+                        ) : q.questionType === 'multi_choice' ? (
+                          <div className="space-y-2.5 border rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                            {(q.options || []).map((opt, idx) => {
+                              const currentVal = answers[q.questionId] || '';
+                              const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
+                              const isChecked = currentList.some(item => 
+                                item === opt || 
+                                (isOtherOption(opt) && (isOtherOption(item) || item.includes(':')))
                               );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      ) : (
-                        <Input
-                          id={`q-${q.questionId}`}
-                          type="text"
-                          placeholder="..."
-                          value={answers[q.questionId] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
-                        />
-                      )}
-                    </div>
-                  ))}
+                              return (
+                                <div key={idx} className="flex items-center space-x-2.5">
+                                  <input
+                                    type="checkbox"
+                                    id={`q-${q.questionId}-opt-${idx}`}
+                                    checked={isChecked}
+                                    onChange={e => handleToggleMultiChoice(q.questionId, opt, e.target.checked)}
+                                    className="h-4 w-4 rounded border border-slate-350 text-indigo-650 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                  <label
+                                    htmlFor={`q-${q.questionId}-opt-${idx}`}
+                                    className="text-sm font-semibold leading-none cursor-pointer text-slate-700 dark:text-slate-300"
+                                  >
+                                    {translateText(opt, lang)}
+                                  </label>
+                                </div>
+                              );
+                            })}
+                            {(() => {
+                              const currentVal = answers[q.questionId] || '';
+                              const currentList = currentVal ? currentVal.split(',').map(s => s.trim()) : [];
+                              const hasOtros = currentList.some(item => isOtherOption(item) || item.includes(':'));
+                              
+                              if (hasOtros) {
+                                const otrosItem = currentList.find(item => isOtherOption(item) || item.includes(':')) || '';
+                                let otrosText = '';
+                                if (otrosItem.includes(':')) {
+                                  otrosText = otrosItem.split(':')[1].trim();
+                                }
+                                
+                                return (
+                                  <Textarea
+                                    placeholder={t.otherPlaceholder}
+                                    value={otrosText}
+                                    onChange={e => {
+                                      const text = e.target.value;
+                                      
+                                      setAnswers(prev => {
+                                        const cVal = prev[q.questionId] || '';
+                                        const cList = cVal ? cVal.split(',').map(s => s.trim()) : [];
+                                        const updatedList = cList.map(item => {
+                                          if (isOtherOption(item) || item.includes(':')) {
+                                            return text ? `Otros: ${text}` : 'Otros';
+                                          }
+                                          return item;
+                                        });
+                                        return { ...prev, [q.questionId]: updatedList.join(', ') };
+                                      });
+                                    }}
+                                    className="min-h-[70px] text-sm mt-2"
+                                  />
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        ) : (
+                          <Input
+                            id={`q-${q.questionId}`}
+                            type="text"
+                            placeholder="..."
+                            value={answers[q.questionId] || ''}
+                            onChange={e => setAnswers(prev => ({ ...prev, [q.questionId]: e.target.value }))}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
               </div>
