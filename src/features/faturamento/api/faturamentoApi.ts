@@ -1105,7 +1105,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             return supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
-              .select('fatura_id, horas_totais, tarifa_faturada')
+              .select('fatura_id, worker_id, data_trabalho, horas_totais, tarifa_faturada')
               .in('fatura_id', chunk)
               .range(from, to);
           });
@@ -1114,15 +1114,50 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
   
       const hoursMap = new Map<string, number>();
       const valueMap = new Map<string, number>();
-      hoursSums.forEach(h => {
-        if (h.fatura_id) {
-          const currentHours = hoursMap.get(h.fatura_id) || 0;
-          hoursMap.set(h.fatura_id, currentHours + Number(h.horas_totais || 0));
-  
-          const currentValue = valueMap.get(h.fatura_id) || 0;
-          const itemValue = Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
-          valueMap.set(h.fatura_id, currentValue + itemValue);
-        }
+
+      faturas.forEach(f => {
+        const faturaHours = hoursSums.filter(h => h.fatura_id === f.id);
+        const disputedObj = f.ajustes_json?.disputed_hours || {};
+        
+        let totHoras = 0;
+        let totValor = 0;
+        const processedKeys = new Set<string>();
+
+        faturaHours.forEach(h => {
+          const wId = h.worker_id;
+          if (!wId) return;
+          const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+          const key = `${wId}_${dateKey}`;
+          processedKeys.add(key);
+
+          const proposed = disputedObj[wId]?.[dateKey];
+          const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+          const rate = Number(h.tarifa_faturada || 0);
+
+          totHoras += hoursVal;
+          totValor += hoursVal * rate;
+        });
+
+        // Also check any newly added dates in disputedObj not yet in hoursSums
+        Object.keys(disputedObj).forEach(wId => {
+          const dates = disputedObj[wId] || {};
+          const sample = faturaHours.find(h => h.worker_id === wId);
+          const rate = Number(sample?.tarifa_faturada || 0);
+
+          Object.keys(dates).forEach(dateKey => {
+            const key = `${wId}_${dateKey}`;
+            if (!processedKeys.has(key)) {
+              const hoursVal = Number(dates[dateKey] || 0);
+              if (hoursVal > 0) {
+                totHoras += hoursVal;
+                totValor += hoursVal * rate;
+              }
+            }
+          });
+        });
+
+        hoursMap.set(f.id, totHoras);
+        valueMap.set(f.id, totValor);
       });
   
       return faturas.map(f => {

@@ -1823,7 +1823,46 @@ MCS - Gestão Comercial`;
       addEmails(fatura.client?.billingEmail || fatura.client?.billing_email);
       addEmails(fatura.client?.clientEmail || fatura.client?.email);
 
-      const adj = fatura.ajustes_json || {};
+      const disputedObj = fatura.ajustes_json?.disputed_hours || {};
+      let effTotalHoras = 0;
+      let effTotalValor = 0;
+      const processedKeys = new Set<string>();
+
+      mappedHours.forEach((h: any) => {
+        const wId = h.worker_id;
+        if (!wId) return;
+        const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+        const key = `${wId}_${dateKey}`;
+        processedKeys.add(key);
+
+        const proposed = disputedObj[wId]?.[dateKey];
+        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+        const rate = Number(h.tarifa_faturada || 0);
+
+        effTotalHoras += hoursVal;
+        effTotalValor += hoursVal * rate;
+      });
+
+      Object.keys(disputedObj).forEach(wId => {
+        const dates = disputedObj[wId] || {};
+        const sample = mappedHours.find((h: any) => h.worker_id === wId);
+        const rate = Number(sample?.tarifa_faturada || 0);
+
+        Object.keys(dates).forEach(dateKey => {
+          const key = `${wId}_${dateKey}`;
+          if (!processedKeys.has(key)) {
+            const hoursVal = Number(dates[dateKey] || 0);
+            if (hoursVal > 0) {
+              effTotalHoras += hoursVal;
+              effTotalValor += hoursVal * rate;
+            }
+          }
+        });
+      });
+
+      const finalTotalHoras = effTotalHoras > 0 ? effTotalHoras : fatura.total_horas;
+      const finalTotalValor = effTotalValor > 0 ? effTotalValor : fatura.total_valor;
+
       const cached = emailCache[fatura.id];
       if (cached) {
         setSelectedEmails(cached.selectedEmails);
@@ -1839,8 +1878,8 @@ MCS - Gestão Comercial`;
           subject: cached.subject,
           body: cached.body,
           token: fatura.magic_link_token,
-          totalHoras: fatura.total_horas,
-          totalValor: fatura.total_valor,
+          totalHoras: finalTotalHoras,
+          totalValor: finalTotalValor,
           ajustesJson: adj,
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
@@ -1860,8 +1899,8 @@ MCS - Gestão Comercial`;
           subject,
           body,
           token: fatura.magic_link_token,
-          totalHoras: fatura.total_horas,
-          totalValor: fatura.total_valor,
+          totalHoras: finalTotalHoras,
+          totalValor: finalTotalValor,
           ajustesJson: adj,
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
@@ -3625,17 +3664,47 @@ MCS - Gestão Comercial`;
                       <tbody>
                         {(() => {
                           const workerSummary: Record<string, { name: string; hours: number; rate: number; total: number }> = {};
+                          const disputedObj = emailData.fatura?.ajustes_json?.disputed_hours || emailData.ajustesJson?.disputed_hours || {};
+                          const processedKeys = new Set<string>();
+
                           emailHours.forEach(h => {
                             const wId = h.worker_id;
                             if (!wId) return;
+                            const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+                            const key = `${wId}_${dateKey}`;
+                            processedKeys.add(key);
+
                             const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
-                            const rate = Number(h.tarifa_faturada || 27.00);
-                            const hours = Number(h.horas_totais || 0);
+                            const rate = Number(h.tarifa_faturada || 0);
+                            const proposed = disputedObj[wId]?.[dateKey];
+                            const hours = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+                            
                             if (!workerSummary[wId]) {
                               workerSummary[wId] = { name, hours: 0, rate, total: 0 };
                             }
                             workerSummary[wId].hours += hours;
                             workerSummary[wId].total += hours * rate;
+                          });
+
+                          Object.keys(disputedObj).forEach(wId => {
+                            const dates = disputedObj[wId] || {};
+                            const sample = emailHours.find((h: any) => h.worker_id === wId);
+                            const rate = Number(sample?.tarifa_faturada || 0);
+                            const name = sample?.worker?.nombrecompleto || sample?.worker?.nome || 'Colaborador';
+
+                            Object.keys(dates).forEach(dateKey => {
+                              const key = `${wId}_${dateKey}`;
+                              if (!processedKeys.has(key)) {
+                                const hoursVal = Number(dates[dateKey] || 0);
+                                if (hoursVal > 0) {
+                                  if (!workerSummary[wId]) {
+                                    workerSummary[wId] = { name, hours: 0, rate, total: 0 };
+                                  }
+                                  workerSummary[wId].hours += hoursVal;
+                                  workerSummary[wId].total += hoursVal * rate;
+                                }
+                              }
+                            });
                           });
 
                           return Object.values(workerSummary).map((w, idx) => (
