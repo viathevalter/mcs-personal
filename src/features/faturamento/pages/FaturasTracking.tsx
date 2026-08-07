@@ -2274,10 +2274,25 @@ MCS - Gestão Comercial`;
                           </div>
                         </TableCell>
                         <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
-                          {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
-                          <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
-                            {fatura.total_valor ? `€ ${fatura.total_valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '€ 0,00'}
-                          </span>
+                          {(() => {
+                            const isCurrentSelected = selectedDispute && selectedDispute.id === fatura.id;
+                            const effAdj = fatura.ajustes_json || {};
+                            const red = isCurrentSelected ? disputeReductions : Number(effAdj.reducoes || 0);
+                            const inc = isCurrentSelected ? disputeIncrements : Number(effAdj.incrementos || 0);
+                            const iva = isCurrentSelected ? disputeIvaPct : Number(effAdj.iva_pct || 0);
+
+                            const baseVal = fatura.total_valor || 0;
+                            const finalVal = red > 0 || inc > 0 || iva > 0 ? (baseVal + inc - red) * (1 + iva / 100) : baseVal;
+
+                            return (
+                              <>
+                                {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
+                                <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
+                                  € {finalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>{getStatusBadge(fatura.status)}</TableCell>
                         <TableCell className="text-right pr-6">

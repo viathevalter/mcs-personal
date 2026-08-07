@@ -1156,8 +1156,13 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           });
         });
 
+        const reducoes = Number(f.ajustes_json?.reducoes || 0);
+        const incrementos = Number(f.ajustes_json?.incrementos || 0);
+        const ivaPct = Number(f.ajustes_json?.iva_pct || 0);
+        const totValorFinal = (totValor + incrementos - reducoes) * (1 + ivaPct / 100);
+
         hoursMap.set(f.id, totHoras);
-        valueMap.set(f.id, totValor);
+        valueMap.set(f.id, totValorFinal);
       });
   
       return faturas.map(f => {
