@@ -1582,8 +1582,7 @@ export function FaturasTracking() {
         const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
         processed.add(`${wId}_${dKey}`);
 
-        const proposed = activeEdits[wId]?.[dKey];
-        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+        const hoursVal = getDisputedHourValue(activeEdits, wId, dKey, Number(h.horas_totais || 0));
         const rate = Number(h.tarifa_faturada || 0);
 
         effH += hoursVal;

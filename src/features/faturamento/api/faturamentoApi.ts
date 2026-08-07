@@ -1244,8 +1244,13 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         const storedH = f.ajustes_json?.total_horas;
         const storedV = f.ajustes_json?.total_valor;
 
+        const reducoes = Number(f.ajustes_json?.reducoes || 0);
+        const incrementos = Number(f.ajustes_json?.incrementos || 0);
+        const ivaPct = Number(f.ajustes_json?.iva_pct || 0);
+
         const finalH = storedH !== undefined ? storedH : ((computedH && computedH > 0) ? computedH : (f.total_horas || 0));
-        const finalV = storedV !== undefined ? storedV : ((computedV && computedV > 0) ? computedV : (f.total_valor || 0));
+        const baseNetValue = ((Number(f.total_valor_base || f.total_valor || 0)) + incrementos - reducoes) * (1 + ivaPct / 100);
+        const finalV = storedV !== undefined ? storedV : ((computedV && computedV > 0) ? computedV : baseNetValue);
 
         return {
           ...f,
