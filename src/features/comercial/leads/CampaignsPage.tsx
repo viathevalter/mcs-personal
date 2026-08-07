@@ -1472,6 +1472,22 @@ export function CampaignsPage() {
                   </div>
                 )}
 
+                {/* Live Stats Summary Banner */}
+                <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Total da Base</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">{allLeads.length} leads</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">No Filtro Atual</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400 text-sm">{visibleLeadsForGrid.length} elegíveis</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Selecionados</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">{selectedLeadIds.size} destinatários</span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="audStage" className="text-xs">Estágio (Kanban)</Label>
@@ -1508,15 +1524,39 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="audSector" className="text-xs">Setor / Atividade (Palavra-chave)</Label>
-                  <Input
-                    id="audSector"
-                    placeholder="Ex: caldeiraria, soldador, metal..."
-                    className="h-9 text-xs"
-                    value={audienceFilters.sectorKeyword}
-                    onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
-                  />
+                {/* Setor e Serviço Dropdowns */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="audSectorSelect" className="text-xs">Setor da Empresa</Label>
+                    <select
+                      id="audSectorSelect"
+                      value={audienceFilters.sectorKeyword}
+                      onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
+                      className="w-full h-9 border rounded-lg bg-card px-3 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                    >
+                      <option value="">Todos os Setores</option>
+                      <option value="metal">Metalurgia / Metalomecânica</option>
+                      <option value="caldeiraria">Caldeiraria & Estruturas</option>
+                      <option value="solda">Soldadura / Tubagem</option>
+                      <option value="construcao">Construção & Obras</option>
+                      <option value="montagem">Montagens Industriais</option>
+                      <option value="manutencao">Manutenção Industrial</option>
+                      {Array.from(new Set(allLeads.map(l => l.sector).filter(Boolean))).map((s: any) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="audSectorKeyword" className="text-xs">Palavra-Chave Busca</Label>
+                    <Input
+                      id="audSectorKeyword"
+                      placeholder="Ex: caldeiraria, soldador..."
+                      className="h-9 text-xs"
+                      value={audienceFilters.sectorKeyword}
+                      onChange={(e) => setAudienceFilters({ ...audienceFilters, sectorKeyword: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
