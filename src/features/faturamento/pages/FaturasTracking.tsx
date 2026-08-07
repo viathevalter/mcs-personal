@@ -1484,11 +1484,53 @@ export function FaturasTracking() {
     setAdminModifiedHours(next);
 
     if (selectedDispute) {
+      let effH = 0;
+      let effBaseV = 0;
+      const processed = new Set<string>();
+
+      (disputeHours || []).forEach((h: any) => {
+        const wId = h.worker_id;
+        if (!wId) return;
+        const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+        processed.add(`${wId}_${dKey}`);
+
+        const proposed = next[wId]?.[dKey];
+        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+        const rate = Number(h.tarifa_faturada || 0);
+
+        effH += hoursVal;
+        effBaseV += hoursVal * rate;
+      });
+
+      Object.keys(next).forEach(wId => {
+        const dates = next[wId] || {};
+        const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
+        const rate = Number(sample?.tarifa_faturada || 0);
+
+        Object.keys(dates).forEach(dKey => {
+          if (!processed.has(`${wId}_${dKey}`)) {
+            const hoursVal = Number(dates[dKey] || 0);
+            if (hoursVal > 0) {
+              effH += hoursVal;
+              effBaseV += hoursVal * rate;
+            }
+          }
+        });
+      });
+
+      const red = disputeReductions;
+      const inc = disputeIncrements;
+      const iva = disputeIvaPct;
+      const effFinalNet = (effBaseV + inc - red) * (1 + iva / 100);
+
       setSelectedDispute((prev: any) => {
         if (!prev) return null;
         const currentAdj = prev.ajustes_json || {};
         return {
           ...prev,
+          total_horas: effH,
+          total_valor: effFinalNet,
+          total_valor_base: effBaseV,
           ajustes_json: {
             ...currentAdj,
             disputed_hours: next
@@ -1500,6 +1542,9 @@ export function FaturasTracking() {
         if (f.id === selectedDispute.id) {
           return {
             ...f,
+            total_horas: effH,
+            total_valor: effFinalNet,
+            total_valor_base: effBaseV,
             ajustes_json: {
               ...f.ajustes_json,
               disputed_hours: next
@@ -2273,26 +2318,15 @@ MCS - Gestão Comercial`;
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
-                          {(() => {
-                            const isCurrentSelected = selectedDispute && selectedDispute.id === fatura.id;
-                            const effAdj = fatura.ajustes_json || {};
-                            const red = isCurrentSelected ? disputeReductions : Number(effAdj.reducoes || 0);
-                            const inc = isCurrentSelected ? disputeIncrements : Number(effAdj.incrementos || 0);
-                            const iva = isCurrentSelected ? disputeIvaPct : Number(effAdj.iva_pct || 0);
-
-                            const baseVal = fatura.total_valor || 0;
-                            const finalVal = red > 0 || inc > 0 || iva > 0 ? (baseVal + inc - red) * (1 + iva / 100) : baseVal;
-
-                            return (
-                              <>
-                                {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
-                                <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
-                                  € {finalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </span>
-                              </>
-                            );
-                          })()}
+                        <TableCell className="font-semibold text-slate-900 dark:text-slate-100 min-w-[110px]">
+                          <div className="flex flex-col text-left">
+                            <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                              {fatura.total_horas !== undefined && fatura.total_horas !== null ? `${Number(fatura.total_horas).toFixed(2)}h` : '0.00h'}
+                            </span>
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                              € {Number(fatura.total_valor || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(fatura.status)}</TableCell>
                         <TableCell className="text-right pr-6">
