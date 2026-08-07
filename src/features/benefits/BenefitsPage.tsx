@@ -3,16 +3,18 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useWorkersWithHousing } from './hooks/useWorkersWithHousing';
 import { EditHousingDialog } from './components/EditHousingDialog';
 import { ImportHousingDialog } from './components/ImportHousingDialog';
+import { CreateBenefitDialog } from './components/CreateBenefitDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown, Undo2, DownloadCloud } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import type { WorkerWithHousing } from '@/shared/types/corePersonal';
 import { useDeleteHousingBatch } from './hooks/useDeleteHousingBatch';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useUniqueClients } from '../workers/hooks/useUniqueClients';
-
+import { useBenefitCategories } from '@/features/settings/hooks/useCategories';
 import { useSearchParams } from 'react-router-dom';
 
 export function BenefitsPage() {
@@ -20,11 +22,14 @@ export function BenefitsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const { data: workers, isLoading, isError } = useWorkersWithHousing(empresaId || undefined);
+    const { data: benefitCategoriesData } = useBenefitCategories(empresaId || undefined);
 
     // Filters from URL
     const searchTerm = searchParams.get('search') || '';
     const selectedClient = searchParams.get('client')?.split('||').filter(Boolean) || [];
     const selectedCompany = searchParams.get('company') || 'ALL';
+    const selectedCategory = searchParams.get('category') || 'ALL';
+    const monthFilter = searchParams.get('month') || '';
 
     // Sort from URL
     const sortKeyParam = searchParams.get('sortKey');
@@ -65,7 +70,24 @@ export function BenefitsPage() {
         return Array.from(companies).sort();
     }, [workers]);
 
-    const handleSort = (key: keyof WorkerWithHousing | 'housing_benefit_status' | 'housing_benefit_amount' | 'housing_benefit_date') => {
+    const availableCategories = useMemo(() => {
+        const defaultCats = [
+            'Auxílio Moradia',
+            'Auxílio Alimentação',
+            'Auxílio Transporte',
+            'Prêmios',
+            'Bônus',
+            'Horas Extra / Adicionais',
+            'Outros Proventos'
+        ];
+        if (benefitCategoriesData && benefitCategoriesData.length > 0) {
+            const customNames = benefitCategoriesData.map(c => c.name);
+            return Array.from(new Set([...defaultCats, ...customNames]));
+        }
+        return defaultCats;
+    }, [benefitCategoriesData]);
+
+    const handleSort = (key: keyof WorkerWithHousing | 'housing_benefit_status' | 'housing_benefit_amount' | 'housing_benefit_date' | 'category') => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
             direction = 'desc';
@@ -74,7 +96,7 @@ export function BenefitsPage() {
     };
 
     const handleUndoBatch = (batchId: string) => {
-        if (confirm('Atenção: Você está prestes a excluir todos os benefícios de moradia importados neste lote. Continuar?')) {
+        if (confirm('Atenção: Você está prestes a excluir todos os benefícios/proventos importados neste lote. Continuar?')) {
             deleteBatch(batchId);
         }
     };
@@ -110,7 +132,19 @@ export function BenefitsPage() {
                 w.cod_colab.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesClient = selectedClient.length === 0 || selectedClient.includes(w.cliente_nombre || '');
             const matchesCompany = selectedCompany === 'ALL' || w.contratante === selectedCompany;
-            return matchesSearch && matchesClient && matchesCompany;
+
+            const bCategory = w.housing_benefit?.category || (w.housing_benefit ? 'Auxílio Moradia' : '');
+            const matchesCategory = selectedCategory === 'ALL' || bCategory === selectedCategory;
+
+            let matchesMonth = true;
+            if (monthFilter && w.housing_benefit?.start_date) {
+                const bMonth = w.housing_benefit.start_date.substring(0, 7);
+                matchesMonth = bMonth === monthFilter;
+            } else if (monthFilter && !w.housing_benefit) {
+                matchesMonth = false;
+            }
+
+            return matchesSearch && matchesClient && matchesCompany && matchesCategory && matchesMonth;
         });
 
         if (sortConfig) {
@@ -127,6 +161,9 @@ export function BenefitsPage() {
                 } else if (sortConfig.key === 'housing_benefit_date') {
                     aVal = a.housing_benefit?.start_date ? new Date(a.housing_benefit.start_date).getTime() : 0;
                     bVal = b.housing_benefit?.start_date ? new Date(b.housing_benefit.start_date).getTime() : 0;
+                } else if (sortConfig.key === 'category' as any) {
+                    aVal = a.housing_benefit?.category || '';
+                    bVal = b.housing_benefit?.category || '';
                 }
 
                 if (aVal === bVal) return 0;
@@ -140,11 +177,60 @@ export function BenefitsPage() {
         }
 
         return result;
-    }, [workers, searchTerm, selectedClient, selectedCompany, sortConfig]);
+    }, [workers, searchTerm, selectedClient, selectedCompany, selectedCategory, monthFilter, sortConfig]);
+
+    // KPI stats
+    const totalBenefitAmount = useMemo(() => {
+        return filteredAndSortedWorkers.reduce((acc, w) => {
+            if (w.housing_benefit?.monthly_amount) {
+                return acc + Number(w.housing_benefit.monthly_amount);
+            }
+            return acc;
+        }, 0);
+    }, [filteredAndSortedWorkers]);
+
+    const categoryStats = useMemo(() => {
+        const stats: Record<string, number> = {};
+        filteredAndSortedWorkers.forEach(w => {
+            if (w.housing_benefit) {
+                const cat = w.housing_benefit.category || 'Auxílio Moradia';
+                stats[cat] = (stats[cat] || 0) + Number(w.housing_benefit.monthly_amount);
+            }
+        });
+        return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    }, [filteredAndSortedWorkers]);
 
     const handleEditClick = (worker: WorkerWithHousing) => {
         setSelectedWorker(worker);
         setIsEditOpen(true);
+    };
+
+    const handleExportExcel = () => {
+        if (!filteredAndSortedWorkers.length) return;
+
+        const headers = ['Trabalhador', 'Código', 'Cliente', 'Contratante', 'Categoria Provento', 'Valor Mensal (€)', 'Data Inicial', 'Status'];
+        const rows = filteredAndSortedWorkers.map(w => [
+            w.nome,
+            w.cod_colab || '',
+            w.cliente_nombre || '',
+            w.contratante || '',
+            w.housing_benefit?.category || (w.housing_benefit ? 'Auxílio Moradia' : '-'),
+            w.housing_benefit ? w.housing_benefit.monthly_amount.toFixed(2) : '0.00',
+            w.housing_benefit?.start_date ? format(new Date(w.housing_benefit.start_date), 'dd/MM/yyyy') : '-',
+            w.housing_benefit ? 'Ativo' : 'Não Vinculado'
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + headers.join(",") + "\n"
+            + rows.map(e => e.join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `proventos_beneficios_${monthFilter || 'todos'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const SortIcon = ({ columnKey }: { columnKey: string }) => {
@@ -174,19 +260,41 @@ export function BenefitsPage() {
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Benefícios (Moradia)</h1>
-                    <p className="text-muted-foreground">Gestão global de benefícios de auxílio moradia dos trabalhadores.</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Gestão de Proventos e Benefícios</h1>
+                    <p className="text-muted-foreground">Gestão global de benefícios, adicionais e proventos dos trabalhadores.</p>
                 </div>
 
-                <ImportHousingDialog
-                    workers={workers || []}
-                    trigger={
-                        <Button className="flex items-center gap-2">
-                            <FileSpreadsheet className="h-4 w-4" />
-                            Importar Planilhas
-                        </Button>
-                    }
-                />
+                <div className="flex items-center gap-2 flex-wrap">
+                    <CreateBenefitDialog />
+                    <ImportHousingDialog
+                        workers={workers || []}
+                        trigger={
+                            <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                                <DownloadCloud className="mr-2 h-4 w-4" />
+                                Importar Planilha
+                            </Button>
+                        }
+                    />
+                    <Button variant="outline" onClick={handleExportExcel}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                        Exportar
+                    </Button>
+                </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
+                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total em Proventos</h3>
+                    <div className="mt-2 text-3xl font-bold text-gray-900">€ {totalBenefitAmount.toFixed(2)}</div>
+                    <p className="mt-1 text-xs text-muted-foreground">{filteredAndSortedWorkers.filter(w => w.housing_benefit).length} trabalhador(es) com benefício</p>
+                </div>
+                {categoryStats.map(([cat, val]) => (
+                    <div key={cat} className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
+                        <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-tight truncate" title={cat}>{cat}</h3>
+                        <div className="mt-2 text-2xl font-bold text-gray-700">€ {val.toFixed(2)}</div>
+                    </div>
+                ))}
             </div>
 
             {recentBatches.length > 0 && (
@@ -211,16 +319,41 @@ export function BenefitsPage() {
                 </div>
             )}
 
-            <div className="flex flex-col sm:flex-row items-center gap-4 bg-muted/30 p-4 rounded-lg border">
-                <div className="w-full sm:w-1/3">
+            {/* Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-muted/30 p-4 rounded-xl border">
+                <div className="w-full">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">Buscar Trabalhador</label>
                     <Input
-                        placeholder="Buscar por nome ou código..."
+                        placeholder="Nome ou código..."
                         value={searchTerm}
                         onChange={(e) => updateSearchParams({ search: e.target.value })}
                         className="w-full bg-background"
                     />
                 </div>
-                <div className="w-full sm:w-1/3">
+                <div className="w-full">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">Mês / Ano</label>
+                    <Input
+                        type="month"
+                        value={monthFilter}
+                        onChange={(e) => updateSearchParams({ month: e.target.value })}
+                        className="w-full bg-background"
+                    />
+                </div>
+                <div className="w-full">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">Categoria Provento</label>
+                    <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={selectedCategory}
+                        onChange={(e) => updateSearchParams({ category: e.target.value })}
+                    >
+                        <option value="ALL">Todas as Categorias</option>
+                        {availableCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="w-full">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">Cliente</label>
                     <MultiSelect
                         options={uniqueClients.filter(c => c && c.trim() !== '').map(client => ({ value: client, label: client })) || []}
                         selected={selectedClient}
@@ -229,9 +362,10 @@ export function BenefitsPage() {
                         emptyText="Nenhum cliente"
                     />
                 </div>
-                <div className="w-full sm:w-1/3">
+                <div className="w-full">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">Empresa</label>
                     <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={selectedCompany}
                         onChange={(e) => updateSearchParams({ company: e.target.value })}
                     >
@@ -243,9 +377,10 @@ export function BenefitsPage() {
                 </div>
             </div>
 
-            <div className="border rounded-md bg-card">
+            {/* Table */}
+            <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="bg-gray-50/80">
                         <TableRow>
                             <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('nome')}>
                                 Trabalhador <SortIcon columnKey="nome" />
@@ -253,11 +388,14 @@ export function BenefitsPage() {
                             <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('cod_colab')}>
                                 Código <SortIcon columnKey="cod_colab" />
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_status')}>
-                                Status Benefício <SortIcon columnKey="housing_benefit_status" />
+                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('category')}>
+                                Tipo de Provento <SortIcon columnKey="category" />
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_amount')}>
-                                Valor Mensal <SortIcon columnKey="housing_benefit_amount" />
+                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_status')}>
+                                Status <SortIcon columnKey="housing_benefit_status" />
+                            </TableHead>
+                            <TableHead className="cursor-pointer hover:bg-muted/50 text-right" onClick={() => handleSort('housing_benefit_amount')}>
+                                Valor Mensal (€) <SortIcon columnKey="housing_benefit_amount" />
                             </TableHead>
                             <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_date')}>
                                 Data Inicial <SortIcon columnKey="housing_benefit_date" />
@@ -268,26 +406,36 @@ export function BenefitsPage() {
                     <TableBody>
                         {filteredAndSortedWorkers.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                    Nenhum trabalhador encontrado com os filtros atuais.
+                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                    Nenhum benefício ou provento encontrado com os filtros atuais.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filteredAndSortedWorkers.map(w => {
                                 const hasBenefit = !!w.housing_benefit;
+                                const categoryName = w.housing_benefit?.category || (hasBenefit ? 'Auxílio Moradia' : '-');
                                 return (
-                                    <TableRow key={w.id}>
+                                    <TableRow key={w.id} className="hover:bg-slate-50 transition-colors">
                                         <TableCell className="font-medium">
                                             {w.nome}
                                             <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
                                                 {w.cliente_nombre ? `${w.cliente_nombre}` : ''} {w.contratante ? `- ${w.contratante}` : ''}
                                             </div>
                                         </TableCell>
-                                        <TableCell>{w.cod_colab}</TableCell>
+                                        <TableCell className="font-mono text-xs">{w.cod_colab}</TableCell>
+                                        <TableCell>
+                                            {hasBenefit ? (
+                                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200 font-medium">
+                                                    {categoryName}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">-</span>
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             {hasBenefit ? (
                                                 <span className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                                                    <Link2 className="h-4 w-4 mr-1" /> Ativo
+                                                    <Link2 className="h-4 w-4 mr-1" /> {w.housing_benefit?.status || 'Ativo'}
                                                 </span>
                                             ) : (
                                                 <span className="flex items-center text-muted-foreground text-sm font-medium">
@@ -295,15 +443,15 @@ export function BenefitsPage() {
                                                 </span>
                                             )}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="text-right font-semibold">
                                             {hasBenefit ? `€ ${w.housing_benefit!.monthly_amount.toFixed(2)}` : '-'}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="text-sm text-gray-600">
                                             {hasBenefit && w.housing_benefit!.start_date ? format(new Date(w.housing_benefit!.start_date), 'dd/MM/yyyy') : '-'}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(w)}>
-                                                <Edit className="h-4 w-4 mr-2" />
+                                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(w)} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
+                                                <Edit className="h-4 w-4 mr-1" />
                                                 Editar
                                             </Button>
                                         </TableCell>

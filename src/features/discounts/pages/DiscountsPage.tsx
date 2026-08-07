@@ -24,6 +24,8 @@ import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 
 import { useSearchParams } from 'react-router-dom';
 
+import { CreateDiscountDialog } from '../components/CreateDiscountDialog';
+
 export function DiscountsPage() {
     const { i18n } = useTranslation();
     const { data: allDiscounts, isLoading } = useAllDiscounts();
@@ -54,9 +56,10 @@ export function DiscountsPage() {
         if (!allDiscounts) return [];
 
         return allDiscounts.filter((discount) => {
-            // 1. Search term (Worker Name, NIF, DNI etc can be added but for now Name/Desc)
+            // 1. Search term (Worker Name or Code)
             const matchesSearch =
                 discount.workers.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                discount.workers.cod_colab?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 discount.description?.toLowerCase().includes(searchTerm.toLowerCase());
             if (searchTerm && !matchesSearch) return false;
 
@@ -126,18 +129,18 @@ export function DiscountsPage() {
     const totalAmount = filteredDiscounts.reduce((sum, d) => sum + Number(d.amount), 0);
 
     const handleExportExcel = () => {
-        // Basic CSV approach until proper excel library is integrated
         if (!filteredDiscounts.length) return;
 
-        const headers = ['Trabalhador', 'Data Referência', 'Categoria', 'Valor', 'Status', 'Recorrente', 'Descrição'];
+        const headers = ['Trabalhador', 'Código', 'Data Referência', 'Categoria', 'Valor', 'Status', 'Recorrente', 'Descrição'];
         const rows = filteredDiscounts.map(d => [
             d.workers.nome,
+            d.workers.cod_colab || '',
             format(parseISO(d.reference_date), 'dd/MM/yyyy'),
             d.category,
             d.amount.toFixed(2),
             d.status,
             d.is_recurring ? 'Sim' : 'Não',
-            d.description?.replace(/,/g, ' ') || '' // Clean commas for CSV
+            d.description?.replace(/,/g, ' ') || ''
         ]);
 
         const csvContent = "data:text/csv;charset=utf-8,"
@@ -158,7 +161,23 @@ export function DiscountsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Gestão de Descontos</h1>
-                    <p className="text-muted-foreground">Gestão global de descontos dos trabalhadores.</p>
+                    <p className="text-muted-foreground">Gestão global e controle mensal de descontos dos trabalhadores.</p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                    <CreateDiscountDialog />
+                    <ImportDiscountsDialog
+                        trigger={
+                            <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                                <DownloadCloud className="mr-2 h-4 w-4" />
+                                Importar Planilha
+                            </Button>
+                        }
+                    />
+                    <Button variant="outline" onClick={handleExportExcel}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                        Exportar
+                    </Button>
                 </div>
             </div>
 
@@ -172,7 +191,7 @@ export function DiscountsPage() {
                     </div>
                     {categoryStats.map(([cat, val]) => (
                         <div key={cat} className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
-                            <h3 className="text-sm font-bold text-blue-800 uppercase tracking-tight truncate" title={cat}>{cat}</h3>
+                            <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-tight truncate" title={cat}>{cat}</h3>
                             <div className="mt-2 text-2xl font-bold text-gray-700">€ {val.toFixed(2)}</div>
                         </div>
                     ))}
@@ -210,7 +229,7 @@ export function DiscountsPage() {
                                 <Search className="h-4 w-4 text-gray-400" />
                             </div>
                             <Input
-                                placeholder="Nome do trabalhador..."
+                                placeholder="Nome ou código do trabalhador..."
                                 value={searchTerm}
                                 onChange={(e) => updateSearchParams({ search: e.target.value })}
                                 className="pl-9"
@@ -239,36 +258,6 @@ export function DiscountsPage() {
                             </SelectContent>
                         </Select>
                     </div>
-
-                    <div className="space-y-1.5 w-full md:w-36">
-                        <label className="text-xs font-medium text-gray-700">Status</label>
-                        <Select value={selectedStatus} onValueChange={(v: DiscountStatus | 'ALL') => updateSearchParams({ status: v })}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Todos" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">Todos os status</SelectItem>
-                                <SelectItem value="Ativo">Ativo</SelectItem>
-                                <SelectItem value="Pausado">Pausado</SelectItem>
-                                <SelectItem value="Concluído">Concluído</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="flex w-full md:w-auto gap-2 mt-4 md:mt-0">
-                        <ImportDiscountsDialog
-                            trigger={
-                                <Button className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700">
-                                    <DownloadCloud className="mr-2 h-4 w-4" />
-                                    Importar
-                                </Button>
-                            }
-                        />
-                        <Button variant="outline" onClick={handleExportExcel} className="w-full md:w-auto">
-                            <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                            Exportar
-                        </Button>
-                    </div>
                 </div>
 
                 {/* Data Table */}
@@ -290,7 +279,7 @@ export function DiscountsPage() {
                                 {isLoading ? (
                                     Array.from({ length: 3 }).map((_, i) => (
                                         <tr key={i} className="animate-pulse">
-                                            <td colSpan={6} className="px-6 py-5 bg-gray-50/50" />
+                                            <td colSpan={7} className="px-6 py-5 bg-gray-50/50" />
                                         </tr>
                                     ))
                                 ) : filteredDiscounts.length > 0 ? (
@@ -299,7 +288,9 @@ export function DiscountsPage() {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-medium text-gray-900">{discount.workers.nome}</span>
-                                                    <span className="text-xs text-muted-foreground">{discount.workers.status_trabajador}</span>
+                                                    <span className="text-xs text-muted-foreground font-mono">
+                                                        Código: {discount.workers.cod_colab || '-'} {discount.workers.status_trabajador ? `(${discount.workers.status_trabajador})` : ''}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">

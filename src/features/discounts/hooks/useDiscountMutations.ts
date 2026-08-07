@@ -1,7 +1,32 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
-import type { UpdateWorkerDiscountInput } from '../types';
+import type { CreateWorkerDiscountInput, UpdateWorkerDiscountInput } from '../types';
+
+export function useCreateDiscount() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (input: CreateWorkerDiscountInput) => {
+            const { data, error } = await supabase
+                .from('worker_discounts')
+                .insert(input)
+                .select()
+                .single();
+
+            if (error) throw new Error(error.message);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
+            queryClient.invalidateQueries({ queryKey: ['worker-discounts'] });
+            toast.success('Desconto cadastrado com sucesso.');
+        },
+        onError: (error: Error) => {
+            toast.error(`Erro ao cadastrar desconto: ${error.message}`);
+        }
+    });
+}
 
 export function useUpdateDiscount() {
     const queryClient = useQueryClient();

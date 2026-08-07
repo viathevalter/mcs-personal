@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Trash2, Home } from 'lucide-react';
+import { Loader2, Trash2, Gift } from 'lucide-react';
 import type { HousingBenefit } from '@/shared/types/corePersonal';
+import { useBenefitCategories } from '@/features/settings/hooks/useCategories';
 
 interface EditHousingDialogProps {
     open: boolean;
@@ -22,12 +23,16 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
     const upsertHousing = useUpsertHousing();
     const deleteHousing = useDeleteHousing(workerId);
     const queryClient = useQueryClient();
+    const { data: benefitCategories = [] } = useBenefitCategories(empresaId);
 
     // Form state
     const [monthlyAmount, setMonthlyAmount] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [prorationMethod, setProrationMethod] = useState('daily_actual');
+    const [category, setCategory] = useState('Auxílio Moradia');
+    const [description, setDescription] = useState('');
+    const [status, setStatus] = useState('Ativo');
 
     useEffect(() => {
         if (open) {
@@ -36,14 +41,34 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                 setStartDate(existingBenefit.start_date || '');
                 setEndDate(existingBenefit.end_date || '');
                 setProrationMethod(existingBenefit.proration_method || 'daily_actual');
+                setCategory(existingBenefit.category || 'Auxílio Moradia');
+                setDescription(existingBenefit.description || '');
+                setStatus(existingBenefit.status || 'Ativo');
             } else {
                 setMonthlyAmount('');
                 setStartDate('');
                 setEndDate('');
                 setProrationMethod('daily_actual');
+                setCategory('Auxílio Moradia');
+                setDescription('');
+                setStatus('Ativo');
             }
         }
     }, [open, existingBenefit]);
+
+    const defaultCategoryOptions = [
+        'Auxílio Moradia',
+        'Auxílio Alimentação',
+        'Auxílio Transporte',
+        'Prêmios',
+        'Bônus',
+        'Horas Extra / Adicionais',
+        'Outros Proventos'
+    ];
+
+    const categoryList = benefitCategories.length > 0
+        ? benefitCategories.map(c => c.name)
+        : defaultCategoryOptions;
 
     // Calculate estimate for current month
     const estimatedValue = useMemo(() => {
@@ -71,7 +96,6 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
         } else {
             return (amount * eligibleDays) / 30;
         }
-
     }, [monthlyAmount, startDate, endDate, prorationMethod]);
 
     const handleSave = () => {
@@ -87,11 +111,14 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
             monthly_amount: Number(monthlyAmount),
             start_date: startDate,
             end_date: endDate || null,
-            proration_method: prorationMethod
+            proration_method: prorationMethod,
+            category,
+            description: description.trim() || null,
+            status
         }, {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
-                queryClient.invalidateQueries({ queryKey: ['housing_benefit', workerId] }); // Invalidate single tab as well
+                queryClient.invalidateQueries({ queryKey: ['housing_benefit', workerId] });
                 onOpenChange(false);
             },
             onError: (err) => {
@@ -101,7 +128,7 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
     };
 
     const handleDelete = () => {
-        if (existingBenefit && confirm('Tem certeza que deseja remover este benefício?')) {
+        if (existingBenefit && confirm('Tem certeza que deseja remover este benefício/provento?')) {
             deleteHousing.mutate(existingBenefit.id, {
                 onSuccess: () => {
                     queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
@@ -121,12 +148,12 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                 <DialogHeader>
                     <div className="flex items-center justify-between">
                         <div>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Home className="h-5 w-5 text-muted-foreground" />
-                                Benefício de Moradia - {workerName}
+                            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                                <Gift className="h-5 w-5 text-emerald-600" />
+                                Provento / Benefício - {workerName}
                             </DialogTitle>
                             <DialogDescription>
-                                Configure the housing allowance for this worker.
+                                Configure o benefício ou adicional cadastrado para este trabalhador.
                             </DialogDescription>
                         </div>
                         {existingBenefit && (
@@ -137,59 +164,83 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                     </div>
                 </DialogHeader>
 
-                <div className="py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="amount">Valor Mensal (€)</Label>
-                                <Input
-                                    id="amount"
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Ex: 500.00"
-                                    value={monthlyAmount}
-                                    onChange={(e) => setMonthlyAmount(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label>Método de Prorrateio (Proporcionalidade)</Label>
-                                <select
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                                    value={prorationMethod}
-                                    onChange={(e) => setProrationMethod(e.target.value)}
-                                >
-                                    <option value="daily_actual">Atuais Dias do Mês (28/29/30/31)</option>
-                                    <option value="daily_30">Comercial (30 dias)</option>
-                                </select>
-                            </div>
+                <div className="py-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="category">Tipo de Provento</Label>
+                            <select
+                                id="category"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                            >
+                                {categoryList.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="start">Data de Início</Label>
-                                <Input
-                                    id="start"
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="end">Data de Fim (Opcional)</Label>
-                                <Input
-                                    id="end"
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                />
-                            </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="amount">Valor Mensal (€)</Label>
+                            <Input
+                                id="amount"
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 300.00"
+                                value={monthlyAmount}
+                                onChange={(e) => setMonthlyAmount(e.target.value)}
+                            />
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="start">Data de Início</Label>
+                            <Input
+                                id="start"
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="end">Data Fim (Opcional)</Label>
+                            <Input
+                                id="end"
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="status">Status</Label>
+                            <select
+                                id="status"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                            >
+                                <option value="Ativo">Ativo</option>
+                                <option value="Inativo">Inativo</option>
+                                <option value="Pausado">Pausado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="desc">Descrição / Observações</Label>
+                        <Input
+                            id="desc"
+                            placeholder="Observações adicionais..."
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                        />
+                    </div>
+
                     {estimatedValue > 0 && (
-                        <div className="mt-6 p-4 bg-muted/50 rounded-md border text-center">
-                            <p className="text-sm text-muted-foreground mb-1">Valor proporcional estimado no mês atual:</p>
-                            <p className="text-2xl font-bold text-primary">€ {estimatedValue.toFixed(2)}</p>
+                        <div className="mt-4 p-4 bg-emerald-50/50 rounded-md border border-emerald-100 text-center">
+                            <p className="text-sm text-emerald-800 mb-1">Valor proporcional estimado no mês atual:</p>
+                            <p className="text-2xl font-bold text-emerald-700">€ {estimatedValue.toFixed(2)}</p>
                         </div>
                     )}
 
@@ -202,11 +253,12 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                             Cancelar
                         </Button>
                         <Button
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             onClick={handleSave}
                             disabled={upsertHousing.isPending || deleteHousing.isPending}
                         >
                             {upsertHousing.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Salvar Auxílio Moradia
+                            Salvar Provento
                         </Button>
                     </div>
                 </div>
@@ -214,3 +266,4 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
         </Dialog>
     );
 }
+

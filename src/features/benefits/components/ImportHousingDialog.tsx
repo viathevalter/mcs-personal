@@ -37,6 +37,7 @@ interface ParsedRow {
     nome_planilha: string;
     valor: number;
     data_inicio: string;
+    categoria: string;
     workerId?: string;
     empresaId?: string;
     nomeBanco?: string;
@@ -61,10 +62,12 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
         cod_colab: '',
         valor: '',
         data_inicio: '',
+        categoria: '',
         nome: ''
     });
 
     const [defaultDataInicio, setDefaultDataInicio] = useState(format(new Date(), 'yyyy-MM-01'));
+    const [defaultCategory, setDefaultCategory] = useState('Auxílio Moradia');
 
     // Preview
     const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
@@ -75,7 +78,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
         setRawHeaders([]);
         setRawRows([]);
         setParsedRows([]);
-        setColMapping({ cod_colab: '', valor: '', data_inicio: '', nome: '' });
+        setColMapping({ cod_colab: '', valor: '', data_inicio: '', categoria: '', nome: '' });
+        setDefaultCategory('Auxílio Moradia');
         setIsParsing(false);
     };
 
@@ -109,7 +113,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                 const guessMapping = {
                     cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'codigo', 'cod', 'cod_colab']) || '',
                     valor: findKeyIgnoreCase(headers, ['valor', 'valor_mensal', 'mensalidade', 'amount']) || '',
-                    data_inicio: findKeyIgnoreCase(headers, ['data_inicio', 'inicio', 'data inicio', 'start']) || '',
+                    data_inicio: findKeyIgnoreCase(headers, ['data_inicio', 'inicio', 'data inicio', 'start', 'mes', 'mês']) || '',
+                    categoria: findKeyIgnoreCase(headers, ['categoria', 'tipo', 'category']) || '',
                     nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'nombre', 'colaborador']) || ''
                 };
                 setColMapping(guessMapping);
@@ -126,21 +131,19 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
         if (!val) return null;
         const strVal = String(val).trim();
 
-        // Handle DD/MM/YYYY
         if (strVal.includes('/')) {
             try {
                 const parsed = parse(strVal, 'dd/MM/yyyy', new Date());
                 if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
             } catch (e) { }
         }
-        // Handle YYYY-MM-DD
         if (strVal.includes('-')) {
             try {
                 const parsed = new Date(strVal);
                 if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd');
             } catch (e) { }
         }
-        return null; // Invalid date
+        return null;
     };
 
     const generatePreview = () => {
@@ -150,9 +153,11 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
             const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim().toUpperCase() : '';
             const rawValor = colMapping.valor ? parseFloat(String(row[colMapping.valor] || '0').replace(',', '.')) : 0;
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '') : '';
+            let rawCat = colMapping.categoria ? String(row[colMapping.categoria] || '').trim() : defaultCategory;
+            if (!rawCat) rawCat = defaultCategory;
 
             let rawDataInicio = colMapping.data_inicio ? parseDateValue(row[colMapping.data_inicio]) : defaultDataInicio;
-            if (!colMapping.data_inicio) rawDataInicio = defaultDataInicio; // fallback to default
+            if (!colMapping.data_inicio) rawDataInicio = defaultDataInicio;
 
             if (!rawCod) continue;
 
@@ -178,6 +183,7 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                 nome_planilha: rawNome,
                 valor: isNaN(rawValor) ? 0 : rawValor,
                 data_inicio: rawDataInicio || '',
+                categoria: rawCat,
                 workerId: matchedWorker?.id,
                 empresaId: matchedWorker?.empresa_id,
                 nomeBanco: matchedWorker?.nome,
@@ -202,6 +208,8 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
             empresa_id: r.empresaId!,
             monthly_amount: Number(r.valor.toFixed(2)),
             start_date: r.data_inicio,
+            category: r.categoria,
+            status: 'Ativo',
             end_date: null,
             proration_method: 'daily_actual',
             import_batch_id: batchId
@@ -331,6 +339,24 @@ export function ImportHousingDialog({ workers, trigger }: ImportHousingDialogPro
                                         <SelectContent>
                                             <SelectItem value=" ">-- Ignorar --</SelectItem>
                                             {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-emerald-800">Tipo / Categoria do Provento</Label>
+                                    <Select value={defaultCategory} onValueChange={setDefaultCategory}>
+                                        <SelectTrigger className="bg-white border-emerald-300">
+                                            <SelectValue placeholder="Selecione o tipo..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Auxílio Moradia">Auxílio Moradia</SelectItem>
+                                            <SelectItem value="Auxílio Alimentação">Auxílio Alimentação</SelectItem>
+                                            <SelectItem value="Auxílio Transporte">Auxílio Transporte</SelectItem>
+                                            <SelectItem value="Prêmios">Prêmios</SelectItem>
+                                            <SelectItem value="Bônus">Bônus</SelectItem>
+                                            <SelectItem value="Horas Extra / Adicionais">Horas Extra / Adicionais</SelectItem>
+                                            <SelectItem value="Outros Proventos">Outros Proventos</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
