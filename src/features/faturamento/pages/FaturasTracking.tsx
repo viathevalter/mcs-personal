@@ -1778,11 +1778,7 @@ export function FaturasTracking() {
     const monthStr = getTranslatedMonth(periodMonth, lang);
     const periodStr = lang === 'en' ? `${monthStr} ${periodYear}` : `${monthStr} de ${periodYear}`;
     
-    const adj = fatura.ajustes_json || {};
-    const incrementos = Number(adj.incrementos || 0);
-    const reducoes = Number(adj.reducoes || 0);
-    const ivaPct = Number(adj.iva_pct || 0);
-    const finalTotal = (fatura.total_valor + incrementos - reducoes) * (1 + ivaPct / 100);
+    const finalTotal = Number(fatura.total_valor || 0);
 
     const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || fatura.client?.legal_name || 'Cliente';
     const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
@@ -2019,8 +2015,13 @@ MCS - Gestão Comercial`;
         });
       });
 
-      const finalTotalHoras = effTotalHoras;
-      const finalTotalValor = effTotalValor;
+      const finalTotalHoras = (fatura.total_horas !== undefined && fatura.total_horas !== null && fatura.total_horas > 0)
+        ? fatura.total_horas
+        : (effTotalHoras > 0 ? effTotalHoras : 0);
+
+      const finalTotalValor = (fatura.total_valor !== undefined && fatura.total_valor !== null && fatura.total_valor > 0)
+        ? fatura.total_valor
+        : (effTotalValor > 0 ? effTotalValor : 0);
 
       const cached = emailCache[fatura.id];
       if (cached) {
