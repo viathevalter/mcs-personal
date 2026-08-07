@@ -858,6 +858,8 @@ export function CampaignsPage() {
     isNewAudienceDialogOpen,
     audienceFilters.stageId,
     audienceFilters.origin,
+    audienceFilters.selectedSectors,
+    audienceFilters.selectedServices,
     audienceFilters.sectorKeyword,
     audienceFilters.cargoKeyword,
     audienceFilters.provinceKeyword,
@@ -943,15 +945,23 @@ export function CampaignsPage() {
       toast.error('Preencha o nome do público.');
       return;
     }
+    const filtered = getFilteredLeads();
+    const count = selectedLeadIds.size > 0 ? selectedLeadIds.size : filtered.length;
+    const leadIdsArray = selectedLeadIds.size > 0 
+      ? Array.from(selectedLeadIds) 
+      : filtered.map(l => l.id);
+
     const newPreset = {
       id: crypto.randomUUID(),
       name: audienceSaveName,
       filters: { ...audienceFilters },
+      leadCount: count,
+      leadIds: leadIdsArray,
       created_at: new Date().toISOString()
     };
     const updated = [newPreset, ...savedAudiences];
     saveAudiencesToLocalStorage(updated);
-    toast.success(`Público Salvo "${audienceSaveName}" criado com sucesso!`);
+    toast.success(`Público Salvo "${audienceSaveName}" criado com sucesso (${count} leads)!`);
     setIsNewAudienceDialogOpen(false);
     setAudienceSaveName('');
   };
@@ -1280,12 +1290,17 @@ export function CampaignsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {savedAudiences.map((aud) => {
                 return (
-                  <div key={aud.id} className="bg-card border p-5 rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between min-h-[185px]">
+                  <div key={aud.id} className="bg-card border p-5 rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between min-h-[200px]">
                     <div>
                       <div className="flex justify-between items-start mb-2.5">
-                        <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold">
-                          SEGMENTO
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold">
+                            SEGMENTO
+                          </span>
+                          <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
+                            {aud.leadCount !== undefined ? `${aud.leadCount} leads` : (aud.leadIds ? `${aud.leadIds.length} leads` : 'Leads Ativos')}
+                          </span>
+                        </div>
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -1295,23 +1310,44 @@ export function CampaignsPage() {
                           <Trash2 size={14} />
                         </Button>
                       </div>
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base truncate mb-1">
+                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base truncate mb-1">
                         {aud.name}
                       </h3>
+                      
                       <div className="text-[11px] text-slate-500 space-y-1 mt-2.5 border-t pt-2">
-                        {aud.filters.sectorKeyword && (
-                          <div>Atividade: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.sectorKeyword}"</strong></div>
+                        {aud.filters?.selectedSectors && aud.filters.selectedSectors.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="font-semibold text-slate-600">Setores:</span>
+                            {aud.filters.selectedSectors.map((s: string) => (
+                              <span key={s} className="bg-amber-500/10 text-amber-800 dark:text-amber-300 px-1.5 py-0.2 rounded text-[10px] font-bold border border-amber-500/20">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        {aud.filters.stageId && (
-                          <div>Estágio Kanban: <strong className="text-slate-700 dark:text-slate-350">Ativo</strong></div>
+                        {aud.filters?.selectedServices && aud.filters.selectedServices.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="font-semibold text-slate-600">Serviços:</span>
+                            {aud.filters.selectedServices.map((s: string) => (
+                              <span key={s} className="bg-blue-500/10 text-blue-800 dark:text-blue-300 px-1.5 py-0.2 rounded text-[10px] font-bold border border-blue-500/20">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        {aud.filters.provinceKeyword && (
-                          <div>Província/Cidade: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.provinceKeyword}"</strong></div>
+                        {aud.filters?.sectorKeyword && (
+                          <div>Busca Livre: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.sectorKeyword}"</strong></div>
                         )}
-                        {aud.filters.origin && (
+                        {aud.filters?.stageId && (
+                          <div>Estágio Kanban: <strong className="text-slate-700 dark:text-slate-350">Filtrado por Etapa</strong></div>
+                        )}
+                        {aud.filters?.provinceKeyword && (
+                          <div>Cidade/Província: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.provinceKeyword}"</strong></div>
+                        )}
+                        {aud.filters?.origin && (
                           <div>Origem: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.origin}"</strong></div>
                         )}
-                        {(aud.filters.limit || aud.filters.offset) && (
+                        {(aud.filters?.limit || aud.filters?.offset) && (
                           <div>Loteamento: <strong className="text-slate-700 dark:text-slate-350">Qtd: {aud.filters.limit || 'Sem Limite'} / Pular: {aud.filters.offset || '0'}</strong></div>
                         )}
                       </div>
@@ -1322,33 +1358,28 @@ export function CampaignsPage() {
                         size="sm" 
                         variant="ghost"
                         onClick={async () => {
+                          if (aud.filters) {
+                            setAudienceFilters({ ...aud.filters });
+                          }
                           setViewLeadsAudience(aud);
-                          setLoadingAudienceLeads(true);
-                          try {
-                            const { data: leads } = await supabase
-                              .schema('core_comercial')
-                              .from('leads')
-                              .select('*')
-                              .eq('empresa_id', selectedEmpresaId);
-                            setAllLeads(leads || []);
-                            setAllQueuedLeads([]);
-                          } catch (e) {}
-                          setLoadingAudienceLeads(false);
+                          await fetchAudienceLeads();
                         }}
-                        className="text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-350 text-xs font-semibold flex items-center gap-1.5"
+                        className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 text-xs font-bold flex items-center gap-1.5"
                       >
-                        <Eye size={13} /> Ver Leads
+                        <Eye size={14} /> Ver Leads
                       </Button>
                       <Button 
                         size="sm" 
                         variant="ghost"
                         onClick={() => {
                           setCampaignForm({ title: `Campanha - ${aud.name}`, template_id: '' });
-                          setAudienceFilters({ ...aud.filters });
+                          if (aud.filters) {
+                            setAudienceFilters({ ...aud.filters });
+                          }
                           setIsCampaignModalOpen(true);
                           toast.success(`Defina o template. O público "${aud.name}" foi pré-carregado!`);
                         }}
-                        className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 text-xs font-semibold"
+                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 text-xs font-bold"
                       >
                         Nova Campanha
                       </Button>
