@@ -340,6 +340,11 @@ export function CampaignsPage() {
   const [isNewAudienceDialogOpen, setIsNewAudienceDialogOpen] = useState(false); // To build and save an audience directly in the audiences tab
   const [viewLeadsAudience, setViewLeadsAudience] = useState<any | null>(null); // For viewing leads inside a saved audience
 
+  // Grid Selection & Search & Pagination
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [leadGridSearch, setLeadGridSearch] = useState('');
+  const [gridPage, setGridPage] = useState(1);
+
   // Dynamic Sector and Service options extracted directly from database leads
   const dynamicSectorOptions = useMemo(() => {
     const set = new Set<string>();
