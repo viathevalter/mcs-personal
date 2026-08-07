@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -1553,6 +1553,10 @@ export function FaturasTracking() {
         }
         return f;
       }));
+
+      updateFaturaAjustes(selectedDispute.id, { disputed_hours: next }).catch(err => {
+        console.error('Error auto-saving cell edit:', err);
+      });
     }
   };
 
@@ -1943,8 +1947,7 @@ MCS - Gestão Comercial`;
         const key = `${wId}_${dateKey}`;
         processedKeys.add(key);
 
-        const proposed = disputedObj[wId]?.[dateKey];
-        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+        const hoursVal = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
         const rate = Number(h.tarifa_faturada || 0);
 
         effTotalHoras += hoursVal;
@@ -3844,8 +3847,7 @@ MCS - Gestão Comercial`;
 
                             const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
                             const rate = Number(h.tarifa_faturada || 0);
-                            const proposed = disputedObj[wId]?.[dateKey];
-                            const hours = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+                            const hours = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
                             
                             if (!workerSummary[wId]) {
                               workerSummary[wId] = { name, hours: 0, rate, total: 0 };

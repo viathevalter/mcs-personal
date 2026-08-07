@@ -1043,6 +1043,29 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
   };
 }
 
+export function getDisputedHourValue(disputedObj: any, wId: string, rawDateKey: string, defaultVal: number): number {
+  if (!disputedObj || !disputedObj[wId]) return defaultVal;
+  const wObj = disputedObj[wId];
+
+  const cleanKey = rawDateKey ? (rawDateKey.includes('T') ? rawDateKey.split('T')[0] : rawDateKey) : '';
+  if (wObj[cleanKey] !== undefined) return Number(wObj[cleanKey]);
+  if (wObj[rawDateKey] !== undefined) return Number(wObj[rawDateKey]);
+
+  const cleanParts = cleanKey.split('-');
+  if (cleanParts.length === 3) {
+    const y = cleanParts[0];
+    const m = String(parseInt(cleanParts[1])).padStart(2, '0');
+    const d = String(parseInt(cleanParts[2])).padStart(2, '0');
+    const normalizedKey = `${y}-${m}-${d}`;
+    if (wObj[normalizedKey] !== undefined) return Number(wObj[normalizedKey]);
+
+    const unpaddedKey = `${y}-${parseInt(cleanParts[1])}-${parseInt(cleanParts[2])}`;
+    if (wObj[unpaddedKey] !== undefined) return Number(wObj[unpaddedKey]);
+  }
+
+  return defaultVal;
+}
+
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
   try {
     let query = supabase
@@ -1130,8 +1153,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           const key = `${wId}_${dateKey}`;
           processedKeys.add(key);
 
-          const proposed = disputedObj[wId]?.[dateKey];
-          const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
+          const hoursVal = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
           const rate = Number(h.tarifa_faturada || 0);
 
           totHoras += hoursVal;
