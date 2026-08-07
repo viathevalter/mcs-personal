@@ -1318,7 +1318,10 @@ export async function processarContestacaoFatura(
   }
 ): Promise<void> {
   if (financialAdjustments) {
-    await updateFaturaAjustes(faturaId, financialAdjustments);
+    await updateFaturaAjustes(faturaId, {
+      ...financialAdjustments,
+      ...(proposedHours && { disputed_hours: proposedHours })
+    });
   }
 
   if (aceitar && proposedHours) {

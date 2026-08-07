@@ -1564,7 +1564,11 @@ export function FaturasTracking() {
         iva_pct: disputeIvaPct
       };
 
-      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? adminModifiedHoursRef.current : null, financialAdjustments);
+      const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
+        ? adminModifiedHoursRef.current
+        : (selectedDispute.ajustes_json?.disputed_hours || null);
+
+      await processarContestacaoFatura(selectedDispute.id, aceitar, aceitar ? activeEdits : null, financialAdjustments);
       
       toast.success(
         aceitar 
@@ -1574,10 +1578,13 @@ export function FaturasTracking() {
       
       const targetFaturaId = selectedDispute.id;
       setSelectedDispute(null);
-      await fetchFaturas();
 
-      // Abre o modal de e-mail correspondente (aceite ou contestação)
-      const updatedFatura = faturas.find(f => f.id === targetFaturaId);
+      // Fetch fresh faturas directly from DB to avoid React state timing race
+      const freshFaturas = await getFaturasTracking(selectedEmpresaId);
+      setFaturas(freshFaturas);
+
+      // Abre o modal de e-mail com a fatura 100% atualizada do banco
+      const updatedFatura = freshFaturas.find(f => f.id === targetFaturaId);
       if (updatedFatura) {
         handleTriggerResendEmail(updatedFatura, aceitar);
       }
