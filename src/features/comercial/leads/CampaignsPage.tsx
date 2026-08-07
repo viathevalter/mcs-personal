@@ -470,16 +470,32 @@ export function CampaignsPage() {
     setIsAudienceModalOpen(true);
     
     try {
-      // 1. Fetch all leads for current company
-      const { data: leads, error: leadsErr } = await supabase
-        .schema('core_comercial')
-        .from('leads')
-        .select('*')
-        .eq('empresa_id', selectedEmpresaId)
-        .order('name', { ascending: true });
+      // 1. Fetch all global leads across holding group
+      let allFetchedLeads: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
 
-      if (leadsErr) throw leadsErr;
-      setAllLeads(leads || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('*')
+          .range(from, from + step - 1)
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allFetchedLeads = [...allFetchedLeads, ...data];
+          from += step;
+          if (data.length < step) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setAllLeads(allFetchedLeads);
 
       // 2. Fetch all queue items (history) to check for opt-out/active rules
       const { data: queue, error: queueErr } = await supabase
@@ -999,13 +1015,31 @@ export function CampaignsPage() {
                   offset: '',
                 });
                 try {
-                  const { data: leads } = await supabase
-                    .schema('core_comercial')
-                    .from('leads')
-                    .select('*')
-                    .eq('empresa_id', selectedEmpresaId)
-                    .order('name', { ascending: true });
-                  setAllLeads(leads || []);
+                  let allFetchedLeads: any[] = [];
+                  let from = 0;
+                  const step = 1000;
+                  let hasMore = true;
+
+                  while (hasMore) {
+                    const { data, error } = await supabase
+                      .schema('core_comercial')
+                      .from('leads')
+                      .select('*')
+                      .range(from, from + step - 1)
+                      .order('name', { ascending: true });
+
+                    if (error) throw error;
+
+                    if (data && data.length > 0) {
+                      allFetchedLeads = [...allFetchedLeads, ...data];
+                      from += step;
+                      if (data.length < step) hasMore = false;
+                    } else {
+                      hasMore = false;
+                    }
+                  }
+
+                  setAllLeads(allFetchedLeads);
                 } catch(e) {}
                 setLoadingAudienceLeads(false);
               }} 
