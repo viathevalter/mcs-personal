@@ -650,6 +650,17 @@ export function CampaignsPage() {
     fetchTrackingQueue(camp.id);
   };
 
+  // Auto refresh tracking modal details every 6 seconds when open
+  useEffect(() => {
+    if (!isTrackModalOpen || !selectedCampaignForTracking) return;
+
+    const interval = setInterval(() => {
+      fetchTrackingQueue(selectedCampaignForTracking.id);
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [isTrackModalOpen, selectedCampaignForTracking]);
+
   const handleTriggerQueueManually = async () => {
     setIsTriggeringQueue(true);
     try {
