@@ -306,12 +306,17 @@ export function FaturasTracking() {
       isException: boolean;
     }>();
 
+    const disputedHoursObj = fat.ajustes_json?.disputed_hours || fat.ajustesJson?.disputed_hours || {};
+    
     hours.forEach((h: any) => {
       const wId = h.worker_id;
       if (!wId) return;
+      const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
       const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
-      const rate = Number(h.tarifa_faturada || 27.00);
-      const hoursVal = Number(h.horas_totais || 0);
+      const rate = Number(h.tarifa_faturada || 0);
+      
+      const proposed = disputedHoursObj[wId]?.[dateKey];
+      const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
       const isException = !!h.is_exception;
       
       if (!workerSummaryMap.has(wId)) {
@@ -331,6 +336,36 @@ export function FaturasTracking() {
       if (isException) {
         wObj.isException = true;
       }
+    });
+
+    // Also include any newly added dates in disputedHoursObj not in original hours
+    Object.keys(disputedHoursObj).forEach(wId => {
+      const dates = disputedHoursObj[wId] || {};
+      Object.keys(dates).forEach(dateKey => {
+        const hoursVal = Number(dates[dateKey] || 0);
+        if (hoursVal > 0) {
+          const alreadyProcessed = hours.some(h => h.worker_id === wId && (h.data_trabalho?.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) === dateKey);
+          if (!alreadyProcessed) {
+            const sample = hours.find((h: any) => h.worker_id === wId);
+            const rate = Number(sample?.tarifa_faturada || 0);
+            const name = sample?.worker?.nombrecompleto || sample?.worker?.nome || 'Colaborador';
+            
+            if (!workerSummaryMap.has(wId)) {
+              workerSummaryMap.set(wId, {
+                workerId: wId,
+                workerName: name,
+                totalHoras: 0,
+                tarifa: rate,
+                totalValor: 0,
+                isException: false
+              });
+            }
+            const wObj = workerSummaryMap.get(wId)!;
+            wObj.totalHoras += hoursVal;
+            wObj.totalValor += hoursVal * rate;
+          }
+        }
+      });
     });
 
     const workers = Array.from(workerSummaryMap.values());
@@ -1447,6 +1482,20 @@ export function FaturasTracking() {
     
     adminModifiedHoursRef.current = next;
     setAdminModifiedHours(next);
+
+    if (selectedDispute) {
+      setSelectedDispute((prev: any) => {
+        if (!prev) return null;
+        const currentAdj = prev.ajustes_json || {};
+        return {
+          ...prev,
+          ajustes_json: {
+            ...currentAdj,
+            disputed_hours: next
+          }
+        };
+      });
+    }
   };
 
   const handleSaveFinancialAdjustments = async () => {
@@ -2330,26 +2379,49 @@ MCS - Gestão Comercial`;
               };
             })();
 
-            const totalBaseVal = (() => {
-              let sum = 0;
-              disputeHours.forEach(h => {
-                const proposed = adminModifiedHours[h.worker_id]?.[h.data_trabalho];
-                const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
-                sum += hoursVal * (h.tarifa_faturada || 0);
+            const effectiveDisputeHours = (() => {
+              const map = new Map<string, any>();
+
+              (disputeHours || []).forEach(h => {
+                const wId = h.worker_id;
+                if (!wId) return;
+                const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+                const key = `${wId}_${dateKey}`;
+                const proposed = adminModifiedHours[wId]?.[dateKey];
+                const horas = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+
+                map.set(key, {
+                  ...h,
+                  data_trabalho: dateKey,
+                  horas_totais: horas
+                });
               });
-              return sum;
+
+              Object.keys(adminModifiedHours || {}).forEach(wId => {
+                const dates = adminModifiedHours[wId] || {};
+                Object.keys(dates).forEach(dateKey => {
+                  const key = `${wId}_${dateKey}`;
+                  const hoursVal = dates[dateKey];
+                  if (!map.has(key) && hoursVal > 0) {
+                    const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
+                    map.set(key, {
+                      fatura_id: selectedDispute?.id,
+                      worker_id: wId,
+                      data_trabalho: dateKey,
+                      horas_totais: hoursVal,
+                      tarifa_faturada: sample?.tarifa_faturada || 0,
+                      worker: sample?.worker || { nome: 'Colaborador' }
+                    });
+                  }
+                });
+              });
+
+              return Array.from(map.values());
             })();
 
+            const totalBaseVal = effectiveDisputeHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
             const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
-
-            const totalHorasCalculadas = (() => {
-              let sum = 0;
-              disputeHours.forEach(h => {
-                const proposed = adminModifiedHours[h.worker_id]?.[h.data_trabalho];
-                sum += proposed !== undefined ? proposed : h.horas_totais;
-              });
-              return sum;
-            })();
+            const totalHorasCalculadas = effectiveDisputeHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
 
             const groupedDisputeWorkersEnriched = (() => {
               const workersMap = new Map<string, {
@@ -2360,26 +2432,23 @@ MCS - Gestão Comercial`;
                 totalValor: number;
               }>();
 
-              disputeHours.forEach(h => {
+              effectiveDisputeHours.forEach(h => {
                 const wId = h.worker_id;
                 if (!wId) return;
-
-                const proposed = adminModifiedHours[wId]?.[h.data_trabalho];
-                const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
 
                 if (!workersMap.has(wId)) {
                   workersMap.set(wId, {
                     workerId: wId,
-                    workerName: h.worker?.nome || 'Colaborador',
+                    workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
                     totalHoras: 0,
-                    tarifa: h.tarifa_faturada || 0,
+                    tarifa: Number(h.tarifa_faturada || 0),
                     totalValor: 0
                   });
                 }
 
                 const wObj = workersMap.get(wId)!;
-                wObj.totalHoras += hoursVal;
-                wObj.totalValor += hoursVal * (h.tarifa_faturada || 0);
+                wObj.totalHoras += Number(h.horas_totais || 0);
+                wObj.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
               });
 
               return Array.from(workersMap.values());
@@ -3962,26 +4031,50 @@ MCS - Gestão Comercial`;
           };
         })();
         
-        const totalBaseVal = (() => {
-          let sum = 0;
-          pdfRenderData.hours.forEach(h => {
-            const proposed = fat.ajustes_json?.disputed_hours?.[h.worker_id]?.[h.data_trabalho];
-            const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
-            sum += hoursVal * (h.tarifa_faturada || 0);
+        const effectivePdfHours = (() => {
+          const map = new Map<string, any>();
+          const disputedObj = fat.ajustes_json?.disputed_hours || {};
+
+          (pdfRenderData.hours || []).forEach(h => {
+            const wId = h.worker_id;
+            if (!wId) return;
+            const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+            const key = `${wId}_${dateKey}`;
+            const proposed = disputedObj[wId]?.[dateKey];
+            const horas = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+
+            map.set(key, {
+              ...h,
+              data_trabalho: dateKey,
+              horas_totais: horas
+            });
           });
-          return sum;
+
+          Object.keys(disputedObj || {}).forEach(wId => {
+            const dates = disputedObj[wId] || {};
+            Object.keys(dates).forEach(dateKey => {
+              const key = `${wId}_${dateKey}`;
+              const hoursVal = dates[dateKey];
+              if (!map.has(key) && hoursVal > 0) {
+                const sample = (pdfRenderData.hours || []).find((h: any) => h.worker_id === wId);
+                map.set(key, {
+                  fatura_id: fat.id,
+                  worker_id: wId,
+                  data_trabalho: dateKey,
+                  horas_totais: hoursVal,
+                  tarifa_faturada: sample?.tarifa_faturada || 0,
+                  worker: sample?.worker || { nome: 'Colaborador' }
+                });
+              }
+            });
+          });
+
+          return Array.from(map.values());
         })();
-        
+
+        const totalBaseVal = effectivePdfHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
         const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
-        
-        const totalHorasCalculadas = (() => {
-          let sum = 0;
-          pdfRenderData.hours.forEach(h => {
-            const proposed = fat.ajustes_json?.disputed_hours?.[h.worker_id]?.[h.data_trabalho];
-            sum += proposed !== undefined ? proposed : h.horas_totais;
-          });
-          return sum;
-        })();
+        const totalHorasCalculadas = effectivePdfHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
         
         const groupedDisputeWorkersEnriched = (() => {
           const workersMap = new Map<string, {
@@ -3992,26 +4085,23 @@ MCS - Gestão Comercial`;
             totalValor: number;
           }>();
 
-          pdfRenderData.hours.forEach(h => {
+          effectivePdfHours.forEach(h => {
             const wId = h.worker_id;
             if (!wId) return;
-
-            const proposed = fat.ajustes_json?.disputed_hours?.[wId]?.[h.data_trabalho];
-            const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
 
             if (!workersMap.has(wId)) {
               workersMap.set(wId, {
                 workerId: wId,
-                workerName: h.worker?.nome || 'Colaborador',
+                workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
                 totalHoras: 0,
-                tarifa: h.tarifa_faturada || 0,
+                tarifa: Number(h.tarifa_faturada || 0),
                 totalValor: 0
               });
             }
 
             const wObj = workersMap.get(wId)!;
-            wObj.totalHoras += hoursVal;
-            wObj.totalValor += hoursVal * (h.tarifa_faturada || 0);
+            wObj.totalHoras += Number(h.horas_totais || 0);
+            wObj.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
           });
 
           return Array.from(workersMap.values());
