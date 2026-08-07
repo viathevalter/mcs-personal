@@ -1848,9 +1848,10 @@ MCS - Gestão Comercial`;
         });
       };
 
-      const activeEdits = (selectedDispute && selectedDispute.id === fatura.id && Object.keys(adminModifiedHoursRef.current).length > 0)
-        ? adminModifiedHoursRef.current
-        : (fatura.ajustes_json?.disputed_hours || {});
+      const activeEdits = {
+        ...(fatura.ajustes_json?.disputed_hours || {}),
+        ...((selectedDispute && selectedDispute.id === fatura.id) ? adminModifiedHoursRef.current : {})
+      };
 
       const currentReducoes = selectedDispute?.id === fatura.id ? disputeReductions : (fatura.ajustes_json?.reducoes || 0);
       const currentReducoesDesc = selectedDispute?.id === fatura.id ? disputeReductionsDesc : (fatura.ajustes_json?.reducoes_desc || '');
@@ -2470,14 +2471,26 @@ MCS - Gestão Comercial`;
 
             const effectiveDisputeHours = (() => {
               const map = new Map<string, any>();
+              const combinedDisputedHours: Record<string, Record<string, number>> = {};
+              const allWorkerIds = new Set([
+                ...Object.keys(selectedDispute?.ajustes_json?.disputed_hours || {}),
+                ...Object.keys(adminModifiedHours || {})
+              ]);
+
+              allWorkerIds.forEach(wId => {
+                combinedDisputedHours[wId] = {
+                  ...(selectedDispute?.ajustes_json?.disputed_hours?.[wId] || {}),
+                  ...(adminModifiedHours?.[wId] || {})
+                };
+              });
 
               (disputeHours || []).forEach(h => {
                 const wId = h.worker_id;
                 if (!wId) return;
                 const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
                 const key = `${wId}_${dateKey}`;
-                const proposed = adminModifiedHours[wId]?.[dateKey];
-                const horas = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+                const proposed = combinedDisputedHours[wId]?.[dateKey];
+                const horas = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
 
                 map.set(key, {
                   ...h,
@@ -2486,11 +2499,11 @@ MCS - Gestão Comercial`;
                 });
               });
 
-              Object.keys(adminModifiedHours || {}).forEach(wId => {
-                const dates = adminModifiedHours[wId] || {};
+              Object.keys(combinedDisputedHours).forEach(wId => {
+                const dates = combinedDisputedHours[wId] || {};
                 Object.keys(dates).forEach(dateKey => {
                   const key = `${wId}_${dateKey}`;
-                  const hoursVal = dates[dateKey];
+                  const hoursVal = Number(dates[dateKey] || 0);
                   if (!map.has(key) && hoursVal > 0) {
                     const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
                     map.set(key, {
