@@ -201,6 +201,14 @@ serve(async (req) => {
           await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
 
         } else {
+          const cleanLeadEmail = (lead.email || "")
+            .toLowerCase()
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\.+$|\s+/g, "")
+            .replace(/(\.(com|es|eu|org|net|pt|co|info))[a-z0-9_-]+$/gi, "$1");
+
           // Envio real via API do Resend
           const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -210,7 +218,7 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               from: fromHeader,
-              to: [lead.email],
+              to: [cleanLeadEmail],
               subject: emailSubject,
               html: htmlBody,
               tags: [
