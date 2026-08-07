@@ -85,7 +85,7 @@ serve(async (req) => {
       `)
       .eq("status", "pending")
       .in("campaign_id", activeCampaignIds)
-      .limit(50);
+      .limit(100);
 
     if (errQueue) throw errQueue;
 
