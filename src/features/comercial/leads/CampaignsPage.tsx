@@ -615,27 +615,43 @@ export function CampaignsPage() {
   const fetchTrackingQueue = async (campaignId: string) => {
     setLoadingTrackingQueue(true);
     try {
-      const { data, error } = await supabase
-        .schema('core_comercial')
-        .from('marketing_campaign_queue')
-        .select(`
-          id,
-          status,
-          sent_at,
-          error_message,
-          created_at,
-          leads:lead_id (
-            id,
-            name,
-            email,
-            company_name
-          )
-        `)
-        .eq('campaign_id', campaignId)
-        .order('created_at', { ascending: true });
+      let allItems: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setTrackingQueueItems(data || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('marketing_campaign_queue')
+          .select(`
+            id,
+            status,
+            sent_at,
+            error_message,
+            created_at,
+            leads:lead_id (
+              id,
+              name,
+              email,
+              company_name
+            )
+          `)
+          .eq('campaign_id', campaignId)
+          .order('created_at', { ascending: true })
+          .range(from, from + step - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allItems = [...allItems, ...data];
+          from += step;
+          if (data.length < step) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setTrackingQueueItems(allItems);
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao carregar o relatório de envios.');
