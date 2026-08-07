@@ -184,17 +184,16 @@ export function useMutateMarketing() {
         return campaign as MarketingCampaign;
       }
 
-      // 3. Caso contrário (fallback): Buscar todos os leads da empresa (excluindo descadastrados)
+      // 3. Caso contrário (fallback): Buscar todos os leads da base global do grupo (excluindo descadastrados)
       const { data: leads, error: errLeads } = await supabase
         .schema('core_comercial')
         .from('leads')
-        .select('id, email, name, notes')
-        .eq('empresa_id', selectedEmpresaId);
+        .select('id, email, name, notes');
 
       if (errLeads) throw errLeads;
 
       if (!leads || leads.length === 0) {
-        throw new Error('Nenhum lead cadastrado para esta empresa.');
+        throw new Error('Nenhum lead cadastrado na base de dados.');
       }
 
       // 4. Montar a fila de disparos (Ignora leads sem email, inválidos ou descadastrados)

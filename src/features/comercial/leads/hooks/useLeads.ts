@@ -7,9 +7,8 @@ export function useLeads() {
   const { selectedEmpresaId } = useEmpresa();
 
   return useQuery({
-    queryKey: ['leads', selectedEmpresaId],
+    queryKey: ['leads', 'global', selectedEmpresaId],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
       let allLeads: Lead[] = [];
       let from = 0;
       let to = 999;
@@ -20,7 +19,6 @@ export function useLeads() {
           .schema('core_comercial')
           .from('leads')
           .select('*')
-          .eq('empresa_id', selectedEmpresaId)
           .order('id', { ascending: true })
           .range(from, to);
 
@@ -38,7 +36,6 @@ export function useLeads() {
       }
       return allLeads;
     },
-    enabled: !!selectedEmpresaId,
   });
 }
 
@@ -64,16 +61,19 @@ export function useMutateLead() {
       return data as Lead;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'>> & { empresa_id?: string } }) => {
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Omit<Lead, 'id' | 'created_at' | 'updated_at'>> }) => {
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('leads')
-        .update(payload)
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .select()
         .single();
@@ -82,7 +82,7 @@ export function useMutateLead() {
       return data as Lead;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 
@@ -97,40 +97,27 @@ export function useMutateLead() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 
-  const createBatchMutation = useMutation({
-    mutationFn: async (payloads: Array<Omit<Lead, 'id' | 'empresa_id' | 'created_at' | 'updated_at'> & { empresa_id?: string }>) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-      const items = payloads.map(p => ({
-        ...p,
-        empresa_id: p.empresa_id || selectedEmpresaId
-      }));
+  const createLeadsBatch = async (leads: Omit<Lead, 'id' | 'created_at' | 'updated_at'>[]) => {
+    const { data, error } = await supabase
+      .schema('core_comercial')
+      .from('leads')
+      .insert(leads)
+      .select();
 
-      const { data, error } = await supabase
-        .schema('core_comercial')
-        .from('leads')
-        .insert(items)
-        .select();
-
-      if (error) throw error;
-      return data as Lead[];
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', selectedEmpresaId] });
-    },
-  });
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['leads'] });
+    return data as Lead[];
+  };
 
   return {
     createLead: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
-    createLeadsBatch: createBatchMutation.mutateAsync,
-    isCreatingBatch: createBatchMutation.isPending,
     updateLead: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isPending,
     deleteLead: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isPending,
+    createLeadsBatch,
+    isPending: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
   };
 }
