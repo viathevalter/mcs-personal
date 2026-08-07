@@ -1043,6 +1043,32 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
   };
 }
 
+export function normalizeDisputedHours(disputedObj: any): Record<string, Record<string, number>> {
+  if (!disputedObj || typeof disputedObj !== 'object') return {};
+  const normalized: Record<string, Record<string, number>> = {};
+
+  Object.keys(disputedObj).forEach(workerId => {
+    const dates = disputedObj[workerId] || {};
+    if (!normalized[workerId]) normalized[workerId] = {};
+
+    Object.keys(dates).forEach(rawDate => {
+      let cleanDate = rawDate ? (rawDate.includes('T') ? rawDate.split('T')[0] : rawDate) : '';
+      const parts = cleanDate.split('-');
+      if (parts.length === 3) {
+        const y = parts[0];
+        const m = String(parseInt(parts[1])).padStart(2, '0');
+        const d = String(parseInt(parts[2])).padStart(2, '0');
+        cleanDate = `${y}-${m}-${d}`;
+      }
+      if (cleanDate) {
+        normalized[workerId][cleanDate] = Number(dates[rawDate] || 0);
+      }
+    });
+  });
+
+  return normalized;
+}
+
 export function getDisputedHourValue(disputedObj: any, wId: string, rawDateKey: string, defaultVal: number): number {
   if (!disputedObj || !disputedObj[wId]) return defaultVal;
   const wObj = disputedObj[wId];
@@ -1261,7 +1287,7 @@ export async function contestarHorasCliente(
   const currentAdj = fatura?.ajustes_json || {};
   const updatedAdj = {
     ...currentAdj,
-    disputed_hours: proposedHours || null,
+    disputed_hours: proposedHours ? normalizeDisputedHours(proposedHours) : null,
     dispute_file_url: fileUrl || null
   };
 
@@ -1319,7 +1345,7 @@ export async function updateFaturaAjustes(
     ...(adjustments.reducoes_desc !== undefined && { reducoes_desc: adjustments.reducoes_desc }),
     ...(adjustments.iva_pct !== undefined && { iva_pct: Number(adjustments.iva_pct || 0) }),
     ...(adjustments.descricao_servico !== undefined && { descricao_servico: adjustments.descricao_servico }),
-    ...(adjustments.disputed_hours !== undefined && { disputed_hours: adjustments.disputed_hours })
+    ...(adjustments.disputed_hours !== undefined && { disputed_hours: normalizeDisputedHours(adjustments.disputed_hours) })
   };
 
   const { error: updErr } = await supabase
@@ -1344,12 +1370,13 @@ export async function processarContestacaoFatura(
     descricao_servico?: string;
   }
 ): Promise<void> {
+  const normHours = proposedHours ? normalizeDisputedHours(proposedHours) : undefined;
   await updateFaturaAjustes(faturaId, {
     ...(financialAdjustments || {}),
-    ...(proposedHours && { disputed_hours: proposedHours })
+    ...(normHours && { disputed_hours: normHours })
   });
 
-  if (aceitar && proposedHours) {
+  if (aceitar && normHours) {
     // Fetch fatura info for client_id and empresa_id fallbacks
     const { data: fatData } = await supabase
       .schema('core_finance')
@@ -1359,10 +1386,11 @@ export async function processarContestacaoFatura(
       .single();
 
     // 1. Iterate over proposed hours and update or insert in horas_trabalhadas
-    for (const workerId of Object.keys(proposedHours)) {
-      const dates = proposedHours[workerId];
-      for (const dateKey of Object.keys(dates)) {
-        const newHours = Number(dates[dateKey]);
+    for (const workerId of Object.keys(normHours)) {
+      const dates = normHours[workerId];
+      for (const rawDateKey of Object.keys(dates)) {
+        const cleanDate = rawDateKey.split('T')[0];
+        const newHours = Number(dates[rawDateKey]);
         
         // Check if row already exists for this fatura_id, worker_id, data_trabalho
         const { data: existingRow } = await supabase
@@ -1371,7 +1399,7 @@ export async function processarContestacaoFatura(
           .select('id, tarifa_faturada, client_id, empresa_id, funcao_id')
           .eq('fatura_id', faturaId)
           .eq('worker_id', workerId)
-          .eq('data_trabalho', dateKey)
+          .eq('data_trabalho', cleanDate)
           .maybeSingle();
 
         if (existingRow) {
