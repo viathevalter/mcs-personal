@@ -220,6 +220,7 @@ export function FaturasTracking() {
     token: string;
     totalHoras: number;
     totalValor: number;
+    totalValorBase?: number;
     ajustesJson: any;
     dataEmissao: string;
     paymentTermName: string;
@@ -2094,6 +2095,12 @@ MCS - Gestão Comercial`;
         ? fatura.total_valor
         : (effTotalValor > 0 ? effTotalValor : 0);
 
+      const finalTotalValorBase = (fatura.total_valor_base !== undefined && fatura.total_valor_base !== null && fatura.total_valor_base > 0)
+        ? fatura.total_valor_base
+        : (fatura.ajustes_json?.total_valor_base !== undefined && fatura.ajustes_json?.total_valor_base !== null && fatura.ajustes_json?.total_valor_base > 0)
+          ? fatura.ajustes_json?.total_valor_base
+          : (effTotalValor > 0 ? effTotalValor : 0);
+
       const cached = emailCache[fatura.id];
       if (cached) {
         setSelectedEmails(cached.selectedEmails);
@@ -2111,6 +2118,7 @@ MCS - Gestão Comercial`;
           token: fatura.magic_link_token,
           totalHoras: finalTotalHoras,
           totalValor: finalTotalValor,
+          totalValorBase: finalTotalValorBase,
           ajustesJson: adj,
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
@@ -2132,6 +2140,7 @@ MCS - Gestão Comercial`;
           token: fatura.magic_link_token,
           totalHoras: finalTotalHoras,
           totalValor: finalTotalValor,
+          totalValorBase: finalTotalValorBase,
           ajustesJson: adj,
           dataEmissao: fatura.data_emissao,
           paymentTermName: fatura.client?.paymentTermName || 'Pronto Pagamento',
@@ -3645,7 +3654,7 @@ MCS - Gestão Comercial`;
             if (!emailData) return null;
 
             const currentAdj = emailData.ajustesJson || {};
-            const currentTotalBase = emailData.totalValor;
+            const currentTotalBase = emailData.totalValorBase !== undefined ? emailData.totalValorBase : emailData.totalValor;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.iva_pct || 0)/100);
             const currentEmpresa = empresas.find(e => e.id === emailData.fatura?.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
 
