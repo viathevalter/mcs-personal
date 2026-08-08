@@ -352,14 +352,14 @@ export function ColetaDadosPublicaPage() {
             address_line: data.address_line || '',
           });
 
-          // Automatically transition to 'E-mail Lido / Clicado' if lead is in a lower stage
+          // Automatically transition to 'E-mail Lido / Clicado' (order_index = 3)
           try {
             const { data: stageData } = await supabase
               .schema('core_comercial')
               .from('kanban_stages')
               .select('id, order_index')
-              .eq('empresa_id', data.empresa_id)
-              .eq('name', 'E-mail Lido / Clicado')
+              .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
+              .limit(1)
               .maybeSingle();
 
             if (stageData) {

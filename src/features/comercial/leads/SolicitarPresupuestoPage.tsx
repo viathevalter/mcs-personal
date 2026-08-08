@@ -322,8 +322,8 @@ export function SolicitarPresupuestoPage() {
                 .schema('core_comercial')
                 .from('kanban_stages')
                 .select('id, order_index')
-                .eq('empresa_id', lead.empresa_id)
-                .eq('name', 'E-mail Lido / Clicado')
+                .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
+                .limit(1)
                 .maybeSingle();
 
               if (stageData) {
@@ -455,37 +455,19 @@ export function SolicitarPresupuestoPage() {
 
     try {
       if (targetLeadId) {
-        // Fetch 'Orçamento Solicitado' stage ID
+        // Fetch 'Orçamento Solicitado' stage ID (order_index = 5)
         let budgetStageId = null;
         try {
-          // 1. Try querying by empresaId if available
-          let stageQuery = supabase
+          const { data: bStage } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id')
-            .ilike('name', '%Orçamento Solicitado%');
-
-          if (empresaId) {
-            stageQuery = stageQuery.eq('empresa_id', empresaId);
-          }
-
-          const { data: bStage } = await stageQuery.limit(1).maybeSingle();
+            .or('order_index.eq.5,name.ilike.%Orçamento%,name.ilike.%Presupuesto%')
+            .limit(1)
+            .maybeSingle();
 
           if (bStage) {
             budgetStageId = bStage.id;
-          } else {
-            // Fallback: query any stage matching 'Orçamento Solicitado' across the system
-            const { data: fallbackStage } = await supabase
-              .schema('core_comercial')
-              .from('kanban_stages')
-              .select('id')
-              .ilike('name', '%Orçamento Solicitado%')
-              .limit(1)
-              .maybeSingle();
-
-            if (fallbackStage) {
-              budgetStageId = fallbackStage.id;
-            }
           }
         } catch (e) {
           console.warn("Could not fetch 'Orçamento Solicitado' stage:", e);

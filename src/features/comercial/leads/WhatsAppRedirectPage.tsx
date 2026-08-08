@@ -27,13 +27,13 @@ export function WhatsAppRedirectPage() {
           .single();
 
         if (lead) {
-          // Fetch the 'Contato Via WhatsApp' stage for this company
+          // Fetch the 'Contato Via WhatsApp' stage (order_index = 4)
           const { data: targetStage } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id, order_index')
-            .eq('empresa_id', lead.empresa_id)
-            .eq('name', 'Contato Via WhatsApp')
+            .or('order_index.eq.4,name.ilike.%WhatsApp%')
+            .limit(1)
             .maybeSingle();
 
           if (targetStage) {
