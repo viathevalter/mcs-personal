@@ -1281,7 +1281,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           total_horas: finalH,
           total_valor: finalV
         };
-    });
+      }).filter(f => f.status !== 'pending_client_approval' || (f.total_horas !== undefined && f.total_horas > 0));
   } catch (error: any) {
     console.error('Erro em getFaturasTracking:', error);
     return [];
