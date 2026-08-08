@@ -2678,13 +2678,27 @@ MCS - Gestão Comercial`;
                 const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
                 const key = `${wId}_${dateKey}`;
                 const proposed = combinedDisputedHours[wId]?.[dateKey];
-                const horas = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
 
-                map.set(key, {
-                  ...h,
-                  data_trabalho: dateKey,
-                  horas_totais: horas
-                });
+                if (proposed !== undefined) {
+                  // If there is an adjusted value, use it directly (overrides duplicates)
+                  map.set(key, {
+                    ...h,
+                    data_trabalho: dateKey,
+                    horas_totais: Number(proposed)
+                  });
+                } else {
+                  // If there is no adjustment, accumulate hours for duplicate records
+                  const existing = map.get(key);
+                  if (existing) {
+                    existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
+                  } else {
+                    map.set(key, {
+                      ...h,
+                      data_trabalho: dateKey,
+                      horas_totais: Number(h.horas_totais || 0)
+                    });
+                  }
+                }
               });
 
               Object.keys(combinedDisputedHours).forEach(wId => {
@@ -4044,22 +4058,35 @@ MCS - Gestão Comercial`;
                           const disputedObj = emailData.fatura?.ajustes_json?.disputed_hours || emailData.ajustesJson?.disputed_hours || {};
                           const processedKeys = new Set<string>();
 
+                          // Group by worker and day to sum duplicate registry records first
+                          const groupedEmailHours = new Map<string, { wId: string; dateKey: string; hours: number; rate: number; name: string }>();
                           emailHours.forEach(h => {
                             const wId = h.worker_id;
                             if (!wId) return;
                             const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
                             const key = `${wId}_${dateKey}`;
-                            processedKeys.add(key);
-
                             const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
                             const rate = Number(h.tarifa_faturada || 0);
-                            const hours = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
-                            
-                            if (!workerSummary[wId]) {
-                              workerSummary[wId] = { name, hours: 0, rate, total: 0 };
+
+                            const existing = groupedEmailHours.get(key);
+                            if (existing) {
+                              existing.hours += Number(h.horas_totais || 0);
+                            } else {
+                              groupedEmailHours.set(key, { wId, dateKey, hours: Number(h.horas_totais || 0), rate, name });
                             }
-                            workerSummary[wId].hours += hours;
-                            workerSummary[wId].total += hours * rate;
+                          });
+
+                          groupedEmailHours.forEach(gVal => {
+                            const key = `${gVal.wId}_${gVal.dateKey}`;
+                            processedKeys.add(key);
+
+                            const hours = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours);
+                            
+                            if (!workerSummary[gVal.wId]) {
+                              workerSummary[gVal.wId] = { name: gVal.name, hours: 0, rate: gVal.rate, total: 0 };
+                            }
+                            workerSummary[gVal.wId].hours += hours;
+                            workerSummary[gVal.wId].total += hours * gVal.rate;
                           });
 
                           Object.keys(disputedObj).forEach(wId => {
@@ -4486,13 +4513,27 @@ MCS - Gestão Comercial`;
             const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
             const key = `${wId}_${dateKey}`;
             const proposed = disputedObj[wId]?.[dateKey];
-            const horas = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
 
-            map.set(key, {
-              ...h,
-              data_trabalho: dateKey,
-              horas_totais: horas
-            });
+            if (proposed !== undefined) {
+              // If there is an adjusted value, use it directly (overrides duplicates)
+              map.set(key, {
+                ...h,
+                data_trabalho: dateKey,
+                horas_totais: Number(proposed)
+              });
+            } else {
+              // If there is no adjustment, accumulate hours for duplicate records
+              const existing = map.get(key);
+              if (existing) {
+                existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
+              } else {
+                map.set(key, {
+                  ...h,
+                  data_trabalho: dateKey,
+                  horas_totais: Number(h.horas_totais || 0)
+                });
+              }
+            }
           });
 
           Object.keys(disputedObj || {}).forEach(wId => {
