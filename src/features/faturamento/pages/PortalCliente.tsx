@@ -101,7 +101,26 @@ export function PortalCliente() {
       setError(null);
       const data = await getFaturaByToken(token!);
       setFatura(data.fatura);
-      setHoras(data.horas);
+
+      // Group and sum duplicate registry records per worker and date to avoid display and total discrepancies
+      const groupedMap = new Map<string, any>();
+      (data.horas || []).forEach((h: any) => {
+        const wId = h.worker_id;
+        if (!wId) return;
+        const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+        const key = `${wId}_${dateKey}`;
+        
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, {
+            ...h,
+            data_trabalho: dateKey,
+            horas_totais: 0
+          });
+        }
+        groupedMap.get(key).horas_totais += Number(h.horas_totais || 0);
+      });
+
+      setHoras(Array.from(groupedMap.values()));
     } catch (err: any) {
       console.error(err);
       setError("Não foi possível carregar as informações. O link pode ser inválido ou ter expirado.");
