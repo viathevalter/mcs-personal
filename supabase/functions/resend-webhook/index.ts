@@ -25,8 +25,13 @@ serve(async (req) => {
       });
     }
 
-    // Process open or click events
-    if (eventType === "email.opened" || eventType === "email.clicked") {
+    const isOpenOrClick =
+      eventType === "email.opened" ||
+      eventType === "email.clicked" ||
+      eventType === "email.aberto" ||
+      eventType === "email.clicado";
+
+    if (isOpenOrClick) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
