@@ -852,12 +852,20 @@ export function FaturasTracking() {
     
     const clientName = fatura.client?.nombre_comercial || 'Cliente';
     
+    const activeEdits = deepMergeDisputedHours(
+      fatura.ajustes_json?.disputed_hours || {},
+      adminModifiedHoursRef.current || {}
+    );
+
     let disputeYear = new Date().getFullYear();
     let disputeMonth = new Date().getMonth();
     if (disputeHours && disputeHours.length > 0) {
-      const parts = disputeHours[0].data_trabalho.split('-');
-      disputeYear = parseInt(parts[0]);
-      disputeMonth = parseInt(parts[1]) - 1;
+      const sampleDate = disputeHours[0].data_trabalho;
+      const parts = sampleDate.includes('T') ? sampleDate.split('T')[0].split('-') : sampleDate.split('-');
+      if (parts.length >= 2) {
+        disputeYear = parseInt(parts[0]);
+        disputeMonth = parseInt(parts[1]) - 1;
+      }
     }
     
     const months = [
@@ -866,14 +874,14 @@ export function FaturasTracking() {
     ];
     const periodStr = `${months[disputeMonth]} / ${disputeYear}`;
     
-    const totalHorasCalculadas = disputeHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-    const totalValorCalculado = disputeHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
-
     const workersMap = new Map<string, {
       workerId: string;
       workerName: string;
       horasDiarias: Record<string, number>;
     }>();
+
+    let totalHorasCalculadas = 0;
+    let totalValorCalculado = 0;
 
     disputeHours.forEach(h => {
       const wId = h.worker_id;
@@ -888,9 +896,21 @@ export function FaturasTracking() {
       }
 
       const wObj = workersMap.get(wId)!;
-      const dateKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-      wObj.horasDiarias[dateKey] = h.horas_totais;
+      const dKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      
+      const originalVal = Number(h.horas_totais || 0);
+      const hoursVal = getDisputedHourValue(activeEdits, wId, dKey, originalVal);
+      const rate = Number(h.tarifa_faturada || 0);
+
+      wObj.horasDiarias[dKey] = hoursVal;
+      totalHorasCalculadas += hoursVal;
+      totalValorCalculado += hoursVal * rate;
     });
+
+    const reducoes = Number(fatura.ajustes_json?.reducoes || 0);
+    const incrementos = Number(fatura.ajustes_json?.incrementos || 0);
+    const ivaPct = Number(fatura.ajustes_json?.iva_pct || 0);
+    const finalNetValue = (totalValorCalculado + incrementos - reducoes) * (1 + ivaPct / 100);
 
     const groupedWorkers = Array.from(workersMap.values());
     const cycleStartDay = fatura.client?.billing_cycle_start_day || 1;
@@ -942,7 +962,10 @@ export function FaturasTracking() {
               </div>
               <div style="text-align: right;">
                 <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${totalHorasCalculadas.toFixed(2)}h</strong></p>
-                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 16px;">€ ${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                <p style="font-size: 12px; color: #64748b; margin: 2px 0 0 0;">Faturamento Base: <strong style="color: #1e293b; font-size: 14px;">€ ${totalValorCalculado.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                ${reducoes > 0 ? `<p style="font-size: 11px; color: #e11d48; margin: 2px 0 0 0; font-weight: 700;">Desconto (${fatura.ajustes_json?.reducoes_desc || 'EPIs'}): - € ${reducoes.toFixed(2)}</p>` : ''}
+                ${incrementos > 0 ? `<p style="font-size: 11px; color: #16a34a; margin: 2px 0 0 0; font-weight: 700;">Acréscimo (${fatura.ajustes_json?.incrementos_desc || 'Adicional'}): + € ${incrementos.toFixed(2)}</p>` : ''}
+                <p style="font-size: 13px; color: #15803d; margin: 4px 0 0 0; font-weight: 800;">Total Final a Faturar: <strong style="color: #15803d; font-size: 16px;">€ ${finalNetValue.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
               </div>
             </div>
             <div style="text-align: center; font-weight: 800; font-size: 13px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 8px; color: #334155; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
@@ -1040,6 +1063,16 @@ export function FaturasTracking() {
         
         tableHtml += `
             </tbody>
+            <tfoot style="background-color: #f1f5f9; border-top: 2px solid #cbd5e1;">
+              <tr style="font-weight: 800; color: #1e293b;">
+                <td style="padding: 7px 10px; text-transform: uppercase; font-size: 9px; color: #1d4ed8; border-right: 1px solid #e2e8f0;">TOTAL GERAL DE HORAS</td>
+                ${daysArray.map(dInfo => {
+                  const dailyTotal = chunk.reduce((sum, w) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
+                  return `<td style="text-align: center; padding: 6px 1px; font-size: 9px; font-weight: 700; border-right: 1px solid #e2e8f0;">${dailyTotal > 0 ? dailyTotal : '-'}</td>`;
+                }).join('')}
+                <td style="padding: 7px 10px; text-align: right; font-weight: 800; color: #15803d; font-size: 10px; background-color: #dcfce7;">${totalHorasCalculadas.toFixed(1)}h</td>
+              </tr>
+            </tfoot>
           </table>
         `;
         
