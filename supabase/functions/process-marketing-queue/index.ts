@@ -241,6 +241,7 @@ serve(async (req) => {
             .update({
               status: "sent",
               sent_at: new Date().toISOString(),
+              resend_email_id: resData.id,
             })
             .eq("id", item.id);
 
