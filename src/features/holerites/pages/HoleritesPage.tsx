@@ -279,8 +279,8 @@ export function HoleritesPage() {
                 });
             }
 
-            const sumMap = new Map<string, number>();
-            const rawSumMap = new Map<string, number>();
+            const dailyRawMap = new Map<string, number>();
+            const dailyEffectiveMap = new Map<string, number>();
             const adjustedWorkerIds = new Set<string>();
 
             allRows.forEach((row: any) => {
@@ -288,21 +288,37 @@ export function HoleritesPage() {
                     const dateKey = row.data_trabalho.includes('T') ? row.data_trabalho.split('T')[0] : row.data_trabalho;
                     if (!dateKey.startsWith(mesReferencia)) return;
 
-                    const rawH = Number(row.horas_totais || 0);
-                    const currentRaw = rawSumMap.get(row.worker_id) || 0;
-                    rawSumMap.set(row.worker_id, currentRaw + rawH);
-
                     const key = `${row.worker_id}_${dateKey}`;
-                    let effectiveH = rawH;
+                    const rawH = Number(row.horas_totais || 0);
 
-                    if (globalDisputedHours.has(key)) {
-                        effectiveH = globalDisputedHours.get(key)!;
-                        adjustedWorkerIds.add(row.worker_id);
-                    }
-
-                    const currentEff = sumMap.get(row.worker_id) || 0;
-                    sumMap.set(row.worker_id, currentEff + effectiveH);
+                    const prevRaw = dailyRawMap.get(key) || 0;
+                    dailyRawMap.set(key, prevRaw + rawH);
                 }
+            });
+
+            dailyRawMap.forEach((rawDayVal, key) => {
+                const [wId] = key.split('_');
+                let effectiveDayVal = rawDayVal;
+
+                if (globalDisputedHours.has(key)) {
+                    effectiveDayVal = globalDisputedHours.get(key)!;
+                    adjustedWorkerIds.add(wId);
+                }
+
+                dailyEffectiveMap.set(key, effectiveDayVal);
+            });
+
+            const sumMap = new Map<string, number>();
+            const rawSumMap = new Map<string, number>();
+
+            dailyRawMap.forEach((rawVal, key) => {
+                const [wId] = key.split('_');
+                rawSumMap.set(wId, (rawSumMap.get(wId) || 0) + rawVal);
+            });
+
+            dailyEffectiveMap.forEach((effVal, key) => {
+                const [wId] = key.split('_');
+                sumMap.set(wId, (sumMap.get(wId) || 0) + effVal);
             });
 
             return { sumMap, rawSumMap, adjustedWorkerIds };
@@ -421,19 +437,20 @@ export function HoleritesPage() {
 
         const workerEvents = eventos.filter(e => e.trabalhador_id === worker.id);
 
-        let totalHoras = workerEvents
-            .filter(e => e.categoria === 'total_horas')
-            .reduce((sum, e) => {
-                let hrs = Number(e.horas_referencia || e.referencia_dias_horas || e.quantidade || 0);
-                if (hrs === 0 && e.descricao) {
-                    const match = e.descricao.match(/(\d+(?:\.\d+)?)\s*h/i);
-                    if (match) hrs = Number(match[1]);
-                }
-                return sum + hrs;
-            }, 0);
-
-        if (totalHoras === 0 && dbHoursSummary?.sumMap) {
+        let totalHoras = 0;
+        if (dbHoursSummary?.sumMap && dbHoursSummary.sumMap.has(worker.id)) {
             totalHoras = dbHoursSummary.sumMap.get(worker.id) || 0;
+        } else {
+            totalHoras = workerEvents
+                .filter(e => e.categoria === 'total_horas')
+                .reduce((sum, e) => {
+                    let hrs = Number(e.horas_referencia || e.referencia_dias_horas || e.quantidade || 0);
+                    if (hrs === 0 && e.descricao) {
+                        const match = e.descricao.match(/(\d+(?:\.\d+)?)\s*h/i);
+                        if (match) hrs = Number(match[1]);
+                    }
+                    return sum + hrs;
+                }, 0);
         }
 
         const tarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
