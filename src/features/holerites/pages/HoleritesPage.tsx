@@ -21,7 +21,8 @@ import {
     Copy,
     Check,
     CreditCard,
-    Building2
+    Building2,
+    RefreshCw
 } from 'lucide-react';
 import {
     Card,
@@ -192,11 +193,17 @@ export function HoleritesPage() {
         setPage(1);
     }, [searchTerm, clienteFilter, contratanteFilter, seguridadFilter, onlyWithHours, mesReferencia, selectedEmpresaId]);
 
-    // Query total hours recorded in core_finance.horas_trabalhadas across the competence period span
-    const { data: dbHoursSummary } = useQuery({
+    // Query total hours recorded in core_finance.horas_trabalhadas + Faturamento pro-forma adjustments
+    const { data: dbHoursSummary, refetch: refetchDbHours, isFetching: isFetchingHours } = useQuery({
         queryKey: ['db-hours-summary', selectedEmpresaId || 'all', mesReferencia],
         queryFn: async () => {
-            if (!mesReferencia) return new Map<string, number>();
+            const emptyResult = { 
+                sumMap: new Map<string, number>(), 
+                rawSumMap: new Map<string, number>(), 
+                adjustedWorkerIds: new Set<string>() 
+            };
+
+            if (!mesReferencia) return emptyResult;
 
             const year = parseInt(mesReferencia.substring(0, 4), 10);
             const month = parseInt(mesReferencia.substring(5, 7), 10);
@@ -221,7 +228,7 @@ export function HoleritesPage() {
                 const { data, error } = await supabase
                     .schema('core_finance')
                     .from('horas_trabalhadas')
-                    .select('worker_id, horas_totais')
+                    .select('id, worker_id, data_trabalho, horas_totais, fatura_id')
                     .gte('data_trabalho', startDateStr)
                     .lte('data_trabalho', endDateStr)
                     .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
@@ -243,14 +250,62 @@ export function HoleritesPage() {
                 }
             }
 
+            // Fetch faturas to overlay pro-forma adjustments from Faturamento
+            const { data: faturas, error: faturasErr } = await supabase
+                .schema('core_finance')
+                .from('faturas')
+                .select('id, status, ajustes_json');
+
+            if (faturasErr) {
+                console.error("Error fetching faturas for holerites adjustments:", faturasErr);
+            }
+
+            // Global map of disputed/adjusted hours: key = `${worker_id}_${dateStr}` -> adjusted hours value
+            const globalDisputedHours = new Map<string, number>();
+            if (faturas) {
+                faturas.forEach((f: any) => {
+                    const disp = f.ajustes_json?.disputed_hours;
+                    if (disp && typeof disp === 'object') {
+                        Object.keys(disp).forEach(wId => {
+                            const datesObj = disp[wId];
+                            if (datesObj && typeof datesObj === 'object') {
+                                Object.keys(datesObj).forEach(dateStr => {
+                                    const val = Number(datesObj[dateStr]);
+                                    globalDisputedHours.set(`${wId}_${dateStr}`, val);
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
             const sumMap = new Map<string, number>();
+            const rawSumMap = new Map<string, number>();
+            const adjustedWorkerIds = new Set<string>();
+
             allRows.forEach((row: any) => {
-                if (row.worker_id) {
-                    const current = sumMap.get(row.worker_id) || 0;
-                    sumMap.set(row.worker_id, current + Number(row.horas_totais || 0));
+                if (row.worker_id && row.data_trabalho) {
+                    const dateKey = row.data_trabalho.includes('T') ? row.data_trabalho.split('T')[0] : row.data_trabalho;
+                    if (!dateKey.startsWith(mesReferencia)) return;
+
+                    const rawH = Number(row.horas_totais || 0);
+                    const currentRaw = rawSumMap.get(row.worker_id) || 0;
+                    rawSumMap.set(row.worker_id, currentRaw + rawH);
+
+                    const key = `${row.worker_id}_${dateKey}`;
+                    let effectiveH = rawH;
+
+                    if (globalDisputedHours.has(key)) {
+                        effectiveH = globalDisputedHours.get(key)!;
+                        adjustedWorkerIds.add(row.worker_id);
+                    }
+
+                    const currentEff = sumMap.get(row.worker_id) || 0;
+                    sumMap.set(row.worker_id, currentEff + effectiveH);
                 }
             });
-            return sumMap;
+
+            return { sumMap, rawSumMap, adjustedWorkerIds };
         },
         enabled: Boolean(mesReferencia),
         refetchOnWindowFocus: false,
@@ -377,8 +432,8 @@ export function HoleritesPage() {
                 return sum + hrs;
             }, 0);
 
-        if (totalHoras === 0 && dbHoursSummary) {
-            totalHoras = dbHoursSummary.get(worker.id) || 0;
+        if (totalHoras === 0 && dbHoursSummary?.sumMap) {
+            totalHoras = dbHoursSummary.sumMap.get(worker.id) || 0;
         }
 
         const tarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
@@ -700,6 +755,17 @@ export function HoleritesPage() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-9 border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 text-xs font-semibold"
+                                onClick={() => refetchDbHours()}
+                                disabled={isFetchingHours}
+                                title="Recarregar ajustes de horas efetuados no módulo de Faturamento"
+                            >
+                                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetchingHours ? 'animate-spin' : ''}`} />
+                                Sincronizar c/ Faturamento
+                            </Button>
                             <ExportHoleritesDialog
                                 trigger={
                                     <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-xs font-medium">
@@ -835,7 +901,29 @@ export function HoleritesPage() {
                                                     € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
                                                 </TableCell>
                                                 <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
-                                                    {totalHoras > 0 ? `${totalHoras} h` : '-'}
+                                                    {totalHoras > 0 ? (
+                                                        <div className="flex flex-col items-end">
+                                                            <div className="flex items-center gap-1 font-bold">
+                                                                <span>{totalHoras} h</span>
+                                                                {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
+                                                                    <Badge 
+                                                                        variant="outline" 
+                                                                        className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                        title={`Ajustado pelo Faturamento (Original: ${dbHoursSummary.rawSumMap.get(worker.id) || 0}h → Faturado: ${totalHoras}h)`}
+                                                                    >
+                                                                        Faturamento
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
+                                                                <span className="text-[10px] text-muted-foreground line-through">
+                                                                    {dbHoursSummary.rawSumMap.get(worker.id) || 0} h orig.
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        '-'
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
                                                     {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}

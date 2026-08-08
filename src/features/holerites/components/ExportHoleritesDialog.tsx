@@ -94,7 +94,12 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'horas_totais',
         label: 'Total Horas Apuradas',
         category: 'remuneracao',
-        getValue: (w, { dbHoursSummary }) => Number(dbHoursSummary?.get(w.id) || 0)
+        getValue: (w, { dbHoursSummary }) => {
+            if (!dbHoursSummary) return 0;
+            if (typeof dbHoursSummary.get === 'function') return Number(dbHoursSummary.get(w.id) || 0);
+            if ((dbHoursSummary as any).sumMap) return Number((dbHoursSummary as any).sumMap.get(w.id) || 0);
+            return 0;
+        }
     },
     {
         id: 'proventos',
@@ -114,7 +119,11 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         category: 'remuneracao',
         getValue: (w, { dbHoursSummary, eventosMap }) => {
             const tariff = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
-            const hours = Number(dbHoursSummary?.get(w.id) || 0);
+            let hours = 0;
+            if (dbHoursSummary) {
+                if (typeof dbHoursSummary.get === 'function') hours = Number(dbHoursSummary.get(w.id) || 0);
+                else if ((dbHoursSummary as any).sumMap) hours = Number((dbHoursSummary as any).sumMap.get(w.id) || 0);
+            }
             const prov = Number(eventosMap?.get(w.id)?.totalProventos || 0);
             const desc = Number(eventosMap?.get(w.id)?.totalDescontos || 0);
             return (tariff * hours) + prov - desc;
