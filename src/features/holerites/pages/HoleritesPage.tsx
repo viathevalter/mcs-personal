@@ -951,7 +951,7 @@ export function HoleritesPage() {
                                                             worker={worker}
                                                             mesReferencia={mesReferencia}
                                                             eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                            fallbackHours={dbHoursSummary?.get(worker.id) || 0}
+                                                            fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
                                                             trigger={
                                                                 <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
                                                                     {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
