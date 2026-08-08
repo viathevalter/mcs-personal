@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save } from 'lucide-react';
+import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save, Euro } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
@@ -2887,29 +2887,78 @@ MCS - Gestão Comercial`;
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800 text-[10px]">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Taxa de IVA (%):</span>
-                            <Input 
-                              type="number" 
-                              step="1" 
-                              min="0" 
-                              max="100" 
-                              value={disputeIvaPct} 
-                              onChange={e => {
-                                const val = Number(e.target.value);
-                                setDisputeIvaPct(val);
-                                if (selectedDispute) {
-                                  const updatedAdj = { ...(selectedDispute.ajustes_json || {}), iva_pct: val };
-                                  setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
-                                  setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
-                                }
-                              }}
-                              className="h-7 w-20 text-xs font-bold bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700" 
-                            />
+                        {/* Banner com Valores Financeiros em Destaque */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
+                          <div className="flex flex-col justify-center p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-blue-600" /> Total de Horas
+                            </span>
+                            <span className="text-xl font-extrabold text-slate-900 dark:text-slate-100 font-mono mt-1">
+                              {(() => {
+                                const grandTotalHours = groupedDisputeWorkers.reduce((acc, worker) => {
+                                  const workerTotal = disputeDaysArray.reduce((sum, day) => {
+                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
+                                    if (proposedVal !== undefined) return sum + proposedVal;
+                                    return sum + (worker.horasDiarias[dateKey] || 0);
+                                  }, 0);
+                                  return acc + workerTotal;
+                                }, 0);
+                                return `${grandTotalHours.toFixed(1)}h`;
+                              })()}
+                            </span>
                           </div>
-                          <div className="text-right text-slate-600 dark:text-slate-400 font-medium">
-                            Resumo: Base (€ {totalBaseVal.toFixed(2)}) - Desconto (€ {disputeReductions.toFixed(2)}) + Acréscimo (€ {disputeIncrements.toFixed(2)}) = <strong className="text-blue-600 font-mono text-xs">Total Final € {((totalBaseVal + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100)).toFixed(2)}</strong>
+
+                          <div className="flex flex-col justify-center p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                              <Euro className="w-3.5 h-3.5 text-slate-600" /> Valor Base (Obra)
+                            </span>
+                            <span className="text-xl font-bold text-slate-800 dark:text-slate-200 font-mono mt-1">
+                              € {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col justify-center p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              Ajustes (Desc. / Acrésc.)
+                            </span>
+                            <span className={`text-xl font-bold font-mono mt-1 ${(disputeIncrements - disputeReductions) < 0 ? 'text-rose-600 dark:text-rose-400' : (disputeIncrements - disputeReductions) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>
+                              {(disputeIncrements - disputeReductions) < 0 
+                                ? `- € ${Math.abs(disputeIncrements - disputeReductions).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                                : `+ € ${(disputeIncrements - disputeReductions).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col justify-center p-3 bg-emerald-50/80 dark:bg-emerald-950/40 rounded-lg border border-emerald-300 dark:border-emerald-800 shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                                Total Final a Faturar
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[9px] text-slate-500">IVA:</span>
+                                <Input 
+                                  type="number" 
+                                  step="1" 
+                                  min="0" 
+                                  max="100" 
+                                  value={disputeIvaPct} 
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    setDisputeIvaPct(val);
+                                    if (selectedDispute) {
+                                      const updatedAdj = { ...(selectedDispute.ajustes_json || {}), iva_pct: val };
+                                      setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                      setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                    }
+                                  }}
+                                  className="h-5 w-12 text-[10px] font-bold p-0.5 text-center bg-white dark:bg-slate-950 border-emerald-300 dark:border-emerald-700" 
+                                />
+                                <span className="text-[9px] text-slate-500">%</span>
+                              </div>
+                            </div>
+                            <span className="text-2xl font-black text-emerald-650 dark:text-emerald-400 font-mono mt-1">
+                              € {((totalBaseVal + disputeIncrements - disputeReductions) * (1 + disputeIvaPct / 100)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -3052,6 +3101,40 @@ MCS - Gestão Comercial`;
                                   );
                                 })}
                               </TableBody>
+                              <TableFooter className="bg-slate-100/90 dark:bg-slate-900/90 border-t-2 border-slate-300 dark:border-slate-700">
+                                <TableRow className="font-extrabold text-slate-900 dark:text-slate-100">
+                                  <TableCell className="pl-4 py-3 text-xs uppercase tracking-wider font-extrabold text-blue-700 dark:text-blue-400">
+                                    TOTAL GERAL DE HORAS
+                                  </TableCell>
+                                  {disputeDaysArray.map(day => {
+                                    const dailyTotal = groupedDisputeWorkers.reduce((sum, worker) => {
+                                      const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                      const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
+                                      if (proposedVal !== undefined) return sum + proposedVal;
+                                      return sum + (worker.horasDiarias[dateKey] || 0);
+                                    }, 0);
+                                    return (
+                                      <TableCell key={day} className="text-center font-bold text-[10px] p-1 border-x border-slate-200 dark:border-slate-800">
+                                        {dailyTotal > 0 ? dailyTotal : '-'}
+                                      </TableCell>
+                                    );
+                                  })}
+                                  <TableCell className="text-right pr-4 py-3 text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50/50 dark:bg-emerald-950/20">
+                                    {(() => {
+                                      const grandTotalHours = groupedDisputeWorkers.reduce((acc, worker) => {
+                                        const workerTotal = disputeDaysArray.reduce((sum, day) => {
+                                          const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                          const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
+                                          if (proposedVal !== undefined) return sum + proposedVal;
+                                          return sum + (worker.horasDiarias[dateKey] || 0);
+                                        }, 0);
+                                        return acc + workerTotal;
+                                      }, 0);
+                                      return `${grandTotalHours.toFixed(1)}h`;
+                                    })()}
+                                  </TableCell>
+                                </TableRow>
+                              </TableFooter>
                             </Table>
                           </div>
                         )}
