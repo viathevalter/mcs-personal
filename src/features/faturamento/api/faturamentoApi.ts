@@ -1193,18 +1193,24 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         let totValor = 0;
         const processedKeys = new Set<string>();
 
+        // Group by worker and day to sum duplicate registry records before applying adjustments
+        const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
         faturaHours.forEach(h => {
           const wId = h.worker_id;
           if (!wId) return;
           const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
           const key = `${wId}_${dateKey}`;
+          if (!groupedMap.has(key)) {
+            groupedMap.set(key, { wId, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+          }
+          groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+        });
+
+        groupedMap.forEach((gVal, key) => {
           processedKeys.add(key);
-
-          const hoursVal = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
-          const rate = Number(h.tarifa_faturada || 0);
-
+          const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours);
           totHoras += hoursVal;
-          totValor += hoursVal * rate;
+          totValor += hoursVal * gVal.rate;
         });
 
         // Also check any newly added dates in disputedObj not yet in hoursSums

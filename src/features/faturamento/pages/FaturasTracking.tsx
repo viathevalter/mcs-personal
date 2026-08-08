@@ -308,32 +308,50 @@ export function FaturasTracking() {
 
     const disputedHoursObj = fat.ajustes_json?.disputed_hours || fat.ajustesJson?.disputed_hours || {};
     
+    // Group raw hours by worker and date key first to handle duplicate work records on the same day
+    const groupedHoursMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number; isException: boolean; workerName: string }>();
     hours.forEach((h: any) => {
       const wId = h.worker_id;
       if (!wId) return;
       const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+      const key = `${wId}_${dateKey}`;
       const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
-      const rate = Number(h.tarifa_faturada || 0);
       
-      const proposed = disputedHoursObj[wId]?.[dateKey];
-      const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
-      const isException = !!h.is_exception;
-      
-      if (!workerSummaryMap.has(wId)) {
-        workerSummaryMap.set(wId, {
-          workerId: wId,
-          workerName: name,
-          totalHoras: 0,
-          tarifa: rate,
-          totalValor: 0,
-          isException: isException
+      if (!groupedHoursMap.has(key)) {
+        groupedHoursMap.set(key, {
+          wId,
+          dateKey,
+          hours: 0,
+          rate: Number(h.tarifa_faturada || 0),
+          isException: !!h.is_exception,
+          workerName: name
         });
       }
+      groupedHoursMap.get(key)!.hours += Number(h.horas_totais || 0);
+      if (!!h.is_exception) {
+        groupedHoursMap.get(key)!.isException = true;
+      }
+    });
+
+    // Populate workerSummaryMap using groupedHoursMap
+    groupedHoursMap.forEach((gVal, key) => {
+      const proposed = disputedHoursObj[gVal.wId]?.[gVal.dateKey];
+      const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
       
-      const wObj = workerSummaryMap.get(wId)!;
+      if (!workerSummaryMap.has(gVal.wId)) {
+        workerSummaryMap.set(gVal.wId, {
+          workerId: gVal.wId,
+          workerName: gVal.workerName,
+          totalHoras: 0,
+          tarifa: gVal.rate,
+          totalValor: 0,
+          isException: gVal.isException
+        });
+      }
+      const wObj = workerSummaryMap.get(gVal.wId)!;
       wObj.totalHoras += hoursVal;
-      wObj.totalValor += hoursVal * rate;
-      if (isException) {
+      wObj.totalValor += hoursVal * gVal.rate;
+      if (gVal.isException) {
         wObj.isException = true;
       }
     });
@@ -883,28 +901,35 @@ export function FaturasTracking() {
     let totalHorasCalculadas = 0;
     let totalValorCalculado = 0;
 
+    // Group raw disputeHours by worker and date key first to handle duplicate daily records
+    const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number; name: string }>();
     disputeHours.forEach(h => {
       const wId = h.worker_id;
       if (!wId) return;
+      const dKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      const key = `${wId}_${dKey}`;
+      const name = h.worker?.nome || 'Colaborador';
+      
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, { wId, dateKey: dKey, hours: 0, rate: Number(h.tarifa_faturada || 0), name });
+      }
+      groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+    });
 
-      if (!workersMap.has(wId)) {
-        workersMap.set(wId, {
-          workerId: wId,
-          workerName: h.worker?.nome || 'Colaborador',
+    groupedMap.forEach((gVal, key) => {
+      if (!workersMap.has(gVal.wId)) {
+        workersMap.set(gVal.wId, {
+          workerId: gVal.wId,
+          workerName: gVal.name,
           horasDiarias: {}
         });
       }
-
-      const wObj = workersMap.get(wId)!;
-      const dKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      const wObj = workersMap.get(gVal.wId)!;
+      const hoursVal = getDisputedHourValue(activeEdits, gVal.wId, gVal.dateKey, gVal.hours);
       
-      const originalVal = Number(h.horas_totais || 0);
-      const hoursVal = getDisputedHourValue(activeEdits, wId, dKey, originalVal);
-      const rate = Number(h.tarifa_faturada || 0);
-
-      wObj.horasDiarias[dKey] = hoursVal;
+      wObj.horasDiarias[gVal.dateKey] = hoursVal;
       totalHorasCalculadas += hoursVal;
-      totalValorCalculado += hoursVal * rate;
+      totalValorCalculado += hoursVal * gVal.rate;
     });
 
     const reducoes = Number(fatura.ajustes_json?.reducoes || 0);
@@ -1524,18 +1549,25 @@ export function FaturasTracking() {
       let effBaseV = 0;
       const processed = new Set<string>();
 
+      // Group disputeHours by worker and date
+      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
       (disputeHours || []).forEach((h: any) => {
         const wId = h.worker_id;
         if (!wId) return;
         const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        processed.add(`${wId}_${dKey}`);
+        const key = `${wId}_${dKey}`;
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, { wId, dateKey: dKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+        }
+        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+      });
 
-        const proposed = next[wId]?.[dKey];
-        const hoursVal = proposed !== undefined ? Number(proposed) : Number(h.horas_totais || 0);
-        const rate = Number(h.tarifa_faturada || 0);
-
+      groupedMap.forEach((gVal, key) => {
+        processed.add(key);
+        const proposed = next[gVal.wId]?.[gVal.dateKey];
+        const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
         effH += hoursVal;
-        effBaseV += hoursVal * rate;
+        effBaseV += hoursVal * gVal.rate;
       });
 
       Object.keys(next).forEach(wId => {
@@ -1609,17 +1641,24 @@ export function FaturasTracking() {
       let effBaseV = 0;
       const processed = new Set<string>();
 
+      // Group disputeHours by worker and date
+      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
       (disputeHours || []).forEach((h: any) => {
         const wId = h.worker_id;
         if (!wId) return;
         const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        processed.add(`${wId}_${dKey}`);
+        const key = `${wId}_${dKey}`;
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, { wId, dateKey: dKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+        }
+        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+      });
 
-        const hoursVal = getDisputedHourValue(activeEdits, wId, dKey, Number(h.horas_totais || 0));
-        const rate = Number(h.tarifa_faturada || 0);
-
+      groupedMap.forEach((gVal, key) => {
+        processed.add(key);
+        const hoursVal = getDisputedHourValue(activeEdits, gVal.wId, gVal.dateKey, gVal.hours);
         effH += hoursVal;
-        effBaseV += hoursVal * rate;
+        effBaseV += hoursVal * gVal.rate;
       });
 
       Object.keys(activeEdits).forEach(wId => {
@@ -2580,7 +2619,7 @@ MCS - Gestão Comercial`;
 
                 const wObj = workersMap.get(wId)!;
                 const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-                wObj.horasDiarias[dKey] = h.horas_totais;
+                wObj.horasDiarias[dKey] = (wObj.horasDiarias[dKey] || 0) + Number(h.horas_totais || 0);
               });
 
               return Array.from(workersMap.values());
