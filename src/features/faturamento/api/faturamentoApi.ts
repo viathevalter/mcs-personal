@@ -1455,14 +1455,14 @@ export async function processarContestacaoFatura(
               .from('horas_trabalhadas')
               .delete()
               .eq('id', existingRow.id);
-            if (delErr) console.error(`Erro ao deletar hora do trabalhador ${workerId} no dia ${dateKey}:`, delErr);
+            if (delErr) console.error(`Erro ao deletar hora do trabalhador ${workerId} no dia ${cleanDate}:`, delErr);
           } else {
             const { error: updErr } = await supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
               .update({ horas_totais: newHours })
               .eq('id', existingRow.id);
-            if (updErr) console.error(`Erro ao atualizar hora do trabalhador ${workerId} no dia ${dateKey}:`, updErr);
+            if (updErr) console.error(`Erro ao atualizar hora do trabalhador ${workerId} no dia ${cleanDate}:`, updErr);
           }
         } else if (newHours > 0) {
           // Find sample row for worker in this fatura to get tariff and job function
@@ -1483,7 +1483,7 @@ export async function processarContestacaoFatura(
             .insert({
               fatura_id: faturaId,
               worker_id: workerId,
-              data_trabalho: dateKey,
+              data_trabalho: cleanDate,
               horas_totais: newHours,
               client_id: sampleRow?.client_id || fatData?.client_id,
               tarifa_faturada: sampleRow?.tarifa_faturada || 0,
@@ -1491,7 +1491,7 @@ export async function processarContestacaoFatura(
               status: 'invoiced'
             });
 
-          if (insErr) console.error(`Erro ao inserir nova hora para o trabalhador ${workerId} no dia ${dateKey}:`, insErr);
+          if (insErr) console.error(`Erro ao inserir nova hora para o trabalhador ${workerId} no dia ${cleanDate}:`, insErr);
         }
       }
     }
