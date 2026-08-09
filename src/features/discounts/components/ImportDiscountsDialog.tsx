@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { DownloadCloud, Loader2, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { DownloadCloud, Loader2, AlertCircle, ArrowRight, ArrowLeft, Calendar, Tag } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -26,7 +26,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useImportDiscounts } from '../hooks/useImportDiscounts';
 import type { CreateWorkerDiscountInput } from '../types';
-import { isValid } from 'date-fns';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+import {
+    findMatchingWorker,
+    getCompetenceOptions,
+    getCurrentCompetence,
+    parseExcelDateToISO,
+    SimpleWorker
+} from '@/shared/utils/importUtils';
 
 interface ImportDiscountsDialogProps {
     trigger: React.ReactNode;
@@ -43,26 +51,45 @@ interface ParsedRow {
     workerId?: string;
     empresaId?: string;
     nomeBanco?: string;
+    matchMethod?: string;
     status: 'ok' | 'not_found' | 'invalid_data';
     errorMessage?: string;
-    originalRowData: any; // Keep original row for re-parsing
+    originalRowData: any;
 }
 
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
-import { useEmpresa } from '@/app/providers/EmpresaProvider';
-import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+const DEFAULT_DISCOUNT_CATEGORIES = [
+    'Aluguel de Carro',
+    'Alojamento / Moradia',
+    'Desconto de Coach',
+    'Adiantamento / Vale',
+    'Empréstimo',
+    'Multas / Danos',
+    'Equipamentos / EPIs',
+    'Outros Descontos'
+];
 
 export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
     const { selectedEmpresaId } = useEmpresa();
     const { data: discountCategoriesData } = useDiscountCategories(selectedEmpresaId || undefined);
-    const validCategories = discountCategoriesData?.map(c => c.name) || [];
 
-    // Fetch all workers directly to avoid 'selectedEmpresaId' restrictions
-    const { data: workersData } = useQuery({
+    const competenceOptions = useMemo(() => getCompetenceOptions(), []);
+    const currentCompetence = useMemo(() => getCurrentCompetence(), []);
+
+    const categoryList = useMemo(() => {
+        if (discountCategoriesData && discountCategoriesData.length > 0) {
+            const customNames = discountCategoriesData.map(c => c.name);
+            return Array.from(new Set([...DEFAULT_DISCOUNT_CATEGORIES, ...customNames]));
+        }
+        return DEFAULT_DISCOUNT_CATEGORIES;
+    }, [discountCategoriesData]);
+
+    // Fetch all workers without invalid columns to avoid Postgres errors
+    const { data: workersData, isLoading: isLoadingWorkers } = useQuery<SimpleWorker[]>({
         queryKey: ['all-workers-for-import-discounts'],
         queryFn: async () => {
-            const allWorkers: any[] = [];
+            const allWorkers: SimpleWorker[] = [];
             let from = 0;
             const pageSize = 1000;
             let hasMore = true;
@@ -71,13 +98,16 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                 const { data, error } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, cod_colab, empresa_id, nome')
+                    .select('id, cod_colab, nome, contratante')
                     .range(from, from + pageSize - 1);
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Error fetching workers for discount import:', error);
+                    throw error;
+                }
 
                 if (data && data.length > 0) {
-                    allWorkers.push(...data);
+                    allWorkers.push(...(data as SimpleWorker[]));
                     if (data.length < pageSize) {
                         hasMore = false;
                     } else {
@@ -101,7 +131,11 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
     const [rawRows, setRawRows] = useState<any[]>([]);
 
-    // Mapping state
+    // Combobox Selection States (Competência e Categoria)
+    const [selectedCompetence, setSelectedCompetence] = useState<string>(currentCompetence);
+    const [selectedCategory, setSelectedCategory] = useState<string>('Aluguel de Carro');
+
+    // Column Mapping state
     const [colMapping, setColMapping] = useState({
         cod_colab: '',
         valor: '',
@@ -110,10 +144,6 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
         data: '',
         descricao: ''
     });
-
-    // Defaults for mapping ("De->Para")
-    const [defaultCategory, setDefaultCategory] = useState<string | 'NONE'>('NONE');
-    const [defaultDate, setDefaultDate] = useState<string>('');
 
     // Preview State
     const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
@@ -126,8 +156,8 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
         setRawRows([]);
         setParsedRows([]);
         setColMapping({ cod_colab: '', valor: '', nome: '', categoria: '', data: '', descricao: '' });
-        setDefaultCategory('NONE');
-        setDefaultDate('');
+        setSelectedCompetence(currentCompetence);
+        setSelectedCategory('Aluguel de Carro');
         setIsParsing(false);
     };
 
@@ -149,15 +179,24 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                 setRawHeaders(headers);
                 setRawRows(rawJson);
 
-                // Try to auto-guess some mappings
+                // Try to auto-guess column mappings
                 const guessMapping = {
-                    cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'cód trabalhador', 'codigo', 'cod', 'cod_colab']) || '',
-                    valor: findKeyIgnoreCase(headers, ['valor', 'montante', 'quantidade', 'amount']) || '',
-                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'colaborador']) || '',
+                    cod_colab: findKeyIgnoreCase(headers, ['id', 'id ', 'cod', 'cod ', 'cód', 'codigo', 'código', 'cod colab', 'cod_colab', 'cód trabalhador']) || '',
+                    valor: findKeyIgnoreCase(headers, ['total a descontar', 'valor', 'montante', 'quantidade', 'amount', 'total', 'custo']) || '',
+                    nome: findKeyIgnoreCase(headers, ['nombre del trabalhador', 'nombre', 'nome', 'trabalhador', 'colaborador', 'funcionario']) || '',
                     categoria: findKeyIgnoreCase(headers, ['categoria', 'tipo', 'category']) || '',
                     data: findKeyIgnoreCase(headers, ['data', 'data referencia', 'mes', 'mês', 'date']) || '',
-                    descricao: findKeyIgnoreCase(headers, ['descrição', 'descricao', 'notas', 'description']) || ''
+                    descricao: findKeyIgnoreCase(headers, ['descrição', 'descricao', 'notas', 'description', 'observaciones', 'observações']) || ''
                 };
+
+                // If sheet has category column, guess category; otherwise default to selected category
+                if (guessMapping.categoria) {
+                    const sampleCat = String(rawJson[0][guessMapping.categoria] || '').trim();
+                    if (sampleCat && categoryList.includes(sampleCat)) {
+                        setSelectedCategory(sampleCat);
+                    }
+                }
+
                 setColMapping(guessMapping);
                 setStep('MAPPING');
             }
@@ -176,89 +215,68 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
         return undefined;
     };
 
-    const parseExcelDate = (excelDate: any): string | null => {
-        if (!excelDate) return null;
-
-        if (excelDate instanceof Date) {
-            if (isValid(excelDate)) return excelDate.toISOString().split('T')[0];
-            return null;
-        }
-
-        if (typeof excelDate === 'number') {
-            const date = new Date((excelDate - 25569) * 86400 * 1000);
-            const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
-            if (isValid(utcDate)) {
-                return utcDate.toISOString().split('T')[0];
-            }
-            return null;
-        }
-
-        if (typeof excelDate === 'string') {
-            const str = excelDate.trim();
-            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-                const [d, m, y] = str.split('/');
-                return `${y}-${m}-${d}`;
-            }
-        }
-
-        return null;
-    };
-
     const generatePreview = () => {
         const rows: ParsedRow[] = [];
 
         for (const row of rawRows) {
-            // Use mapped column names to extract data
-            const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim().toUpperCase() : '';
-            const rawValor = colMapping.valor ? parseFloat(String(row[colMapping.valor] || '0').replace(',', '.')) : 0;
-            const rawNome = colMapping.nome ? String(row[colMapping.nome] || '') : '';
+            const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim() : '';
+            const rawNome = colMapping.nome ? String(row[colMapping.nome] || '').trim() : '';
             const rawDesc = colMapping.descricao ? String(row[colMapping.descricao] || '').trim() : '';
 
-            let rawCategoria = colMapping.categoria ? String(row[colMapping.categoria] || '').trim() : '';
-            if (!rawCategoria && defaultCategory !== 'NONE') {
-                rawCategoria = defaultCategory;
+            // Clean amount parsing
+            const rawValorStr = colMapping.valor ? String(row[colMapping.valor] || '0') : '0';
+            const rawValor = parseFloat(rawValorStr.replace(/[^\d.,-]/g, '').replace(',', '.'));
+
+            // Category resolution: Column value if mapped and non-empty, otherwise Selected Category Combobox
+            let finalCategory = selectedCategory;
+            if (colMapping.categoria && colMapping.categoria !== ' ') {
+                const sheetCat = String(row[colMapping.categoria] || '').trim();
+                if (sheetCat) finalCategory = sheetCat;
             }
 
-            const rawData = colMapping.data ? row[colMapping.data] : null;
-            let parsedDate = parseExcelDate(rawData);
-            if (!parsedDate && defaultDate) {
-                parsedDate = defaultDate;
+            // Competence resolution: Column date if mapped and valid, otherwise Selected Competence Combobox
+            let finalDate = selectedCompetence;
+            if (colMapping.data && colMapping.data !== ' ') {
+                const sheetDate = parseExcelDateToISO(row[colMapping.data]);
+                if (sheetDate) finalDate = sheetDate;
             }
 
-            if (!rawCod) continue; // Skip empty rows
+            // Skip empty rows and summary rows (e.g., TOTAL GENERAL)
+            if (!rawCod && !rawNome) continue;
+            const matchResult = findMatchingWorker(workers, rawCod, rawNome);
 
-            const matchedWorker = workers?.find(w => String(w.cod_colab || '').trim().toUpperCase() === rawCod);
+            if (!matchResult && (rawCod.toUpperCase().includes('TOTAL') || rawNome.toUpperCase().includes('TOTAL'))) {
+                continue;
+            }
 
             let status: ParsedRow['status'] = 'not_found';
             let errorMessage = '';
 
-            if (!matchedWorker) {
-                errorMessage = `Trabalhador não encontrado (${rawCod}).`;
+            if (!matchResult) {
+                status = 'not_found';
+                errorMessage = `Trabalhador não encontrado (${rawCod || rawNome}).`;
             } else if (isNaN(rawValor) || rawValor <= 0) {
                 status = 'invalid_data';
-                errorMessage = 'Valor inválido.';
-            } else if (!validCategories.includes(rawCategoria)) {
-                status = 'invalid_data';
-                errorMessage = `Categoria inválida. Preencha na planilha ou defina o padrão.`;
-            } else if (!parsedDate) {
-                status = 'invalid_data';
-                errorMessage = 'Data inválida. Preencha na planilha ou defina o padrão.';
+                errorMessage = 'Valor zerado ou inválido.';
             } else {
                 status = 'ok';
             }
 
+            const matchedWorker = matchResult?.worker;
+            const empresaId = matchedWorker?.empresa_id || selectedEmpresaId || '00000000-0000-0000-0000-000000000000';
+
             rows.push({
-                cod_colab: rawCod,
+                cod_colab: matchedWorker?.cod_colab || rawCod || '-',
                 nome_planilha: rawNome,
-                categoria: rawCategoria,
+                categoria: finalCategory,
                 valor: isNaN(rawValor) ? 0 : rawValor,
-                data: parsedDate || String(rawData || ''),
+                data: finalDate,
                 descricao: rawDesc,
 
                 workerId: matchedWorker?.id,
-                empresaId: matchedWorker?.empresa_id,
+                empresaId,
                 nomeBanco: matchedWorker?.nome,
+                matchMethod: matchResult?.matchMethod,
                 status,
                 errorMessage,
                 originalRowData: row
@@ -272,13 +290,12 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
     const handleImport = async () => {
         if (!parsedRows.length) return;
 
-        const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId && r.empresaId);
-
+        const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId);
         const batchId = crypto.randomUUID();
 
         const payloads: CreateWorkerDiscountInput[] = validRows.map(r => ({
             worker_id: r.workerId!,
-            empresa_id: r.empresaId!,
+            empresa_id: r.empresaId || selectedEmpresaId || '00000000-0000-0000-0000-000000000000',
             category: r.categoria as any,
             amount: Number(r.valor.toFixed(2)),
             reference_date: r.data,
@@ -295,14 +312,15 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
             setIsOpen(false);
             resetState();
         } catch (error) {
-            // Error mapped in hook sonner toast
+            // Error handling in hook
         }
     };
 
     const validCount = parsedRows.filter(r => r.status === 'ok').length;
     const errorCount = parsedRows.filter(r => r.status !== 'ok').length;
-
     const isMappingValid = colMapping.cod_colab !== '' && colMapping.valor !== '';
+
+    const selectedCompetenceObj = competenceOptions.find(c => c.value === selectedCompetence);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => {
@@ -314,32 +332,34 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[800px] overflow-hidden flex flex-col max-h-[90vh]">
                 <DialogHeader>
-                    <DialogTitle>Importar Descontos em Massa</DialogTitle>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
+                        Importar Descontos em Massa
+                    </DialogTitle>
                     <DialogDescription>
-                        {step === 'UPLOAD' && 'Faça o upload de uma planilha (Excel ou CSV) contendo os descontos.'}
-                        {step === 'MAPPING' && 'Associe as colunas do seu arquivo aos campos do sistema.'}
-                        {step === 'PREVIEW' && 'Revise os dados antes de confirmar a importação.'}
+                        {step === 'UPLOAD' && 'Selecione a planilha Excel ou CSV contendo a lista de descontos.'}
+                        {step === 'MAPPING' && 'Selecione a Competência da folha, a Categoria do desconto e confirme o mapeamento de colunas.'}
+                        {step === 'PREVIEW' && 'Confira os dados pré-visualizados antes de efetivar a importação na folha.'}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4">
+                <div className="flex-1 overflow-y-auto py-3">
                     {/* STEP 1: UPLOAD */}
                     {step === 'UPLOAD' && (
-                        <div className="grid w-full items-center gap-1.5 p-4 border-2 border-dashed rounded-lg bg-muted/20 text-center">
+                        <div className="grid w-full items-center gap-1.5 p-4 border-2 border-dashed rounded-lg bg-indigo-50/40 border-indigo-200 text-center">
                             {isParsing ? (
                                 <div className="flex flex-col items-center justify-center p-8">
                                     <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-4" />
-                                    <span className="text-sm font-medium">Lendo arquivo...</span>
+                                    <span className="text-sm font-medium text-indigo-900">Lendo e analisando arquivo...</span>
                                 </div>
                             ) : (
                                 <div className="p-8">
                                     <Label htmlFor="excel_file_descontos" className="cursor-pointer">
                                         <div className="flex flex-col items-center gap-2">
-                                            <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                                                <DownloadCloud className="h-6 w-6" />
+                                            <div className="h-14 w-14 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                                                <DownloadCloud className="h-7 w-7" />
                                             </div>
-                                            <span className="text-base font-semibold">Clique para escolher o arquivo</span>
-                                            <span className="text-sm text-muted-foreground">XLSX, XLS ou CSV</span>
+                                            <span className="text-base font-semibold text-gray-800">Clique para escolher o arquivo</span>
+                                            <span className="text-xs text-muted-foreground">Suporta arquivos Excel (.xlsx, .xls) ou CSV</span>
                                         </div>
                                     </Label>
                                     <Input
@@ -358,107 +378,103 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
 
                     {/* STEP 2: MAPPING */}
                     {step === 'MAPPING' && (
-                        <div className="space-y-6">
-                            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-4 rounded-md">
-                                Mapeie quais colunas da sua planilha correspondem aos dados necessários.
-                                <strong> Código do Trabalhador e Valor são obrigatórios.</strong>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        <div className="space-y-5">
+                            {/* TOP BAR: Comboboxes de Competência e Categoria */}
+                            <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4 shadow-sm">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-red-600">Código do Trab. (Obrigatório)</Label>
-                                    <Select value={colMapping.cod_colab} onValueChange={(v) => setColMapping({ ...colMapping, cod_colab: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
-                                            {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                    <Label className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                                        Competência da Folha (Mês / Ano) *
+                                    </Label>
+                                    <Select value={selectedCompetence} onValueChange={setSelectedCompetence}>
+                                        <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500 font-medium">
+                                            <SelectValue placeholder="Selecione a competência..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[240px]">
+                                            {competenceOptions.map((opt) => (
+                                                <SelectItem key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
+                                    <p className="text-[11px] text-indigo-700">
+                                        Período de apuração que receberá estes descontos.
+                                    </p>
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-red-600">Valor (Obrigatório)</Label>
-                                    <Select value={colMapping.valor} onValueChange={(v) => setColMapping({ ...colMapping, valor: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
-                                            {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                    <Label className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                                        <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                                        Categoria do Desconto *
+                                    </Label>
+                                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                                        <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500 font-medium">
+                                            <SelectValue placeholder="Selecione a categoria..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[240px]">
+                                            {categoryList.map((cat) => (
+                                                <SelectItem key={cat} value={cat}>
+                                                    {cat}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Nome do Trabalhador</Label>
-                                    <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
-                                            {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Descrição / Notas</Label>
-                                    <Select value={colMapping.descricao} onValueChange={(v) => setColMapping({ ...colMapping, descricao: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value=" ">-- Ignorar --</SelectItem>
-                                            {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
+                                    <p className="text-[11px] text-indigo-700">
+                                        Categoria aplicada aos lançamentos deste arquivo.
+                                    </p>
                                 </div>
                             </div>
 
-                            <hr />
+                            {/* COLUMN MAPPING SECTION */}
+                            <div className="border rounded-lg p-4 space-y-4 bg-white">
+                                <h4 className="font-semibold text-xs text-gray-700 uppercase tracking-wider">
+                                    Associação de Colunas da Planilha
+                                </h4>
 
-                            <h4 className="font-semibold text-sm">Categoria e Data</h4>
-                            <p className="text-xs text-muted-foreground mb-4">Escolha a coluna da planilha OU defina um valor fixo para todos os registros.</p>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                                <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">Coluna de Categoria</Label>
-                                        <Select value={colMapping.categoria} onValueChange={(v) => setColMapping({ ...colMapping, categoria: v })}>
-                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                        <Label className="text-xs font-bold text-red-600">Código do Trabalhador (Obrigatório)</Label>
+                                        <Select value={colMapping.cod_colab} onValueChange={(v) => setColMapping({ ...colMapping, cod_colab: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value=" ">-- Não tenho essa coluna --</SelectItem>
+                                                <SelectItem value=" ">-- Ignorar --</SelectItem>
                                                 {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs text-indigo-700 font-medium">Ou Valor Fixo para Categoria:</Label>
-                                        <Select value={defaultCategory} onValueChange={(v: string | 'NONE') => setDefaultCategory(v)} disabled={!!colMapping.categoria && colMapping.categoria !== ' '}>
-                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NONE">-- Não usar fixo --</SelectItem>
-                                                {validCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
 
-                                <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">Coluna de Data</Label>
-                                        <Select value={colMapping.data} onValueChange={(v) => setColMapping({ ...colMapping, data: v })}>
-                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                        <Label className="text-xs font-bold text-red-600">Valor a Descontar (Obrigatório)</Label>
+                                        <Select value={colMapping.valor} onValueChange={(v) => setColMapping({ ...colMapping, valor: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value=" ">-- Não tenho essa coluna --</SelectItem>
+                                                <SelectItem value=" ">-- Ignorar --</SelectItem>
                                                 {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </div>
+
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs text-indigo-700 font-medium">Ou Valor Fixo para Data:</Label>
-                                        <Input
-                                            type="date"
-                                            className="bg-white"
-                                            value={defaultDate}
-                                            onChange={(e) => setDefaultDate(e.target.value)}
-                                            disabled={!!colMapping.data && colMapping.data !== ' '}
-                                        />
+                                        <Label className="text-xs font-medium text-gray-700">Nome do Trabalhador (Recomendado)</Label>
+                                        <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value=" ">-- Ignorar --</SelectItem>
+                                                {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-700">Descrição / Notas (Opcional)</Label>
+                                        <Select value={colMapping.descricao} onValueChange={(v) => setColMapping({ ...colMapping, descricao: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value=" ">-- Ignorar --</SelectItem>
+                                                {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                             </div>
@@ -467,55 +483,60 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
 
                     {/* STEP 3: PREVIEW */}
                     {step === 'PREVIEW' && parsedRows.length > 0 && (
-                        <div className="border rounded-md overflow-hidden flex flex-col">
-                            <div className="bg-muted px-4 py-2 flex justify-between items-center text-sm">
-                                <div>
-                                    Total lido: <strong>{parsedRows.length}</strong> linhas.
-                                    {errorCount > 0 && <span className="text-destructive font-medium ml-2">({errorCount} com erros)</span>}
+                        <div className="border rounded-md overflow-hidden flex flex-col shadow-sm">
+                            <div className="bg-slate-50 px-4 py-2.5 flex justify-between items-center text-xs border-b">
+                                <div className="flex items-center gap-3">
+                                    <span>Total lido: <strong>{parsedRows.length}</strong> registros.</span>
+                                    {errorCount > 0 && <span className="text-destructive font-semibold">({errorCount} com alertas)</span>}
                                 </div>
-                                <Badge variant="secondary" className={validCount > 0 ? "bg-indigo-100 text-indigo-700" : ""}>
-                                    {validCount} Prontos para importar
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                                        {selectedCompetenceObj?.shortLabel || selectedCompetence}
+                                    </Badge>
+                                    <Badge variant="secondary" className={validCount > 0 ? "bg-emerald-100 text-emerald-800 font-semibold" : ""}>
+                                        {validCount} Prontos para importar
+                                    </Badge>
+                                </div>
                             </div>
-                            <ScrollArea className="h-[350px] w-full">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 shadow-sm z-10">
+                            <ScrollArea className="h-[360px] w-full">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 shadow-sm z-10 text-slate-700">
                                         <tr>
-                                            <th className="px-4 py-2 text-left font-medium w-16">Cód</th>
-                                            <th className="px-4 py-2 text-left font-medium">Trabalhador</th>
-                                            <th className="px-4 py-2 text-left font-medium">Categoria</th>
-                                            <th className="px-4 py-2 text-left font-medium">Data</th>
-                                            <th className="px-4 py-2 text-right font-medium">Valor</th>
+                                            <th className="px-3 py-2 text-left font-semibold w-16">Cód</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Trabalhador</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Categoria</th>
+                                            <th className="px-3 py-2 text-center font-semibold">Competência</th>
+                                            <th className="px-3 py-2 text-right font-semibold">Valor</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
                                         {parsedRows.map((row, i) => (
-                                            <tr key={i} className={`hover:bg-muted/50 ${row.status !== 'ok' ? 'bg-red-50/50' : ''}`}>
-                                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <tr key={i} className={`hover:bg-slate-50/80 ${row.status !== 'ok' ? 'bg-red-50/40' : ''}`}>
+                                                <td className="px-3 py-2.5 font-mono text-muted-foreground whitespace-nowrap">
                                                     {row.cod_colab || '-'}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-3 py-2.5">
                                                     <div className="flex flex-col">
-                                                        <span className="font-medium text-gray-900">
-                                                            {row.nomeBanco || row.nome_planilha || 'Desconhecido'}
+                                                        <span className="font-semibold text-gray-900">
+                                                            {row.nomeBanco || row.nome_planilha || 'Não encontrado'}
                                                         </span>
                                                         {row.errorMessage && (
-                                                            <span className="text-xs text-destructive flex items-center mt-1">
-                                                                <AlertCircle className="w-3 h-3 mr-1" />
+                                                            <span className="text-[11px] text-destructive flex items-center mt-0.5">
+                                                                <AlertCircle className="w-3 h-3 mr-1 shrink-0" />
                                                                 {row.errorMessage}
                                                             </span>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <Badge variant="outline" className={row.status === 'invalid_data' && String(row.errorMessage).includes('Categoria') ? 'border-red-300 text-red-600' : ''}>
-                                                        {row.categoria || '-'}
+                                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                                    <Badge variant="outline" className="text-[11px] font-normal border-slate-300">
+                                                        {row.categoria}
                                                     </Badge>
                                                 </td>
-                                                <td className={`px-4 py-3 whitespace-nowrap font-mono ${row.status === 'invalid_data' && String(row.errorMessage).includes('Data') ? 'text-red-500' : 'text-gray-500'}`}>
-                                                    {row.data || '-'}
+                                                <td className="px-3 py-2.5 text-center font-mono whitespace-nowrap text-slate-600">
+                                                    {row.data}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-mono font-medium whitespace-nowrap">
+                                                <td className="px-3 py-2.5 text-right font-mono font-bold whitespace-nowrap text-indigo-700">
                                                     € {row.valor.toFixed(2)}
                                                 </td>
                                             </tr>
@@ -527,7 +548,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                     )}
                 </div>
 
-                <DialogFooter className="mt-2 border-t pt-4">
+                <DialogFooter className="mt-2 border-t pt-3">
                     {step === 'UPLOAD' && (
                         <Button variant="outline" onClick={() => setIsOpen(false)}>
                             Cancelar
@@ -541,11 +562,20 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                             </Button>
                             <Button
                                 onClick={generatePreview}
-                                className="bg-indigo-600 hover:bg-indigo-700"
-                                disabled={!isMappingValid}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                                disabled={!isMappingValid || isLoadingWorkers}
                             >
-                                Validar e Pré-visualizar
-                                <ArrowRight className="ml-2 h-4 w-4" />
+                                {isLoadingWorkers ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Carregando trabalhadores...
+                                    </>
+                                ) : (
+                                    <>
+                                        Validar e Pré-visualizar
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </>
+                                )}
                             </Button>
                         </>
                     )}
@@ -559,12 +589,12 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
                             <Button
                                 onClick={handleImport}
                                 disabled={isImporting || validCount === 0}
-                                className="bg-indigo-600 hover:bg-indigo-700"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
                             >
                                 {isImporting ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Salvando...
+                                        Importando...
                                     </>
                                 ) : (
                                     <>
