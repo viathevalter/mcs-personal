@@ -487,22 +487,32 @@ export function HoleritesPage() {
                 });
             });
         } else {
-            // Fallback to worker_beneficios_settings ONLY if no housing benefit records exist for this worker
-            const hasAnyHousingRecord = allHousingBenefits.some((hb: any) => hb.worker_id === worker.id);
-            if (!hasAnyHousingRecord) {
-                const bSet = worker.worker_beneficios_settings || {};
-                totalBeneficios =
-                    Number(bSet.auxilio_moradia_base || 0) +
-                    Number(bSet.subsidio_alimentacao || 0) +
-                    Number(bSet.bono_produtividade || 0) +
-                    Number(bSet.ajuda_custo || 0) +
-                    Number(bSet.outros_beneficios || 0);
+            // Contract fallback from worker_beneficios_settings ONLY if receives fixed housing or fixed allowances are enabled
+            const bSet = worker.worker_beneficios_settings || {};
+            const receivesFixedHousing =
+                bSet.recebe_auxilio_moradia === true ||
+                String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'sim' ||
+                String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'true';
 
-                if (Number(bSet.auxilio_moradia_base || 0) > 0) beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
-                if (Number(bSet.subsidio_alimentacao || 0) > 0) beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
-                if (Number(bSet.bono_produtividade || 0) > 0) beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
-                if (Number(bSet.ajuda_custo || 0) > 0) beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
-                if (Number(bSet.outros_beneficios || 0) > 0) beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
+            if (receivesFixedHousing && Number(bSet.auxilio_moradia_base || 0) > 0) {
+                beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
+                totalBeneficios += Number(bSet.auxilio_moradia_base);
+            }
+            if (Number(bSet.subsidio_alimentacao || 0) > 0) {
+                beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
+                totalBeneficios += Number(bSet.subsidio_alimentacao);
+            }
+            if (Number(bSet.bono_produtividade || 0) > 0) {
+                beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
+                totalBeneficios += Number(bSet.bono_produtividade);
+            }
+            if (Number(bSet.ajuda_custo || 0) > 0) {
+                beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
+                totalBeneficios += Number(bSet.ajuda_custo);
+            }
+            if (Number(bSet.outros_beneficios || 0) > 0) {
+                beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
+                totalBeneficios += Number(bSet.outros_beneficios);
             }
         }
 
