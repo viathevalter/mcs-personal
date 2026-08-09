@@ -58,6 +58,7 @@ import { useHoleriteEventos } from '../hooks/useHoleriteEventos';
 import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
 import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
+import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
 import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -149,6 +150,7 @@ export function HoleritesPage() {
     const { data: contratantesUnicos = [] } = useUniqueContratantes();
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHorasBatch();
     const { data: allDiscounts = [] } = useAllDiscounts();
+    const { data: allHousingBenefits = [] } = useAllHousingBenefits();
 
     const handleContratanteChange = (v: string) => {
         const nextVal = v || 'all';
@@ -464,27 +466,51 @@ export function HoleritesPage() {
             .filter(e => e.tipo === 'desconto')
             .reduce((sum, e) => sum + Number(e.valor || 0), 0);
 
-        // Fixed Benefits
-        const bSet = worker.worker_beneficios_settings || {};
-        const sumBeneficiosFixos =
-            Number(bSet.auxilio_moradia_base || 0) +
-            Number(bSet.subsidio_alimentacao || 0) +
-            Number(bSet.bono_produtividade || 0) +
-            Number(bSet.ajuda_custo || 0) +
-            Number(bSet.outros_beneficios || 0);
+        // Monthly Housing Benefits & Proventos from worker_benefit_housing
+        const workerHousingBenefits = allHousingBenefits.filter((hb: any) => {
+            if (hb.worker_id !== worker.id) return false;
+            if (!hb.start_date) return false;
+            return hb.start_date.startsWith(mesReferencia);
+        });
 
-        let beneficiosFixosArray = [];
-        if (Number(bSet.auxilio_moradia_base || 0) > 0) beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
-        if (Number(bSet.subsidio_alimentacao || 0) > 0) beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
-        if (Number(bSet.bono_produtividade || 0) > 0) beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
-        if (Number(bSet.ajuda_custo || 0) > 0) beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
-        if (Number(bSet.outros_beneficios || 0) > 0) beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
+        const sumHousingBenefits = workerHousingBenefits.reduce((sum: number, hb: any) => sum + Number(hb.monthly_amount || 0), 0);
+
+        let beneficiosFixosArray: { desc: string; val: number }[] = [];
+        let totalBeneficios = 0;
+
+        if (workerHousingBenefits.length > 0) {
+            totalBeneficios = sumHousingBenefits;
+            workerHousingBenefits.forEach((hb: any) => {
+                beneficiosFixosArray.push({
+                    desc: hb.category || 'Auxílio Moradia',
+                    val: Number(hb.monthly_amount || 0)
+                });
+            });
+        } else {
+            // Fallback to worker_beneficios_settings ONLY if no housing benefit records exist for this worker
+            const hasAnyHousingRecord = allHousingBenefits.some((hb: any) => hb.worker_id === worker.id);
+            if (!hasAnyHousingRecord) {
+                const bSet = worker.worker_beneficios_settings || {};
+                totalBeneficios =
+                    Number(bSet.auxilio_moradia_base || 0) +
+                    Number(bSet.subsidio_alimentacao || 0) +
+                    Number(bSet.bono_produtividade || 0) +
+                    Number(bSet.ajuda_custo || 0) +
+                    Number(bSet.outros_beneficios || 0);
+
+                if (Number(bSet.auxilio_moradia_base || 0) > 0) beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
+                if (Number(bSet.subsidio_alimentacao || 0) > 0) beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
+                if (Number(bSet.bono_produtividade || 0) > 0) beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
+                if (Number(bSet.ajuda_custo || 0) > 0) beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
+                if (Number(bSet.outros_beneficios || 0) > 0) beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
+            }
+        }
 
         // Extra Discounts for this month
         const descontosExtras = allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia));
         const sumDescontosExtras = descontosExtras.reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
 
-        const totalProventos = vencimentoBase + proventosEventos + sumBeneficiosFixos;
+        const totalProventos = vencimentoBase + proventosEventos + totalBeneficios;
         const totalDescontos = descontosEventos + sumDescontosExtras;
 
         return {
@@ -542,7 +568,7 @@ export function HoleritesPage() {
             const { liquido } = calculateWorkerTally(w);
             return acc + liquido;
         }, 0);
-    }, [sortedWorkers, eventos, allDiscounts, dbHoursSummary]);
+    }, [sortedWorkers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
 
     const totalHorasSum = React.useMemo(() => {
         if (!sortedWorkers) return 0;

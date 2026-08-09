@@ -22,6 +22,8 @@ export function useDeleteHousingBatch() {
         onSuccess: (count) => {
             queryClient.invalidateQueries({ queryKey: [HOUSING_QUERY_KEY] });
             queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
+            queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+            queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
             toast.success(`${count || 'Os'} benefícios de moradia foram revertidos com sucesso.`);
         },
         onError: (error: Error) => {

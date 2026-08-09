@@ -11,6 +11,8 @@ export function useUpsertHousing() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['housing_benefit', variables.worker_id] });
             queryClient.invalidateQueries({ queryKey: ['workers_with_housing', variables.empresa_id] });
+            queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+            queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
         },
     });
 }

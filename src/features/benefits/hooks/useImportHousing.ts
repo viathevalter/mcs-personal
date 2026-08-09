@@ -17,6 +17,8 @@ export function useImportHousing() {
             // Invalidate queries to refresh the benefits list
             queryClient.invalidateQueries({ queryKey: [HOUSING_QUERY_KEY] });
             queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
+            queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+            queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
             toast.success("Benefícios importados com sucesso.");
         },
         onError: (error: Error) => {
