@@ -374,93 +374,92 @@ export function BenefitsPage() {
                             <option key={company} value={company}>{company}</option>
                         ))}
                     </select>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-gray-50/80">
-                        <TableRow>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('nome')}>
-                                Trabalhador <SortIcon columnKey="nome" />
-                            </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('cod_colab')}>
-                                Código <SortIcon columnKey="cod_colab" />
-                            </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('category')}>
-                                Tipo de Provento <SortIcon columnKey="category" />
-                            </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_status')}>
-                                Status <SortIcon columnKey="housing_benefit_status" />
-                            </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50 text-right" onClick={() => handleSort('housing_benefit_amount')}>
-                                Valor Mensal (€) <SortIcon columnKey="housing_benefit_amount" />
-                            </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('housing_benefit_date')}>
-                                Data Inicial <SortIcon columnKey="housing_benefit_date" />
-                            </TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredAndSortedWorkers.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
-                                    Nenhum benefício ou provento encontrado com os filtros atuais.
-                                </TableCell>
+                          {/* Table */}
+            <div className="border rounded-xl bg-card shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
+                <div className="overflow-auto flex-1">
+                    <Table className="relative w-full">
+                        <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 shadow-sm backdrop-blur-sm">
+                            <TableRow className="border-b">
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('nome')}>
+                                    Trabalhador <SortIcon columnKey="nome" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('cod_colab')}>
+                                    Código <SortIcon columnKey="cod_colab" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('category')}>
+                                    Tipo de Provento <SortIcon columnKey="category" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_status')}>
+                                    Status <SortIcon columnKey="housing_benefit_status" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-right text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_amount')}>
+                                    Valor Mensal (€) <SortIcon columnKey="housing_benefit_amount" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_date')}>
+                                    Data Inicial <SortIcon columnKey="housing_benefit_date" />
+                                </TableHead>
+                                <TableHead className="text-right text-slate-800 dark:text-slate-200 font-semibold">Ações</TableHead>
                             </TableRow>
-                        ) : (
-                            filteredAndSortedWorkers.map(w => {
-                                const hasBenefit = !!w.housing_benefit;
-                                const categoryName = w.housing_benefit?.category || (hasBenefit ? 'Auxílio Moradia' : '-');
-                                return (
-                                    <TableRow key={w.id} className="hover:bg-slate-50 transition-colors">
-                                        <TableCell className="font-medium">
-                                            {w.nome}
-                                            <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
-                                                {w.cliente_nombre ? `${w.cliente_nombre}` : ''} {w.contratante ? `- ${w.contratante}` : ''}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs">{w.cod_colab}</TableCell>
-                                        <TableCell>
-                                            {hasBenefit ? (
-                                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200 font-medium">
-                                                    {categoryName}
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground">-</span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {hasBenefit ? (
-                                                <span className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                                                    <Link2 className="h-4 w-4 mr-1" /> {w.housing_benefit?.status || 'Ativo'}
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center text-muted-foreground text-sm font-medium">
-                                                    <Link2Off className="h-4 w-4 mr-1" /> Não Vinculado
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-right font-semibold">
-                                            {hasBenefit ? `€ ${w.housing_benefit!.monthly_amount.toFixed(2)}` : '-'}
-                                        </TableCell>
-                                        <TableCell className="text-sm text-gray-600">
-                                            {hasBenefit && w.housing_benefit!.start_date ? format(new Date(w.housing_benefit!.start_date), 'dd/MM/yyyy') : '-'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(w)} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
-                                                <Edit className="h-4 w-4 mr-1" />
-                                                Editar
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredAndSortedWorkers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                        Nenhum benefício ou provento encontrado com os filtros atuais.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredAndSortedWorkers.map(w => {
+                                    const hasBenefit = !!w.housing_benefit;
+                                    const categoryName = w.housing_benefit?.category || (hasBenefit ? 'Auxílio Moradia' : '-');
+                                    return (
+                                        <TableRow key={w.id} className="hover:bg-slate-50 transition-colors">
+                                            <TableCell className="font-medium">
+                                                {w.nome}
+                                                <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                                                    {w.cliente_nombre ? `${w.cliente_nombre}` : ''} {w.contratante ? `- ${w.contratante}` : ''}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">{w.cod_colab}</TableCell>
+                                            <TableCell>
+                                                {hasBenefit ? (
+                                                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200 font-medium">
+                                                        {categoryName}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {hasBenefit ? (
+                                                    <span className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+                                                        <Link2 className="h-4 w-4 mr-1" /> {w.housing_benefit?.status || 'Ativo'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center text-muted-foreground text-sm font-medium">
+                                                        <Link2Off className="h-4 w-4 mr-1" /> Não Vinculado
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right font-semibold">
+                                                {hasBenefit ? `€ ${w.housing_benefit!.monthly_amount.toFixed(2)}` : '-'}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-gray-600">
+                                                {hasBenefit && w.housing_benefit!.start_date ? format(new Date(w.housing_benefit!.start_date), 'dd/MM/yyyy') : '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(w)} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
+                                                    <Edit className="h-4 w-4 mr-1" />
+                                                    Editar
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </div>
 
             {selectedWorker && empresaId && (

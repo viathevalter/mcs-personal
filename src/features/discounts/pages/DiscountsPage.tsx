@@ -261,18 +261,18 @@ export function DiscountsPage() {
                 </div>
 
                 {/* Data Table */}
-                <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50/80">
+                <div className="bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
+                    <div className="overflow-auto flex-1">
+                        <table className="min-w-full divide-y divide-gray-200 relative">
+                            <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Trabalhador</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Data</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Categoria</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Valor (€)</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Descrição</th>
-                                    <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Trabalhador</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Data</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Categoria</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Valor (€)</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Status</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Descrição</th>
+                                    <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -343,7 +343,7 @@ export function DiscountsPage() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                                             Nenhum desconto encontrado com os filtros atuais.
                                         </td>
                                     </tr>
