@@ -374,7 +374,10 @@ export function BenefitsPage() {
                             <option key={company} value={company}>{company}</option>
                         ))}
                     </select>
-                          {/* Table */}
+                </div>
+            </div>
+
+            {/* Table */}
             <div className="border rounded-xl bg-card shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
                 <div className="overflow-auto flex-1">
                     <Table className="relative w-full">
