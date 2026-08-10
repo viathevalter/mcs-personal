@@ -21,9 +21,52 @@ import { supabase } from '@/shared/supabase/client';
 import { 
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
-    MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2
+    MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
+    Calendar, MapPin, Clock, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const formatHeaderDate = (dateStr?: string | null) => {
+    if (!dateStr) return '';
+    try {
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return `${match[3]}/${match[2]}/${match[1]}`;
+        }
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('pt-BR');
+    } catch {
+        return dateStr;
+    }
+};
+
+const getStartDateUrgency = (dateStr?: string | null) => {
+    if (!dateStr) return { text: 'A Definir', badgeClass: 'bg-slate-500/20 text-slate-300 border-slate-400/30' };
+    
+    try {
+        const targetDate = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        targetDate.setHours(0,0,0,0);
+
+        const diffTime = targetDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return { text: `Já Iniciou (${Math.abs(diffDays)}d atrás)`, badgeClass: 'bg-slate-700 text-slate-200 border-slate-600' };
+        } else if (diffDays === 0) {
+            return { text: '🚨 INICIA HOJE!', badgeClass: 'bg-rose-600 text-white font-extrabold animate-pulse' };
+        } else if (diffDays <= 3) {
+            return { text: `🔴 URGENTE: Faltam ${diffDays}d`, badgeClass: 'bg-rose-500/25 text-rose-300 border-rose-400/40 font-bold' };
+        } else if (diffDays <= 7) {
+            return { text: `🟡 ATENÇÃO: Faltam ${diffDays}d`, badgeClass: 'bg-amber-500/25 text-amber-300 border-amber-400/40 font-bold' };
+        } else {
+            return { text: `🟢 Faltam ${diffDays} dias`, badgeClass: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40' };
+        }
+    } catch {
+        return { text: 'Data Fixada', badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30' };
+    }
+};
 
 export function DocumentacionTasksPage() {
     const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
@@ -111,7 +154,19 @@ export function DocumentacionTasksPage() {
     const [workersDialogOpen, setWorkersDialogOpen] = useState(false);
     const [taskWorkers, setTaskWorkers] = useState<any[]>([]);
     const [loadingTaskWorkers, setLoadingTaskWorkers] = useState(false);
-    const [taskMetadata, setTaskMetadata] = useState<{ clientName: string; siteName: string; pedidoCode: string; empresaName: string; clientId?: string; siteId?: string; empresaId?: string } | null>(null);
+    const [taskMetadata, setTaskMetadata] = useState<{ 
+        clientName: string; 
+        siteName: string; 
+        pedidoCode: string; 
+        empresaName: string; 
+        clientId?: string; 
+        siteId?: string; 
+        empresaId?: string;
+        expectedStartDate?: string | null;
+        expectedEndDate?: string | null;
+        requestedAt?: string | null;
+        siteAddressFormatted?: string | null;
+    } | null>(null);
 
     // States for Configuração de Modelos
     const [selectedConfigContratante, setSelectedConfigContratante] = useState<string>('STOCCO');
@@ -394,11 +449,11 @@ export function DocumentacionTasksPage() {
 
             const solicitudId = task.solicitud_id;
 
-            // Fetch full solicitud record to ensure we get client_id, client_site_id, empresa_id, codigo, tipo, title
+            // Fetch full solicitud record to ensure we get client_id, client_site_id, empresa_id, codigo, tipo, title, requested_at, created_at
             const { data: solData } = await supabase
                 .schema('core_operacoes')
                 .from('solicitudes_operativas')
-                .select('id, codigo, client_id, client_site_id, empresa_id, pedido_id, tipo, title')
+                .select('id, codigo, client_id, client_site_id, empresa_id, pedido_id, tipo, title, requested_at, created_at')
                 .eq('id', solicitudId)
                 .maybeSingle();
 
@@ -408,12 +463,16 @@ export function DocumentacionTasksPage() {
             let empresaId = solData?.empresa_id || task.solicitud?.empresa_id || selectedEmpresaId;
             let pedidoCode = solData?.codigo || task.solicitud?.codigo || 'N/A';
 
-            // If pedidoId is present, fetch order info to refine code/client/site
+            let expectedStartDate: string | null = null;
+            let expectedEndDate: string | null = null;
+            let requestedAt: string | null = solData?.requested_at || solData?.created_at || task.created_at || null;
+
+            // If pedidoId is present, fetch order info to refine code/client/site/dates
             if (pedidoId) {
                 const { data: pedidoData } = await supabase
                     .schema('core_comercial')
                     .from('pedidos')
-                    .select('id, codigo, client_id, client_site_id')
+                    .select('id, codigo, client_id, client_site_id, expected_start_date, expected_end_date, created_at, approved_at')
                     .eq('id', pedidoId)
                     .maybeSingle();
 
@@ -421,6 +480,9 @@ export function DocumentacionTasksPage() {
                     if (pedidoData.codigo) pedidoCode = pedidoData.codigo;
                     if (pedidoData.client_id) clientId = pedidoData.client_id;
                     if (pedidoData.client_site_id) siteId = pedidoData.client_site_id;
+                    if (pedidoData.expected_start_date) expectedStartDate = pedidoData.expected_start_date;
+                    if (pedidoData.expected_end_date) expectedEndDate = pedidoData.expected_end_date;
+                    if (pedidoData.approved_at || pedidoData.created_at) requestedAt = pedidoData.approved_at || pedidoData.created_at;
                 }
             }
 
@@ -439,10 +501,10 @@ export function DocumentacionTasksPage() {
                 }
             }
 
-            // Fetch Names for Client, Site & Empresa
+            // Fetch Names & Address for Client, Site & Empresa
             const [{ data: clientData }, { data: siteData }, { data: empresaData }] = await Promise.all([
-                clientId ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').eq('id', clientId).maybeSingle() : Promise.resolve({ data: null }),
-                siteId ? supabase.schema('core_common').from('client_sites').select('id, name').eq('id', siteId).maybeSingle() : Promise.resolve({ data: null }),
+                clientId ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, address_line, city').eq('id', clientId).maybeSingle() : Promise.resolve({ data: null }),
+                siteId ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, province, postal_code').eq('id', siteId).maybeSingle() : Promise.resolve({ data: null }),
                 empresaId ? supabase.schema('core_common').from('empresas').select('id, nome, trade_name, legal_name').eq('id', empresaId).maybeSingle() : Promise.resolve({ data: null })
             ]);
 
@@ -452,10 +514,16 @@ export function DocumentacionTasksPage() {
             }
 
             let siteName = 'N/A';
+            let siteAddressFormatted = '';
+
             if (siteData) {
                 siteName = siteData.name;
-            } else if (clientName !== 'N/A') {
+                const addrParts = [siteData.address_line, siteData.city, siteData.province, siteData.postal_code ? `CP ${siteData.postal_code}` : null].filter(Boolean);
+                siteAddressFormatted = addrParts.join(', ');
+            } else if (clientData) {
                 siteName = 'Instalações do Cliente';
+                const addrParts = [clientData.address_line, clientData.city].filter(Boolean);
+                siteAddressFormatted = addrParts.join(', ');
             }
 
             const empresaName = empresaData?.trade_name || empresaData?.legal_name || empresaData?.nome || 'N/A';
@@ -467,7 +535,11 @@ export function DocumentacionTasksPage() {
                 empresaName,
                 clientId,
                 siteId,
-                empresaId
+                empresaId,
+                expectedStartDate,
+                expectedEndDate,
+                requestedAt,
+                siteAddressFormatted
             });
 
             // 2. Fetch targets first
@@ -2485,26 +2557,97 @@ Muchas gracias.`;
                         </DialogDescription>
                     </DialogHeader>
 
-                    {/* Resumo da solicitação/pedido */}
+                    {/* Resumo da solicitação/pedido (Card Premium Executivo) */}
                     {taskMetadata && (
-                        <div className="grid grid-cols-4 gap-3 p-3 border rounded-lg bg-slate-50 dark:bg-slate-800/30 text-sm mb-2 mt-2">
-                            <div>
-                                <span className="font-semibold text-muted-foreground block text-xs">EMPRESA DO GRUPO</span>
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.empresaName || 'N/A'}</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-muted-foreground block text-xs">CLIENTE</span>
-                                <span className="font-bold text-indigo-900 dark:text-indigo-200">{taskMetadata.clientName}</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-muted-foreground block text-xs">LOCAL / OBRA</span>
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{taskMetadata.siteName}</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-muted-foreground block text-xs">PEDIDO / SOLICITAÇÃO</span>
-                                <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800/50 px-2 py-0.5 rounded text-xs truncate block" title={taskMetadata.pedidoCode}>
-                                    {taskMetadata.pedidoCode}
-                                </span>
+                        <div className="rounded-xl border border-slate-800 bg-slate-900 text-white p-4 shadow-xl mb-3 mt-1 relative overflow-hidden">
+                            {/* Glow de fundo */}
+                            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 relative z-10">
+                                {/* 1. DATA DE INÍCIO PREVISTA (DESTAQUE MÁXIMO URGÊNCIA) */}
+                                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                        <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-1">
+                                            <Calendar className="h-3.5 w-3.5 text-amber-400" />
+                                            Início Previsto
+                                        </span>
+                                        {taskMetadata.expectedStartDate && (
+                                            <Badge className={`text-[10px] px-1.5 py-0.5 border ${
+                                                getStartDateUrgency(taskMetadata.expectedStartDate).badgeClass
+                                            }`}>
+                                                {getStartDateUrgency(taskMetadata.expectedStartDate).text}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="text-xl font-black text-amber-300 tracking-tight my-0.5">
+                                        {taskMetadata.expectedStartDate ? formatHeaderDate(taskMetadata.expectedStartDate) : 'A Definir'}
+                                    </div>
+                                    {taskMetadata.expectedEndDate ? (
+                                        <div className="text-[11px] text-slate-300 flex items-center gap-1">
+                                            <Clock className="h-3 w-3 text-slate-400 shrink-0" />
+                                            Até: <span className="font-semibold text-white">{formatHeaderDate(taskMetadata.expectedEndDate)}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="text-[11px] text-slate-400">Duração indeterminada</div>
+                                    )}
+                                </div>
+
+                                {/* 2. CLIENTE & CONTRATANTE */}
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex flex-col justify-between">
+                                    <div>
+                                        <span className="text-[10px] font-bold tracking-wider text-indigo-300 uppercase flex items-center gap-1 mb-1">
+                                            <Building2 className="h-3.5 w-3.5 text-indigo-400" />
+                                            Cliente & Grupo
+                                        </span>
+                                        <div className="text-base font-bold text-white leading-snug truncate" title={taskMetadata.clientName}>
+                                            {taskMetadata.clientName}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-slate-300 mt-1 flex items-center gap-1.5">
+                                        <span className="text-slate-400">Contratante:</span>
+                                        <Badge variant="outline" className="text-xs bg-indigo-500/20 text-indigo-200 border-indigo-400/30 px-2 py-0">
+                                            {taskMetadata.empresaName || 'N/A'}
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                {/* 3. LOCAL / OBRA & ENDEREÇO */}
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex flex-col justify-between">
+                                    <div>
+                                        <span className="text-[10px] font-bold tracking-wider text-emerald-300 uppercase flex items-center gap-1 mb-1">
+                                            <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                                            Local / Obra
+                                        </span>
+                                        <div className="text-sm font-bold text-white truncate" title={taskMetadata.siteName}>
+                                            {taskMetadata.siteName}
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-300 mt-1 truncate" title={taskMetadata.siteAddressFormatted || 'Sem endereço específico'}>
+                                        {taskMetadata.siteAddressFormatted ? (
+                                            <span className="text-slate-200">{taskMetadata.siteAddressFormatted}</span>
+                                        ) : (
+                                            <span className="italic text-slate-400">Endereço do cliente</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 4. PEDIDO & REGISTRO DA SOLICITAÇÃO */}
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex flex-col justify-between">
+                                    <div>
+                                        <span className="text-[10px] font-bold tracking-wider text-sky-300 uppercase flex items-center gap-1 mb-1">
+                                            <FileText className="h-3.5 w-3.5 text-sky-400" />
+                                            Pedido / Código
+                                        </span>
+                                        <div className="font-mono text-xs font-bold text-sky-200 bg-sky-500/20 border border-sky-400/30 px-2 py-0.5 rounded inline-block truncate max-w-full" title={taskMetadata.pedidoCode}>
+                                            {taskMetadata.pedidoCode}
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-300 mt-1 flex items-center justify-between">
+                                        <span className="text-slate-400">Criado em:</span>
+                                        <span className="font-medium text-white">{taskMetadata.requestedAt ? formatHeaderDate(taskMetadata.requestedAt) : 'N/A'}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
