@@ -443,11 +443,13 @@ export function ProspectingPage() {
                   ) : (
                     <button
                       onClick={() => handleStartProcessing(activeJob)}
-                      disabled={activeJob.processed_count >= activeJob.target_count && activeJob.status === 'completed'}
+                      disabled={isProcessingLoop}
                       className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow transition-colors"
                     >
                       <Play className="w-4 h-4" />{' '}
-                      {activeJob.status === 'paused'
+                      {activeJob.status === 'completed'
+                        ? 'Reiniciar Captura'
+                        : activeJob.status === 'paused'
                         ? t('comercial.prospector.btnContinue', 'Continuar Busca')
                         : t('comercial.prospector.btnStart', 'Iniciar Captura')}
                     </button>
