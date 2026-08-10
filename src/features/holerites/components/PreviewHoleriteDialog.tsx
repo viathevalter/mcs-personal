@@ -17,12 +17,10 @@ import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento } from '@/shared/types/holerites';
 import { useTaxRules } from '@/features/taxes/hooks';
 
-interface PreviewHoleriteDialogProps {
-    worker: Worker;
-    mesReferencia: string;
-    eventosMensais: HoleriteEvento[];
-    fallbackHours?: number;
-    trigger: React.ReactNode;
+function formatHoursClean(val: number | string): string {
+    const num = Number(val || 0);
+    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+    return Number.isInteger(rounded) ? `${rounded}` : `${rounded.toFixed(2)}`;
 }
 
 export function PreviewHoleriteDialog({ worker, mesReferencia, eventosMensais, fallbackHours = 0, trigger }: PreviewHoleriteDialogProps) {
@@ -145,7 +143,7 @@ export function PreviewHoleriteDialog({ worker, mesReferencia, eventosMensais, f
                             <tbody className="divide-y divide-slate-100">
                                 <tr>
                                     <td className="py-2 px-2">Vencimento Base (Horas)</td>
-                                    <td className="py-2 px-2 text-right">{horasTrabalhadas}</td>
+                                    <td className="py-2 px-2 text-right">{formatHoursClean(horasTrabalhadas)}</td>
                                     <td className="py-2 px-2 text-right">{Number(tarifaHora).toFixed(2)}</td>
                                     <td className="py-2 px-2 text-right">{vencimentoBase.toFixed(2)}</td>
                                 </tr>

@@ -105,6 +105,12 @@ function formatDateClean(dateStr?: string | null) {
     }
 }
 
+function formatHoursClean(val: number | string): string {
+    const num = Number(val || 0);
+    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+    return rounded.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
     if (!mesCompetencia) return false;
     const dIngresso = worker.data_ingresso || worker.data_alta_seguridad || worker.created_at;
@@ -710,7 +716,7 @@ export function HoleritesPage() {
                             <div className="space-y-0.5">
                                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total de Horas</span>
                                 <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
-                                    {totalHorasSum.toLocaleString('pt-BR')} h
+                                    {formatHoursClean(totalHorasSum)} h
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">Apuradas no período</span>
                             </div>
@@ -973,12 +979,12 @@ export function HoleritesPage() {
                                                     {totalHoras > 0 ? (
                                                         <div className="flex flex-col items-end">
                                                             <div className="flex items-center gap-1 font-bold">
-                                                                <span>{totalHoras} h</span>
+                                                                <span>{formatHoursClean(totalHoras)} h</span>
                                                                 {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
                                                                     <Badge 
                                                                         variant="outline" 
                                                                         className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                        title={`Ajustado pelo Faturamento (Original: ${dbHoursSummary.rawSumMap.get(worker.id) || 0}h → Faturado: ${totalHoras}h)`}
+                                                                        title={`Ajustado pelo Faturamento (Original: ${formatHoursClean(dbHoursSummary.rawSumMap.get(worker.id) || 0)}h → Faturado: ${formatHoursClean(totalHoras)}h)`}
                                                                     >
                                                                         Faturamento
                                                                     </Badge>
@@ -986,7 +992,7 @@ export function HoleritesPage() {
                                                             </div>
                                                             {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
                                                                 <span className="text-[10px] text-muted-foreground line-through">
-                                                                    {dbHoursSummary.rawSumMap.get(worker.id) || 0} h orig.
+                                                                    {formatHoursClean(dbHoursSummary.rawSumMap.get(worker.id) || 0)} h orig.
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1100,7 +1106,7 @@ export function HoleritesPage() {
                                                                     <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                                                                         <div>
                                                                             <span className="text-muted-foreground block">Total Horas</span>
-                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{totalHoras} h</span>
+                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{formatHoursClean(totalHoras)} h</span>
                                                                         </div>
                                                                         <div>
                                                                             <span className="text-muted-foreground block">Tarifa por Hora</span>
