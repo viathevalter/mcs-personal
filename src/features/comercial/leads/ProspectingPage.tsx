@@ -42,6 +42,16 @@ import {
 import { ProspectingService } from './services/prospectingService';
 import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from './types/prospectingTypes';
 
+const ensureAbsoluteUrl = (url?: string | null): string => {
+  if (!url) return '#';
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed === 'null') return '#';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+};
+
 export function ProspectingPage() {
   const { t } = useTranslation();
   const { data: jobs = [], isLoading: loadingJobs } = useProspectingJobs();
@@ -714,7 +724,7 @@ export function ProspectingPage() {
                             <div className="flex items-center gap-1.5">
                               {item.website ? (
                                 <a
-                                  href={item.website}
+                                  href={ensureAbsoluteUrl(item.website)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
@@ -726,7 +736,7 @@ export function ProspectingPage() {
 
                               {item.linkedin_url ? (
                                 <a
-                                  href={item.linkedin_url}
+                                  href={ensureAbsoluteUrl(item.linkedin_url)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
@@ -738,7 +748,7 @@ export function ProspectingPage() {
 
                               {item.instagram_url ? (
                                 <a
-                                  href={item.instagram_url}
+                                  href={ensureAbsoluteUrl(item.instagram_url)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-pink-600 dark:text-pink-400 hover:text-pink-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"

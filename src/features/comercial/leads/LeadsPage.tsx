@@ -959,7 +959,7 @@ export function LeadsPage() {
                       <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                         {lead.website && (
                           <a
-                            href={lead.website}
+                            href={ensureAbsoluteUrl(lead.website)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1 bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:text-blue-500 rounded border border-slate-200 dark:border-slate-700"
@@ -970,7 +970,7 @@ export function LeadsPage() {
                         )}
                         {lead.linkedin_url && (
                           <a
-                            href={lead.linkedin_url}
+                            href={ensureAbsoluteUrl(lead.linkedin_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1 bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:text-blue-500 rounded border border-slate-200 dark:border-slate-700"
@@ -981,7 +981,7 @@ export function LeadsPage() {
                         )}
                         {lead.instagram_url && (
                           <a
-                            href={lead.instagram_url}
+                            href={ensureAbsoluteUrl(lead.instagram_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1 bg-slate-100 dark:bg-slate-900 text-pink-600 dark:text-pink-400 hover:text-pink-500 rounded border border-slate-200 dark:border-slate-700"
@@ -1416,7 +1416,7 @@ export function LeadsPage() {
                   <span className="text-slate-500 dark:text-slate-400 font-semibold mr-2">Presença Web:</span>
                   {selectedDetailLead.website ? (
                     <a
-                      href={selectedDetailLead.website}
+                      href={ensureAbsoluteUrl(selectedDetailLead.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-lg font-medium transition-colors"
@@ -1427,7 +1427,7 @@ export function LeadsPage() {
 
                   {selectedDetailLead.linkedin_url ? (
                     <a
-                      href={selectedDetailLead.linkedin_url}
+                      href={ensureAbsoluteUrl(selectedDetailLead.linkedin_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-300 border border-blue-600/30 rounded-lg font-medium transition-colors"
@@ -1438,7 +1438,7 @@ export function LeadsPage() {
 
                   {selectedDetailLead.instagram_url ? (
                     <a
-                      href={selectedDetailLead.instagram_url}
+                      href={ensureAbsoluteUrl(selectedDetailLead.instagram_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/10 hover:bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-500/30 rounded-lg font-medium transition-colors"
