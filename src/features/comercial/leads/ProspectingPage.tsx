@@ -25,6 +25,7 @@ import {
   Sparkles,
   Sliders,
   Filter,
+  CheckSquare,
   X,
 } from 'lucide-react';
 import {
@@ -116,7 +117,7 @@ export function ProspectingPage() {
         );
 
         if (stepResult.completed) {
-          addLog(`Missão "${currentJob.title}" finalizada com sucesso!`, 'success');
+          addLog(`Missão "${currentJob.title}" concluída com sucesso!`, 'success');
           break;
         }
 
@@ -148,6 +149,14 @@ export function ProspectingPage() {
     setIsProcessingLoop(false);
     await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'paused' });
     addLog(`Missão "${job.title}" pausada pelo operador.`, 'warn');
+  };
+
+  // Force Complete Job Immediately
+  const handleCompleteJobNow = async (job: LeadProspectingJob) => {
+    isLoopRunningRef.current = false;
+    setIsProcessingLoop(false);
+    await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'completed' });
+    addLog(`Missão "${job.title}" concluída manualmente pelo operador.`, 'success');
   };
 
   // Create New Job
@@ -212,7 +221,9 @@ export function ProspectingPage() {
     }
   };
 
-  // Totals calculations
+  // Totals calculations for Staging KPIs
+  const totalStagingResultsCount = results.length;
+  const emailsStagingCount = results.filter((r) => r.email).length;
   const totalLeadsCaptured = jobs.reduce((acc, j) => acc + j.processed_count, 0);
   const totalEmailsFound = jobs.reduce((acc, j) => acc + j.found_emails_count, 0);
   const activeJobsCount = jobs.filter((j) => j.status === 'processing' || j.status === 'pending').length;
@@ -321,7 +332,7 @@ export function ProspectingPage() {
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {jobs.map((job) => {
                   const isSelected = job.id === selectedJobId;
-                  const progressPct = job.target_count > 0 ? Math.round((job.processed_count / job.target_count) * 100) : 0;
+                  const progressPct = job.target_count > 0 ? Math.min(100, Math.round((job.processed_count / job.target_count) * 100)) : 0;
 
                   return (
                     <div
@@ -415,29 +426,40 @@ export function ProspectingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">{t('comercial.prospector.emailsExtractedLabel', 'E-mails Extraídos:')}</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{activeJob.found_emails_count} e-mails</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{emailsStagingCount} e-mails no Staging</span>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 flex items-center gap-2">
-                {activeJob.status === 'processing' || isProcessingLoop ? (
+              <div className="pt-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  {activeJob.status === 'processing' || isProcessingLoop ? (
+                    <button
+                      onClick={() => handlePauseJob(activeJob)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow transition-colors"
+                    >
+                      <Pause className="w-4 h-4" /> {t('comercial.prospector.btnPause', 'Pausar Busca')}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleStartProcessing(activeJob)}
+                      disabled={activeJob.processed_count >= activeJob.target_count && activeJob.status === 'completed'}
+                      className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow transition-colors"
+                    >
+                      <Play className="w-4 h-4" />{' '}
+                      {activeJob.status === 'paused'
+                        ? t('comercial.prospector.btnContinue', 'Continuar Busca')
+                        : t('comercial.prospector.btnStart', 'Iniciar Captura')}
+                    </button>
+                  )}
+                </div>
+
+                {activeJob.status !== 'completed' && (
                   <button
-                    onClick={() => handlePauseJob(activeJob)}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow transition-colors"
+                    onClick={() => handleCompleteJobNow(activeJob)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-semibold py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-600 transition-colors"
                   >
-                    <Pause className="w-4 h-4" /> {t('comercial.prospector.btnPause', 'Pausar Busca')}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleStartProcessing(activeJob)}
-                    disabled={activeJob.processed_count >= activeJob.target_count}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 px-3 rounded-lg shadow transition-colors"
-                  >
-                    <Play className="w-4 h-4" />{' '}
-                    {activeJob.status === 'paused'
-                      ? t('comercial.prospector.btnContinue', 'Continuar Busca')
-                      : t('comercial.prospector.btnStart', 'Iniciar Captura')}
+                    <CheckSquare className="w-4 h-4 text-emerald-500" /> Concluir Missão Agora (100%)
                   </button>
                 )}
               </div>
@@ -482,13 +504,24 @@ export function ProspectingPage() {
         {/* Right Column: Staging Results Table */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700/80 shadow-sm dark:shadow-lg transition-colors">
-            {/* Table Header & Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-200 dark:border-slate-700/80">
+            {/* Table Header & Controls with KPI Counters */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/80">
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-500" /> {t('comercial.prospector.stagingTitle', 'Leads Capturados em Staging')}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-indigo-500" /> {t('comercial.prospector.stagingTitle', 'Leads Capturados em Staging')}
+                  </h2>
+
+                  {/* Prominent KPI Badges */}
+                  <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-blue-300 dark:border-blue-700/50 shadow-sm">
+                    <Building2 className="w-3.5 h-3.5 text-blue-500" /> {totalStagingResultsCount} {t('comercial.prospector.totalCapturedDesc', 'Empresas')}
+                  </span>
+
+                  <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-700/50 shadow-sm">
+                    <Mail className="w-3.5 h-3.5 text-emerald-500" /> {emailsStagingCount} {t('comercial.prospector.verifiedEmails', 'E-mails Verificados')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {t('comercial.prospector.stagingSubtitle', 'Revise os leads qualificados e importe para a lista oficial do CRM.')}
                 </p>
               </div>
@@ -515,7 +548,7 @@ export function ProspectingPage() {
               </div>
             </div>
 
-            {/* Results Table */}
+            {/* Scrollable Table Gallery Container */}
             {loadingResults ? (
               <div className="py-12 text-center text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin text-blue-500" /> {t('comercial.prospector.loadingResults', 'Carregando resultados...')}
@@ -525,9 +558,9 @@ export function ProspectingPage() {
                 {t('comercial.prospector.noResults', 'Nenhum lead capturado para a missão selecionada.')}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="max-h-[620px] overflow-y-auto overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-inner custom-scrollbar">
                 <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                  <thead className="bg-slate-100 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-semibold border-b border-slate-200 dark:border-slate-700/80">
+                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/95 backdrop-blur-md text-slate-600 dark:text-slate-300 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200 dark:border-slate-700/80 z-10 shadow-sm">
                     <tr>
                       <th className="p-3 w-8">
                         <input

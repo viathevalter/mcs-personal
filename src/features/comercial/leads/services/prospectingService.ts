@@ -143,17 +143,32 @@ Make sure emails end in standard corporate domains (.es, .com) and addresses are
     job: LeadProspectingJob,
     batchSize: number = 5
   ): Promise<{ processed: number; foundEmails: number; completed: boolean }> {
-    const remaining = job.target_count - job.processed_count;
-    if (remaining <= 0) {
-      // Mark as completed
+    // 1. Fetch current results in DB to check actual count
+    const { data: existingResults } = await supabase
+      .schema('core_comercial')
+      .from('lead_prospecting_results')
+      .select('id, email')
+      .eq('job_id', job.id);
+
+    const existingCount = existingResults?.length || 0;
+
+    if (existingCount >= job.target_count) {
+      // Mark as completed immediately
+      const emailsCount = existingResults?.filter((r) => r.email).length || 0;
       await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .update({
+          status: 'completed',
+          processed_count: existingCount,
+          found_emails_count: emailsCount,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', job.id);
-      return { processed: 0, foundEmails: 0, completed: true };
+      return { processed: existingCount, foundEmails: emailsCount, completed: true };
     }
 
+    const remaining = job.target_count - existingCount;
     const currentFetchCount = Math.min(remaining, batchSize);
     const scraped = await this.searchCompaniesViaAIsa(
       job.keywords,
@@ -199,15 +214,16 @@ Make sure emails end in standard corporate domains (.es, .com) and addresses are
       }
     }
 
-    const newProcessed = job.processed_count + recordsToInsert.length;
-    const newFoundEmails = job.found_emails_count + foundEmailsCount;
-    const isCompleted = newProcessed >= job.target_count;
+    const totalCurrentResults = existingCount + recordsToInsert.length;
+    const existingEmails = existingResults?.filter((r) => r.email).length || 0;
+    const newFoundEmails = existingEmails + foundEmailsCount;
+    const isCompleted = totalCurrentResults >= job.target_count;
 
     await supabase
       .schema('core_comercial')
       .from('lead_prospecting_jobs')
       .update({
-        processed_count: newProcessed,
+        processed_count: totalCurrentResults,
         found_emails_count: newFoundEmails,
         status: isCompleted ? 'completed' : 'processing',
         updated_at: new Date().toISOString(),
