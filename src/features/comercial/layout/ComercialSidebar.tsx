@@ -32,7 +32,7 @@ export function ComercialSidebar() {
     const links: SidebarLink[] = [
         { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial'] },
         { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial'] },
-        { to: '/comercial/prospector', label: 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial'] },
+        { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial'] },
         { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial'] },
         { to: '/comercial/campanhas', label: t('comercial.sidebar.campaigns') || 'Campanhas', icon: Mail, roles: ['admin', 'commercial'] },
         { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial'] },
