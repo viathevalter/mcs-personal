@@ -59,6 +59,7 @@ import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
 import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
 import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
+import { calculateProratedBenefitAmount } from '@/shared/utils/importUtils';
 import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -489,17 +490,16 @@ export function HoleritesPage() {
             return true;
         });
 
-        const sumHousingBenefits = workerHousingBenefits.reduce((sum: number, hb: any) => sum + Number(hb.monthly_amount || 0), 0);
-
         let beneficiosFixosArray: { desc: string; val: number }[] = [];
         let totalBeneficios = 0;
 
         if (workerHousingBenefits.length > 0) {
-            totalBeneficios = sumHousingBenefits;
             workerHousingBenefits.forEach((hb: any) => {
+                const proratedVal = calculateProratedBenefitAmount(hb, mesReferencia);
+                totalBeneficios += proratedVal;
                 beneficiosFixosArray.push({
                     desc: hb.category || 'Auxílio Moradia',
-                    val: Number(hb.monthly_amount || 0)
+                    val: proratedVal
                 });
             });
         } else {

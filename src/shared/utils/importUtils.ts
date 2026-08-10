@@ -146,3 +146,64 @@ export function parseExcelDateToISO(excelDate: any): string | null {
 
     return null;
 }
+
+export function calculateProratedBenefitAmount(
+    hb: {
+        monthly_amount: number;
+        start_date: string;
+        end_date?: string | null;
+        proration_method?: string | null;
+    },
+    mesReferencia: string // e.g. "2026-07" or "2026-07-01"
+): number {
+    if (!hb || !hb.monthly_amount || !hb.start_date || !mesReferencia) return 0;
+
+    const amount = Number(hb.monthly_amount);
+    if (isNaN(amount) || amount <= 0) return 0;
+
+    const cleanMesRef = mesReferencia.substring(0, 7); // "YYYY-MM"
+    const parts = cleanMesRef.split('-').map(Number);
+    if (parts.length < 2) return amount;
+
+    const year = parts[0];
+    const month = parts[1]; // 1-indexed
+
+    const firstDayOfMonth = new Date(year, month - 1, 1);
+    const lastDayInMonthNumber = new Date(year, month, 0).getDate();
+    const lastDayOfMonth = new Date(year, month - 1, lastDayInMonthNumber);
+
+    // Parse start_date and end_date safely (YYYY-MM-DD)
+    const startStr = hb.start_date.substring(0, 10);
+    const startParts = startStr.split('-').map(Number);
+    const startDateObj = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+
+    let endDateObj = new Date(9999, 11, 31);
+    if (hb.end_date) {
+        const endStr = hb.end_date.substring(0, 10);
+        const endParts = endStr.split('-').map(Number);
+        endDateObj = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+    }
+
+    // Overlap with competence month
+    const overlapStart = startDateObj > firstDayOfMonth ? startDateObj : firstDayOfMonth;
+    const overlapEnd = endDateObj < lastDayOfMonth ? endDateObj : lastDayOfMonth;
+
+    if (overlapStart > overlapEnd) return 0;
+
+    const eligibleDays = Math.max(0, Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    // If benefit is active for the full month, return full amount
+    if (eligibleDays >= lastDayInMonthNumber) {
+        return amount;
+    }
+
+    const prorationMethod = hb.proration_method || 'daily_actual';
+
+    if (prorationMethod === 'daily_30') {
+        return Number(((amount * eligibleDays) / 30).toFixed(2));
+    } else {
+        // daily_actual: divide by actual days in this month
+        return Number(((amount * eligibleDays) / lastDayInMonthNumber).toFixed(2));
+    }
+}
+
