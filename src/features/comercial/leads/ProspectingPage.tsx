@@ -678,10 +678,9 @@ export function ProspectingPage() {
                           <td className="p-3">
                             <input
                               type="checkbox"
-                              disabled={isImported}
                               checked={isSelected}
                               onChange={() => handleToggleSelectResult(item.id)}
-                              className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+                              className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
                             />
                           </td>
                           <td className="p-3">

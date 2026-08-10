@@ -24,6 +24,11 @@ export interface Lead {
   cargo?: string;
   servicio_producto?: string;
   origen_lead?: string;
+  website?: string;
+  linkedin_url?: string;
+  instagram_url?: string;
+  tags?: string[];
+  prospecting_job_id?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;

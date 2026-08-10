@@ -46,7 +46,15 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Loader2
+  Loader2,
+  Eye,
+  Globe,
+  Linkedin,
+  Instagram,
+  Tag,
+  MapPin,
+  Sparkles,
+  FileText,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
@@ -156,6 +164,15 @@ export function LeadsPage() {
     address_line: '',
     payment_term_id: '',
   });
+  // Details Modal State
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedDetailLead, setSelectedDetailLead] = useState<Lead | null>(null);
+
+  const handleOpenDetails = (lead: Lead) => {
+    setSelectedDetailLead(lead);
+    setIsDetailsOpen(true);
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -168,6 +185,10 @@ export function LeadsPage() {
     cargo: '',
     servicio_producto: '',
     origen_lead: '',
+    website: '',
+    linkedin_url: '',
+    instagram_url: '',
+    tags: '',
   });
 
   const handleOpenCreate = () => {
@@ -183,6 +204,10 @@ export function LeadsPage() {
       cargo: '',
       servicio_producto: '',
       origen_lead: '',
+      website: '',
+      linkedin_url: '',
+      instagram_url: '',
+      tags: '',
     });
     setIsFormOpen(true);
   };
@@ -200,6 +225,10 @@ export function LeadsPage() {
       cargo: lead.cargo || '',
       servicio_producto: lead.servicio_producto || '',
       origen_lead: lead.origen_lead || '',
+      website: lead.website || '',
+      linkedin_url: lead.linkedin_url || '',
+      instagram_url: lead.instagram_url || '',
+      tags: Array.isArray(lead.tags) ? lead.tags.join(', ') : '',
     });
     setIsFormOpen(true);
   };
@@ -216,15 +245,27 @@ export function LeadsPage() {
       return;
     }
 
+    const tagsArray = formData.tags
+      ? formData.tags.split(',').map((t) => t.trim()).filter(Boolean)
+      : undefined;
+
+    const payload = {
+      ...formData,
+      tags: tagsArray,
+      website: formData.website || null,
+      linkedin_url: formData.linkedin_url || null,
+      instagram_url: formData.instagram_url || null,
+    };
+
     try {
       if (selectedLead) {
         await updateLead({
           id: selectedLead.id,
-          payload: formData,
+          payload: payload as any,
         });
         toast.success(t('comercial.leads.form.toastUpdateSuccess'));
       } else {
-        await createLead(formData);
+        await createLead(payload as any);
         toast.success(t('comercial.leads.form.toastCreateSuccess'));
       }
       setIsFormOpen(false);
@@ -831,10 +872,21 @@ export function LeadsPage() {
                   <tr key={lead.id} className="border-b transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="p-4 align-middle font-medium text-foreground">
                       {lead.company_name ? (
-                        <span className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground/75 shrink-0" />
-                          {lead.company_name}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                            <Building className="h-4 w-4 text-yellow-500 shrink-0" />
+                            {lead.company_name}
+                          </span>
+                          {lead.tags && lead.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap pl-6">
+                              {lead.tags.map((tg, idx) => (
+                                <span key={idx} className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/40">
+                                  {tg}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/60 italic text-sm font-normal">{t('comercial.leads.table.noCompany')}</span>
                       )}
@@ -869,6 +921,43 @@ export function LeadsPage() {
                           <span>{lead.phone}</span>
                         </div>
                       )}
+
+                      {/* Social & Web Icons */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {lead.website && (
+                          <a
+                            href={lead.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:text-blue-500 rounded border border-slate-200 dark:border-slate-700"
+                            title={`Website: ${lead.website}`}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {lead.linkedin_url && (
+                          <a
+                            href={lead.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:text-blue-500 rounded border border-slate-200 dark:border-slate-700"
+                            title={`LinkedIn: ${lead.linkedin_url}`}
+                          >
+                            <Linkedin className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {lead.instagram_url && (
+                          <a
+                            href={lead.instagram_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 bg-slate-100 dark:bg-slate-900 text-pink-600 dark:text-pink-400 hover:text-pink-500 rounded border border-slate-200 dark:border-slate-700"
+                            title={`Instagram: ${lead.instagram_url}`}
+                          >
+                            <Instagram className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 align-middle text-muted-foreground max-w-xs text-sm">
                       <div className="flex flex-col gap-1">
@@ -894,9 +983,19 @@ export function LeadsPage() {
                       </div>
                     </td>
                     <td className="p-4 align-middle text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenDetails(lead)}
+                          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                          title="Ver Detalhes Premium do Lead"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+
                         {lead.client_id ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 mr-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 mr-1">
                             Convertido
                           </span>
                         ) : (
@@ -1124,6 +1223,61 @@ export function LeadsPage() {
               </div>
             </div>
 
+            {/* Presença Web & Redes Sociais */}
+            <div className="space-y-2">
+              <Label htmlFor="website" className="flex items-center gap-1.5 text-xs font-semibold">
+                <Globe className="w-3.5 h-3.5 text-blue-500" /> Website Oficial
+              </Label>
+              <Input
+                id="website"
+                placeholder="https://www.empresa.es"
+                value={formData.website}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                className="focus-visible:ring-yellow-500 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="linkedin_url" className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn B2B
+                </Label>
+                <Input
+                  id="linkedin_url"
+                  placeholder="https://www.linkedin.com/company/empresa"
+                  value={formData.linkedin_url}
+                  onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                  className="focus-visible:ring-yellow-500 text-xs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="instagram_url" className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Instagram className="w-3.5 h-3.5 text-pink-500" /> Instagram
+                </Label>
+                <Input
+                  id="instagram_url"
+                  placeholder="https://www.instagram.com/empresa"
+                  value={formData.instagram_url}
+                  onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                  className="focus-visible:ring-yellow-500 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags" className="flex items-center gap-1.5 text-xs font-semibold">
+                <Tag className="w-3.5 h-3.5 text-blue-500" /> Tags de Público Alvo (separadas por vírgula)
+              </Label>
+              <Input
+                id="tags"
+                placeholder="ex: Caldererías Zaragoza, Indústria Q3"
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                className="focus-visible:ring-yellow-500 text-xs"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="notes">{t('comercial.leads.form.notes')}</Label>
               <Textarea
@@ -1131,7 +1285,7 @@ export function LeadsPage() {
                 placeholder={t('comercial.leads.form.notesPlaceholder')}
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="min-h-[100px] focus-visible:ring-yellow-500"
+                className="min-h-[100px] focus-visible:ring-yellow-500 text-xs"
               />
             </div>
 
@@ -1139,6 +1293,159 @@ export function LeadsPage() {
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 {t('comercial.leads.form.btnCancel')}
               </Button>
+              <Button type="submit" disabled={isCreating || isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
+                {isCreating || isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('comercial.leads.form.btnSaving')}
+                  </>
+                ) : (
+                  t('comercial.leads.form.btnSave')
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Premium de Detalhes do Lead */}
+      {isDetailsOpen && selectedDetailLead && (
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="sm:max-w-[650px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6">
+            <DialogHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
+                    <Building className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">
+                      {selectedDetailLead.company_name || selectedDetailLead.name}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {selectedDetailLead.tags && selectedDetailLead.tags.map((tg, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-300 dark:border-blue-700/50">
+                          <Tag className="w-2.5 h-2.5" /> {tg}
+                        </span>
+                      ))}
+                      {selectedDetailLead.origen_lead && (
+                        <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                          Origem: {selectedDetailLead.origen_lead}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3 text-xs">
+              {/* Contact & Social Links Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="space-y-2">
+                  <div className="text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-blue-500" /> E-mail de Contato
+                  </div>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm select-all">
+                    {selectedDetailLead.email || 'Não informado'}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-500" /> Telefone / WhatsApp
+                  </div>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm select-all">
+                    {selectedDetailLead.phone || 'Não informado'}
+                  </div>
+                </div>
+
+                {/* Social & Web Buttons */}
+                <div className="sm:col-span-2 pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-500 dark:text-slate-400 font-semibold mr-2">Presença Web:</span>
+                  {selectedDetailLead.website ? (
+                    <a
+                      href={selectedDetailLead.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-lg font-medium transition-colors"
+                    >
+                      <Globe className="w-3.5 h-3.5" /> Website Oficial
+                    </a>
+                  ) : null}
+
+                  {selectedDetailLead.linkedin_url ? (
+                    <a
+                      href={selectedDetailLead.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-300 border border-blue-600/30 rounded-lg font-medium transition-colors"
+                    >
+                      <Linkedin className="w-3.5 h-3.5" /> LinkedIn B2B
+                    </a>
+                  ) : null}
+
+                  {selectedDetailLead.instagram_url ? (
+                    <a
+                      href={selectedDetailLead.instagram_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/10 hover:bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-500/30 rounded-lg font-medium transition-colors"
+                    >
+                      <Instagram className="w-3.5 h-3.5" /> Instagram
+                    </a>
+                  ) : null}
+
+                  {!selectedDetailLead.website && !selectedDetailLead.linkedin_url && !selectedDetailLead.instagram_url && (
+                    <span className="text-slate-400 italic">Sem links sociais mapeados</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Location & Address Box */}
+              {(selectedDetailLead.address_line || selectedDetailLead.city || selectedDetailLead.province) && (
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div className="text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-amber-500" /> Endereço & Localização
+                  </div>
+                  <div className="text-slate-900 dark:text-slate-100 font-medium">
+                    {selectedDetailLead.address_line && <div>{selectedDetailLead.address_line}</div>}
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
+                      {[selectedDetailLead.city, selectedDetailLead.province, 'Espanha'].filter(Boolean).join(', ')}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Notes Section */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-500" /> Observações & Histórico de Prospecção
+                </div>
+                <div className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-mono text-[11px] bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                  {selectedDetailLead.notes || 'Sem observações registradas.'}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>
+                Fechar
+              </Button>
+              <Button
+                variant="default"
+                className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
+                onClick={() => {
+                  setIsDetailsOpen(false);
+                  handleOpenEdit(selectedDetailLead);
+                }}
+              >
+                <Edit className="w-4 h-4 mr-1.5" /> Editar Lead
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
               <Button type="submit" disabled={isCreating || isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold px-6">
                 {(isCreating || isUpdating) ? t('comercial.leads.form.btnSaving') : t('comercial.leads.form.btnSave')}
               </Button>

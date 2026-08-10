@@ -300,11 +300,29 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const tagList = audienceTag ? [audienceTag, 'Prospecção AI'] : ['Prospecção AI'];
 
     for (const res of results) {
-      if (res.status === 'imported') continue;
-
       const customNoteText = options?.customNotes
         ? `${options.customNotes}\n[Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
         : `Lead capturado via AIsa Prospecting. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`;
+
+      if (res.status === 'imported' && res.imported_lead_id) {
+        // Update existing lead in core_comercial.leads
+        await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .update({
+            origen_lead: audienceTag ? `AIsa - ${audienceTag}` : 'Máquina de Leads AIsa',
+            notes: customNoteText,
+            tags: tagList,
+            website: res.website || undefined,
+            linkedin_url: res.linkedin_url || undefined,
+            instagram_url: res.instagram_url || undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', res.imported_lead_id);
+
+        importedCount++;
+        continue;
+      }
 
       const { data: insertedLead, error: leadErr } = await supabase
         .schema('core_comercial')
