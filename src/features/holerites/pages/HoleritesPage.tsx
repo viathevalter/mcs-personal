@@ -466,11 +466,27 @@ export function HoleritesPage() {
             .filter(e => e.tipo === 'desconto')
             .reduce((sum, e) => sum + Number(e.valor || 0), 0);
 
-        // Monthly Housing Benefits & Proventos from worker_benefit_housing
+        // Monthly Housing Benefits & Proventos from worker_benefit_housing active in mesReferencia
         const workerHousingBenefits = allHousingBenefits.filter((hb: any) => {
             if (hb.worker_id !== worker.id) return false;
+            if (hb.status === 'Inativo' || hb.status === 'Pausado') return false;
             if (!hb.start_date) return false;
-            return hb.start_date.startsWith(mesReferencia);
+
+            const startStr = hb.start_date.substring(0, 10);
+            const endStr = hb.end_date ? hb.end_date.substring(0, 10) : null;
+
+            const parts = mesReferencia.split('-').map(Number);
+            if (parts.length < 2) return false;
+            const year = parts[0];
+            const month = parts[1];
+            const firstDayOfMonthStr = `${mesReferencia}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const lastDayOfMonthStr = `${mesReferencia}-${String(lastDay).padStart(2, '0')}`;
+
+            if (startStr > lastDayOfMonthStr) return false;
+            if (endStr && endStr < firstDayOfMonthStr) return false;
+
+            return true;
         });
 
         const sumHousingBenefits = workerHousingBenefits.reduce((sum: number, hb: any) => sum + Number(hb.monthly_amount || 0), 0);

@@ -285,17 +285,30 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger }: Import
         const validRows = parsedRows.filter(r => r.status === 'ok' && r.workerId);
         const batchId = crypto.randomUUID();
 
-        const eventsToInsert: Omit<HousingBenefit, 'id' | 'created_at'>[] = validRows.map(r => ({
-            worker_id: r.workerId!,
-            empresa_id: r.empresaId || selectedEmpresaId || '00000000-0000-0000-0000-000000000000',
-            monthly_amount: Number(r.valor.toFixed(2)),
-            start_date: r.data_inicio,
-            category: r.categoria,
-            status: 'Ativo',
-            end_date: null,
-            proration_method: 'daily_actual',
-            import_batch_id: batchId
-        }));
+        const eventsToInsert: Omit<HousingBenefit, 'id' | 'created_at'>[] = validRows.map(r => {
+            let endDateForMonth: string | null = null;
+            if (r.data_inicio && r.data_inicio.length >= 7) {
+                const parts = r.data_inicio.split('-').map(Number);
+                if (parts.length >= 2) {
+                    const y = parts[0];
+                    const m = parts[1];
+                    const lastDay = new Date(y, m, 0).getDate();
+                    endDateForMonth = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                }
+            }
+
+            return {
+                worker_id: r.workerId!,
+                empresa_id: r.empresaId || selectedEmpresaId || '00000000-0000-0000-0000-000000000000',
+                monthly_amount: Number(r.valor.toFixed(2)),
+                start_date: r.data_inicio,
+                category: r.categoria,
+                status: 'Ativo',
+                end_date: endDateForMonth,
+                proration_method: 'daily_actual',
+                import_batch_id: batchId
+            };
+        });
 
         if (eventsToInsert.length === 0) return;
 
