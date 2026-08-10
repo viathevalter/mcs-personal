@@ -71,7 +71,8 @@ export class ProspectingService {
     count: number = 20,
     searchSource: SearchSourceEngine = 'google_maps',
     emailRequired: boolean = true,
-    apiKeyOverride?: string
+    apiKeyOverride?: string,
+    excludedCompanyNames: string[] = []
   ): Promise<ScrapedCompanyRaw[]> {
     const apiKey = apiKeyOverride || DEFAULT_AISA_API_KEY;
 
@@ -90,6 +91,13 @@ export class ProspectingService {
     let cleanKeywords = keywords.replace(new RegExp(cleanLocation, 'gi'), '').trim();
     if (!cleanKeywords) cleanKeywords = keywords;
 
+    const excludedListStr = excludedCompanyNames.length > 0
+      ? excludedCompanyNames.slice(-30).join(', ')
+      : '';
+    const excludeInstruction = excludedListStr
+      ? `\nCRITICAL DEDUPLICATION RULE: DO NOT return any of the following company names (or their direct variations) as they have ALREADY been captured in previous batches: [${excludedListStr}]. Focus strictly on discovering NEW, UNCAPTURED companies operating in ${location}.`
+      : '';
+
     try {
       const prompt = `Act as a real-time web crawler, search engine proxy, and business contact verifier for B2B leads in Spain.
 Search for ${count} REAL active companies in Spain matching core business activity: "${cleanKeywords}" strictly located anywhere within the region/province of "${location}" (including all its cities, towns, and industrial parks).
@@ -99,8 +107,9 @@ CRITICAL INSTRUCTIONS:
 2. ${emailInstruction}
 3. BROAD REGIONAL MATCH: Include companies physically located anywhere in "${location}" (for example Pamplona, Tudela, Barañain, Burlada, Estella, Tafalla, Ansoáin, Villava, etc.).
 4. DO NOT REQUIRE THE COMPANY TRADE NAME TO CONTAIN THE WORD "${cleanLocation}". The company MUST operate in "${cleanKeywords}", but its trade name does NOT need to have "${cleanLocation}" in it (e.g. "Talleres Calderería Industrial S.L." is a valid match).
-5. ABSOLUTELY NO FABRICATED OR GUESS DOMAINS: If an official website URL, LinkedIn, or Instagram is NOT publicly listed or active on the web, set that field strictly to null.
-6. DO NOT invent fake domains or placeholders.
+5. HIGH-QUALITY DIRECT EMAILS: Prioritize direct departmental or decision-maker emails published on their web pages (such as gerencia@, direccion@, comercial@, compras@, presupuestos@, calidad@, tecnico@, or named contact emails like j.perez@domain.es). Only fallback to info@ or contacto@ if no direct departmental email is listed.
+6. ABSOLUTELY NO FABRICATED OR GUESS DOMAINS: If an official website URL, LinkedIn, or Instagram is NOT publicly listed or active on the web, set that field strictly to null.
+7. DO NOT invent fake domains or placeholders.${excludeInstruction}
 
 Return ONLY a valid JSON array of objects with the exact schema below, with no markdown codeblocks, no explanations, no commentary:
 [
@@ -111,7 +120,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     "address": "Calle Example 123, Polígono Industrial" or null,
     "city": "${location}",
     "province": "${location}",
-    "email": "info@realcompany.es" or null,
+    "email": "gerencia@realcompany.es" or null,
     "linkedin_url": "https://www.linkedin.com/company/realcompany" or null,
     "instagram_url": "https://www.instagram.com/realcompany" or null,
     "sector": "${cleanKeywords}"
@@ -188,7 +197,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const { data: existingResults } = await supabase
       .schema('core_comercial')
       .from('lead_prospecting_results')
-      .select('id, email')
+      .select('id, company_name, email')
       .eq('job_id', job.id);
 
     const existingCount = existingResults?.length || 0;
@@ -208,6 +217,10 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       return { processed: existingCount, foundEmails: emailsCount, completed: true };
     }
 
+    const existingCompanyNames = (existingResults || [])
+      .map((r) => r.company_name?.trim())
+      .filter((n): n is string => Boolean(n));
+
     const remaining = job.target_count - existingCount;
     const currentFetchCount = Math.min(remaining, batchSize);
     const scraped = await this.searchCompaniesViaAIsa(
@@ -216,13 +229,31 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       currentFetchCount,
       job.search_source || 'google_maps',
       job.email_required ?? true,
-      job.api_key_override || undefined
+      job.api_key_override || undefined,
+      existingCompanyNames
+    );
+
+    const existingCompanySet = new Set((existingResults || []).map((r) => r.company_name.trim().toLowerCase()));
+    const existingEmailSet = new Set(
+      (existingResults || [])
+        .map((r) => r.email?.trim().toLowerCase())
+        .filter((e): e is string => Boolean(e))
     );
 
     let foundEmailsCount = 0;
     const recordsToInsert: Omit<LeadProspectingResult, 'id' | 'created_at' | 'updated_at'>[] = [];
 
     for (const item of scraped) {
+      const normName = item.company_name.trim().toLowerCase();
+      const normEmail = item.email?.trim().toLowerCase();
+
+      // Deduplication check: skip if company name or email is already captured
+      if (existingCompanySet.has(normName)) continue;
+      if (normEmail && existingEmailSet.has(normEmail)) continue;
+
+      existingCompanySet.add(normName);
+      if (normEmail) existingEmailSet.add(normEmail);
+
       if (item.email) foundEmailsCount++;
       recordsToInsert.push({
         job_id: job.id,
@@ -257,8 +288,9 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const existingEmails = existingResults?.filter((r) => r.email).length || 0;
     const newFoundEmails = existingEmails + foundEmailsCount;
     
-    // Only mark as completed when target_count is reached or when we already have collected leads and AI has no more new records
-    const isCompleted = totalCurrentResults >= job.target_count || (scraped.length === 0 && existingCount >= job.target_count);
+    // Auto-complete if target reached OR if no new companies can be found after previous batches
+    const noNewItemsFound = scraped.length > 0 && recordsToInsert.length === 0;
+    const isCompleted = totalCurrentResults >= job.target_count || (noNewItemsFound && existingCount > 0);
 
     await supabase
       .schema('core_comercial')
