@@ -623,39 +623,45 @@ export function ProspectingPage() {
                             )}
                           </td>
                           <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              {item.website && (
+                            <div className="flex items-center gap-1.5">
+                              {item.website ? (
                                 <a
                                   href={item.website}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:underline p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700"
-                                  title={item.website}
+                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                  title={`Website Oficial: ${item.website}`}
                                 >
                                   <Globe className="w-3.5 h-3.5" />
                                 </a>
-                              )}
-                              {item.linkedin_url && (
+                              ) : null}
+
+                              {item.linkedin_url ? (
                                 <a
                                   href={item.linkedin_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:underline p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700"
-                                  title="LinkedIn"
+                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                  title={`LinkedIn: ${item.linkedin_url}`}
                                 >
                                   <Linkedin className="w-3.5 h-3.5" />
                                 </a>
-                              )}
-                              {item.instagram_url && (
+                              ) : null}
+
+                              {item.instagram_url ? (
                                 <a
                                   href={item.instagram_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-pink-600 dark:text-pink-400 hover:underline p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700"
-                                  title="Instagram"
+                                  className="text-pink-600 dark:text-pink-400 hover:text-pink-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                  title={`Instagram: ${item.instagram_url}`}
                                 >
                                   <Instagram className="w-3.5 h-3.5" />
                                 </a>
+                              ) : null}
+
+                              {!item.website && !item.linkedin_url && !item.instagram_url && (
+                                <span className="text-[11px] text-slate-400 italic">Sem links públicos</span>
                               )}
                             </div>
                           </td>
