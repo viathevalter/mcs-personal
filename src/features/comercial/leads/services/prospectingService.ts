@@ -31,7 +31,7 @@ export class ProspectingService {
   /**
    * Ping/Verify if a URL is live and resolves over HTTP/HTTPS.
    */
-  private static async verifyUrl(url?: string | null): Promise<string | null> {
+  private static sanitizeUrl(url?: string | null): string | null {
     if (!url) return null;
     let clean = url.trim();
     if (clean === 'null' || clean === '' || clean === 'undefined' || clean.includes('example.com') || clean.includes('domain.es')) {
@@ -43,22 +43,13 @@ export class ProspectingService {
     }
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(clean, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' });
-      clearTimeout(timeoutId);
-      return clean;
-    } catch {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        await fetch(clean, { method: 'GET', signal: controller.signal, mode: 'no-cors' });
-        clearTimeout(timeoutId);
+      const parsed = new URL(clean);
+      if (parsed.hostname && parsed.hostname.includes('.')) {
         return clean;
-      } catch {
-        console.warn(`URL Ping Verification Failed for: ${clean} - Discarding unverified link.`);
-        return null;
       }
+      return null;
+    } catch {
+      return null;
     }
   }
 
@@ -72,7 +63,7 @@ export class ProspectingService {
   }
 
   /**
-   * Search real companies using AIsa API with live web crawling & strict ping verification.
+   * Search real companies using AIsa API with live web crawling.
    */
   static async searchCompaniesViaAIsa(
     keywords: string,
@@ -90,6 +81,10 @@ export class ProspectingService {
     } else if (searchSource === 'web_broad') {
       sourceInstructions = 'Crawl official corporate websites, Impressum, Contact, and Aviso Legal pages in Spain.';
     }
+
+    const emailInstruction = emailRequired
+      ? 'CRITICAL: ONLY return companies with real, active corporate emails. If no real email is listed on their website, set email to null.'
+      : 'Include email address whenever available on official pages.';
 
     const cleanLocation = location.replace(/,?\s*espanha/i, '').trim();
     let cleanKeywords = keywords.replace(new RegExp(cleanLocation, 'gi'), '').trim();
@@ -156,27 +151,25 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
       const rawResults: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
 
-      const verifiedResults = await Promise.all(
-        rawResults.map(async (item) => {
-          const validWebsite = await this.verifyUrl(item.website);
-          const validLinkedin = await this.verifyUrl(item.linkedin_url);
-          const validInstagram = await this.verifyUrl(item.instagram_url);
-          const validEmail = this.sanitizeEmail(item.email);
+      const verifiedResults = rawResults.map((item) => {
+        const validWebsite = this.sanitizeUrl(item.website);
+        const validLinkedin = this.sanitizeUrl(item.linkedin_url);
+        const validInstagram = this.sanitizeUrl(item.instagram_url);
+        const validEmail = this.sanitizeEmail(item.email);
 
-          return {
-            company_name: item.company_name,
-            website: validWebsite,
-            phone: item.phone || null,
-            address: item.address || null,
-            city: item.city || location,
-            province: item.province || location,
-            email: validEmail,
-            linkedin_url: validLinkedin,
-            instagram_url: validInstagram,
-            sector: item.sector || keywords,
-          };
-        })
-      );
+        return {
+          company_name: item.company_name,
+          website: validWebsite,
+          phone: item.phone || null,
+          address: item.address || null,
+          city: item.city || location,
+          province: item.province || location,
+          email: validEmail,
+          linkedin_url: validLinkedin,
+          instagram_url: validInstagram,
+          sector: item.sector || keywords,
+        };
+      });
 
       return verifiedResults;
     } catch (err: any) {
