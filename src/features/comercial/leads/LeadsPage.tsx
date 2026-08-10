@@ -55,6 +55,7 @@ import {
   MapPin,
   Sparkles,
   FileText,
+  Filter,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
