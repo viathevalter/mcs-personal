@@ -64,6 +64,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import type { Lead } from '../estimaciones/types';
 import { useTranslation } from 'react-i18next';
+const ensureAbsoluteUrl = (url?: string | null): string => {
+  if (!url) return '#';
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed === 'null') return '#';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+};
+
 export function LeadsPage() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
