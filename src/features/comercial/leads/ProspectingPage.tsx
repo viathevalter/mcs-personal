@@ -893,10 +893,12 @@ export function ProspectingPage() {
                     onChange={(e) => setTargetCount(Number(e.target.value))}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
                   >
-                    <option value={10}>10 Empresas</option>
                     <option value={25}>25 Empresas</option>
                     <option value={50}>50 Empresas</option>
                     <option value={100}>100 Empresas</option>
+                    <option value={250}>250 Empresas</option>
+                    <option value={500}>500 Empresas (Grande Escala)</option>
+                    <option value={1000}>1.000 Empresas (Escala Regional)</option>
                   </select>
                 </div>
 
@@ -916,6 +918,9 @@ export function ProspectingPage() {
                   </select>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 italic">
+                💡 O motor B2B divide a busca em lotes automatizados com pausa anti-bloqueio. Você pode buscar até 1.000 empresas por missão em total segurança.
+              </p>
 
               {/* Qualificação de E-mail Checkbox */}
               <div className="bg-slate-100 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">

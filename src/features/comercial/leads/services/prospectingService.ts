@@ -91,20 +91,21 @@ export class ProspectingService {
       sourceInstructions = 'Crawl official corporate websites, Impressum, Contact, and Aviso Legal pages in Spain.';
     }
 
-    const emailInstruction = emailRequired
-      ? 'CRITICAL: ONLY return companies with real, active corporate emails. If no real email is listed on their website, set email to null.'
-      : 'Include email address whenever available on official pages.';
+    const cleanLocation = location.replace(/,?\s*espanha/i, '').trim();
+    let cleanKeywords = keywords.replace(new RegExp(cleanLocation, 'gi'), '').trim();
+    if (!cleanKeywords) cleanKeywords = keywords;
 
     try {
       const prompt = `Act as a real-time web crawler, search engine proxy, and business contact verifier for B2B leads in Spain.
-Search for ${count} REAL active companies matching keywords: "${keywords}" strictly located in/near: "${location}".
+Search for ${count} REAL active companies in Spain matching core business activity: "${cleanKeywords}" strictly located anywhere within the region/province of "${location}" (including all its cities, towns, and industrial parks).
 
 CRITICAL INSTRUCTIONS:
 1. ${sourceInstructions}
 2. ${emailInstruction}
-3. STRICT GEOGRAPHIC MATCH: Only return companies physically located within "${location}". Exclude companies outside this city/province.
-4. ABSOLUTELY NO FABRICATED OR GUESS DOMAINS: If an official website URL, LinkedIn, or Instagram is NOT publicly listed or active on the web, set that field strictly to null.
-5. DO NOT invent fake domains or placeholders.
+3. BROAD REGIONAL MATCH: Include companies physically located anywhere in "${location}" (for example Pamplona, Tudela, Barañain, Burlada, Estella, Tafalla, Ansoáin, Villava, etc.).
+4. DO NOT REQUIRE THE COMPANY TRADE NAME TO CONTAIN THE WORD "${cleanLocation}". The company MUST operate in "${cleanKeywords}", but its trade name does NOT need to have "${cleanLocation}" in it (e.g. "Talleres Calderería Industrial S.L." is a valid match).
+5. ABSOLUTELY NO FABRICATED OR GUESS DOMAINS: If an official website URL, LinkedIn, or Instagram is NOT publicly listed or active on the web, set that field strictly to null.
+6. DO NOT invent fake domains or placeholders.
 
 Return ONLY a valid JSON array of objects with the exact schema below, with no markdown codeblocks, no explanations, no commentary:
 [
@@ -118,7 +119,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     "email": "info@realcompany.es" or null,
     "linkedin_url": "https://www.linkedin.com/company/realcompany" or null,
     "instagram_url": "https://www.instagram.com/realcompany" or null,
-    "sector": "${keywords}"
+    "sector": "${cleanKeywords}"
   }
 ]`;
 
@@ -309,8 +310,25 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
         ? `${options.customNotes}\n[Setor: ${leadSector}] [Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
         : `Lead capturado via AIsa Prospecting. Setor: ${leadSector}. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`;
 
-      if (res.status === 'imported' && res.imported_lead_id) {
-        // Update existing lead in core_comercial.leads
+      const targetEmail = res.email?.trim().toLowerCase();
+      let existingLeadId: string | null = res.imported_lead_id || null;
+
+      if (!existingLeadId && targetEmail) {
+        const { data: foundByEmail } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('id')
+          .eq('empresa_id', empresaId)
+          .eq('email', targetEmail)
+          .maybeSingle();
+
+        if (foundByEmail) {
+          existingLeadId = foundByEmail.id;
+        }
+      }
+
+      if (existingLeadId) {
+        // Update existing lead in core_comercial.leads - NO DUPLICATES!
         await supabase
           .schema('core_comercial')
           .from('leads')
@@ -324,7 +342,17 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
             instagram_url: res.instagram_url || undefined,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', res.imported_lead_id);
+          .eq('id', existingLeadId);
+
+        await supabase
+          .schema('core_comercial')
+          .from('lead_prospecting_results')
+          .update({
+            status: 'imported',
+            imported_lead_id: existingLeadId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', res.id);
 
         importedCount++;
         continue;
