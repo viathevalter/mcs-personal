@@ -16,6 +16,11 @@ export interface ScrapedCompanyRaw {
   instagram_url?: string | null;
 }
 
+export interface ImportLeadOptions {
+  audienceTag?: string;
+  customNotes?: string;
+}
+
 /**
  * Service to manage AIsa.one API communication and job execution
  */
@@ -67,7 +72,6 @@ export class ProspectingService {
 
   /**
    * Search real companies using AIsa API with live web crawling & strict ping verification.
-   * Only active, responding web URLs and verified emails are returned.
    */
   static async searchCompaniesViaAIsa(
     keywords: string,
@@ -146,11 +150,9 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       const json = await response.json();
       const content = json.choices?.[0]?.message?.content || '[]';
       
-      // Clean potential JSON markdown blocks
       const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
       const rawResults: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
 
-      // Perform live HTTP ping verification on extracted URLs to guarantee 100% active websites
       const verifiedResults = await Promise.all(
         rawResults.map(async (item) => {
           const validWebsite = await this.verifyUrl(item.website);
@@ -186,7 +188,6 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     job: LeadProspectingJob,
     batchSize: number = 5
   ): Promise<{ processed: number; foundEmails: number; completed: boolean }> {
-    // 1. Fetch current results in DB to check actual count
     const { data: existingResults } = await supabase
       .schema('core_comercial')
       .from('lead_prospecting_results')
@@ -196,7 +197,6 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const existingCount = existingResults?.length || 0;
 
     if (existingCount >= job.target_count) {
-      // Mark as completed immediately
       const emailsCount = existingResults?.filter((r) => r.email).length || 0;
       await supabase
         .schema('core_comercial')
@@ -222,7 +222,6 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       job.api_key_override || undefined
     );
 
-    // Save real results to staging table
     let foundEmailsCount = 0;
     const recordsToInsert: Omit<LeadProspectingResult, 'id' | 'created_at' | 'updated_at'>[] = [];
 
@@ -281,13 +280,13 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
   }
 
   /**
-   * Bulk import selected staging results to core_comercial.leads
+   * Bulk import selected staging results to core_comercial.leads with audience tags & custom notes
    */
   static async importResultsToLeads(
     resultIds: string[],
-    empresaId: string
+    empresaId: string,
+    options?: ImportLeadOptions
   ): Promise<{ importedCount: number }> {
-    // 1. Fetch results
     const { data: results, error: fetchErr } = await supabase
       .schema('core_comercial')
       .from('lead_prospecting_results')
@@ -297,11 +296,16 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     if (fetchErr || !results) throw fetchErr || new Error('Resultados não encontrados');
 
     let importedCount = 0;
+    const audienceTag = options?.audienceTag ? options.audienceTag.trim() : null;
+    const tagList = audienceTag ? [audienceTag, 'Prospecção AI'] : ['Prospecção AI'];
 
     for (const res of results) {
       if (res.status === 'imported') continue;
 
-      // Create lead
+      const customNoteText = options?.customNotes
+        ? `${options.customNotes}\n[Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
+        : `Lead capturado via AIsa Prospecting. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`;
+
       const { data: insertedLead, error: leadErr } = await supabase
         .schema('core_comercial')
         .from('leads')
@@ -317,8 +321,9 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           website: res.website || undefined,
           linkedin_url: res.linkedin_url || undefined,
           instagram_url: res.instagram_url || undefined,
-          origen_lead: 'Máquina de Leads AIsa',
-          notes: `Lead capturado via AIsa Prospecting. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`,
+          origen_lead: audienceTag ? `AIsa - ${audienceTag}` : 'Máquina de Leads AIsa',
+          notes: customNoteText,
+          tags: tagList,
           prospecting_job_id: res.job_id,
         })
         .select()
@@ -326,7 +331,6 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
 
       if (!leadErr && insertedLead) {
         importedCount++;
-        // Update result status
         await supabase
           .schema('core_comercial')
           .from('lead_prospecting_results')

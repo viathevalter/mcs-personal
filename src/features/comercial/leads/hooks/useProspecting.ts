@@ -148,14 +148,15 @@ export function useImportResults() {
   const { selectedEmpresaId } = useEmpresa();
 
   return useMutation({
-    mutationFn: async (resultIds: string[]) => {
+    mutationFn: async (payload: { resultIds: string[]; options?: { audienceTag?: string; customNotes?: string } }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-      return ProspectingService.importResultsToLeads(resultIds, selectedEmpresaId);
+      return ProspectingService.importResultsToLeads(payload.resultIds, selectedEmpresaId, payload.options);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting-results'] });
       queryClient.invalidateQueries({ queryKey: ['prospecting-jobs'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['marketing-campaigns'] });
     },
   });
 }

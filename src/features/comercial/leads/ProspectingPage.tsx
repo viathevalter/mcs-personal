@@ -26,6 +26,9 @@ import {
   Sliders,
   Filter,
   CheckSquare,
+  Tag,
+  FileText,
+  Bookmark,
   X,
 } from 'lucide-react';
 import {
@@ -61,9 +64,15 @@ export function ProspectingPage() {
   const [emailRequired, setEmailRequired] = useState(true);
   const [sectorFilter, setSectorFilter] = useState('industrial');
 
-  // Staging table selections
+  // Import modal state (Tagging & Custom Notes for Audience Segmentation)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [audienceTag, setAudienceTag] = useState('');
+  const [customNotes, setCustomNotes] = useState('');
+
+  // Staging table selections & filters
   const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
   const [filterEmailOnly, setFilterEmailOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
 
   // Live execution state
   const [activeJob, setActiveJob] = useState<LeadProspectingJob | null>(null);
@@ -83,8 +92,14 @@ export function ProspectingPage() {
     if (selectedJobId) {
       const current = jobs.find((j) => j.id === selectedJobId) || null;
       setActiveJob(current);
+      if (current) {
+        setAudienceTag(current.title || current.keywords);
+        setCustomNotes(`Leads qualificados capturados na missão "${current.title}" em ${current.location}.`);
+      }
     } else {
       setActiveJob(null);
+      setAudienceTag('Prospecção Geral');
+      setCustomNotes('Leads qualificados importados via AIsa Prospecting.');
     }
   }, [jobs, selectedJobId]);
 
@@ -192,6 +207,8 @@ export function ProspectingPage() {
   // Select all or toggle results
   const filteredResults = results.filter((r) => {
     if (filterEmailOnly && !r.email) return false;
+    if (statusFilter === 'raw' && r.status !== 'raw') return false;
+    if (statusFilter === 'imported' && r.status !== 'imported') return false;
     return true;
   });
 
@@ -209,13 +226,27 @@ export function ProspectingPage() {
     );
   };
 
-  // Bulk Import
-  const handleBulkImport = async () => {
+  // Open Import Modal
+  const handleOpenImportModal = () => {
+    if (selectedResultIds.length === 0) return;
+    setIsImportModalOpen(true);
+  };
+
+  // Execute Bulk Import with Tagging
+  const handleConfirmBulkImport = async () => {
     if (selectedResultIds.length === 0) return;
     try {
-      const res = await importResultsMutation.mutateAsync(selectedResultIds);
-      addLog(`${res.importedCount} leads importados para o CRM!`, 'success');
+      const res = await importResultsMutation.mutateAsync({
+        resultIds: selectedResultIds,
+        options: {
+          audienceTag: audienceTag || activeJob?.title || 'Prospecção AI',
+          customNotes: customNotes,
+        },
+      });
+
+      addLog(`${res.importedCount} leads importados para o CRM com a tag "${audienceTag}"!`, 'success');
       setSelectedResultIds([]);
+      setIsImportModalOpen(false);
     } catch (err: any) {
       alert(`Erro na importação: ${err.message}`);
     }
@@ -309,16 +340,33 @@ export function ProspectingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Jobs List & Live Control Room */}
         <div className="space-y-6 lg:col-span-1">
-          {/* Missões / Jobs Selector */}
+          {/* Missões / Jobs Selector & History Repository */}
           <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700/80 shadow-sm dark:shadow-lg transition-colors">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-500" /> {t('comercial.prospector.searchMissionsTitle', 'Missões de Busca')}
+                <Layers className="w-4 h-4 text-blue-500" /> {t('comercial.prospector.searchMissionsTitle', 'Histórico de Missões')}
               </h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {jobs.length} {t('comercial.prospector.createdSuffix', 'criadas')}
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                {jobs.length} criadas
               </span>
             </div>
+
+            {/* Global Repositoriy Selector */}
+            <button
+              onClick={() => setSelectedJobId(null)}
+              className={`w-full mb-3 p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between transition-all ${
+                selectedJobId === null
+                  ? 'bg-blue-600 text-white border-blue-700 shadow-md'
+                  : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Bookmark className="w-4 h-4" /> Ver Repositório Global (Todas as Missões)
+              </span>
+              <span className="bg-slate-900/20 px-2 py-0.5 rounded text-[10px] font-bold">
+                {totalLeadsCaptured}
+              </span>
+            </button>
 
             {loadingJobs ? (
               <div className="py-8 text-center text-slate-500 dark:text-slate-400 text-sm flex items-center justify-center gap-2">
@@ -426,7 +474,7 @@ export function ProspectingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">{t('comercial.prospector.emailsExtractedLabel', 'E-mails Extraídos:')}</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{emailsStagingCount} e-mails no Staging</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{emailsStagingCount} e-mails nesta missão</span>
                 </div>
               </div>
 
@@ -503,7 +551,7 @@ export function ProspectingPage() {
           )}
         </div>
 
-        {/* Right Column: Staging Results Table */}
+        {/* Right Column: Staging Results Table & History */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700/80 shadow-sm dark:shadow-lg transition-colors">
             {/* Table Header & Controls with KPI Counters */}
@@ -516,11 +564,11 @@ export function ProspectingPage() {
 
                   {/* Prominent KPI Badges */}
                   <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-blue-300 dark:border-blue-700/50 shadow-sm">
-                    <Building2 className="w-3.5 h-3.5 text-blue-500" /> {totalStagingResultsCount} {t('comercial.prospector.totalCapturedDesc', 'Empresas')}
+                    <Building2 className="w-3.5 h-3.5 text-blue-500" /> {totalStagingResultsCount} Empresas
                   </span>
 
                   <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-700/50 shadow-sm">
-                    <Mail className="w-3.5 h-3.5 text-emerald-500" /> {emailsStagingCount} {t('comercial.prospector.verifiedEmails', 'E-mails Verificados')}
+                    <Mail className="w-3.5 h-3.5 text-emerald-500" /> {emailsStagingCount} E-mails Verificados
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -528,7 +576,42 @@ export function ProspectingPage() {
                 </p>
               </div>
 
+              {/* Right Side Buttons & Status Tabs */}
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Status Filter Tabs */}
+                <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 text-xs">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      statusFilter === 'all'
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('raw')}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      statusFilter === 'raw'
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    Staging
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('imported')}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      statusFilter === 'imported'
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    CRM
+                  </button>
+                </div>
+
                 <button
                   onClick={() => setFilterEmailOnly(!filterEmailOnly)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
@@ -537,15 +620,15 @@ export function ProspectingPage() {
                       : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <Mail className="w-3.5 h-3.5 inline mr-1" /> {t('comercial.prospector.btnFilterEmail', 'Apenas com E-mail')}
+                  <Mail className="w-3.5 h-3.5 inline mr-1" /> Apenas com E-mail
                 </button>
 
                 <button
-                  onClick={handleBulkImport}
+                  onClick={handleOpenImportModal}
                   disabled={selectedResultIds.length === 0 || importResultsMutation.isPending}
                   className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-md transition-all"
                 >
-                  <Download className="w-4 h-4" /> {t('comercial.prospector.btnImportSelected', 'Importar ({{count}}) para CRM', { count: selectedResultIds.length })}
+                  <Download className="w-4 h-4" /> Importar ({selectedResultIds.length}) para CRM
                 </button>
               </div>
             </div>
@@ -864,6 +947,75 @@ export function ProspectingPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Importar para o CRM com Tag de Público Alvo */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Tag className="w-5 h-5 text-emerald-500" /> Importar ({selectedResultIds.length}) Leads para o CRM
+              </h3>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-blue-500" /> Tag de Público Alvo / Nome do Lote *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Caldererías Zaragoza, Prospecção Espanha Q3"
+                  value={audienceTag}
+                  onChange={(e) => setAudienceTag(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                  Essa tag permitirá selecionar esse público-alvo específico na hora de criar Campanhas de Marketing de e-mail.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-500" /> Observações Personalizadas (Salvas no Lead)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Adicione observações da prospecção para a equipe comercial..."
+                  value={customNotes}
+                  onChange={(e) => setCustomNotes(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBulkImport}
+                  disabled={importResultsMutation.isPending || !audienceTag}
+                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg font-semibold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
+                >
+                  <Download className="w-4 h-4" /> Confirmar e Gravar no CRM
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
