@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
-import type { LeadProspectingJob, LeadProspectingResult } from '../types/prospectingTypes';
+import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from '../types/prospectingTypes';
 
 export const DEFAULT_AISA_API_KEY = 'sk-aisa-yBrchxWrx7IAi8832rVsYN_I2znI4rjACKQ9gQFKGN8';
 export const AISA_BASE_URL = 'https://api.aisa.one/v1';
@@ -28,14 +28,30 @@ export class ProspectingService {
     keywords: string,
     location: string,
     count: number = 20,
+    searchSource: SearchSourceEngine = 'google_maps',
+    emailRequired: boolean = true,
     apiKeyOverride?: string
   ): Promise<ScrapedCompanyRaw[]> {
     const apiKey = apiKeyOverride || DEFAULT_AISA_API_KEY;
+
+    let sourceInstructions = 'Use Google Maps and official business web registries.';
+    if (searchSource === 'linkedin') {
+      sourceInstructions = 'Prioritize LinkedIn B2B company pages, decision makers, and corporate business profiles.';
+    } else if (searchSource === 'web_broad') {
+      sourceInstructions = 'Perform deep web crawling across company official websites, Impressum, Contact, and Legal Notice pages.';
+    }
+
+    const emailInstruction = emailRequired
+      ? 'CRITICAL: ONLY return companies with valid, verified corporate contact emails (e.g., contacto@, info@, comercial@ or executive emails).'
+      : 'Include email address whenever available on official pages or LinkedIn.';
 
     try {
       // Prompt engineered for AIsa model to perform deep web discovery & web scraping for European B2B leads
       const prompt = `Act as an expert B2B Lead Intelligence Scraper in Spain and Europe.
 Find ${count} REAL companies matching keywords: "${keywords}" located in/near: "${location}".
+${sourceInstructions}
+${emailInstruction}
+
 Return ONLY a valid JSON array of objects with the exact schema below, with no markdown codeblocks, no explanations, no text:
 [
   {
@@ -143,6 +159,8 @@ Make sure emails end in standard corporate domains (.es, .com) and addresses are
       job.keywords,
       job.location,
       currentFetchCount,
+      job.search_source || 'google_maps',
+      job.email_required ?? true,
       job.api_key_override || undefined
     );
 

@@ -64,6 +64,9 @@ export function useCreateProspectingJob() {
       location: string;
       target_count: number;
       delay_seconds?: number;
+      search_source?: 'google_maps' | 'linkedin' | 'web_broad';
+      email_required?: boolean;
+      sector_filter?: string;
       api_key_override?: string;
     }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
@@ -78,6 +81,9 @@ export function useCreateProspectingJob() {
           location: payload.location,
           target_count: payload.target_count,
           delay_seconds: payload.delay_seconds || 3,
+          search_source: payload.search_source || 'google_maps',
+          email_required: payload.email_required ?? true,
+          sector_filter: payload.sector_filter || null,
           api_key_override: payload.api_key_override || null,
           status: 'pending',
           processed_count: 0,

@@ -1,5 +1,6 @@
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'paused' | 'failed';
 export type ResultStatus = 'raw' | 'enriched' | 'imported' | 'discarded';
+export type SearchSourceEngine = 'google_maps' | 'linkedin' | 'web_broad';
 
 export interface LeadProspectingJob {
   id: string;
@@ -12,6 +13,9 @@ export interface LeadProspectingJob {
   found_emails_count: number;
   status: JobStatus;
   delay_seconds: number;
+  search_source?: SearchSourceEngine;
+  email_required?: boolean;
+  sector_filter?: string;
   api_key_override?: string | null;
   error_message?: string | null;
   created_at: string;
@@ -44,5 +48,8 @@ export interface AIsaSearchPayload {
   keywords: string;
   location: string;
   targetCount: number;
+  searchSource?: SearchSourceEngine;
+  emailRequired?: boolean;
+  sectorFilter?: string;
   apiKey?: string;
 }

@@ -24,7 +24,7 @@ import {
   Layers,
   Sparkles,
   Sliders,
-  Key,
+  Filter,
   X,
 } from 'lucide-react';
 import {
@@ -35,8 +35,8 @@ import {
   useDeleteJob,
   useImportResults,
 } from './hooks/useProspecting';
-import { ProspectingService, DEFAULT_AISA_API_KEY } from './services/prospectingService';
-import type { LeadProspectingJob, LeadProspectingResult } from './types/prospectingTypes';
+import { ProspectingService } from './services/prospectingService';
+import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from './types/prospectingTypes';
 
 export function ProspectingPage() {
   const { t } = useTranslation();
@@ -56,7 +56,9 @@ export function ProspectingPage() {
   const [location, setLocation] = useState('Madrid, Espanha');
   const [targetCount, setTargetCount] = useState(25);
   const [delaySeconds, setDelaySeconds] = useState(3);
-  const [apiKeyOverride, setApiKeyOverride] = useState(DEFAULT_AISA_API_KEY);
+  const [searchSource, setSearchSource] = useState<SearchSourceEngine>('google_maps');
+  const [emailRequired, setEmailRequired] = useState(true);
+  const [sectorFilter, setSectorFilter] = useState('industrial');
 
   // Staging table selections
   const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
@@ -97,30 +99,30 @@ export function ProspectingPage() {
     isLoopRunningRef.current = true;
     setIsProcessingLoop(true);
 
-    addLog(`[AIsa.one API] ${t('comercial.prospector.btnStart')} "${job.title}"...`, 'info');
+    addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
 
     try {
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
 
       let currentJob = job;
       while (isLoopRunningRef.current && currentJob.processed_count < currentJob.target_count && currentJob.status !== 'paused') {
-        addLog(`[Batch] Searching for "${currentJob.keywords}" in ${currentJob.location}...`, 'info');
+        addLog(`[Lote Engine] Raspagem inteligente: "${currentJob.keywords}" em ${currentJob.location}...`, 'info');
 
         const stepResult = await ProspectingService.processJobStep(currentJob, 5);
 
         addLog(
-          `[Batch Success] Extracted ${stepResult.processed} companies (${stepResult.foundEmails} verified emails).`,
+          `[Sucesso Lote] Extraídas ${stepResult.processed} empresas (${stepResult.foundEmails} com e-mail corporativo).`,
           'success'
         );
 
         if (stepResult.completed) {
-          addLog(`Mission "${currentJob.title}" finished successfully!`, 'success');
+          addLog(`Missão "${currentJob.title}" finalizada com sucesso!`, 'success');
           break;
         }
 
         // Wait delay to prevent rate limit & IP ban
         const waitMs = (currentJob.delay_seconds || 3) * 1000;
-        addLog(`Pacing delay of ${currentJob.delay_seconds}s active to prevent rate limits...`, 'warn');
+        addLog(`Pausa anti-bloqueio de ${currentJob.delay_seconds}s entre lotes para proteção de IP...`, 'warn');
         await new Promise((resolve) => setTimeout(resolve, waitMs));
 
         // Refetch latest state
@@ -132,7 +134,7 @@ export function ProspectingPage() {
         }
       }
     } catch (err: any) {
-      addLog(`Error executing batch: ${err.message}`, 'error');
+      addLog(`Erro ao executar lote: ${err.message}`, 'error');
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'failed' });
     } finally {
       isLoopRunningRef.current = false;
@@ -145,7 +147,7 @@ export function ProspectingPage() {
     isLoopRunningRef.current = false;
     setIsProcessingLoop(false);
     await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'paused' });
-    addLog(`Mission "${job.title}" paused by user.`, 'warn');
+    addLog(`Missão "${job.title}" pausada pelo operador.`, 'warn');
   };
 
   // Create New Job
@@ -160,19 +162,21 @@ export function ProspectingPage() {
         location,
         target_count: Number(targetCount),
         delay_seconds: Number(delaySeconds),
-        api_key_override: apiKeyOverride || DEFAULT_AISA_API_KEY,
+        search_source: searchSource,
+        email_required: emailRequired,
+        sector_filter: sectorFilter,
       });
 
       setIsModalOpen(false);
       setTitle('');
       setKeywords('');
       setSelectedJobId(newJob.id);
-      addLog(`New mission created: "${newJob.title}".`, 'info');
+      addLog(`Nova missão criada: "${newJob.title}".`, 'info');
 
       // Auto start execution
       handleStartProcessing(newJob);
     } catch (err: any) {
-      alert(`Error creating mission: ${err.message}`);
+      alert(`Erro ao criar missão: ${err.message}`);
     }
   };
 
@@ -201,10 +205,10 @@ export function ProspectingPage() {
     if (selectedResultIds.length === 0) return;
     try {
       const res = await importResultsMutation.mutateAsync(selectedResultIds);
-      addLog(`${res.importedCount} leads imported to CRM!`, 'success');
+      addLog(`${res.importedCount} leads importados para o CRM!`, 'success');
       setSelectedResultIds([]);
     } catch (err: any) {
-      alert(`Import error: ${err.message}`);
+      alert(`Erro na importação: ${err.message}`);
     }
   };
 
@@ -223,7 +227,7 @@ export function ProspectingPage() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-semibold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5" /> Motor Inteligente AIsa.one
+              <Sparkles className="w-3.5 h-3.5" /> Motor Inteligente B2B Cloud
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               {t('comercial.prospector.title', 'Máquina de Leads Qualificados')}
@@ -276,7 +280,7 @@ export function ProspectingPage() {
 
           <div className="bg-slate-800/80 backdrop-blur-md rounded-xl p-4 border border-slate-700/60">
             <div className="flex items-center justify-between text-slate-300 text-xs font-medium">
-              <span>{t('comercial.prospector.connectionStatus', 'Conexão AIsa.one')}</span>
+              <span>{t('comercial.prospector.connectionStatus', 'Conexão AIsa Cloud')}</span>
               <ShieldCheck className="w-4 h-4 text-blue-400" />
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -336,6 +340,11 @@ export function ProspectingPage() {
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3 h-3 text-slate-400" /> {job.location}
                             </span>
+                            {job.search_source && (
+                              <span className="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-mono">
+                                {job.search_source === 'linkedin' ? 'LinkedIn' : job.search_source === 'web_broad' ? 'Web Broad' : 'Maps'}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <span
@@ -642,10 +651,10 @@ export function ProspectingPage() {
         </div>
       </div>
 
-      {/* Modal: Nova Missão de Busca */}
+      {/* Modal: Nova Missão de Busca Avançada */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 transition-colors">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-5 transition-colors">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-500" /> {t('comercial.prospector.modalTitle', 'Nova Missão de Prospecção')}
@@ -665,39 +674,86 @@ export function ProspectingPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="ex: Metalúrgicas Madrid"
+                  placeholder="ex: Metalúrgicas Madrid - Q3"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
+              {/* Canal de Origem / Search Source */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                  {t('comercial.prospector.modalKeywordsLabel', 'Palavras-chave / Segmento *')}
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-blue-500" /> Canal de Busca & Origem dos Dados
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: metalúrgica, construção civil, usinagem"
-                  value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSearchSource('google_maps')}
+                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
+                      searchSource === 'google_maps'
+                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4 mx-auto mb-1 text-blue-500" />
+                    Google Maps & Locais
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchSource('linkedin')}
+                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
+                      searchSource === 'linkedin'
+                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <Linkedin className="w-4 h-4 mx-auto mb-1 text-blue-600" />
+                    LinkedIn B2B
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchSource('web_broad')}
+                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
+                      searchSource === 'web_broad'
+                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <Search className="w-4 h-4 mx-auto mb-1 text-indigo-500" />
+                    Busca Web Ampla
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                  {t('comercial.prospector.modalLocationLabel', 'Cidade / Região *')}
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: Madrid, Valencia, Barcelona"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                    {t('comercial.prospector.modalKeywordsLabel', 'Palavras-chave / Segmento *')}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ex: metalúrgica, usinagem, fundição"
+                    value={keywords}
+                    onChange={(e) => setKeywords(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                    {t('comercial.prospector.modalLocationLabel', 'Cidade / Região *')}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ex: Madrid, Valencia, Catalunya"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -734,18 +790,19 @@ export function ProspectingPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-amber-500" /> {t('comercial.prospector.modalApiKeyLabel', 'Chave API AIsa.one')}
+              {/* Qualificação de E-mail Checkbox */}
+              <div className="bg-slate-100 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={emailRequired}
+                    onChange={(e) => setEmailRequired(e.target.checked)}
+                    className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                  />
+                  <span>Filtrar e trazer apenas leads com e-mail corporativo verificado</span>
                 </label>
-                <input
-                  type="password"
-                  value={apiKeyOverride}
-                  onChange={(e) => setApiKeyOverride(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-[11px]"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                  {t('comercial.prospector.modalApiKeyNote', 'Usando API Key oficial cadastrada pelo operador.')}
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 pl-6">
+                  Garante que todas as empresas retornadas possuem e-mail de contato válido para suas campanhas.
                 </p>
               </div>
 
