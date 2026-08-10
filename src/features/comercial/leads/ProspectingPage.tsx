@@ -28,6 +28,7 @@ import {
   CheckSquare,
   Tag,
   FileText,
+  Loader2,
   Bookmark,
   X,
 } from 'lucide-react';
@@ -245,9 +246,14 @@ export function ProspectingPage() {
     setIsImportModalOpen(true);
   };
 
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
+
   // Execute Bulk Import with Tagging & Sector Classification
   const handleConfirmBulkImport = async () => {
     if (selectedResultIds.length === 0) return;
+    const totalCount = selectedResultIds.length;
+    setImportProgress({ current: 0, total: totalCount });
+
     try {
       const res = await importResultsMutation.mutateAsync({
         resultIds: selectedResultIds,
@@ -255,14 +261,19 @@ export function ProspectingPage() {
           audienceTag: audienceTag || activeJob?.title || 'Prospecção AI',
           sector: importSector || activeJob?.keywords || 'Caldeiraria / Metalurgia',
           customNotes: customNotes,
+          onProgress: (current, total) => {
+            setImportProgress({ current, total });
+          },
         },
       });
 
       addLog(`${res.importedCount} leads gravados no CRM com a tag "${audienceTag}" e setor "${importSector}"!`, 'success');
       setSelectedResultIds([]);
       setIsImportModalOpen(false);
+      setImportProgress(null);
     } catch (err: any) {
       alert(`Erro na importação: ${err.message}`);
+      setImportProgress(null);
     }
   };
 
@@ -986,55 +997,88 @@ export function ProspectingPage() {
             </div>
 
             <div className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-blue-500" /> Tag de Público Alvo / Nome do Lote *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: Caldererías Zaragoza, Prospecção Espanha Q3"
-                  value={audienceTag}
-                  onChange={(e) => setAudienceTag(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                  Essa tag permitirá selecionar esse público-alvo específico na hora de criar Campanhas de Marketing de e-mail.
-                </p>
+              <div className={importResultsMutation.isPending ? 'pointer-events-none opacity-60 space-y-4' : 'space-y-4'}>
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-blue-500" /> Tag de Público Alvo / Nome do Lote *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={importResultsMutation.isPending}
+                    placeholder="ex: Caldererías Zaragoza, Prospecção Espanha Q3"
+                    value={audienceTag}
+                    onChange={(e) => setAudienceTag(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                    Essa tag permitirá selecionar esse público-alvo específico na hora de criar Campanhas de Marketing de e-mail.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor / Classificação Comercial *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={importResultsMutation.isPending}
+                    placeholder="ex: Caldeiraria, Metalúrgica, Industrial"
+                    value={importSector}
+                    onChange={(e) => setImportSector(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-blue-500" /> Observações Personalizadas (Salvas no Lead)
+                  </label>
+                  <textarea
+                    rows={3}
+                    disabled={importResultsMutation.isPending}
+                    placeholder="Adicione observações da prospecção para a equipe comercial..."
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor / Classificação Comercial *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: Caldeiraria, Metalúrgica, Industrial"
-                  value={importSector}
-                  onChange={(e) => setImportSector(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+              {/* Progress Bar indicator */}
+              {(importResultsMutation.isPending || importProgress !== null) && (
+                <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-xl border border-emerald-500/40 space-y-2 animate-fadeIn shadow-inner">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Gravando e Higienizando Leads no CRM...
+                    </span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      {importProgress ? `${importProgress.current} / ${importProgress.total}` : '0 / ' + selectedResultIds.length} ({importProgress ? Math.round((importProgress.current / (importProgress.total || 1)) * 100) : 0}%)
+                    </span>
+                  </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-blue-500" /> Observações Personalizadas (Salvas no Lead)
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Adicione observações da prospecção para a equipe comercial..."
-                  value={customNotes}
-                  onChange={(e) => setCustomNotes(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                />
-              </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500 h-full rounded-full transition-all duration-300 shadow-md"
+                      style={{
+                        width: `${Math.max(5, importProgress ? Math.round((importProgress.current / (importProgress.total || 1)) * 100) : 5)}%`,
+                      }}
+                    />
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                    🔒 Verificando duplicidades por e-mail e aplicando tags no CRM... Por favor, aguarde.
+                  </p>
+                </div>
+              )}
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
+                  disabled={importResultsMutation.isPending}
                   onClick={() => setIsImportModalOpen(false)}
-                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-semibold"
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-300 rounded-lg font-semibold transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1042,9 +1086,19 @@ export function ProspectingPage() {
                   type="button"
                   onClick={handleConfirmBulkImport}
                   disabled={importResultsMutation.isPending || !audienceTag}
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg font-semibold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-lg font-semibold shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
                 >
-                  <Download className="w-4 h-4" /> Confirmar e Gravar no CRM
+                  {importResultsMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Gravando ({importProgress ? `${importProgress.current}/${importProgress.total}` : 'Aguarde...'})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Confirmar e Gravar no CRM</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
-import { ProspectingService } from '../services/prospectingService';
+import { ProspectingService, type ImportLeadOptions } from '../services/prospectingService';
 import type { LeadProspectingJob, LeadProspectingResult } from '../types/prospectingTypes';
 
 export function useProspectingJobs() {
@@ -143,12 +143,14 @@ export function useDeleteJob() {
   });
 }
 
+
+
 export function useImportResults() {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
 
   return useMutation({
-    mutationFn: async (payload: { resultIds: string[]; options?: { audienceTag?: string; customNotes?: string; sector?: string } }) => {
+    mutationFn: async (payload: { resultIds: string[]; options?: ImportLeadOptions }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       return ProspectingService.importResultsToLeads(payload.resultIds, selectedEmpresaId, payload.options);
     },

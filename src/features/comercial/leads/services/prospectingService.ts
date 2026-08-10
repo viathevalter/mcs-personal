@@ -330,7 +330,15 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const audienceTag = options?.audienceTag ? options.audienceTag.trim() : null;
     const tagList = audienceTag ? [audienceTag, 'Prospecção AI'] : ['Prospecção AI'];
 
+    const totalToProcess = results.length;
+    let currentIndex = 0;
+
     for (const res of results) {
+      currentIndex++;
+      if (options?.onProgress) {
+        options.onProgress(currentIndex, totalToProcess);
+      }
+
       const leadSector = options?.sector ? options.sector.trim() : 'Caldeiraria / Industrial';
 
       const customNoteText = options?.customNotes
