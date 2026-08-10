@@ -720,13 +720,24 @@ export function LeadsPage() {
     }
   };
 
-  const filteredLeads = leads.filter(lead => {
+  const [selectedSector, setSelectedSector] = useState<string>('all');
+
+  const availableSectors = Array.from(
+    new Set(leads.map((l) => l.sector).filter(Boolean))
+  );
+
+  const filteredLeads = leads.filter((lead) => {
+    if (selectedSector !== 'all' && lead.sector !== selectedSector) return false;
+    if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
       lead.name.toLowerCase().includes(search) ||
       lead.email.toLowerCase().includes(search) ||
       (lead.company_name && lead.company_name.toLowerCase().includes(search)) ||
-      (lead.phone && lead.phone.includes(search))
+      (lead.phone && lead.phone.includes(search)) ||
+      (lead.sector && lead.sector.toLowerCase().includes(search)) ||
+      (lead.origen_lead && lead.origen_lead.toLowerCase().includes(search)) ||
+      (Array.isArray(lead.tags) && lead.tags.some((t) => t.toLowerCase().includes(search)))
     );
   });
 
@@ -795,9 +806,9 @@ export function LeadsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center bg-card border p-4 rounded-xl shadow-sm">
-        <div className="relative flex-1 max-w-md">
+      {/* Filters Bar: Search & Sector Filter */}
+      <div className="flex flex-col md:flex-row items-center gap-4 bg-card border p-4 rounded-xl shadow-sm justify-between">
+        <div className="relative flex-1 w-full max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('comercial.leads.searchPlaceholder')}
@@ -806,9 +817,26 @@ export function LeadsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-      </div>
 
-      {/* Content */}
+        {/* Sector Filter Dropdown */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Filter className="w-4 h-4 text-yellow-500 shrink-0" />
+          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Filtrar por Setor:</span>
+          <Select value={selectedSector} onValueChange={setSelectedSector}>
+            <SelectTrigger className="w-full md:w-56 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
+              <SelectValue placeholder="Todos os Setores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Setores ({leads.length})</SelectItem>
+              {availableSectors.map((sec, idx) => (
+                <SelectItem key={idx} value={sec!}>
+                  {sec} ({leads.filter((l) => l.sector === sec).length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       {error ? (
         <div className="p-8 border border-red-900 bg-red-950/20 text-red-400 rounded-xl flex items-center gap-3">
           <AlertCircle className="h-6 w-6 shrink-0" />
@@ -869,11 +897,15 @@ export function LeadsPage() {
               </thead>
               <tbody className="[&_tr:last-child]:border-0 bg-card">
                 {paginatedSortedLeads.map((lead) => (
-                  <tr key={lead.id} className="border-b transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <tr
+                    key={lead.id}
+                    onClick={() => handleOpenDetails(lead)}
+                    className="border-b transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer group"
+                  >
                     <td className="p-4 align-middle font-medium text-foreground">
                       {lead.company_name ? (
                         <div className="space-y-1">
-                          <span className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                          <span className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                             <Building className="h-4 w-4 text-yellow-500 shrink-0" />
                             {lead.company_name}
                           </span>
@@ -923,7 +955,7 @@ export function LeadsPage() {
                       )}
 
                       {/* Social & Web Icons */}
-                      <div className="flex items-center gap-1.5 pt-1">
+                      <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                         {lead.website && (
                           <a
                             href={lead.website}
@@ -982,12 +1014,15 @@ export function LeadsPage() {
                         <span>{formatDate(lead.created_at)}</span>
                       </div>
                     </td>
-                    <td className="p-4 align-middle text-right">
+                    <td className="p-4 align-middle text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleOpenDetails(lead)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetails(lead);
+                          }}
                           className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
                           title="Ver Detalhes Premium do Lead"
                         >
@@ -1003,7 +1038,10 @@ export function LeadsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleOpenConvert(lead)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenConvert(lead);
+                              }}
                               className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                               title="Converter em Cliente"
                             >
@@ -1012,7 +1050,10 @@ export function LeadsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleCopyCollectionLink(lead)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyCollectionLink(lead);
+                              }}
                               className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
                               title="Copiar Link de Coleta"
                             >
@@ -1021,7 +1062,10 @@ export function LeadsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleCopyBudgetLink(lead)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyBudgetLink(lead);
+                              }}
                               className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20"
                               title="Copiar Link Solicitação Orçamento"
                             >
@@ -1032,7 +1076,10 @@ export function LeadsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleOpenEdit(lead)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(lead);
+                          }}
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           title={t('comercial.leads.tooltips.edit')}
                         >
@@ -1041,7 +1088,10 @@ export function LeadsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleOpenDelete(lead)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDelete(lead);
+                          }}
                           className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           title={t('comercial.leads.tooltips.delete')}
                         >

@@ -14,11 +14,13 @@ export interface ScrapedCompanyRaw {
   email?: string | null;
   linkedin_url?: string | null;
   instagram_url?: string | null;
+  sector?: string | null;
 }
 
 export interface ImportLeadOptions {
   audienceTag?: string;
   customNotes?: string;
+  sector?: string;
 }
 
 /**
@@ -28,7 +30,6 @@ export class ProspectingService {
 
   /**
    * Ping/Verify if a URL is live and resolves over HTTP/HTTPS.
-   * If URL returns 404, DNS error or times out, it is discarded (returns null).
    */
   private static async verifyUrl(url?: string | null): Promise<string | null> {
     if (!url) return null;
@@ -116,7 +117,8 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     "province": "${location}",
     "email": "info@realcompany.es" or null,
     "linkedin_url": "https://www.linkedin.com/company/realcompany" or null,
-    "instagram_url": "https://www.instagram.com/realcompany" or null
+    "instagram_url": "https://www.instagram.com/realcompany" or null,
+    "sector": "${keywords}"
   }
 ]`;
 
@@ -170,6 +172,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
             email: validEmail,
             linkedin_url: validLinkedin,
             instagram_url: validInstagram,
+            sector: item.sector || keywords,
           };
         })
       );
@@ -280,7 +283,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
   }
 
   /**
-   * Bulk import selected staging results to core_comercial.leads with audience tags & custom notes
+   * Bulk import selected staging results to core_comercial.leads with sector, audience tags & custom notes
    */
   static async importResultsToLeads(
     resultIds: string[],
@@ -300,9 +303,11 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const tagList = audienceTag ? [audienceTag, 'Prospecção AI'] : ['Prospecção AI'];
 
     for (const res of results) {
+      const leadSector = options?.sector ? options.sector.trim() : 'Caldeiraria / Industrial';
+
       const customNoteText = options?.customNotes
-        ? `${options.customNotes}\n[Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
-        : `Lead capturado via AIsa Prospecting. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`;
+        ? `${options.customNotes}\n[Setor: ${leadSector}] [Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
+        : `Lead capturado via AIsa Prospecting. Setor: ${leadSector}. Cidade: ${res.city || ''}. Pontuação de Confiança: ${res.confidence_score || 85}%`;
 
       if (res.status === 'imported' && res.imported_lead_id) {
         // Update existing lead in core_comercial.leads
@@ -313,6 +318,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
             origen_lead: audienceTag ? `AIsa - ${audienceTag}` : 'Máquina de Leads AIsa',
             notes: customNoteText,
             tags: tagList,
+            sector: leadSector,
             website: res.website || undefined,
             linkedin_url: res.linkedin_url || undefined,
             instagram_url: res.instagram_url || undefined,
@@ -333,6 +339,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           company_name: res.company_name,
           email: res.email || `contato@${res.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.es`,
           phone: res.phone || undefined,
+          sector: leadSector,
           city: res.city || undefined,
           province: res.province || undefined,
           address_line: res.address || undefined,

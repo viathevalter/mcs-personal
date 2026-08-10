@@ -64,9 +64,10 @@ export function ProspectingPage() {
   const [emailRequired, setEmailRequired] = useState(true);
   const [sectorFilter, setSectorFilter] = useState('industrial');
 
-  // Import modal state (Tagging & Custom Notes for Audience Segmentation)
+  // Import modal state (Tagging, Sector & Custom Notes for Audience Segmentation)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [audienceTag, setAudienceTag] = useState('');
+  const [importSector, setImportSector] = useState('Caldeiraria / Metalurgia');
   const [customNotes, setCustomNotes] = useState('');
 
   // Staging table selections & filters
@@ -94,11 +95,13 @@ export function ProspectingPage() {
       setActiveJob(current);
       if (current) {
         setAudienceTag(current.title || current.keywords);
+        setImportSector(current.keywords || 'Caldeiraria / Metalurgia');
         setCustomNotes(`Leads qualificados capturados na missão "${current.title}" em ${current.location}.`);
       }
     } else {
       setActiveJob(null);
       setAudienceTag('Prospecção Geral');
+      setImportSector('Caldeiraria / Industrial');
       setCustomNotes('Leads qualificados importados via AIsa Prospecting.');
     }
   }, [jobs, selectedJobId]);
@@ -232,7 +235,7 @@ export function ProspectingPage() {
     setIsImportModalOpen(true);
   };
 
-  // Execute Bulk Import with Tagging
+  // Execute Bulk Import with Tagging & Sector Classification
   const handleConfirmBulkImport = async () => {
     if (selectedResultIds.length === 0) return;
     try {
@@ -240,11 +243,12 @@ export function ProspectingPage() {
         resultIds: selectedResultIds,
         options: {
           audienceTag: audienceTag || activeJob?.title || 'Prospecção AI',
+          sector: importSector || activeJob?.keywords || 'Caldeiraria / Metalurgia',
           customNotes: customNotes,
         },
       });
 
-      addLog(`${res.importedCount} leads importados para o CRM com a tag "${audienceTag}"!`, 'success');
+      addLog(`${res.importedCount} leads gravados no CRM com a tag "${audienceTag}" e setor "${importSector}"!`, 'success');
       setSelectedResultIds([]);
       setIsImportModalOpen(false);
     } catch (err: any) {
@@ -982,6 +986,20 @@ export function ProspectingPage() {
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                   Essa tag permitirá selecionar esse público-alvo específico na hora de criar Campanhas de Marketing de e-mail.
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor / Classificação Comercial *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Caldeiraria, Metalúrgica, Industrial"
+                  value={importSector}
+                  onChange={(e) => setImportSector(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
 
               <div>

@@ -148,7 +148,7 @@ export function useImportResults() {
   const { selectedEmpresaId } = useEmpresa();
 
   return useMutation({
-    mutationFn: async (payload: { resultIds: string[]; options?: { audienceTag?: string; customNotes?: string } }) => {
+    mutationFn: async (payload: { resultIds: string[]; options?: { audienceTag?: string; customNotes?: string; sector?: string } }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       return ProspectingService.importResultsToLeads(payload.resultIds, selectedEmpresaId, payload.options);
     },
