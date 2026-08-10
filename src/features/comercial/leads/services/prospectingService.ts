@@ -105,7 +105,11 @@ Search for ${count} REAL active companies in Spain matching core business activi
 CRITICAL INSTRUCTIONS:
 1. ${sourceInstructions}
 2. ${emailInstruction}
-3. BROAD REGIONAL MATCH: Include companies physically located anywhere in "${location}" (for example Pamplona, Tudela, Barañain, Burlada, Estella, Tafalla, Ansoáin, Villava, etc.).
+3. EXPANDED METROPOLITAN & INDUSTRIAL BELT COVERAGE: Include companies physically located ANYWHERE in the metropolitan area, industrial belt (polígonos industriales), and full region/province of "${location}".
+   - If location is "Barcelona", "Catalunya" or near Vallès, include companies in Sabadell, Terrassa, Badalona, Granollers, Rubí, Sant Cugat, Barberà del Vallès, Cornellà, Martorell, Hospitalet, and all Vallès/Baix Llobregat industrial parks.
+   - If location is "Navarra" or "Pamplona", include Pamplona, Tudela, Barañain, Burlada, Estella, Tafalla, Ansoáin, Villava, Landaben, Agustinos, Noáin, etc.
+   - If location is "Madrid", include Getafe, Leganés, Fuenlabrada, Alcalá de Henares, Móstoles, Alcobendas, Coslada, etc.
+   - DO NOT limit results to central city limits; crawl the entire industrial belt and surrounding towns of "${location}".
 4. DO NOT REQUIRE THE COMPANY TRADE NAME TO CONTAIN THE WORD "${cleanLocation}". The company MUST operate in "${cleanKeywords}", but its trade name does NOT need to have "${cleanLocation}" in it (e.g. "Talleres Calderería Industrial S.L." is a valid match).
 5. HIGH-QUALITY DIRECT EMAILS: Prioritize direct departmental or decision-maker emails published on their web pages (such as gerencia@, direccion@, comercial@, compras@, presupuestos@, calidad@, tecnico@, or named contact emails like j.perez@domain.es). Only fallback to info@ or contacto@ if no direct departmental email is listed.
 6. STRICT WEBSITE VERIFICATION & NO DOMAIN GUESSING: NEVER guess or construct a website URL by combining "www." + email domain (e.g. if email is "gerencia@caldereriairati.es", DO NOT guess "https://www.caldereriairati.es"). Many industrial companies in Spain use custom domain emails for Outlook/Google Workspace without running an active public website. ONLY set "website" to a URL if the company HAS an active, verified public website listed on Google Maps or official business registries. Otherwise set "website" strictly to null.
