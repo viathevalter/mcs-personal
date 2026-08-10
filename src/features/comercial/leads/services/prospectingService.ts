@@ -263,7 +263,9 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const totalCurrentResults = existingCount + recordsToInsert.length;
     const existingEmails = existingResults?.filter((r) => r.email).length || 0;
     const newFoundEmails = existingEmails + foundEmailsCount;
-    const isCompleted = totalCurrentResults >= job.target_count || scraped.length === 0;
+    
+    // Only mark as completed when target_count is reached or when we already have collected leads and AI has no more new records
+    const isCompleted = totalCurrentResults >= job.target_count || (scraped.length === 0 && existingCount >= job.target_count);
 
     await supabase
       .schema('core_comercial')
