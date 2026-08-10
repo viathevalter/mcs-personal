@@ -1446,13 +1446,6 @@ export function LeadsPage() {
           </DialogContent>
         </Dialog>
       )}
-              <Button type="submit" disabled={isCreating || isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold px-6">
-                {(isCreating || isUpdating) ? t('comercial.leads.form.btnSaving') : t('comercial.leads.form.btnSave')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
