@@ -415,38 +415,38 @@ export function IbanSigningPage() {
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
                 <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl py-8 px-6 sm:px-10 shadow-2xl backdrop-blur-xl space-y-6">
                     
-                    {/* Official Document Preview Area */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-6 shadow-inner text-slate-300 text-sm space-y-4 max-h-96 overflow-y-auto leading-relaxed select-none">
-                        <div className="text-center border-b border-slate-800 pb-4">
-                            <h3 className="font-bold text-white text-md uppercase">MCS PERSONAL</h3>
-                            <p className="text-[10px] text-slate-500">{currentLanguage.startsWith('es') ? "Gestión de Recursos Humanos y Nóminas" : "Gestão de Recursos Humanos e Folhas de Pagamento"}</p>
+                    {/* Official Document Preview Area (White Paper Style) */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-md text-slate-800 text-sm space-y-4 max-h-96 overflow-y-auto leading-relaxed">
+                        <div className="text-center border-b border-slate-200 pb-4">
+                            <h3 className="font-bold text-slate-900 text-base tracking-tight uppercase">MCS PERSONAL</h3>
+                            <p className="text-[11px] text-slate-500 font-medium">{currentLanguage.startsWith('es') ? "Gestión de Recursos Humanos y Nóminas" : "Gestão de Recursos Humanos e Folhas de Pagamento"}</p>
                         </div>
                         
-                        <h4 className="font-bold text-white text-center text-xs uppercase pt-2">
+                        <h4 className="font-extrabold text-slate-900 text-center text-xs uppercase tracking-wide pt-1">
                             {currentLanguage.startsWith('es') 
                                 ? "DOCUMENTO DE AUTORIZACIÓN DE CAMBIO DE DATOS BANCARIOS" 
                                 : "TERMO DE AUTORIZAÇÃO DE ALTERAÇÃO DE DADOS BANCÁRIOS"}
                         </h4>
 
-                        <p className="text-xs text-justify">
+                        <p className="text-xs text-slate-700 text-justify leading-relaxed">
                             {currentLanguage.startsWith('es') 
                                 ? `Yo, ${request.worker?.nome.toUpperCase()}, con código de colaborador ${request.worker?.cod_colab || 'N/A'}, en calidad de trabajador activo en la empresa, solicito y autorizo expresamente al departamento financiero y de recursos humanos a realizar el pago de todas mis futuras remuneraciones, salarios, anticipos y eventuales reembolsos en la cuenta bancaria cuyos datos se proponen a continuación, en sustitución de cualquier otra cuenta registrada anteriormente en el sistema.`
                                 : `Eu, ${request.worker?.nome.toUpperCase()}, portador do código de colaborador ${request.worker?.cod_colab || 'N/A'}, na qualidade de trabalhador ativo na empresa, solicito e autorizo expressamente o departamento financeiro e de recursos humanos a efetuar o pagamento de todas as minhas futuras remunerações, salários, adiantamentos e eventuais reembolsos na conta bancária cujos dados são propostos abaixo, em substituição a qualquer outra conta cadastrada anteriormente no sistema.`}
                         </p>
 
-                        <div className="bg-indigo-950/20 border border-indigo-500/10 rounded-lg p-3 text-xs">
-                            <p className="font-bold text-indigo-400 mb-2 uppercase">
+                        <div className="bg-slate-50 border border-indigo-200 rounded-lg p-4 text-xs">
+                            <p className="font-bold text-indigo-900 mb-2 uppercase tracking-wide">
                                 {currentLanguage.startsWith('es') ? "Nuevos Datos Bancarios Autorizados" : "Novos Dados Bancários Autorizados"}
                             </p>
-                            <div className="grid grid-cols-3 gap-1">
-                                <span className="text-slate-400">{currentLanguage.startsWith('es') ? "Banco:" : "Banco:"}</span>
-                                <span className="text-white col-span-2 font-semibold">{request.new_banco}</span>
-                                <span className="text-slate-400">IBAN:</span>
-                                <span className="text-white col-span-2 font-mono font-bold tracking-tight">{request.new_iban}</span>
+                            <div className="grid grid-cols-3 gap-1.5">
+                                <span className="text-slate-500 font-medium">{currentLanguage.startsWith('es') ? "Banco:" : "Banco:"}</span>
+                                <span className="text-slate-900 col-span-2 font-bold">{request.new_banco}</span>
+                                <span className="text-slate-500 font-medium">IBAN:</span>
+                                <span className="text-slate-900 col-span-2 font-mono font-bold tracking-tight text-sm">{request.new_iban}</span>
                             </div>
                         </div>
 
-                        <p className="text-[11px] text-slate-500 text-justify">
+                        <p className="text-[11px] text-slate-600 text-justify leading-relaxed">
                             {currentLanguage.startsWith('es')
                                 ? 'Confirmo que soy el titular de la cuenta indicada arriba y asumo total responsabilidad por la veracidad de estos datos bancarios, eximiendo a la empresa de cualquier responsabilidad por retrasos o fallos de pago derivados de datos incorrectos introducidos por mí.'
                                 : 'Confirmo que sou o titular da conta indicada acima e assumo total responsabilidade pela veracidade destas informações bancárias, isentando a empresa de qualquer responsabilidade por atrasos ou falhas de pagamento decorrentes de dados incorretos preenchidos por mim.'}
@@ -472,12 +472,12 @@ export function IbanSigningPage() {
                             )}
                         </div>
 
-                        <div className="border-2 border-dashed border-slate-800 bg-slate-950/40 rounded-xl overflow-hidden h-44 relative shadow-inner">
+                        <div className="border-2 border-dashed border-slate-300 bg-white rounded-xl overflow-hidden h-44 relative shadow-sm">
                             <canvas
                                 ref={canvasRef}
                                 width={600}
                                 height={176}
-                                className="w-full h-full cursor-crosshair touch-none"
+                                className="w-full h-full cursor-crosshair touch-none bg-white"
                                 onMouseDown={startDrawing}
                                 onMouseMove={draw}
                                 onMouseUp={stopDrawing}
