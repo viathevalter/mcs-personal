@@ -359,8 +359,21 @@ export function UpdateIbanPage() {
                             )}
                         </div>
 
-                        {/* 2. FORM FIELDS */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* 2. FORM FIELDS (STACKED VERTICALLY) */}
+                        <div className="flex flex-col gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="new_banco" className="text-slate-300 text-sm font-medium">{t('updateIban.newBankLabel')}</Label>
+                                <Input
+                                    id="new_banco"
+                                    placeholder={t('updateIban.newBankPlaceholder')}
+                                    value={newBanco}
+                                    onChange={(e) => setNewBanco(e.target.value)}
+                                    className="bg-slate-950/40 border-slate-800 text-white h-10"
+                                    disabled={isOcrProcessing || isSubmitting}
+                                    required
+                                />
+                            </div>
+
                             <div className="space-y-2">
                                 <Label htmlFor="new_iban" className="text-slate-300 text-sm font-medium">{t('updateIban.newIbanLabel')}</Label>
                                 <div className="relative">
@@ -369,7 +382,7 @@ export function UpdateIbanPage() {
                                         placeholder={t('updateIban.newIbanPlaceholder')}
                                         value={newIban}
                                         onChange={(e) => setNewIban(e.target.value.toUpperCase())}
-                                        className={`bg-slate-950/40 border-slate-800 text-white font-mono uppercase ${isOcrProcessing ? 'pl-9 text-indigo-300' : ''}`}
+                                        className={`bg-slate-950/40 border-slate-800 text-white font-mono uppercase h-10 ${isOcrProcessing ? 'pl-9 text-indigo-300' : ''}`}
                                         disabled={isOcrProcessing || isSubmitting}
                                         required
                                     />
@@ -377,19 +390,6 @@ export function UpdateIbanPage() {
                                         <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-indigo-400" />
                                     )}
                                 </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <Label htmlFor="new_banco" className="text-slate-300 text-sm font-medium">{t('updateIban.newBankLabel')}</Label>
-                                <Input
-                                    id="new_banco"
-                                    placeholder={t('updateIban.newBankPlaceholder')}
-                                    value={newBanco}
-                                    onChange={(e) => setNewBanco(e.target.value)}
-                                    className="bg-slate-950/40 border-slate-800 text-white"
-                                    disabled={isOcrProcessing || isSubmitting}
-                                    required
-                                />
                             </div>
                         </div>
 
