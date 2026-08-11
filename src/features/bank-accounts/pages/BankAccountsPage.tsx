@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
-    XCircle, Clock, Link2, ChevronRight, HelpCircle, PenTool,
+    XCircle, Clock, Link2, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, HelpCircle, PenTool,
     ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,15 @@ export function BankAccountsPage() {
     type SortColumn = 'worker_codigo' | 'worker_nome' | 'status_month' | 'data_ingresso' | 'iban' | 'banco' | 'contratante';
     const [sortColumn, setSortColumn] = useState<SortColumn>('worker_nome');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    // Pagination Control
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [pageSize, setPageSize] = useState<number | 'ALL'>(25);
+
+    // Reset pagination when any filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, clienteFilter, contratanteFilter, kpiFilter, onlyNovos, periodMonth, periodYear]);
 
     const [revealedIbans, setRevealedIbans] = useState<Set<string>>(new Set());
     
@@ -158,6 +167,15 @@ export function BankAccountsPage() {
         if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
     });
+
+    const totalFilteredCount = sortedAccounts.length;
+    const numericPageSize = pageSize === 'ALL' ? totalFilteredCount : Number(pageSize);
+    const totalPages = pageSize === 'ALL' ? 1 : Math.ceil(totalFilteredCount / (numericPageSize || 1)) || 1;
+
+    const startIndex = pageSize === 'ALL' ? 0 : (currentPage - 1) * numericPageSize;
+    const endIndex = pageSize === 'ALL' ? totalFilteredCount : Math.min(startIndex + numericPageSize, totalFilteredCount);
+
+    const paginatedAccounts = sortedAccounts.slice(startIndex, endIndex);
 
     const toggleSort = (column: SortColumn) => {
         if (sortColumn === column) {
@@ -523,7 +541,8 @@ export function BankAccountsPage() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        sortedAccounts.map((account, index) => {
+                                        paginatedAccounts.map((account, index) => {
+                                            const itemNumber = startIndex + index + 1;
                                             const isRevealed = revealedIbans.has(account.worker_id);
                                             const missingIban = !account.iban;
                                             
@@ -533,7 +552,7 @@ export function BankAccountsPage() {
                                             return (
                                                 <TableRow key={account.worker_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/60 transition-colors group">
                                                     <TableCell className="text-xs text-slate-400 dark:text-slate-500 text-center font-medium pr-0">
-                                                        {index + 1}
+                                                        {itemNumber}
                                                     </TableCell>
 
                                                     <TableCell className="font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap bg-slate-50/30 dark:bg-slate-800/20">
@@ -599,7 +618,7 @@ export function BankAccountsPage() {
                                                     </TableCell>
                                                     
                                                     {/* CERTIFICADO TITULARIDADE */}
-                                                    <TableCell className="text-center border-l bg-slate-50/30">
+                                                    <TableCell className="text-center border-l border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20">
                                                         {account.certificado_url ? (
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-indigo-600 bg-indigo-100 hover:bg-indigo-200 border border-indigo-200 rounded-md shadow-sm" title="Ver Certificado"
                                                                 onClick={() => {
@@ -620,7 +639,7 @@ export function BankAccountsPage() {
                                                     </TableCell>
                                                     
                                                     {/* AUTORIZAÇÃO */}
-                                                    <TableCell className="text-center border-r bg-slate-50/30">
+                                                    <TableCell className="text-center border-r border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20">
                                                         {account.autorizacao_url ? (
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-emerald-600 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 rounded-md shadow-sm" title="Ver Autorização"
                                                                 onClick={() => {
@@ -657,7 +676,7 @@ export function BankAccountsPage() {
                                                             <Button 
                                                                 variant="outline"
                                                                 size="sm" 
-                                                                className="h-7 px-2 text-xs bg-white hover:bg-slate-50 border-slate-200 text-slate-600 hover:text-indigo-600 flex items-center justify-center mx-auto"
+                                                                className="h-7 px-2 text-xs bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-indigo-600 flex items-center justify-center mx-auto"
                                                                 onClick={() => {
                                                                     setCreateRequestData({
                                                                         workerId: account.worker_id,
@@ -678,7 +697,7 @@ export function BankAccountsPage() {
                                                         )}
                                                     </TableCell>
                                                     
-                                                    <TableCell className="text-[12px] text-slate-600 font-semibold border-l truncate">
+                                                    <TableCell className="text-[12px] text-slate-600 dark:text-slate-300 font-semibold border-l border-slate-200 dark:border-slate-800 truncate">
                                                         {account.contratante || '-'}
                                                     </TableCell>
                                                 </TableRow>
@@ -689,18 +708,90 @@ export function BankAccountsPage() {
                             </Table>
                         </div>
                         
-                        {/* Footer summary */}
+                        {/* Interactive Pagination & Footer Summary */}
                         {!isLoading && (
-                            <div className="bg-slate-50 border-t border-slate-200/60 px-4 py-3 flex items-center justify-between text-xs text-slate-600 shadow-inner min-h-[48px]">
-                                <div className="font-medium">
-                                    <span className="inline-flex items-center justify-center bg-white border border-slate-200 text-slate-800 rounded px-2 py-0.5 mr-2 font-bold shadow-sm">{sortedAccounts.length}</span> 
-                                    trabalhadores na lista filtrada
+                            <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 dark:text-slate-400 gap-3 min-h-[52px]">
+                                {/* Item Counter */}
+                                <div className="font-medium flex items-center gap-2">
+                                    <span>
+                                        Mostrando <strong className="text-slate-900 dark:text-slate-100 font-bold">{totalFilteredCount > 0 ? startIndex + 1 : 0}</strong> a <strong className="text-slate-900 dark:text-slate-100 font-bold">{endIndex}</strong> de <strong className="text-slate-900 dark:text-slate-100 font-bold">{totalFilteredCount}</strong> colaboradores
+                                    </span>
                                 </div>
-                                <div className="flex gap-5 font-medium">
-                                    <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-amber-400 shadow-sm mr-2 border border-amber-500 border-opacity-20"></span> Novos do mês: {sortedAccounts.filter(a => a.is_new).length}</span>
-                                    <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-rose-500 shadow-sm mr-2 border border-rose-600 border-opacity-20"></span> Sem IBAN: <span className="text-rose-600 ml-1 font-bold">{sortedAccounts.filter(a => !a.iban).length}</span></span>
-                                    <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-emerald-500 shadow-sm mr-2 border border-emerald-600 border-opacity-20"></span> Comprovantes Pendentes: <span className="text-slate-800 ml-1 font-bold">{sortedAccounts.filter(a => a.iban && !a.certificado_url).length}</span></span>
+
+                                {/* Page Size Selector */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Exibir:</span>
+                                    <Select 
+                                        value={pageSize.toString()} 
+                                        onValueChange={(val) => {
+                                            setPageSize(val === 'ALL' ? 'ALL' : Number(val));
+                                            setCurrentPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 w-28 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                                            <SelectItem value="10">10 por pág</SelectItem>
+                                            <SelectItem value="25">25 por pág</SelectItem>
+                                            <SelectItem value="50">50 por pág</SelectItem>
+                                            <SelectItem value="100">100 por pág</SelectItem>
+                                            <SelectItem value="250">250 por pág</SelectItem>
+                                            <SelectItem value="ALL">Todas ({totalFilteredCount})</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
+
+                                {/* Navigation Buttons */}
+                                {pageSize !== 'ALL' && totalPages > 1 && (
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                                            disabled={currentPage === 1}
+                                            onClick={() => setCurrentPage(1)}
+                                            title="Primeira Página"
+                                        >
+                                            <ChevronsLeft className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                                            disabled={currentPage === 1}
+                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                            title="Página Anterior"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </Button>
+
+                                        <span className="px-3 py-1 font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs shadow-xs">
+                                            {currentPage} / {totalPages}
+                                        </span>
+
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                                            disabled={currentPage === totalPages}
+                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                            title="Próxima Página"
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                                            disabled={currentPage === totalPages}
+                                            onClick={() => setCurrentPage(totalPages)}
+                                            title="Última Página"
+                                        >
+                                            <ChevronsRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

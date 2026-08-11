@@ -365,7 +365,8 @@ export function HoleritesPage() {
                 .schema('core_personal')
                 .from('worker_ibans')
                 .select('worker_id, iban, banco')
-                .eq('status', 'ATIVO');
+                .eq('status', 'ATIVO')
+                .range(0, 4999);
 
             if (error) {
                 console.error("Error fetching active worker ibans:", error);
