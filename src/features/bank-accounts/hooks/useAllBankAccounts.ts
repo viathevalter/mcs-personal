@@ -6,6 +6,7 @@ export interface BankAccountRow {
     worker_id: string;
     worker_nome: string;
     worker_codigo: string;
+    movil: string | null;
     cliente_nome: string | null;
     contratante: string | null;
     iban: string | null;
@@ -132,6 +133,7 @@ export const useAllBankAccounts = (empresaId?: string, month?: number, year?: nu
                     worker_id: w.id,
                     worker_nome: w.nome || 'N/A',
                     worker_codigo: w.cod_colab || 'N/A',
+                    movil: w.movil || null,
                     cliente_nome: w.cliente_nombre || null,
                     contratante: w.contratante || null,
                     iban: settings?.iban || null,

@@ -55,7 +55,16 @@ export function BankAccountsPage() {
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [uploadModalData, setUploadModalData] = useState<{workerId: string, workerName: string, docType: IbanDocType, currentUrl: string | null} | null>(null);
 
-    const [createRequestData, setCreateRequestData] = useState<{ workerId: string; workerName: string; currentIban: string | null; currentBanco: string | null } | null>(null);
+    const [createRequestData, setCreateRequestData] = useState<{ 
+        workerId: string; 
+        workerName: string; 
+        workerCode?: string | null;
+        workerPhone?: string | null;
+        clienteNome?: string | null;
+        contratante?: string | null;
+        currentIban: string | null; 
+        currentBanco: string | null;
+    } | null>(null);
     const [createRequestOpen, setCreateRequestOpen] = useState(false);
 
     const [reviewRequestData, setReviewRequestData] = useState<IbanChangeRequest | null>(null);
@@ -653,6 +662,10 @@ export function BankAccountsPage() {
                                                                     setCreateRequestData({
                                                                         workerId: account.worker_id,
                                                                         workerName: account.worker_nome,
+                                                                        workerCode: account.worker_codigo,
+                                                                        workerPhone: account.movil,
+                                                                        clienteNome: account.cliente_nome,
+                                                                        contratante: account.contratante,
                                                                         currentIban: account.iban,
                                                                         currentBanco: account.banco
                                                                     });
@@ -863,6 +876,10 @@ export function BankAccountsPage() {
                     onOpenChange={setCreateRequestOpen}
                     workerId={createRequestData.workerId}
                     workerName={createRequestData.workerName}
+                    workerCode={createRequestData.workerCode}
+                    workerPhone={createRequestData.workerPhone}
+                    clienteNome={createRequestData.clienteNome}
+                    contratante={createRequestData.contratante}
                     currentIban={createRequestData.currentIban}
                     currentBanco={createRequestData.currentBanco}
                     empresaId={selectedEmpresaId}
