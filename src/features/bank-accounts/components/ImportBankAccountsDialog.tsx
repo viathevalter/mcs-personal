@@ -22,6 +22,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { listWorkers } from '@/features/workers/api/workersApi';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useImportBankAccounts } from '../hooks/useImportBankAccounts';
@@ -49,28 +51,51 @@ interface ParsedRow {
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
 export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogProps) {
+    const { selectedEmpresaId } = useEmpresa();
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState<ImportStep>('UPLOAD');
     const [isParsing, setIsParsing] = useState(false);
 
-    // Query ALL workers directly from core_personal.workers
-    const { data: allWorkers = [] } = useQuery({
-        queryKey: ['all-workers-direct-for-bank-import'],
+    // Fetch ALL workers using official listWorkers RPC
+    const { data: workersData } = useQuery({
+        queryKey: ['all-workers-for-bank-import-dialog', selectedEmpresaId],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .schema('core_personal')
-                .from('workers')
-                .select('id, cod_colab, empresa_id, nome');
+            if (!selectedEmpresaId) return [];
 
-            if (error || !data) {
-                console.error("Error fetching all workers directly for bank import:", error);
-                return [];
+            let allWorkersData: any[] = [];
+            let currentPage = 1;
+            const pageSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const res = await listWorkers({
+                    empresaId: selectedEmpresaId,
+                    statusTrabajador: ['ativos', 'inativos', 'pendientes_ingreso'],
+                    page: currentPage,
+                    pageSize: pageSize,
+                    sortColumn: 'nome',
+                    sortDirection: 'asc'
+                });
+
+                if (res.data && res.data.length > 0) {
+                    allWorkersData = [...allWorkersData, ...res.data];
+                    if (res.data.length < pageSize) {
+                        hasMore = false;
+                    } else {
+                        currentPage++;
+                    }
+                } else {
+                    hasMore = false;
+                }
             }
-            return data;
+
+            return allWorkersData;
         },
-        enabled: isOpen,
+        enabled: isOpen && !!selectedEmpresaId,
         staleTime: 60 * 1000
     });
+
+    const workers = workersData || [];
 
     // File state
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -162,17 +187,15 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
 
     const generatePreview = async () => {
         // Guarantee workers list is populated inline
-        let currentWorkers = allWorkers;
-        if (!currentWorkers || currentWorkers.length === 0) {
-            const { data, error } = await supabase
-                .schema('core_personal')
-                .from('workers')
-                .select('id, cod_colab, empresa_id, nome');
-            if (data && data.length > 0) {
-                currentWorkers = data;
-            } else if (error) {
-                console.error("Inline fetch workers error:", error);
-            }
+        let currentWorkers = workers;
+        if ((!currentWorkers || currentWorkers.length === 0) && selectedEmpresaId) {
+            const res = await listWorkers({
+                empresaId: selectedEmpresaId,
+                statusTrabajador: ['ativos', 'inativos', 'pendientes_ingreso'],
+                page: 1,
+                pageSize: 1000
+            });
+            currentWorkers = res.data || [];
         }
 
         const rows: ParsedRow[] = [];
@@ -189,10 +212,10 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             const rawNumCod = getCodeNumeric(rawCod);
             const normRawName = normalizeStr(rawNome);
 
-            const matchedWorker = currentWorkers?.find(w => {
-                const wCod = String(w.cod_colab || '').trim().toUpperCase();
+            const matchedWorker = currentWorkers?.find((w: any) => {
+                const wCod = String(w.cod_colab || w.codigo || '').trim().toUpperCase();
                 
-                // 1. Direct exact match
+                // 1. Direct exact match (e.g. E0530 === E0530)
                 if (wCod && rawCod && wCod === rawCod) return true;
 
                 // 2. Numeric digits match (e.g. E0530 -> 530 vs 0530 -> 530)
