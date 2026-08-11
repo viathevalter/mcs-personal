@@ -159,6 +159,23 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
         return undefined;
     };
 
+    const normalizeStr = (str: string): string => {
+        if (!str) return '';
+        return str
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9\s]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    const normalizeCode = (cod: string): string => {
+        if (!cod) return '';
+        const clean = cod.trim().toUpperCase();
+        return clean.replace(/^E-?/i, '').replace(/^0+/, '');
+    };
+
     const generatePreview = () => {
         const rows: ParsedRow[] = [];
 
@@ -169,15 +186,30 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '') : '';
             const rawObservacoes = colMapping.observacoes ? String(row[colMapping.observacoes] || '') : '';
 
-            if (!rawCod) continue;
+            if (!rawCod && !rawNome) continue;
 
-            const matchedWorker = workers?.find(w => String(w.cod_colab || '').trim().toUpperCase() === rawCod);
+            const matchedWorker = workers?.find(w => {
+                const wCod = String(w.cod_colab || '').trim().toUpperCase();
+                if (wCod && rawCod && wCod === rawCod) return true;
+
+                const normWCod = normalizeCode(wCod);
+                const normRawCod = normalizeCode(rawCod);
+                if (normWCod && normRawCod && normWCod === normRawCod) return true;
+
+                const normWName = normalizeStr(w.nome || '');
+                const normRawName = normalizeStr(rawNome);
+                if (normWName && normRawName && (normWName === normRawName || normWName.includes(normRawName) || normRawName.includes(normWName))) {
+                    return true;
+                }
+
+                return false;
+            });
 
             let status: ParsedRow['status'] = 'not_found';
             let errorMessage = '';
 
             if (!matchedWorker) {
-                errorMessage = `Trabalhador não encontrado (${rawCod}).`;
+                errorMessage = `Trabalhador não encontrado (${rawCod || rawNome}).`;
             } else if (!rawIban) {
                 status = 'invalid_data';
                 errorMessage = 'IBAN não informado.';
