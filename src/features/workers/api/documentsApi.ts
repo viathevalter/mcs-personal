@@ -89,13 +89,42 @@ export async function deleteWorkerDocument(document: WorkerDocument): Promise<vo
 }
 
 export async function getDocumentDownloadUrl(filePath: string): Promise<string> {
-    const { data, error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .createSignedUrl(filePath, 60 * 60); // 1 hour link
+    const buckets = ['mcs-personal-docs', 'worker-contracts', 'worker-incoming-docs', 'worker-documents', 'documents'];
+    
+    let bucketToUse = BUCKET_NAME;
+    let cleanPath = filePath;
 
-    if (error) {
-        throw mapSupabaseError(error);
+    // Detect bucket if path starts with bucket name
+    for (const b of buckets) {
+        if (cleanPath.startsWith(`${b}/`)) {
+            bucketToUse = b;
+            cleanPath = cleanPath.substring(b.length + 1);
+            break;
+        }
     }
 
-    return data.signedUrl;
+    // Try detected bucket first
+    const { data: firstTry, error: firstErr } = await supabase.storage
+        .from(bucketToUse)
+        .createSignedUrl(cleanPath, 60 * 60);
+
+    if (!firstErr && firstTry?.signedUrl) {
+        return firstTry.signedUrl;
+    }
+
+    // Fallback: search across all buckets
+    for (const bucket of buckets) {
+        if (bucket === bucketToUse) continue;
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(cleanPath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+            return data.signedUrl;
+        }
+    }
+
+    // Fallback to public URL
+    const { data } = supabase.storage.from(bucketToUse).getPublicUrl(cleanPath);
+    return data.publicUrl;
 }

@@ -126,6 +126,18 @@ export function DocumentacionTasksPage() {
     const [verifying, setVerifying] = useState(false);
     const [activeDocTab, setActiveDocTab] = useState<'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie'>('identity');
     const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
+    const [selectedAttachDocType, setSelectedAttachDocType] = useState<string>('passaporte');
+    const [savingAttachDoc, setSavingAttachDoc] = useState(false);
+
+    const handleTabChange = (tab: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
+        setActiveDocTab(tab);
+        if (tab === 'identity') setSelectedAttachDocType('passaporte');
+        else if (tab === 'nif') setSelectedAttachDocType('nif');
+        else if (tab === 'niss') setSelectedAttachDocType('niss');
+        else if (tab === 'license') setSelectedAttachDocType('permision_conducir');
+        else if (tab === 'iban') setSelectedAttachDocType('certificado_banco');
+        else if (tab === 'selfie') setSelectedAttachDocType('foto');
+    };
     const [verifyFormData, setVerifyFormData] = useState({
         nome: '',
         email: '',
@@ -1027,7 +1039,108 @@ Muchas gracias.`;
             fecha_nacimiento: data.fecha_nacimiento || ''
         });
         setActiveDocTab('identity');
+        setSelectedAttachDocType('passaporte');
         setVerifyDialogOpen(true);
+    };
+
+    const handleSaveDocToWorkerProfile = async () => {
+        if (!selectedRequest || !selectedRequest.worker_id) {
+            toast.error("Trabalhador não identificado.");
+            return;
+        }
+
+        let path = '';
+        if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
+        else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
+        else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
+        else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
+        else if (activeDocTab === 'iban') path = selectedRequest.iban_url || (selectedRequest.extracted_data?.iban_url) || '';
+        else if (activeDocTab === 'selfie') path = selectedRequest.selfie_url || '';
+
+        if (!path) {
+            toast.error("Nenhum arquivo enviado para esta aba de documento.");
+            return;
+        }
+
+        try {
+            setSavingAttachDoc(true);
+
+            const docTypeLabelMap: Record<string, string> = {
+                foto: 'Foto do Trabalhador',
+                passaporte: 'Passaporte',
+                identificacao: 'Doc. Identificação Genérica',
+                nif: 'NIF',
+                niss: 'NISS',
+                permision_conducir: 'Permissão de Condução',
+                certificado_banco: 'Cert. Titularidade Banco',
+                autorizacao_banco: 'Autorização Conta Banco',
+                contrato_trabalho: 'Contrato de Trabalho',
+                contrato_alta: 'Contrato de Alta',
+                doc_alta_seguridade: 'Doc Alta Seguridade',
+                doc_baixa_seguridade: 'Doc Baixa Seguridade',
+                carta_renuncia: 'Carta de Renuncia',
+                carta_laboral: 'Carta Laboral',
+                prova_vida: 'Prova de Vida',
+                nomina: 'Recibo de Vencimento',
+                a1: 'Certificado A1',
+                apto_medico: 'Apto Médico',
+                prl_certificate: 'Certificado PRL',
+                epi_recibo: 'Recibo de EPIs',
+                outros: 'Documento'
+            };
+
+            const docLabel = docTypeLabelMap[selectedAttachDocType] || 'Documento';
+            const workerName = selectedRequest.worker?.nome || verifyFormData.nome || 'Trabalhador';
+            const ext = path.split('.').pop() || 'jpg';
+            const fileName = `${docLabel} - ${workerName}.${ext}`;
+
+            // Try to fetch file size from storage.objects
+            let fileSize = 0;
+            try {
+                const cleanFolder = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+                const cleanFileName = path.includes('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
+                const { data: storageObj } = await supabase.storage
+                    .from('worker-incoming-docs')
+                    .list(cleanFolder, { search: cleanFileName });
+                fileSize = storageObj?.[0]?.metadata?.size || 0;
+            } catch {
+                fileSize = 0;
+            }
+
+            const targetFilePath = `worker-incoming-docs/${path}`;
+
+            // Insert into core_personal.worker_documents
+            const { error: dbErr } = await supabase
+                .schema('core_personal')
+                .from('worker_documents')
+                .insert({
+                    empresa_id: selectedRequest.empresa_id || selectedEmpresaId,
+                    worker_id: selectedRequest.worker_id,
+                    doc_type: selectedAttachDocType,
+                    file_path: targetFilePath,
+                    file_name: fileName,
+                    file_size: fileSize,
+                    mime_type: ext.toLowerCase() === 'pdf' ? 'application/pdf' : 'image/jpeg'
+                });
+
+            if (dbErr) throw dbErr;
+
+            // If doc_type is foto, also update worker's profile photo
+            if (selectedAttachDocType === 'foto') {
+                await supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .update({ foto: targetFilePath })
+                    .eq('id', selectedRequest.worker_id);
+            }
+
+            toast.success(`Documento (${docLabel}) salvo no cadastro de ${workerName} com sucesso!`);
+        } catch (err: any) {
+            console.error("Erro ao salvar documento no cadastro:", err);
+            toast.error(`Erro ao anexar documento: ${err.message || 'Erro desconhecido'}`);
+        } finally {
+            setSavingAttachDoc(false);
+        }
     };
 
     // 7. Obter URL temporária assinada para visualizar a imagem enviada
@@ -2340,46 +2453,90 @@ Muchas gracias.`;
                                 <div className="flex border-b dark:border-slate-800 text-xs font-semibold bg-slate-100 dark:bg-slate-800/80">
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('identity')}
+                                        onClick={() => handleTabChange('identity')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'identity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         Identificação
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('nif')}
+                                        onClick={() => handleTabChange('nif')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'nif' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         NIF
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('niss')}
+                                        onClick={() => handleTabChange('niss')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'niss' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         NISS
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('license')}
+                                        onClick={() => handleTabChange('license')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'license' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         Carta
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('iban')}
+                                        onClick={() => handleTabChange('iban')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'iban' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         IBAN
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setActiveDocTab('selfie')}
+                                        onClick={() => handleTabChange('selfie')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'selfie' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
                                         Selfie
                                     </button>
+                                </div>
+
+                                {/* Barra de Ação Rápida: Classificar & Anexar ao Cadastro do Trabalhador */}
+                                <div className="p-2.5 bg-indigo-950/40 border-b border-indigo-500/20 flex flex-col sm:flex-row items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
+                                        <span className="text-[11px] font-semibold text-indigo-300 shrink-0">Tipo no Cadastro:</span>
+                                        <select
+                                            value={selectedAttachDocType}
+                                            onChange={(e) => setSelectedAttachDocType(e.target.value)}
+                                            className="h-8 text-xs bg-slate-900 border border-slate-700 text-white rounded px-2 w-full flex-1 focus:outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="foto">Foto do Trabalhador</option>
+                                            <option value="passaporte">Passaporte</option>
+                                            <option value="identificacao">Doc. Identificação Genérica</option>
+                                            <option value="nif">NIF</option>
+                                            <option value="niss">NISS</option>
+                                            <option value="permision_conducir">Permissão de Condução</option>
+                                            <option value="certificado_banco">Cert. Titularidade Banco</option>
+                                            <option value="autorizacao_banco">Autorização Mudança Conta Banco</option>
+                                            <option value="contrato_trabalho">Contrato de Trabalho</option>
+                                            <option value="contrato_alta">Contrato de Alta</option>
+                                            <option value="doc_alta_seguridade">Doc Alta Seguridade</option>
+                                            <option value="doc_baixa_seguridade">Doc Baixa Seguridade</option>
+                                            <option value="carta_renuncia">Carta de Renuncia</option>
+                                            <option value="carta_laboral">Carta Laboral</option>
+                                            <option value="prova_vida">Prova de Vida</option>
+                                            <option value="nomina">Recibo de Vencimento (Nómina)</option>
+                                            <option value="a1">Certificado A1</option>
+                                            <option value="apto_medico">Apto Médico</option>
+                                            <option value="prl_certificate">Certificado PRL</option>
+                                            <option value="epi_recibo">Recibo de EPIs</option>
+                                            <option value="outros">Outros</option>
+                                        </select>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={!activeDocUrl || savingAttachDoc}
+                                        onClick={handleSaveDocToWorkerProfile}
+                                        className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3 w-full sm:w-auto"
+                                    >
+                                        {savingAttachDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                        Anexar ao Cadastro
+                                    </Button>
                                 </div>
 
                                 {/* Preview da Imagem */}
