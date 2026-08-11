@@ -56,14 +56,15 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
     const [step, setStep] = useState<ImportStep>('UPLOAD');
     const [isParsing, setIsParsing] = useState(false);
 
-    // Query ALL workers directly from core_personal.workers across all companies
+    // Query ALL workers directly from core_personal.workers across all companies (up to 5000)
     const { data: allWorkers = [] } = useQuery({
         queryKey: ['all-workers-direct-for-bank-import-all-companies'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, contratante');
+                .select('id, cod_colab, nome, contratante')
+                .range(0, 4999);
 
             if (error) {
                 console.error("Error fetching workers for bank import:", error);
@@ -163,14 +164,63 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             .trim();
     };
 
+    const detectBankFromIban = (iban: string): string => {
+        if (!iban) return 'BANCO DIVERSO';
+        const clean = iban.replace(/\s+/g, '').toUpperCase();
+        
+        if (clean.startsWith('ES') && clean.length >= 8) {
+            const bankCode = clean.substring(4, 8);
+            const spanishBanks: Record<string, string> = {
+                '0182': 'BBVA',
+                '0049': 'SANTANDER',
+                '2100': 'CAIXABANK',
+                '0081': 'BANCO SABADELL',
+                '2080': 'ABANCA',
+                '2095': 'KUTXABANK',
+                '3058': 'CAJAMAR',
+                '0128': 'BANKINTER',
+                '0073': 'OPENBANK',
+                '0239': 'EVO BANCO',
+                '1491': 'TRIODOS BANK',
+                '6893': 'NICKEL',
+                '0030': 'BANESTO',
+                '2038': 'BANKIA'
+            };
+            if (spanishBanks[bankCode]) return spanishBanks[bankCode];
+        }
+
+        if (clean.startsWith('PT') && clean.length >= 8) {
+            const bankCode = clean.substring(4, 8);
+            const ptBanks: Record<string, string> = {
+                '0033': 'MILLENNIUM BCP',
+                '0035': 'CAIXA GERAL DE DEPÓSITOS',
+                '0018': 'SANTANDER TOTTA',
+                '0010': 'BANCO BPI',
+                '0007': 'NOVO BANCO',
+                '0045': 'CREDITO AGRÍCOLA',
+                '0036': 'MONTEPIO'
+            };
+            if (ptBanks[bankCode]) return ptBanks[bankCode];
+        }
+
+        if (clean.startsWith('BE') || clean.includes('WISE')) return 'WISE';
+        if (clean.startsWith('LT') || clean.includes('REVOLUT')) return 'REVOLUT';
+        if (clean.startsWith('DE') || clean.includes('N26')) return 'N26';
+        if (clean.startsWith('IT') || clean.includes('SELLA')) return 'BANCA SELLA';
+        if (clean.startsWith('FR') || clean.includes('NICKEL')) return 'NICKEL';
+
+        return 'BANCO COMERCIAL';
+    };
+
     const generatePreview = async () => {
-        // Guarantee workers list is populated inline
+        // Guarantee workers list is populated inline up to 5000
         let currentWorkers = allWorkers;
         if (!currentWorkers || currentWorkers.length === 0) {
             const { data, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, contratante');
+                .select('id, cod_colab, nome, contratante')
+                .range(0, 4999);
             if (data && data.length > 0) {
                 currentWorkers = data;
             } else if (error) {
@@ -189,6 +239,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
 
             if (!rawCod && !rawNome) continue;
 
+            const finalBanco = rawBanco || detectBankFromIban(rawIban);
             const rawNumCod = getCodeNumeric(rawCod);
             const normRawName = normalizeStr(rawNome);
 
@@ -219,9 +270,6 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             } else if (!rawIban) {
                 status = 'invalid_data';
                 errorMessage = 'IBAN não informado.';
-            } else if (!rawBanco) {
-                status = 'invalid_data';
-                errorMessage = 'Banco não informado.';
             } else {
                 status = 'ok';
             }
@@ -229,7 +277,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             rows.push({
                 cod_colab: rawCod,
                 nome_planilha: rawNome,
-                banco: rawBanco,
+                banco: finalBanco,
                 iban: rawIban,
 
                 workerId: matchedWorker?.id,
