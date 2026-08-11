@@ -49,40 +49,24 @@ interface ParsedRow {
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
 export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogProps) {
-    // Fetch workers for ID mapping
-    const { data: workersData } = useQuery({
-        queryKey: ['all-workers-for-import-bank'],
+    // Query ALL workers directly from core_personal.workers
+    const { data: allWorkers = [] } = useQuery({
+        queryKey: ['all-workers-direct-for-bank-import'],
         queryFn: async () => {
-            const allWorkers: any[] = [];
-            let from = 0;
-            const pageSize = 1000;
-            let hasMore = true;
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, empresa_id, nome');
 
-            while (hasMore) {
-                const { data, error } = await supabase
-                    .schema('core_personal')
-                    .from('workers')
-                    .select('id, cod_colab, empresa_id, nome')
-                    .range(from, from + pageSize - 1);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    allWorkers.push(...data);
-                    if (data.length < pageSize) {
-                        hasMore = false;
-                    } else {
-                        from += pageSize;
-                    }
-                } else {
-                    hasMore = false;
-                }
+            if (error || !data) {
+                console.error("Error fetching all workers directly for bank import:", error);
+                return [];
             }
-            return allWorkers;
-        }
+            return data;
+        },
+        enabled: isOpen,
+        staleTime: 60 * 1000
     });
-
-    const workers = workersData || [];
 
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState<ImportStep>('UPLOAD');
@@ -159,6 +143,12 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
         return undefined;
     };
 
+    const getCodeNumeric = (code: string): string => {
+        if (!code) return '';
+        const digits = code.replace(/\D/g, '');
+        return digits ? digits.replace(/^0+/, '') : code.trim().toUpperCase();
+    };
+
     const normalizeStr = (str: string): string => {
         if (!str) return '';
         return str
@@ -170,13 +160,21 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
             .trim();
     };
 
-    const normalizeCode = (cod: string): string => {
-        if (!cod) return '';
-        const clean = cod.trim().toUpperCase();
-        return clean.replace(/^E-?/i, '').replace(/^0+/, '');
-    };
+    const generatePreview = async () => {
+        // Guarantee workers list is populated inline
+        let currentWorkers = allWorkers;
+        if (!currentWorkers || currentWorkers.length === 0) {
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, empresa_id, nome');
+            if (data && data.length > 0) {
+                currentWorkers = data;
+            } else if (error) {
+                console.error("Inline fetch workers error:", error);
+            }
+        }
 
-    const generatePreview = () => {
         const rows: ParsedRow[] = [];
 
         for (const row of rawRows) {
@@ -188,16 +186,21 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
 
             if (!rawCod && !rawNome) continue;
 
-            const matchedWorker = workers?.find(w => {
+            const rawNumCod = getCodeNumeric(rawCod);
+            const normRawName = normalizeStr(rawNome);
+
+            const matchedWorker = currentWorkers?.find(w => {
                 const wCod = String(w.cod_colab || '').trim().toUpperCase();
+                
+                // 1. Direct exact match
                 if (wCod && rawCod && wCod === rawCod) return true;
 
-                const normWCod = normalizeCode(wCod);
-                const normRawCod = normalizeCode(rawCod);
-                if (normWCod && normRawCod && normWCod === normRawCod) return true;
+                // 2. Numeric digits match (e.g. E0530 -> 530 vs 0530 -> 530)
+                const wNumCod = getCodeNumeric(wCod);
+                if (wNumCod && rawNumCod && wNumCod === rawNumCod) return true;
 
+                // 3. Name match
                 const normWName = normalizeStr(w.nome || '');
-                const normRawName = normalizeStr(rawNome);
                 if (normWName && normRawName && (normWName === normRawName || normWName.includes(normRawName) || normRawName.includes(normWName))) {
                     return true;
                 }
