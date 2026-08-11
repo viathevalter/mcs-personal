@@ -542,7 +542,7 @@ export function BankAccountsPage() {
                                                     
                                                     <TableCell>
                                                         <div className="flex items-center gap-2">
-                                                            <Link to={`/workers/${account.worker_id}`} className="font-semibold text-[13px] text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-nowrap truncate max-w-[200px]">
+                                                            <Link to={`/workers/${account.worker_id}?tab=bank_accounts`} className="font-semibold text-[13px] text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-nowrap truncate max-w-[200px]">
                                                                 {account.worker_nome}
                                                             </Link>
                                                             {account.is_new && (

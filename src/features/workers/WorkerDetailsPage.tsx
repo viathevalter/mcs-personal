@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkerById } from './hooks/useWorkerById';
 import { useDocumentDownload } from './hooks/useWorkerDocuments';
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,19 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 export function WorkerDetailsPage() {
     const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { role: globalRole } = useRole();
     const { selectedEmpresaId } = useEmpresa();
+
+    const tabParam = searchParams.get('tab');
+    const [activeTab, setActiveTab] = useState(tabParam || 'overview');
+
+    useEffect(() => {
+        if (tabParam) {
+            setActiveTab(tabParam);
+        }
+    }, [tabParam]);
 
     const { data: worker, isLoading, isError, error } = useWorkerById(id);
     const downloadMutation = useDocumentDownload();
@@ -148,7 +158,7 @@ export function WorkerDetailsPage() {
                 </div>
             </header>
 
-            <Tabs defaultValue="overview" className="space-y-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <TabsList className="bg-muted/50 border overflow-x-auto flex w-full justify-start h-12">
                     <TabsTrigger value="overview" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.overview')}</TabsTrigger>
                     <TabsTrigger value="vida_laboral" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.vidaLaboral')}</TabsTrigger>
