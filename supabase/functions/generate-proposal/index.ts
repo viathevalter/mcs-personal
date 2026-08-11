@@ -576,6 +576,15 @@ serve(async (req) => {
       otpExpiresAt.setDate(otpExpiresAt.getDate() + 30); // 30 days fallback
     }
 
+    // Invalida assinaturas anteriores pendentes para esta estimativa
+    console.log(`[generate-proposal] Expirando assinaturas pendentes anteriores da estimativa: ${est.id}`);
+    await supabase
+      .schema("core_comercial")
+      .from("proposal_signatures")
+      .update({ status: "expired" })
+      .eq("estimacion_id", est.id)
+      .eq("status", "pending_signature");
+
     // Inserir registro em core_comercial.proposal_signatures
     const sigPayload = {
       empresa_id: est.empresa_id,

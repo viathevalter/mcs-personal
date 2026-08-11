@@ -679,18 +679,24 @@ serve(async (req) => {
       let subject = "";
       let htmlContent = "";
 
+      const timeZone = lang === "pt" ? "Europe/Lisbon" : lang === "fr" ? "Europe/Paris" : lang === "it" ? "Europe/Rome" : lang === "en" ? "Europe/London" : "Europe/Madrid";
+      const formattedDate = new Date().toLocaleString(
+        lang === "es" ? "es-ES" : lang === "pt" ? "pt-PT" : lang === "en" ? "en-US" : lang === "it" ? "it-IT" : "fr-FR",
+        { timeZone, hour12: false }
+      );
+
       if (lang === "es") {
         subject = `[FIRMADO] Propuesta y Contrato Comercial ${est.codigo} - ${empresa.trade_name}`;
         htmlContent = `
           <h2>¡Proceso de Firma Completado!</h2>
           <p>Hola,</p>
-          <p>Nos complace informarle que el proceso de firma electrónica de la propuesta comercial <strong>${est.codigo}</strong> y del contrato correspondiente se ha completado con éxito.</p>
+          <p>Nos complace informarle que el proceso de firma electrónica de la proposta comercial <strong>${est.codigo}</strong> y del contrato correspondiente se ha completado con éxito.</p>
           <p><strong>Detalles del proceso:</strong></p>
           <ul>
             <li><strong>Cliente/Empresa:</strong> ${clientOrLeadName}</li>
             <li><strong>Firmante:</strong> ${emailUsed}</li>
             <li><strong>IP de Firma:</strong> ${ip_address || "0.0.0.0"}</li>
-            <li><strong>Fecha/Hora:</strong> ${new Date().toLocaleString("es-ES")}</li>
+            <li><strong>Fecha/Hora:</strong> ${formattedDate}</li>
           </ul>
           <p>Los documentos originales firmados se adjuntan a este correo electrónico en formato PDF.</p>
           <p>Si prefiere ver y descargar las versiones en formato PDF (con sello y certificado digital eIDAS), acceda al siguiente enlace público:</p>
@@ -710,7 +716,7 @@ serve(async (req) => {
             <li><strong>Client/Company:</strong> ${clientOrLeadName}</li>
             <li><strong>Signer:</strong> ${emailUsed}</li>
             <li><strong>Signature IP:</strong> ${ip_address || "0.0.0.0"}</li>
-            <li><strong>Date/Time:</strong> ${new Date().toLocaleString("en-US")}</li>
+            <li><strong>Date/Time:</strong> ${formattedDate}</li>
           </ul>
           <p>The original signed documents are attached to this email in PDF format.</p>
           <p>If you prefer to view and download the PDF versions (with digital stamp and eIDAS digital certificate), please access the following public link:</p>
@@ -730,7 +736,7 @@ serve(async (req) => {
             <li><strong>Cliente/Società:</strong> ${clientOrLeadName}</li>
             <li><strong>Firmatario:</strong> ${emailUsed}</li>
             <li><strong>IP di Firma:</strong> ${ip_address || "0.0.0.0"}</li>
-            <li><strong>Data/Ora:</strong> ${new Date().toLocaleString("it-IT")}</li>
+            <li><strong>Data/Ora:</strong> ${formattedDate}</li>
           </ul>
           <p>I documenti originali firmati sono allegati a questa email in formato PDF.</p>
           <p>Se preferisci visualizzare e scaricare le versioni in formato PDF (con timbro e certificato digitale eIDAS), accedi al seguente link pubblico:</p>
@@ -750,7 +756,7 @@ serve(async (req) => {
             <li><strong>Client/Entreprise :</strong> ${clientOrLeadName}</li>
             <li><strong>Signataire :</strong> ${emailUsed}</li>
             <li><strong>IP de Signature :</strong> ${ip_address || "0.0.0.0"}</li>
-            <li><strong>Date/Heure :</strong> ${new Date().toLocaleString("fr-FR")}</li>
+            <li><strong>Date/Heure :</strong> ${formattedDate}</li>
           </ul>
           <p>Les documents originaux signés sont joints à cet e-mail au format PDF.</p>
           <p>Si vous préférez visualiser et télécharger les versions au format PDF (avec cachet et certificat numérique eIDAS), veuillez accéder au lien public suivant :</p>
@@ -771,12 +777,11 @@ serve(async (req) => {
             <li><strong>Cliente/Empresa:</strong> ${clientOrLeadName}</li>
             <li><strong>Assinante:</strong> ${emailUsed}</li>
             <li><strong>IP de Assinatura:</strong> ${ip_address || "0.0.0.0"}</li>
-            <li><strong>Data/Hora:</strong> ${new Date().toLocaleString("pt-PT")}</li>
+            <li><strong>Data/Hora:</strong> ${formattedDate}</li>
           </ul>
           <p>Os documentos originais assinados estão anexados a este e-mail em formato PDF.</p>
           <p>Se preferir visualizar e descarregar as versões em formato PDF (com carimbo e certificado digital eIDAS), aceda ao seguinte link público:</p>
           <p><a href="${publicLink}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Baixar PDF</a></p>
-          <br/>
           <p>Atenciosamente,</p>
           <p><strong>Equipa ${empresa.trade_name}</strong></p>
         `;

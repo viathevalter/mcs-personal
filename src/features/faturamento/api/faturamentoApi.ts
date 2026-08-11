@@ -950,16 +950,20 @@ export async function solicitarAprovacaoCliente(
 
   // Atualiza as horas para apontar para a fatura criada e altera o status
   if (fatura && horasIds.length > 0) {
-    const { error: updateError } = await supabase
-      .schema('core_finance')
-      .from('horas_trabalhadas')
-      .update({ 
-        status: 'pending_client_approval',
-        fatura_id: fatura.id 
-      })
-      .in('id', horasIds);
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < horasIds.length; i += CHUNK_SIZE) {
+      const chunk = horasIds.slice(i, i + CHUNK_SIZE);
+      const { error: updateError } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .update({ 
+          status: 'pending_client_approval',
+          fatura_id: fatura.id 
+        })
+        .in('id', chunk);
 
-    if (updateError) throw mapSupabaseError(updateError);
+      if (updateError) throw mapSupabaseError(updateError);
+    }
   }
 
   return token;
