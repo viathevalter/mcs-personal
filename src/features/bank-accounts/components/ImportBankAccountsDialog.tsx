@@ -133,13 +133,13 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
                 setRawHeaders(headers);
                 setRawRows(rawJson);
 
-                // Auto-guess some mappings
+                // Auto-guess some mappings matching exact user Excel file headers
                 const guessMapping = {
-                    cod_colab: findKeyIgnoreCase(headers, ['cod colab', 'cód trabalhador', 'codigo', 'cod', 'cod_colab']) || '',
-                    banco: findKeyIgnoreCase(headers, ['banco', 'bank', 'banco nome']) || '',
-                    iban: findKeyIgnoreCase(headers, ['iban', 'conta', 'account']) || '',
-                    nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'colaborador']) || '',
-                    observacoes: findKeyIgnoreCase(headers, ['obs', 'observacao', 'observacoes', 'observações', 'notas']) || ''
+                    cod_colab: findKeyIgnoreCase(headers, ['ID', 'cod colab', 'cód trabalhador', 'codigo', 'cod', 'cod_colab', 'id_colab']) || '',
+                    banco: findKeyIgnoreCase(headers, ['BANCO', 'banco', 'bank', 'banco nome']) || '',
+                    iban: findKeyIgnoreCase(headers, ['IBAN', 'iban', 'conta', 'account']) || '',
+                    nome: findKeyIgnoreCase(headers, ['TRABAJADOR', 'trabalhador', 'nome', 'colaborador', 'trabajador']) || '',
+                    observacoes: findKeyIgnoreCase(headers, ['FECHA ÚLTIMO CAMBIO', 'OBSERVACIONES', 'obs', 'observacao', 'observacoes', 'observações', 'notas']) || ''
                 };
                 setColMapping(guessMapping);
                 setStep('MAPPING');
