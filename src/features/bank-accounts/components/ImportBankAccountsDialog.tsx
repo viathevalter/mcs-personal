@@ -49,6 +49,10 @@ interface ParsedRow {
 type ImportStep = 'UPLOAD' | 'MAPPING' | 'PREVIEW';
 
 export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [step, setStep] = useState<ImportStep>('UPLOAD');
+    const [isParsing, setIsParsing] = useState(false);
+
     // Query ALL workers directly from core_personal.workers
     const { data: allWorkers = [] } = useQuery({
         queryKey: ['all-workers-direct-for-bank-import'],
@@ -67,10 +71,6 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
         enabled: isOpen,
         staleTime: 60 * 1000
     });
-
-    const [isOpen, setIsOpen] = useState(false);
-    const [step, setStep] = useState<ImportStep>('UPLOAD');
-    const [isParsing, setIsParsing] = useState(false);
 
     // File state
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
