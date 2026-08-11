@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
+import { supabase } from '@/shared/supabase/client';
 import { 
     Dialog, DialogContent, DialogHeader, DialogTitle, 
     DialogDescription, DialogFooter 
@@ -331,8 +332,6 @@ export function ReviewIbanRequestDialog({
         }
     };
 
-    // Helper for direct Supabase calls inside the component
-    const supabase = require('@/shared/supabase/client').supabase;
 
     return (
         <Dialog open={open} onOpenChange={isApproving || isRejecting || isSettingAwaitingSig ? undefined : onOpenChange}>
