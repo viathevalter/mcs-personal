@@ -274,6 +274,20 @@ Retorne um objeto JSON contendo:
           },
           required: ["licencia_conducir"]
         };
+      } else if (document_type === "iban") {
+        systemInstruction = `Você é um assistente de leitura de dados bancários. Identifique o número de IBAN e o nome do Banco no documento fornecido (comprovante, extrato, foto de cartão ou cabeçalho do banco).
+Retorne um objeto JSON contendo:
+- iban: o número completo do IBAN (incluindo letras iniciais do país, ex: ES, PT, BE, etc.), sem espaços ou hifens.
+- banco: o nome do banco emissor (ex: Santander, CaixaBank, BBVA, WISE, Bunq, Nickel, etc.).`;
+
+        jsonSchema = {
+          type: "OBJECT",
+          properties: {
+            iban: { type: "STRING" },
+            banco: { type: "STRING" }
+          },
+          required: ["iban"]
+        };
       } else {
         throw new Error(`Tipo de documento inválido para processamento OCR: ${document_type}`);
       }
