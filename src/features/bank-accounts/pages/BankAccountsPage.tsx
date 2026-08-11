@@ -164,18 +164,18 @@ export function BankAccountsPage() {
         return (
             <TableHead 
                 onClick={() => toggleSort(col)} 
-                className={`cursor-pointer font-bold text-xs text-slate-700 uppercase hover:text-indigo-600 transition-colors whitespace-nowrap select-none py-3 ${extraClasses}`}
+                className={`cursor-pointer font-bold text-xs text-slate-700 dark:text-slate-200 uppercase hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap select-none py-3 ${extraClasses}`}
             >
                 <div className="flex items-center gap-1.5">
                     <span>{label}</span>
                     {isSorted ? (
                         sortDirection === 'asc' ? (
-                            <ArrowUp className="w-3.5 h-3.5 text-indigo-600 font-extrabold" />
+                            <ArrowUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 font-extrabold" />
                         ) : (
-                            <ArrowDown className="w-3.5 h-3.5 text-indigo-600 font-extrabold" />
+                            <ArrowDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 font-extrabold" />
                         )
                     ) : (
-                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 opacity-60" />
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 opacity-60" />
                     )}
                 </div>
             </TableHead>
@@ -204,15 +204,15 @@ export function BankAccountsPage() {
     };
 
     return (
-        <div className="p-8 max-w-[1700px] mx-auto flex flex-col h-full bg-slate-50">
+        <div className="p-8 max-w-[1700px] mx-auto flex flex-col h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center">
-                        <Wallet className="w-8 h-8 mr-3 text-indigo-600" />
+                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center">
+                        <Wallet className="w-8 h-8 mr-3 text-indigo-600 dark:text-indigo-400" />
                         Gestão de Contas Bancárias (IBAN)
                     </h1>
-                    <p className="text-slate-500 mt-2 text-sm">
+                    <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">
                         Controle financeiro, auditoria de titularidade e solicitações seguras de troca de IBAN.
                     </p>
                 </div>
@@ -228,8 +228,8 @@ export function BankAccountsPage() {
                         bankAccounts={bankAccounts} 
                         isLoading={isLoading} 
                         trigger={
-                            <Button variant="outline" className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 h-10 font-medium">
-                                <Download className="w-4 h-4 mr-2 text-slate-500" />
+                            <Button variant="outline" className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 h-10 font-medium">
+                                <Download className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />
                                 Exportar SEPA / Excel
                             </Button>
                         } 
@@ -242,18 +242,18 @@ export function BankAccountsPage() {
                 {/* 1. Ativos */}
                 <div 
                     onClick={() => { setKpiFilter('ALL'); setActiveTab('accounts'); }}
-                    className={`bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
                         kpiFilter === 'ALL' 
-                            ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10' 
-                            : 'border-slate-200/80 hover:border-emerald-300'
+                            ? 'border-emerald-500 dark:border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-950/20' 
+                            : 'border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700'
                     }`}
                 >
                     <div className="space-y-1">
-                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Ativos no Período</span>
-                        <h3 className="text-2xl font-bold text-slate-900 tracking-tight">{totalAtivos}</h3>
-                        <span className="text-[10px] text-slate-400 block">Total de trabalhadores de RH</span>
+                        <span className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">Ativos no Período</span>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{totalAtivos}</h3>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Total de trabalhadores de RH</span>
                     </div>
-                    <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <UserCheck className="w-6 h-6" />
                     </div>
                 </div>
@@ -261,20 +261,20 @@ export function BankAccountsPage() {
                 {/* 2. Com IBAN */}
                 <div 
                     onClick={() => { setKpiFilter(prev => prev === 'COM_IBAN' ? 'ALL' : 'COM_IBAN'); setActiveTab('accounts'); }}
-                    className={`bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
                         kpiFilter === 'COM_IBAN' 
-                            ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/10 scale-[1.01]' 
-                            : 'border-slate-200/80 hover:border-indigo-300'
+                            ? 'border-indigo-500 dark:border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/10 dark:bg-indigo-950/20 scale-[1.01]' 
+                            : 'border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700'
                     }`}
                 >
                     <div className="space-y-1">
-                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Com IBAN Cadastrado</span>
-                        <h3 className="text-2xl font-bold text-slate-900 tracking-tight">{comIban}</h3>
-                        <span className="text-[10px] text-emerald-600 font-medium flex items-center">
+                        <span className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">Com IBAN Cadastrado</span>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{comIban}</h3>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center">
                             {totalAtivos > 0 ? ((comIban / totalAtivos) * 100).toFixed(0) : 0}% de conformidade
                         </span>
                     </div>
-                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <Wallet className="w-6 h-6" />
                     </div>
                 </div>
@@ -282,18 +282,18 @@ export function BankAccountsPage() {
                 {/* 3. Falta IBAN */}
                 <div 
                     onClick={() => { setKpiFilter(prev => prev === 'SEM_IBAN' ? 'ALL' : 'SEM_IBAN'); setActiveTab('accounts'); }}
-                    className={`bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
                         kpiFilter === 'SEM_IBAN' 
-                            ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20 scale-[1.01]' 
-                            : 'border-slate-200/80 hover:border-rose-300'
+                            ? 'border-rose-500 dark:border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20 dark:bg-rose-950/30 scale-[1.01]' 
+                            : 'border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-700'
                     }`}
                 >
                     <div className="space-y-1">
-                        <span className="text-xs font-semibold text-rose-500 uppercase tracking-wider block">Falta IBAN (Atenção)</span>
-                        <h3 className="text-2xl font-bold text-rose-600 tracking-tight">{semIban}</h3>
-                        <span className="text-[10px] text-rose-400 block">Bloqueados para pagamento</span>
+                        <span className="text-xs font-semibold text-rose-500 dark:text-rose-400 uppercase tracking-wider block">Falta IBAN (Atenção)</span>
+                        <h3 className="text-2xl font-bold text-rose-600 dark:text-rose-400 tracking-tight">{semIban}</h3>
+                        <span className="text-[10px] text-rose-400 dark:text-rose-500 block">Bloqueados para pagamento</span>
                     </div>
-                    <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <AlertCircle className="w-6 h-6" />
                     </div>
                 </div>
@@ -301,20 +301,20 @@ export function BankAccountsPage() {
                 {/* 4. Comprovantes Pendentes */}
                 <div 
                     onClick={() => { setKpiFilter(prev => prev === 'COMP_PENDENTE' ? 'ALL' : 'COMP_PENDENTE'); setActiveTab('accounts'); }}
-                    className={`bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
                         kpiFilter === 'COMP_PENDENTE' 
-                            ? 'border-amber-500 ring-2 ring-amber-500/30 bg-amber-50/20 scale-[1.01]' 
-                            : 'border-slate-200/80 hover:border-amber-300'
+                            ? 'border-amber-500 dark:border-amber-500 ring-2 ring-amber-500/30 bg-amber-50/20 dark:bg-amber-950/30 scale-[1.01]' 
+                            : 'border-slate-200/80 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-700'
                     }`}
                 >
                     <div className="space-y-1">
-                        <span className="text-xs font-semibold text-amber-500 uppercase tracking-wider block">Comprovativo Pendente</span>
-                        <h3 className="text-2xl font-bold text-amber-600 tracking-tight">{compPendentes}</h3>
-                        <span className="text-[10px] text-amber-500/80 font-medium flex items-center">
+                        <span className="text-xs font-semibold text-amber-500 dark:text-amber-400 uppercase tracking-wider block">Comprovativo Pendente</span>
+                        <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">{compPendentes}</h3>
+                        <span className="text-[10px] text-amber-500/80 dark:text-amber-500/70 font-medium flex items-center">
                             Sem certificado de titularidade
                         </span>
                     </div>
-                    <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <FileText className="w-6 h-6" />
                     </div>
                 </div>
@@ -322,18 +322,18 @@ export function BankAccountsPage() {
                 {/* 5. Solicitações de Troca */}
                 <div 
                     onClick={() => { setKpiFilter(prev => prev === 'TROCA_PENDENTE' ? 'ALL' : 'TROCA_PENDENTE'); setActiveTab('requests'); }}
-                    className={`bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
                         kpiFilter === 'TROCA_PENDENTE' 
-                            ? 'border-indigo-600 ring-2 ring-indigo-600/30 bg-indigo-100/30 scale-[1.01]' 
-                            : 'border-indigo-100 hover:border-indigo-300 bg-indigo-50/10'
+                            ? 'border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-600/30 bg-indigo-100/30 dark:bg-indigo-950/40 scale-[1.01]' 
+                            : 'border-indigo-100 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-indigo-50/10 dark:bg-slate-900'
                     }`}
                 >
                     <div className="space-y-1">
-                        <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Solicitações de Troca</span>
-                        <h3 className="text-2xl font-bold text-indigo-700 tracking-tight">{trocasPendentes}</h3>
-                        <span className="text-[10px] text-indigo-500/80 block">Aguardando análise do RH</span>
+                        <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Solicitações de Troca</span>
+                        <h3 className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 tracking-tight">{trocasPendentes}</h3>
+                        <span className="text-[10px] text-indigo-500/80 dark:text-indigo-400/70 block">Aguardando análise do RH</span>
                     </div>
-                    <div className="w-12 h-12 bg-indigo-100/50 text-indigo-700 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 bg-indigo-100/50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <RefreshCw className="w-6 h-6" />
                     </div>
                 </div>
@@ -341,10 +341,10 @@ export function BankAccountsPage() {
 
             {/* Active KPI Filter Indicator Badge */}
             {kpiFilter !== 'ALL' && (
-                <div className="flex items-center gap-2 mb-6 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-medium text-indigo-900 w-fit shadow-sm animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 mb-6 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-4 py-2 rounded-xl text-xs font-medium text-indigo-900 dark:text-indigo-200 w-fit shadow-sm animate-in fade-in duration-200">
                     <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                        Filtrando por KPI: <strong className="text-indigo-950 font-bold">
+                        <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse"></span>
+                        Filtrando por KPI: <strong className="text-indigo-950 dark:text-indigo-100 font-bold">
                             {kpiFilter === 'COM_IBAN' && `Com IBAN Cadastrado (${comIban})`}
                             {kpiFilter === 'SEM_IBAN' && `Falta IBAN / Bloqueados (${semIban})`}
                             {kpiFilter === 'COMP_PENDENTE' && `Comprovativo Pendente (${compPendentes})`}
@@ -353,7 +353,7 @@ export function BankAccountsPage() {
                     </span>
                     <button 
                         onClick={() => setKpiFilter('ALL')}
-                        className="hover:bg-indigo-200/60 p-1 rounded-md text-indigo-700 transition-colors ml-2 flex items-center gap-1 font-semibold"
+                        className="hover:bg-indigo-200/60 dark:hover:bg-indigo-900/60 p-1 rounded-md text-indigo-700 dark:text-indigo-300 transition-colors ml-2 flex items-center gap-1 font-semibold"
                         title="Limpar filtro de KPI"
                     >
                         <span>Limpar Filtro</span>
@@ -365,17 +365,17 @@ export function BankAccountsPage() {
             {/* Main Tabs structure */}
             <Tabs value={activeTab} className="w-full flex-1 flex flex-col" onValueChange={setActiveTab}>
                 <div className="flex justify-between items-center mb-6">
-                    <TabsList className="bg-slate-100/80 border border-slate-200/50 p-1 rounded-xl h-11">
+                    <TabsList className="bg-slate-100/80 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 p-1 rounded-xl h-11">
                         <TabsTrigger 
                             value="accounts" 
-                            className="rounded-lg text-xs font-semibold text-slate-500 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm h-9 px-4"
+                            className="rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-slate-900 dark:data-[state=active]:text-slate-100 data-[state=active]:shadow-sm h-9 px-4"
                         >
                             <Wallet className="w-4 h-4 mr-2" />
                             Contas Correntes
                         </TabsTrigger>
                         <TabsTrigger 
                             value="requests" 
-                            className="rounded-lg text-xs font-semibold text-slate-500 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm h-9 px-4"
+                            className="rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-slate-900 dark:data-[state=active]:text-slate-100 data-[state=active]:shadow-sm h-9 px-4"
                         >
                             <RefreshCw className="w-4 h-4 mr-2" />
                             Solicitações de Troca
@@ -391,16 +391,16 @@ export function BankAccountsPage() {
                 {/* Tab content: Accounts */}
                 <TabsContent value="accounts" className="flex-1 flex flex-col m-0">
                     {/* Filters Section */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm mb-6 flex flex-col lg:flex-row gap-4 lg:items-end">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-sm mb-6 flex flex-col lg:flex-row gap-4 lg:items-end">
                         {/* Period Selectors */}
                         <div className="flex gap-3 w-full lg:w-auto">
                             <div className="space-y-2 w-full sm:w-40">
-                                <Label className="text-xs font-semibold text-slate-500 uppercase">Período (Mês)</Label>
+                                <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Período (Mês)</Label>
                                 <Select value={periodMonth.toString()} onValueChange={(v) => setPeriodMonth(parseInt(v))}>
-                                    <SelectTrigger className="bg-slate-50/50 h-10 border-slate-200">
+                                    <SelectTrigger className="bg-slate-50/50 dark:bg-slate-800/50 h-10 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
                                         {mesesDisponiveis.map(m => (
                                             <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
                                         ))}
@@ -408,12 +408,12 @@ export function BankAccountsPage() {
                                 </Select>
                             </div>
                             <div className="space-y-2 w-full sm:w-28">
-                                <Label className="text-xs font-semibold text-slate-500 uppercase">Ano</Label>
+                                <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ano</Label>
                                 <Select value={periodYear.toString()} onValueChange={(v) => setPeriodYear(parseInt(v))}>
-                                    <SelectTrigger className="bg-slate-50/50 h-10 border-slate-200">
+                                    <SelectTrigger className="bg-slate-50/50 dark:bg-slate-800/50 h-10 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
                                         {anosDisponiveis.map(y => (
                                             <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
                                         ))}
@@ -422,12 +422,12 @@ export function BankAccountsPage() {
                             </div>
                         </div>
 
-                        <div className="w-px h-10 bg-slate-200 self-center hidden lg:block mx-1"></div>
+                        <div className="w-px h-10 bg-slate-200 dark:bg-slate-800 self-center hidden lg:block mx-1"></div>
 
                         <div className="space-y-2 w-full lg:w-56">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Cliente</Label>
+                            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cliente</Label>
                             <Combobox
-                                className="bg-slate-50/50 w-full"
+                                className="bg-slate-50/50 dark:bg-slate-800/50 w-full border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                                 options={clienteOptions}
                                 value={clienteFilter}
                                 onChange={(v) => setClienteFilter(v || 'all')}
@@ -437,9 +437,9 @@ export function BankAccountsPage() {
                         </div>
 
                         <div className="space-y-2 w-full lg:w-56">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Empresa</Label>
+                            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Empresa</Label>
                             <Combobox
-                                className="bg-slate-50/50 w-full"
+                                className="bg-slate-50/50 dark:bg-slate-800/50 w-full border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                                 options={contratanteOptions}
                                 value={contratanteFilter}
                                 onChange={(v) => setContratanteFilter(v || 'all')}
@@ -449,14 +449,14 @@ export function BankAccountsPage() {
                         </div>
 
                         <div className="space-y-2 flex-1 w-full min-w-[200px]">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Buscar Trabalhador</Label>
+                            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Buscar Trabalhador</Label>
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                 <Input
                                     placeholder="Nome, código ou IBAN..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 bg-slate-50/50"
+                                    className="pl-9 bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
                         </div>
@@ -466,7 +466,7 @@ export function BankAccountsPage() {
                                 variant={onlyNovos ? "default" : "outline"} 
                                 size="sm"
                                 onClick={() => setOnlyNovos(!onlyNovos)}
-                                className={onlyNovos ? "bg-amber-500 hover:bg-amber-600 border-0" : "border-slate-200 text-slate-700 bg-white"}
+                                className={onlyNovos ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800"}
                             >
                                 <UserCheck className="w-4 h-4 mr-2" />
                                 Novos do Mês
@@ -475,30 +475,30 @@ export function BankAccountsPage() {
                     </div>
 
                     {/* Table Section with Sticky Header & Internal Scroll */}
-                    <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative z-0 max-h-[calc(100vh-320px)] min-h-[450px]">
+                    <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative z-0 max-h-[calc(100vh-320px)] min-h-[450px]">
                         <div className="flex-1 overflow-y-auto overflow-x-auto">
                             <Table>
-                                <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md shadow-[0_2px_4px_0_rgba(0,0,0,0.05)] border-b border-slate-200">
-                                    <TableRow className="hover:bg-transparent">
-                                        <TableHead className="w-[50px] font-bold text-xs text-slate-700 uppercase text-center py-3">Nº</TableHead>
+                                <TableHeader className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md shadow-[0_2px_4px_0_rgba(0,0,0,0.05)] border-b border-slate-200 dark:border-slate-800">
+                                    <TableRow className="hover:bg-transparent border-b border-slate-200 dark:border-slate-800">
+                                        <TableHead className="w-[50px] font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center py-3">Nº</TableHead>
                                         {renderSortHeader('worker_codigo', 'ID', 'w-[90px]')}
                                         {renderSortHeader('worker_nome', 'TRABALHADOR')}
-                                        {renderSortHeader('status_month', 'STATUS', 'text-center border-l')}
+                                        {renderSortHeader('status_month', 'STATUS', 'text-center border-l border-slate-200 dark:border-slate-800')}
                                         {renderSortHeader('data_ingresso', 'DATA ENTRADA', 'text-center')}
-                                        {renderSortHeader('iban', 'IBAN', 'border-l w-[230px]')}
+                                        {renderSortHeader('iban', 'IBAN', 'border-l border-slate-200 dark:border-slate-800 w-[230px]')}
                                         {renderSortHeader('banco', 'BANCO')}
-                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center border-l border-r whitespace-nowrap py-3">CERT. TITUL.</TableHead>
-                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center border-r py-3">AUTORIZAÇÃO</TableHead>
-                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center w-[120px] py-3">AÇÕES</TableHead>
-                                        {renderSortHeader('contratante', 'EMPRESA', 'border-l w-[120px]')}
+                                        <TableHead className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center border-l border-r border-slate-200 dark:border-slate-800 whitespace-nowrap py-3">CERT. TITUL.</TableHead>
+                                        <TableHead className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center border-r border-slate-200 dark:border-slate-800 py-3">AUTORIZAÇÃO</TableHead>
+                                        <TableHead className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center w-[120px] py-3">AÇÕES</TableHead>
+                                        {renderSortHeader('contratante', 'EMPRESA', 'border-l border-slate-200 dark:border-slate-800 w-[120px]')}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
                                             <TableCell colSpan={11} className="h-64 text-center">
-                                                <div className="flex flex-col items-center justify-center text-slate-500 gap-3">
-                                                    <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+                                                <div className="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 gap-3">
+                                                    <Loader2 className="h-6 w-6 animate-spin text-indigo-600 dark:text-indigo-400" />
                                                     <span>Carregando dados financeiros mensais...</span>
                                                 </div>
                                             </TableCell>
@@ -506,10 +506,10 @@ export function BankAccountsPage() {
                                     ) : sortedAccounts.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={11} className="h-64 text-center">
-                                                <div className="flex flex-col items-center justify-center text-slate-500">
-                                                    <AlertCircle className="h-10 w-10 text-slate-300 mb-3" />
-                                                    <span className="font-medium text-slate-600">Nenhum trabalhador encontrado.</span>
-                                                    <span className="text-sm mt-1">Ninguém esteve ativo nesse mês ou os filtros de empresa/cliente estão rígidos.</span>
+                                                <div className="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+                                                    <AlertCircle className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
+                                                    <span className="font-medium text-slate-600 dark:text-slate-300">Nenhum trabalhador encontrado.</span>
+                                                    <span className="text-sm mt-1 text-slate-400 dark:text-slate-500">Ninguém esteve ativo nesse mês ou os filtros de empresa/cliente estão rígidos.</span>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -522,53 +522,53 @@ export function BankAccountsPage() {
                                             const pendingRequest = findActiveRequest(account.worker_id);
                                             
                                             return (
-                                                <TableRow key={account.worker_id} className="hover:bg-slate-50/80 transition-colors group">
-                                                    <TableCell className="text-xs text-slate-400 text-center font-medium pr-0">
+                                                <TableRow key={account.worker_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/60 transition-colors group">
+                                                    <TableCell className="text-xs text-slate-400 dark:text-slate-500 text-center font-medium pr-0">
                                                         {index + 1}
                                                     </TableCell>
 
-                                                    <TableCell className="font-mono text-[11px] text-slate-500 whitespace-nowrap bg-slate-50/30">
-                                                        <span className="bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-sm">{account.worker_codigo}</span>
+                                                    <TableCell className="font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap bg-slate-50/30 dark:bg-slate-800/20">
+                                                        <span className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1.5 py-0.5 shadow-sm">{account.worker_codigo}</span>
                                                     </TableCell>
                                                     
                                                     <TableCell>
                                                         <div className="flex items-center gap-2">
-                                                            <Link to={`/workers/${account.worker_id}`} className="font-semibold text-[13px] text-slate-900 group-hover:text-indigo-600 transition-colors whitespace-nowrap truncate max-w-[200px]">
+                                                            <Link to={`/workers/${account.worker_id}`} className="font-semibold text-[13px] text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-nowrap truncate max-w-[200px]">
                                                                 {account.worker_nome}
                                                             </Link>
                                                             {account.is_new && (
-                                                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200 border-0 text-[9px] px-1.5 py-0">NOVO</Badge>
+                                                                <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900 border-0 text-[9px] px-1.5 py-0">NOVO</Badge>
                                                             )}
                                                             {pendingRequest && (
-                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-800 animate-pulse border border-indigo-200">
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 animate-pulse border border-indigo-200 dark:border-indigo-800">
                                                                     TROCA PENDENTE
                                                                 </span>
                                                             )}
                                                         </div>
                                                     </TableCell>
                                                     
-                                                    <TableCell className="text-center border-l bg-slate-50/30">
+                                                    <TableCell className="text-center border-l border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20">
                                                         <Badge variant="outline" className={`font-medium text-[10px] uppercase tracking-wider h-5 flex items-center justify-center mx-auto w-16 ${
                                                             account.status_month === 'ATIVO' 
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' 
+                                                            : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                                                         }`}>
                                                             {account.status_month}
                                                         </Badge>
                                                     </TableCell>
 
-                                                    <TableCell className="text-center text-[13px] text-slate-600 font-medium">
+                                                    <TableCell className="text-center text-[13px] text-slate-600 dark:text-slate-300 font-medium">
                                                         {formatDate(account.data_ingresso)}
                                                     </TableCell>
                                                     
-                                                    <TableCell className="border-l bg-slate-50/50 group-hover:bg-indigo-50/10 transition-colors">
+                                                    <TableCell className="border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 group-hover:bg-indigo-50/10 dark:group-hover:bg-indigo-950/20 transition-colors">
                                                         <div className="flex items-center justify-between">
                                                             {missingIban ? (
-                                                                <span className="text-[13px] text-rose-500/80 italic font-medium flex items-center">
+                                                                <span className="text-[13px] text-rose-500/80 dark:text-rose-400 italic font-medium flex items-center">
                                                                     <AlertCircle className="w-3.5 h-3.5 mr-1" /> Falta IBAN
                                                                 </span>
                                                             ) : (
-                                                                <span className={`font-mono text-[13px] tracking-tight ${isRevealed ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
+                                                                <span className={`font-mono text-[13px] tracking-tight ${isRevealed ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
                                                                     {isRevealed ? account.iban : maskIban(account.iban)}
                                                                 </span>
                                                             )}
@@ -576,7 +576,7 @@ export function BankAccountsPage() {
                                                             {!missingIban && (
                                                                 <button 
                                                                     onClick={(e) => toggleIbanVisibility(account.worker_id, e)}
-                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md transition-colors"
+                                                                    className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
                                                                     title={isRevealed ? "Ocultar IBAN" : "Revelar IBAN"}
                                                                 >
                                                                     {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -585,7 +585,7 @@ export function BankAccountsPage() {
                                                         </div>
                                                     </TableCell>
                                                     
-                                                    <TableCell className="text-[13px] text-slate-700 font-semibold truncate max-w-[120px]">
+                                                    <TableCell className="text-[13px] text-slate-700 dark:text-slate-200 font-semibold truncate max-w-[120px]">
                                                         {account.banco || '-'}
                                                     </TableCell>
                                                     
