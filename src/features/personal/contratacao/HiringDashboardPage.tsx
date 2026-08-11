@@ -263,6 +263,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         .from('solicitud_targets')
         .select(`
           id, 
+          empresa_id,
           source_assignment_id, 
           source_pedido_id,
           source_pedido_item_id, 
@@ -432,7 +433,8 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           client: t.client || { trade_name: 'N/A - Reemplazo' },
           client_site: t.client_site || { name: 'N/A - Local não definido' },
           pergunta_respuesta: t.solicitud?.pergunta_respuesta || null,
-          pedido_items: [item]
+          pedido_items: [item],
+          empresa_id: t.empresa_id || selectedEmpresaId
         };
         list.push(syntheticPedido);
       }
