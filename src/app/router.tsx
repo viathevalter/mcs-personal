@@ -13,6 +13,7 @@ import { DocumentsPage } from '../features/documents/DocumentsPage';
 import { SeguridadePage } from '../features/seguridade/SeguridadePage';
 import { HoleritesPage } from '../features/holerites/pages/HoleritesPage';
 import { BankAccountsPage } from '../features/bank-accounts/pages/BankAccountsPage';
+import { UpdateIbanPage } from '../features/bank-accounts/pages/UpdateIbanPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ContractSigningPage } from '../features/documents/pages/ContractSigningPage';
 import { WorkerDocCapturePage } from '../features/documents/pages/WorkerDocCapturePage';
@@ -154,6 +155,11 @@ export const router = createBrowserRouter([
     {
         path: '/enviar-documentos/:token',
         element: <WorkerDocCapturePage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/update-iban/:token',
+        element: <UpdateIbanPage />,
         errorElement: <RootErrorBoundary />,
     },
     {
