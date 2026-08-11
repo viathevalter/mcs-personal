@@ -2,19 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { 
-    Loader2, FileText, CheckCircle2, ShieldCheck, PenTool, AlertCircle, Trash2
+    Loader2, FileText, CheckCircle2, ShieldCheck, PenTool, AlertCircle, Trash2,
+    Type, Upload, Sparkles, Lock, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useIbanRequestByToken, useSubmitSignedIbanRequestTerm, useUploadIbanRequestFile } from '../hooks/useIbanRequests';
-import { getIbanRequestFileUrl } from '../api/ibanRequestsApi';
 import { useTranslation } from 'react-i18next';
 
 export function IbanSigningPage() {
     const { token } = useParams<{ token: string }>();
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const currentLanguage = i18n.language || 'pt';
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,9 +24,18 @@ export function IbanSigningPage() {
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
 
+    // Signature Modes: 'draw' | 'upload' | 'type'
+    const [sigMethod, setSigMethod] = useState<'draw' | 'upload' | 'type'>('draw');
+    const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+    const [typedName, setTypedName] = useState('');
+    const [selectedFont, setSelectedFont] = useState<'Caveat' | 'Alex Brush' | 'Great Vibes'>('Caveat');
+
     // Canvas drawing state
     const [isDrawing, setIsDrawing] = useState(false);
-    const [hasSigned, setHasSigned] = useState(false);
+    const [hasDrawn, setHasDrawn] = useState(false);
+
+    // Audit Info
+    const [clientIp, setClientIp] = useState<string>('0.0.0.0');
 
     // Query request data
     const { data: request, isLoading: isLoadingRequest, error: requestError } = useIbanRequestByToken(token || '');
@@ -33,11 +43,32 @@ export function IbanSigningPage() {
     const { mutateAsync: uploadFile } = useUploadIbanRequestFile();
     const { mutateAsync: submitSignedTerm } = useSubmitSignedIbanRequestTerm();
 
+    // Load Google Fonts dynamically for typed signatures
+    useEffect(() => {
+        const linkId = 'google-fonts-signature-iban';
+        if (!document.getElementById(linkId)) {
+            const link = document.createElement('link');
+            link.id = linkId;
+            link.rel = 'stylesheet';
+            link.href = 'https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@400;700&family=Great+Vibes&display=swap';
+            document.head.appendChild(link);
+        }
+
+        // Fetch Client IP
+        fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => setClientIp(data.ip || '0.0.0.0'))
+            .catch(() => setClientIp('0.0.0.0'));
+    }, []);
+
     useEffect(() => {
         if (request) {
             setLoading(false);
             if (request.status === 'assinado' || request.status === 'aprovado') {
                 setSuccess(true);
+            }
+            if (request.worker?.nome && !typedName) {
+                setTypedName(request.worker.nome);
             }
         }
     }, [request]);
@@ -89,11 +120,11 @@ export function IbanSigningPage() {
 
         const { x, y } = getCoordinates(e);
         ctx.lineTo(x, y);
-        ctx.strokeStyle = '#1e1b4b'; // Dark indigo/blue
+        ctx.strokeStyle = '#0f172a'; // Dark slate/black ink
         ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.stroke();
-        setHasSigned(true);
+        setHasDrawn(true);
     };
 
     const stopDrawing = () => {
@@ -106,26 +137,82 @@ export function IbanSigningPage() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        setHasSigned(false);
+        setHasDrawn(false);
+    };
+
+    // Upload Signature Handler
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error(currentLanguage.startsWith('es') ? "La imagem excede 5MB." : "A imagem excede 5MB.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            setUploadedImage(event.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Helper: Generate Typed Signature Image Base64
+    const generateTypedSignatureBase64 = (): string => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 600;
+        tempCanvas.height = 160;
+        const ctx = tempCanvas.getContext('2d');
+        if (!ctx) return '';
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        ctx.font = `44px "${selectedFont}", cursive`;
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(typedName || request?.worker?.nome || 'Assinatura', 300, 80);
+
+        return tempCanvas.toDataURL('image/png');
     };
 
     const handleConfirmAndSign = async () => {
         if (!request || !token) return;
-        if (!hasSigned) {
+
+        // Validation for each mode
+        if (sigMethod === 'draw' && !hasDrawn) {
             toast.error(currentLanguage.startsWith('es') 
-                ? "Por favor, dibuje su firma digital antes de confirmar." 
-                : "Por favor, desenhe sua assinatura digital antes de confirmar.");
+                ? "Por favor, dibuje su firma digital en el cuadro." 
+                : "Por favor, desenhe sua assinatura digital no quadro.");
+            return;
+        }
+        if (sigMethod === 'upload' && !uploadedImage) {
+            toast.error(currentLanguage.startsWith('es') 
+                ? "Por favor, cargue una imagen de su firma." 
+                : "Por favor, envie uma imagem da sua assinatura.");
+            return;
+        }
+        if (sigMethod === 'type' && !typedName.trim()) {
+            toast.error(currentLanguage.startsWith('es') 
+                ? "Por favor, escriba su nombre para la firma." 
+                : "Por favor, digite seu nome para a assinatura.");
             return;
         }
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        
         setSubmitting(true);
 
         try {
-            // Get signature image as base64
-            const signatureBase64 = canvas.toDataURL('image/png');
+            // Determine final signature image base64
+            let signatureBase64 = '';
+
+            if (sigMethod === 'draw' && canvasRef.current) {
+                signatureBase64 = canvasRef.current.toDataURL('image/png');
+            } else if (sigMethod === 'upload' && uploadedImage) {
+                signatureBase64 = uploadedImage;
+            } else if (sigMethod === 'type') {
+                signatureBase64 = generateTypedSignatureBase64();
+            }
 
             // Generate official PDF with signature merged
             const doc = new jsPDF({
@@ -159,130 +246,149 @@ export function IbanSigningPage() {
             y += 18;
 
             // Title
-            doc.setFont('Helvetica', 'bold');
-            doc.setFontSize(14);
-            doc.setTextColor(15, 23, 42); // slate-900
-            
-            const titleText = currentLanguage.startsWith('es')
+            const titleText = currentLanguage.startsWith('es') 
                 ? 'DOCUMENTO DE AUTORIZACIÓN DE CAMBIO DE DATOS BANCARIOS'
                 : 'TERMO DE AUTORIZAÇÃO DE ALTERAÇÃO DE DADOS BANCÁRIOS';
+            
+            doc.setFont('Helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.setTextColor(15, 23, 42);
             doc.text(titleText, width / 2, y, { align: 'center' });
             
             y += 18;
 
             // Body Text
             doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(11);
-            doc.setTextColor(51, 65, 85); // slate-700
+            doc.setFontSize(10.5);
+            doc.setTextColor(51, 65, 85);
             
-            const p1_pt = `Eu, ${request.worker?.nome.toUpperCase()}, portador do código de colaborador ${request.worker?.cod_colab || 'N/A'}, na qualidade de trabalhador ativo na empresa, solicito e autorizo expressamente o departamento financeiro e de recursos humanos a efetuar o pagamento de todas as minhas futuras remunerações, salários, adiantamentos e eventuais reembolsos na conta bancária cujos dados são propostos abaixo, em substituição a qualquer outra conta cadastrada anteriormente no sistema.`;
-            const p1_es = `Yo, ${request.worker?.nome.toUpperCase()}, con código de colaborador ${request.worker?.cod_colab || 'N/A'}, en calidad de trabajador activo en la empresa, solicito y autorizo expresamente al departamento financiero y de recursos humanos a realizar el pago de todas mis futuras remuneraciones, salarios, anticipos y eventuales reembolsos en la cuenta bancaria cuyos datos se proponen a continuación, en sustitución de cualquier otra cuenta registrada anteriormente en el sistema.`;
-            
-            const p1 = currentLanguage.startsWith('es') ? p1_es : p1_pt;
+            const p1 = currentLanguage.startsWith('es')
+                ? `Yo, ${request.worker.nome.toUpperCase()}, con código de colaborador ${request.worker.cod_colab || 'N/A'}, en calidad de trabajador activo en la empresa, solicito y autorizo expresamente al departamento financiero y de recursos humanos a realizar el pago de todas mis futuras remuneraciones, salarios, anticipos y eventuales reembolsos en la cuenta bancaria cuyos datos se proponen a continuación, en sustitución de cualquier otra cuenta registrada anteriormente en el sistema.`
+                : `Eu, ${request.worker.nome.toUpperCase()}, portador do código de colaborador ${request.worker.cod_colab || 'N/A'}, na qualidade de trabalhador ativo na empresa, solicito e autorizo expressamente o departamento financeiro e de recursos humanos a efetuar o pagamento de todas as minhas futuras remunerações, salários, adiantamentos e eventuais reembolsos na conta bancária cujos dados são propostos abaixo, em substituição a qualquer outra conta cadastrada anteriormente no sistema.`;
+
             const splitText = doc.splitTextToSize(p1, width - (2 * margin));
             doc.text(splitText, margin, y);
-            y += (splitText.length * 6) + 12;
+            y += (splitText.length * 6) + 10;
 
             // Box details
-            doc.setDrawColor(99, 102, 241); // indigo-500
-            doc.setFillColor(249, 250, 251); // slate-50
+            doc.setDrawColor(99, 102, 241);
+            doc.setFillColor(249, 250, 251);
             doc.rect(margin, y, width - (2 * margin), 32, 'FD');
 
+            const boxTitle = currentLanguage.startsWith('es') ? 'NUEVOS DATOS BANCARIOS AUTORIZADOS' : 'NOVOS DADOS BANCÁRIOS AUTORIZADOS';
+            const bankLabel = currentLanguage.startsWith('es') ? 'Banco Destinatario:' : 'Banco Destinatário:';
+            const ibanLabel = currentLanguage.startsWith('es') ? 'IBAN de la Cuenta:' : 'IBAN da Conta:';
+
             doc.setFont('Helvetica', 'bold');
-            doc.setFontSize(10);
-            
-            const boxTitle = currentLanguage.startsWith('es')
-                ? 'NUEVOS DATOS BANCARIOS AUTORIZADOS'
-                : 'NOVOS DADOS BANCÁRIOS AUTORIZADOS';
+            doc.setFontSize(9.5);
             doc.text(boxTitle, margin + 5, y + 8);
 
             doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(10);
-            const bankLabel = currentLanguage.startsWith('es') ? 'Banco Destinatario:' : 'Banco Destinatário:';
-            const ibanLabel = currentLanguage.startsWith('es') ? 'IBAN de la Cuenta:' : 'IBAN da Conta:';
-            
-            doc.text(`${bankLabel.padEnd(22)} ${request.new_banco || '-'}`, margin + 5, y + 16);
+            doc.setFontSize(9.5);
+            doc.text(`${bankLabel}   ${request.new_banco || '-'}`, margin + 5, y + 16);
             doc.setFont('Helvetica', 'bold');
-            doc.text(`${ibanLabel.padEnd(22)} ${request.new_iban || '-'}`, margin + 5, y + 24);
+            doc.text(`${ibanLabel}          ${request.new_iban || '-'}`, margin + 5, y + 24);
 
-            y += 44;
+            y += 42;
 
-            // Confirmation and Signature Info
+            // Confirmation Text
             doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(10);
+            doc.setFontSize(9.5);
             doc.setTextColor(100, 116, 139);
+            const p2 = currentLanguage.startsWith('es')
+                ? 'Confirmo que soy el titular de la cuenta indicada arriba y asumo total responsabilidad por la veracidad de estos datos bancarios, eximiendo a la empresa de cualquier responsabilidad por retrasos o fallos de pago derivados de datos incorrectos introducidos por mí.'
+                : 'Confirmo que sou o titular da conta indicada acima e assumo total responsabilidade pela veracidade destas informações bancárias, isentando a empresa de qualquer responsabilidade por atrasos ou falhas de pagamento decorrentes de dados incorretos preenchidos por mim.';
             
-            const p2_pt = 'Confirmo que sou o titular da conta indicada acima e assumo total responsabilidade pela veracidade destas informações bancárias, isentando a empresa de qualquer responsabilidade por atrasos ou falhas de pagamento decorrentes de dados incorretos preenchidos por mim.';
-            const p2_es = 'Confirmo que soy el titular de la cuenta indicada arriba y asumo total responsabilidad por la veracidad de estos datos bancarios, eximiendo a la empresa de cualquier responsabilidad por retrasos o fallos de pago derivados de datos incorrectos introducidos por mí.';
-            
-            const p2 = currentLanguage.startsWith('es') ? p2_es : p2_pt;
             const splitText2 = doc.splitTextToSize(p2, width - (2 * margin));
             doc.text(splitText2, margin, y);
-            y += (splitText2.length * 5) + 15;
+            y += (splitText2.length * 5) + 12;
 
             // Date
-            const today = new Date().toLocaleDateString(currentLanguage.startsWith('es') ? 'es-ES' : 'pt-BR', {
+            const now = new Date();
+            const today = now.toLocaleDateString(currentLanguage.startsWith('es') ? 'es-ES' : 'pt-BR', {
                 day: '2-digit',
                 month: 'long',
                 year: 'numeric'
             });
-            doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(51, 65, 85);
+            const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
             const dateLabel = currentLanguage.startsWith('es') ? 'Fecha de firma:' : 'Data de assinatura:';
+            doc.setFont('Helvetica', 'normal');
+            doc.setFontSize(9.5);
+            doc.setTextColor(51, 65, 85);
             doc.text(`${dateLabel} ${today}`, margin, y);
 
-            y += 28;
+            y += 24;
 
             // Signature Lines
             const colWidth = (width - (2 * margin) - 15) / 2;
             
-            // Add Signature Image over the worker signature line
-            doc.addImage(signatureBase64, 'PNG', margin + 5, y - 22, colWidth - 10, 18);
-            
-            // Col 1: Worker
-            doc.setDrawColor(148, 163, 184); // slate-400
+            // Col 1: Worker Signature Line & Image
             doc.line(margin, y, margin + colWidth, y);
+            const workerSigLabel = currentLanguage.startsWith('es') ? 'Firma del Trabajador' : 'Assinatura do Trabalhador';
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(9);
-            
-            const workerSigLabel = currentLanguage.startsWith('es') ? 'Firma del Trabajador' : 'Assinatura do Trabalhador';
             doc.text(workerSigLabel, margin + (colWidth / 2), y + 5, { align: 'center' });
             doc.setFont('Helvetica', 'normal');
             doc.setFontSize(8);
-            doc.text(request.worker?.nome || '', margin + (colWidth / 2), y + 9, { align: 'center' });
+            doc.text(request.worker.nome, margin + (colWidth / 2), y + 9, { align: 'center' });
 
-            // Col 2: Company/HR
+            // Draw captured signature image on top of line
+            if (signatureBase64) {
+                doc.addImage(signatureBase64, 'PNG', margin + (colWidth / 2) - 25, y - 22, 50, 20);
+            }
+
+            // Col 2: Company/HR Signature Line
             doc.line(width - margin - colWidth, y, width - margin, y);
+            const hrSigLabel = currentLanguage.startsWith('es') ? 'Recursos Humanos (Validación)' : 'Recursos Humanos (Validação)';
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(9);
-            
-            const hrSigLabel = currentLanguage.startsWith('es') ? 'Recursos Humanos (Validación)' : 'Recursos Humanos (Validação)';
             doc.text(hrSigLabel, width - margin - (colWidth / 2), y + 5, { align: 'center' });
 
-            // Output PDF as Blob for upload
+            // Audit Stamp Box at Footer
+            y += 24;
+            doc.setDrawColor(226, 232, 240);
+            doc.setFillColor(248, 250, 252);
+            doc.rect(margin, y, width - (2 * margin), 18, 'FD');
+
+            doc.setFont('Helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('REGISTRO DE VALIDAÇÃO E ASSINATURA DIGITAL - MCS SYSTEM AUDIT', margin + 3, y + 5);
+
+            doc.setFont('Helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Data/Hora: ${today} ${formattedTime}  |  Endereço IP: ${clientIp}  |  Método: ${sigMethod.toUpperCase()}`, margin + 3, y + 10);
+            doc.text(`Hash de Segurança / Token: ${token}`, margin + 3, y + 14);
+
+            // Save PDF Blob
             const pdfOutput = doc.output('blob');
             const pdfFile = new File([pdfOutput], `termo_assinado_${token}.pdf`, { type: 'application/pdf' });
 
-            // 1. Upload to Supabase bucket
+            // Upload final signed PDF
             const path = await uploadFile({
-                token,
+                token: token,
                 file: pdfFile,
                 docType: 'termo_assinado'
             });
 
-            // 2. Update status to 'assinado' in DB
-            await submitSignedTerm({ token, termoAssinadoUrl: path });
+            // Submit final status as 'assinado'
+            await submitSignedTerm({
+                token: token,
+                termoAssinadoUrl: path
+            });
 
             setSuccess(true);
             toast.success(currentLanguage.startsWith('es') 
-                ? "¡Termo firmado digitalmente con éxito!" 
-                : "Termo assinado digitalmente com sucesso!");
+                ? "¡Autorización firmada con éxito!" 
+                : "Autorização assinada com sucesso!");
 
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            toast.error(err.message || 'Erro ao processar assinatura.');
+            toast.error(currentLanguage.startsWith('es') 
+                ? "Error al procesar la firma." 
+                : "Erro ao processar a assinatura.");
         } finally {
             setSubmitting(false);
         }
@@ -290,113 +396,72 @@ export function IbanSigningPage() {
 
     if (isLoadingRequest || loading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-slate-200">
-                <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-                <p className="text-sm font-medium">
-                    {currentLanguage.startsWith('es') 
-                        ? "Cargando documento de autorización bancaria..." 
-                        : "Carregando documento de autorização bancária..."}
-                </p>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                    <p className="text-sm">{currentLanguage.startsWith('es') ? "Cargando documento..." : "Carregando documento..."}</p>
+                </div>
             </div>
         );
     }
 
-    if (requestError || !request || request.status === 'pendente_envio' || request.status === 'enviado' || request.status === 'rejeitado') {
+    if (requestError || !request) {
         return (
-            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-                <div className="max-w-md w-full bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 text-center shadow-xl backdrop-blur-md">
-                    <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">
-                        {currentLanguage.startsWith('es') ? "Firma No Disponible" : "Assinatura Não Disponível"}
-                    </h2>
-                    <p className="text-slate-400 text-sm mb-6">
-                        {currentLanguage.startsWith('es') 
-                            ? "Este enlace no está listo para firma, ya ha sido firmado o el documento no ha sido generado por el gestor de RRHH." 
-                            : "Este link não está pronto para assinatura, já foi assinado ou o documento não foi gerado pelo gestor de Recursos Humanos."}
-                    </p>
-                </div>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                <Card className="max-w-md bg-slate-900 border-slate-800 text-slate-200">
+                    <CardHeader className="text-center">
+                        <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-2" />
+                        <CardTitle className="text-lg">
+                            {currentLanguage.startsWith('es') ? "Enlace no válido o caducado" : "Link Inválido ou Expirado"}
+                        </CardTitle>
+                        <CardDescription className="text-slate-400 text-xs">
+                            {currentLanguage.startsWith('es') 
+                                ? "No pudimos encontrar esta solicitud de firma de IBAN. Verifique el enlace." 
+                                : "Não foi possível localizar esta solicitação de assinatura de IBAN."}
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
             </div>
         );
     }
 
     if (success) {
         return (
-            <div className="min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/80 flex flex-col items-center justify-center p-4">
-                <div className="max-w-md w-full bg-slate-900/60 border border-indigo-500/20 rounded-2xl p-8 text-center shadow-2xl backdrop-blur-xl relative">
-                    {/* Language Switcher */}
-                    <div className="absolute top-4 right-4 flex gap-1">
-                        <button 
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded ${currentLanguage.startsWith('pt') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800/50'}`}
-                            onClick={() => i18n.changeLanguage('pt')}
-                        >
-                            PT
-                        </button>
-                        <button 
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded ${currentLanguage.startsWith('es') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800/50'}`}
-                            onClick={() => i18n.changeLanguage('es')}
-                        >
-                            ES
-                        </button>
-                    </div>
-
-                    <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-3">
-                        {currentLanguage.startsWith('es') ? "¡Termo Firmado!" : "Termo Assinado!"}
-                    </h2>
-                    <p className="text-indigo-200 text-sm leading-relaxed mb-6">
-                        {currentLanguage.startsWith('es')
-                            ? `Hola, ${request.worker?.nome}. Su autorización de cambio de IBAN ha sido firmada electrónicamente con éxito.`
-                            : `Olá, ${request.worker?.nome}. Sua autorização de alteração de IBAN foi assinada eletronicamente com sucesso.`}
-                    </p>
-                    <div className="bg-indigo-950/40 border border-indigo-500/10 rounded-xl p-4 text-left text-xs text-indigo-300 mb-6 leading-relaxed flex items-center gap-3">
-                        <ShieldCheck className="w-8 h-8 text-emerald-400 flex-shrink-0" />
-                        <div>
-                            <p className="font-semibold text-white mb-0.5">
-                                {currentLanguage.startsWith('es') ? "Documento Concluido" : "Documento Concluído"}
-                            </p>
-                            <p className="text-[11px]">
-                                {currentLanguage.startsWith('es') 
-                                    ? "El departamento de Recursos Humanos ya ha sido notificado y procederá a activar su nueva cuenta bancaria para los próximos pagos." 
-                                    : "O departamento de Recursos Humanos já foi notificado e procederá com a ativação da sua nova conta corrente para os próximos pagamentos."}
-                            </p>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                <Card className="max-w-md bg-slate-900 border-slate-800 text-slate-200 shadow-2xl">
+                    <CardHeader className="text-center">
+                        <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-3" />
+                        <CardTitle className="text-xl text-white">
+                            {currentLanguage.startsWith('es') ? "¡Termo Firmado!" : "Termo Assinado!"}
+                        </CardTitle>
+                        <CardDescription className="text-slate-400 text-xs mt-1">
+                            {currentLanguage.startsWith('es') 
+                                ? `Gracias, ${request.worker?.nome}. La autorización ha sido registrada correctamente.` 
+                                : `Obrigado, ${request.worker?.nome}. A sua autorização foi assinada e arquivada com sucesso.`}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-2">
+                        <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400 space-y-1.5 font-mono">
+                            <div className="flex justify-between">
+                                <span>Status:</span>
+                                <span className="text-emerald-400 font-bold">ASSINADO E VALIDADO</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>IP de Registro:</span>
+                                <span className="text-slate-200">{clientIp}</span>
+                            </div>
                         </div>
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                        {currentLanguage.startsWith('es') 
-                            ? "Gracias por su colaboración. Puede cerrar esta ventana." 
-                            : "Obrigado pela sua colaboração. Você pode fechar esta janela."}
-                    </p>
-                </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 p-4 relative">
+        <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-10 sm:px-6 lg:px-8">
             
-            {/* Language Switcher */}
-            <div className="absolute top-4 right-4 flex gap-1 z-55">
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className={`h-7 px-2 text-[10px] font-bold rounded ${currentLanguage.startsWith('pt') ? 'bg-indigo-600 text-white hover:bg-indigo-600' : 'text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800'}`}
-                    onClick={() => i18n.changeLanguage('pt')}
-                >
-                    PT
-                </Button>
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className={`h-7 px-2 text-[10px] font-bold rounded ${currentLanguage.startsWith('es') ? 'bg-indigo-600 text-white hover:bg-indigo-600' : 'text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800'}`}
-                    onClick={() => i18n.changeLanguage('es')}
-                >
-                    ES
-                </Button>
-            </div>
-
-            <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
+            {/* Header */}
+            <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                 <div className="flex justify-center mb-4">
                     <div className="w-12 h-12 bg-indigo-600/15 border border-indigo-500/30 rounded-2xl flex items-center justify-center text-indigo-400 shadow-lg">
                         <PenTool className="w-6 h-6" />
@@ -453,68 +518,195 @@ export function IbanSigningPage() {
                         </p>
                     </div>
 
-                    {/* Interactive Canvas Signature Box */}
-                    <div className="space-y-3">
+                    {/* Signature Method Selector (3 Modes) */}
+                    <div className="space-y-4 pt-2">
+                        
                         <div className="flex items-center justify-between">
-                            <Label className="text-slate-300 text-sm font-medium flex items-center">
-                                <PenTool className="w-4 h-4 mr-1.5 text-indigo-400" />
-                                {currentLanguage.startsWith('es') ? "Dibuje su firma en el cuadro inferior:" : "Desenhe sua assinatura no quadro abaixo:"}
+                            <Label className="text-slate-200 text-xs font-bold uppercase tracking-wider flex items-center">
+                                <ShieldCheck className="w-4 h-4 mr-1.5 text-indigo-400" />
+                                {currentLanguage.startsWith('es') ? "Elija el Método de Firma:" : "Escolha o Método de Assinatura:"}
                             </Label>
-                            {hasSigned && (
-                                <button 
-                                    type="button" 
-                                    onClick={clearCanvas} 
-                                    className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    {currentLanguage.startsWith('es') ? "Limpiar" : "Limpar"}
-                                </button>
-                            )}
                         </div>
 
-                        <div className="border-2 border-dashed border-slate-300 bg-white rounded-xl overflow-hidden h-44 relative shadow-sm">
-                            <canvas
-                                ref={canvasRef}
-                                width={600}
-                                height={176}
-                                className="w-full h-full cursor-crosshair touch-none bg-white"
-                                onMouseDown={startDrawing}
-                                onMouseMove={draw}
-                                onMouseUp={stopDrawing}
-                                onMouseLeave={stopDrawing}
-                                onTouchStart={startDrawing}
-                                onTouchMove={draw}
-                                onTouchEnd={stopDrawing}
-                            />
-                            {!hasSigned && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-600 text-xs">
-                                    <PenTool className="w-5 h-5 mb-1.5 opacity-30 animate-pulse" />
-                                    <span>
-                                        {currentLanguage.startsWith('es') ? "Use su dedo o ratón para firmar aquí" : "Use o dedo ou mouse para assinar aqui"}
+                        {/* Mode Buttons */}
+                        <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setSigMethod('draw')}
+                                className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                    sigMethod === 'draw' 
+                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                <PenTool className="w-3.5 h-3.5" />
+                                {currentLanguage.startsWith('es') ? "Dibujar" : "Desenhar"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSigMethod('type')}
+                                className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                    sigMethod === 'type' 
+                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                <Type className="w-3.5 h-3.5" />
+                                {currentLanguage.startsWith('es') ? "Escribir" : "Escrever"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSigMethod('upload')}
+                                className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                    sigMethod === 'upload' 
+                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                <Upload className="w-3.5 h-3.5" />
+                                {currentLanguage.startsWith('es') ? "Subir Foto" : "Subir Foto"}
+                            </button>
+                        </div>
+
+                        {/* MODE 1: DRAW CANVAS */}
+                        {sigMethod === 'draw' && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center text-xs text-slate-400">
+                                    <span>{currentLanguage.startsWith('es') ? "Use su dedo o ratón para firmar:" : "Use o dedo ou mouse para assinar:"}</span>
+                                    {hasDrawn && (
+                                        <button 
+                                            type="button" 
+                                            onClick={clearCanvas} 
+                                            className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            {currentLanguage.startsWith('es') ? "Limpiar" : "Limpar"}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="border-2 border-dashed border-slate-300 bg-white rounded-xl overflow-hidden h-44 relative shadow-sm">
+                                    <canvas
+                                        ref={canvasRef}
+                                        width={600}
+                                        height={176}
+                                        className="w-full h-full cursor-crosshair touch-none bg-white"
+                                        onMouseDown={startDrawing}
+                                        onMouseMove={draw}
+                                        onMouseUp={stopDrawing}
+                                        onMouseLeave={stopDrawing}
+                                        onTouchStart={startDrawing}
+                                        onTouchMove={draw}
+                                        onTouchEnd={stopDrawing}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MODE 2: TYPED NAME WITH CURSIVE FONTS */}
+                        {sigMethod === 'type' && (
+                            <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                                <div>
+                                    <Label className="text-slate-400 text-xs block mb-1">
+                                        {currentLanguage.startsWith('es') ? "Nombre Completo para Firma:" : "Nome Completo para Assinatura:"}
+                                    </Label>
+                                    <Input 
+                                        value={typedName}
+                                        onChange={(e) => setTypedName(e.target.value)}
+                                        placeholder="Ex: João da Silva"
+                                        className="bg-slate-900 border-slate-700 text-white text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label className="text-slate-400 text-xs block mb-1">Estilo de Letra Caligráfica:</Label>
+                                    <div className="flex gap-2">
+                                        {(['Caveat', 'Alex Brush', 'Great Vibes'] as const).map(font => (
+                                            <button
+                                                key={font}
+                                                type="button"
+                                                onClick={() => setSelectedFont(font)}
+                                                className={`flex-1 py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                                                    selectedFont === font 
+                                                        ? 'bg-indigo-600 text-white border-indigo-500' 
+                                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                                                }`}
+                                            >
+                                                {font}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Typed Signature Preview Box */}
+                                <div className="border border-slate-300 bg-white rounded-xl h-28 flex items-center justify-center p-4 overflow-hidden">
+                                    <span 
+                                        style={{ fontFamily: `'${selectedFont}', cursive` }}
+                                        className="text-3xl text-slate-900 select-none text-center"
+                                    >
+                                        {typedName || request.worker?.nome || 'Assinatura'}
                                     </span>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* MODE 3: UPLOAD SIGNATURE IMAGE */}
+                        {sigMethod === 'upload' && (
+                            <div className="space-y-2">
+                                <div className="border-2 border-dashed border-slate-700 bg-slate-950/60 rounded-xl p-6 text-center hover:border-indigo-500 transition-colors cursor-pointer">
+                                    <input 
+                                        type="file" 
+                                        accept="image/png,image/jpeg,image/jpg" 
+                                        className="hidden" 
+                                        id="sig-upload-input"
+                                        onChange={handleImageUpload}
+                                    />
+                                    <label htmlFor="sig-upload-input" className="cursor-pointer block">
+                                        {uploadedImage ? (
+                                            <div className="flex flex-col items-center">
+                                                <img src={uploadedImage} alt="Assinatura" className="max-h-24 max-w-full object-contain mb-2 bg-white p-2 rounded-lg" />
+                                                <span className="text-xs text-indigo-400 font-semibold">Clique para substituir imagem</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center text-slate-400 gap-1.5">
+                                                <Upload className="w-8 h-8 text-indigo-400 mb-1" />
+                                                <span className="text-xs font-semibold text-slate-200">
+                                                    {currentLanguage.startsWith('es') ? "Haga clic para subir la foto de su firma" : "Clique para enviar a foto da sua assinatura"}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">Formatos aceitos: PNG, JPG (Máx 5MB)</span>
+                                            </div>
+                                        )}
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+
                     </div>
 
-                    {/* CONFIRM BUTTON */}
-                    <div className="pt-2">
-                        <Button 
-                            type="button" 
-                            onClick={handleConfirmAndSign}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium h-12 shadow-lg border-0 shadow-indigo-600/20 text-sm flex items-center justify-center"
-                            disabled={submitting || !hasSigned}
-                        >
-                            {submitting ? (
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            ) : (
-                                <ShieldCheck className="w-5 h-5 mr-2" />
-                            )}
-                            {submitting 
-                                ? (currentLanguage.startsWith('es') ? "Procesando firma..." : "Processando assinatura...")
-                                : (currentLanguage.startsWith('es') ? "Confirmar y Firmar Autorización" : "Confirmar e Assinar Autorização")}
-                        </Button>
+                    {/* Audit Notice */}
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+                        <Lock className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                        <span>
+                            {currentLanguage.startsWith('es') 
+                                ? `Registro seguro auditado. IP detectado: ${clientIp}`
+                                : `Registro seguro com carimbo digital. IP detectado: ${clientIp}`}
+                        </span>
                     </div>
+
+                    {/* Submit Button */}
+                    <Button 
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm h-11 border-0 shadow-lg shadow-indigo-600/20"
+                        onClick={handleConfirmAndSign}
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        ) : (
+                            <ShieldCheck className="w-5 h-5 mr-2" />
+                        )}
+                        {currentLanguage.startsWith('es') ? "Confirmar y Firmar Autorización" : "Confirmar e Assinar Autorização"}
+                    </Button>
                 </div>
             </div>
         </div>
