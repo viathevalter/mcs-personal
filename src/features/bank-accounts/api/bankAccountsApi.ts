@@ -11,8 +11,18 @@ export interface UpsertBankAccountInput {
 export const upsertWorkerBankBatch = async (payloads: UpsertBankAccountInput[]): Promise<void> => {
     if (!payloads.length) return;
     
+    // Deduplicate payloads by worker_id (keep the last/latest entry if duplicate rows exist in Excel)
+    const uniquePayloadsMap = new Map<string, UpsertBankAccountInput>();
+    for (const p of payloads) {
+        if (p.worker_id) {
+            uniquePayloadsMap.set(p.worker_id, p);
+        }
+    }
+    const uniquePayloads = Array.from(uniquePayloadsMap.values());
+    if (!uniquePayloads.length) return;
+
     // Extract unique worker IDs to deactivate their current active IBANs
-    const workerIds = [...new Set(payloads.map(p => p.worker_id))];
+    const workerIds = uniquePayloads.map(p => p.worker_id);
     
     // First, set all currently ATIVO ibans for these workers to INATIVO
     await supabase
@@ -22,8 +32,8 @@ export const upsertWorkerBankBatch = async (payloads: UpsertBankAccountInput[]):
         .eq('status', 'ATIVO')
         .in('worker_id', workerIds);
 
-    // Then, insert the new ones
-    const inserts = payloads.map(p => ({
+    // Then, insert the new single active IBAN per worker
+    const inserts = uniquePayloads.map(p => ({
         worker_id: p.worker_id,
         banco: p.banco,
         iban: p.iban,
