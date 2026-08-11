@@ -86,6 +86,7 @@ export function DocumentacionTasksPage() {
     const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
     const [selectedContratante, setSelectedContratante] = useState<string>('');
     const [selectedContractType, setSelectedContractType] = useState<string>('');
     const [generationSuccess, setGenerationSuccess] = useState<{
@@ -569,12 +570,19 @@ export function DocumentacionTasksPage() {
 
             let displayItems: any[] = [];
             if (targets && targets.length > 0) {
-                displayItems = targets.map((t: any) => ({
-                    id: t.id,
-                    worker: t.target_worker || t.source_worker,
-                    action_type: t.action_type || 'substituição',
-                    status: t.status || 'pendente'
-                }));
+                displayItems = targets.map((t: any) => {
+                    const isReplacement = t.action_type === 'replace' || t.requires_replacement === true;
+                    return {
+                        id: t.id,
+                        worker: t.target_worker || (isReplacement ? null : t.source_worker),
+                        replaced_worker: isReplacement ? t.source_worker : null,
+                        action_type: t.action_type || 'substituição',
+                        status: t.status || 'pendente',
+                        is_replacement: isReplacement,
+                        has_substitute: !!t.target_worker,
+                        target_job_function_name: t.target_job_function_name
+                    };
+                });
             } else if (pedidoId) {
                 // Fetch from worker_assignments for this specific order
                 const { data: assignments, error: assignErr } = await supabase
@@ -860,6 +868,7 @@ Muchas gracias.`;
             setPreviewBlob(null);
             const res = await generateContract({
                 worker_id: selectedWorkerId,
+                assignment_id: selectedAssignmentId || undefined,
                 contratante: selectedContratante,
                 contract_type: selectedContractType,
                 empresa_id: selectedEmpresaId || undefined,
@@ -2836,22 +2845,49 @@ Muchas gracias.`;
                                         
                                         // Determinar status do convite de documentos
                                         const docStatus = item.docRequest?.status;
+                                        const isVacantReplacement = item.is_replacement && !item.worker;
                                         
                                         return (
                                             <TableRow key={item.id}>
                                                 <TableCell>
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-200">
-                                                        {item.worker?.nome || 'N/A'}
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground">
-                                                        Cód: {item.worker?.cod_colab || 'N/A'} | Tel: {phone}
-                                                    </div>
+                                                    {isVacantReplacement ? (
+                                                        <>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
+                                                                    A Definir (Substituto)
+                                                                </span>
+                                                            </div>
+                                                            {item.replaced_worker && (
+                                                                <div className="text-xs text-rose-600 dark:text-rose-400 mt-1.5 font-medium">
+                                                                    Substituindo: {item.replaced_worker.nome} (Cód: {item.replaced_worker.cod_colab || 'N/A'})
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                {item.worker?.nome || 'N/A'}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Cód: {item.worker?.cod_colab || 'N/A'} | Tel: {phone}
+                                                            </div>
+                                                            {item.is_replacement && item.replaced_worker && (
+                                                                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                                                                    Substituindo: {item.replaced_worker.nome}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-sm font-medium">
-                                                    {item.worker?.funcion || 'N/A'}
+                                                    {item.worker?.funcion || item.target_job_function_name || item.replaced_worker?.funcion || 'N/A'}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {!item.docRequest ? (
+                                                    {isVacantReplacement ? (
+                                                        <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200">
+                                                            Aguardando Contratação
+                                                        </Badge>
+                                                    ) : !item.docRequest ? (
                                                         <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200">
                                                             Sem Link de Envio
                                                         </Badge>
@@ -2871,7 +2907,7 @@ Muchas gracias.`;
                                                 </TableCell>
                                                 <TableCell className="text-right space-x-1.5 whitespace-nowrap">
                                                     {/* Analisar Button */}
-                                                    {docStatus === 'submitted' && (
+                                                    {docStatus === 'submitted' && item.worker && (
                                                         <Button
                                                             size="sm"
                                                             className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
@@ -2889,6 +2925,7 @@ Muchas gracias.`;
                                                         className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5"
                                                         onClick={() => handleSendWhatsApp(item)}
                                                         title="Enviar mensagem com template via WhatsApp"
+                                                        disabled={isVacantReplacement}
                                                     >
                                                         <Send className="h-3 w-3" />
                                                         WhatsApp
@@ -2902,6 +2939,7 @@ Muchas gracias.`;
                                                              className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
                                                              onClick={() => handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome)}
                                                              title="Copiar mensagem com link formatado"
+                                                             disabled={isVacantReplacement}
                                                          >
                                                              <Copy className="h-3.5 w-3.5 mr-1" />
                                                              Link
@@ -2912,6 +2950,7 @@ Muchas gracias.`;
                                                              variant="outline"
                                                              className="text-slate-600 hover:text-indigo-600"
                                                              onClick={async () => {
+                                                                  if (isVacantReplacement) return;
                                                                   try {
                                                                       const empId = taskMetadata?.empresaId || selectedEmpresaId!;
                                                                       const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
@@ -2923,6 +2962,7 @@ Muchas gracias.`;
                                                                   }
                                                               }}
                                                              title="Criar e copiar mensagem com link"
+                                                             disabled={isVacantReplacement}
                                                          >
                                                              <Plus className="h-3.5 w-3.5 mr-1" />
                                                              Criar Link
@@ -2935,13 +2975,16 @@ Muchas gracias.`;
                                                         variant="ghost"
                                                         className="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800"
                                                         onClick={() => {
+                                                            if (isVacantReplacement) return;
                                                             setSelectedWorkerId(item.worker.id);
+                                                            setSelectedAssignmentId(item.id);
                                                             if (taskMetadata?.empresaId) setSelectedEmpresaId(taskMetadata.empresaId);
                                                             if (taskMetadata?.clientId) setRequestClientId(taskMetadata.clientId);
                                                             setWorkersDialogOpen(false);
                                                             setGenerateDialogOpen(true);
                                                         }}
                                                         title="Emitir contrato de trabalho"
+                                                        disabled={isVacantReplacement}
                                                     >
                                                         <FileText className="h-3.5 w-3.5" />
                                                     </Button>
