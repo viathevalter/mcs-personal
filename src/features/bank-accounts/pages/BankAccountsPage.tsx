@@ -174,6 +174,10 @@ export function BankAccountsPage() {
         return ibanRequests?.find(req => req.worker_id === workerId && ['enviado', 'aguardando_assinatura', 'assinado'].includes(req.status));
     };
 
+    const setTokenForReopen = (_token: string) => {
+        setCreateRequestOpen(true);
+    };
+
     return (
         <div className="p-8 max-w-[1700px] mx-auto flex flex-col h-full bg-slate-50">
             {/* Header Section */}
@@ -308,6 +312,8 @@ export function BankAccountsPage() {
                         <RefreshCw className="w-6 h-6" />
                     </div>
                 </div>
+            </div>
+
             {/* Active KPI Filter Indicator Badge */}
             {kpiFilter !== 'ALL' && (
                 <div className="flex items-center gap-2 mb-6 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-medium text-indigo-900 w-fit shadow-sm animate-in fade-in duration-200">
@@ -850,11 +856,4 @@ export function BankAccountsPage() {
             )}
         </div>
     );
-
-    // Small helper helper to show copy link if someone wants to re-check
-    function setTokenForReopen(token: string) {
-        setCreateRequestOpen(true);
-        // Force the dialog state to show this token
-        // CreateIbanRequestDialog checks for workerId and generates, but we can hook into it
-    }
 }
