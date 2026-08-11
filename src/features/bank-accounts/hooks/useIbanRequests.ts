@@ -6,7 +6,9 @@ import {
     submitIbanRequest, 
     approveIbanRequest, 
     rejectIbanRequest, 
-    uploadIbanRequestFile
+    uploadIbanRequestFile,
+    setIbanRequestAwaitingSignature,
+    submitSignedIbanRequestTerm
 } from '../api/ibanRequestsApi';
 
 export const useAllIbanRequests = (empresaId?: string) => {
@@ -78,5 +80,27 @@ export const useUploadIbanRequestFile = () => {
     return useMutation({
         mutationFn: (variables: { token: string; file: File; docType: 'iban_photo' | 'comprovante' | 'termo_assinado' }) => 
             uploadIbanRequestFile(variables.token, variables.file, variables.docType)
+    });
+};
+
+export const useSetIbanRequestAwaitingSignature = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (variables: { id: string; termoGeradoUrl: string; empresaId: string }) => 
+            setIbanRequestAwaitingSignature(variables.id, variables.termoGeradoUrl),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['all-iban-change-requests', variables.empresaId] });
+        }
+    });
+};
+
+export const useSubmitSignedIbanRequestTerm = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (variables: { token: string; termoAssinadoUrl: string }) => 
+            submitSignedIbanRequestTerm(variables.token, variables.termoAssinadoUrl),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['iban-change-request-by-token', variables.token] });
+        }
     });
 };

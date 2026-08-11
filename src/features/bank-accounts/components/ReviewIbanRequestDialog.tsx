@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import { 
     Dialog, DialogContent, DialogHeader, DialogTitle, 
@@ -6,16 +6,20 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
     Loader2, FileText, CheckCircle2, XCircle, Download, 
-    Upload, Eye, Trash2, ArrowRight, Info, ShieldCheck
+    Upload, Eye, Trash2, ArrowRight, Info, ShieldCheck, Copy, Share2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { IbanChangeRequest } from '../api/ibanRequestsApi';
 import { getIbanRequestFileUrl, updateIbanRequestUrls } from '../api/ibanRequestsApi';
-import { useApproveIbanRequest, useRejectIbanRequest, useUploadIbanRequestFile } from '../hooks/useIbanRequests';
+import { 
+    useApproveIbanRequest, 
+    useRejectIbanRequest, 
+    useUploadIbanRequestFile, 
+    useSetIbanRequestAwaitingSignature 
+} from '../hooks/useIbanRequests';
 
 interface ReviewIbanRequestDialogProps {
     open: boolean;
@@ -30,6 +34,7 @@ export function ReviewIbanRequestDialog({
     const { mutateAsync: approveRequest, isPending: isApproving } = useApproveIbanRequest();
     const { mutateAsync: rejectRequest, isPending: isRejecting } = useRejectIbanRequest();
     const { mutateAsync: uploadFile } = useUploadIbanRequestFile();
+    const { mutateAsync: setAwaitingSignature, isPending: isSettingAwaitingSig } = useSetIbanRequestAwaitingSignature();
 
     const [rejectionReason, setRejectionReason] = useState('');
     const [showRejectionForm, setShowRejectionForm] = useState(false);
@@ -44,6 +49,12 @@ export function ReviewIbanRequestDialog({
     const [isViewingFile, setIsViewingFile] = useState<string | null>(null);
 
     const termoInputRef = useRef<HTMLInputElement>(null);
+
+    // Sync status updates when request changes
+    useEffect(() => {
+        setTermoGeradoUrl(request.termo_gerado_url);
+        setTermoAssinadoUrl(request.termo_assinado_url);
+    }, [request]);
 
     const maskIban = (iban: string | null | undefined) => {
         if (!iban) return '-';
@@ -68,8 +79,8 @@ export function ReviewIbanRequestDialog({
         }
     };
 
-    // PDF Generation using jsPDF
-    const handleGeneratePdf = async () => {
+    // PDF Generation using jsPDF (Blank form for signing)
+    const handleGeneratePdfAndAwaitingSignature = async () => {
         if (!request.worker) return;
         setIsGeneratingPdf(true);
 
@@ -85,7 +96,7 @@ export function ReviewIbanRequestDialog({
             const width = doc.internal.pageSize.getWidth();
             let y = 30;
 
-            // Logo Placeholder/Header
+            // Logo Header
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(22);
             doc.setTextColor(30, 41, 59); // slate-800
@@ -182,22 +193,24 @@ export function ReviewIbanRequestDialog({
             
             // Save as Blob for upload
             const pdfOutput = doc.output('blob');
-            const pdfFile = new File([pdfOutput], `termo_autorizacao_${request.token}.pdf`, { type: 'application/pdf' });
+            const pdfFile = new File([pdfOutput], `termo_autorizacao_gerado_${request.token}.pdf`, { type: 'application/pdf' });
 
             // Upload generated PDF to Supabase storage
             const path = await uploadFile({
                 token: request.token,
                 file: pdfFile,
-                docType: 'termo_assinado'
+                docType: 'termo_assinado' // Store in the same doc category
             });
 
-            // Update request entry in DB
-            await updateIbanRequestUrls(request.id, { termo_gerado_url: path });
-            setTermoGeradoUrl(path);
+            // Set Request status to Awaiting Signature in DB
+            await setAwaitingSignature({
+                id: request.id,
+                termoGeradoUrl: path,
+                empresaId
+            });
 
-            // Trigger local download
-            doc.save(`Termo_Autorizacao_IBAN_${request.worker.nome.replace(/\s+/g, '_')}.pdf`);
-            toast.success('Termo de Autorização gerado com sucesso em PDF!');
+            setTermoGeradoUrl(path);
+            toast.success('Termo de Autorização gerado com sucesso! Solicitação enviada para a fase de assinatura.');
 
         } catch (err) {
             console.error(err);
@@ -207,7 +220,7 @@ export function ReviewIbanRequestDialog({
         }
     };
 
-    // Upload Signed Term
+    // Upload Signed Term (Fallback / Manual)
     const handleUploadSignedTerm = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -227,15 +240,51 @@ export function ReviewIbanRequestDialog({
                 docType: 'termo_assinado'
             });
 
-            await updateIbanRequestUrls(request.id, { termo_assinado_url: path });
+            await updateIbanRequestUrls(request.id, { 
+                termo_assinado_url: path,
+                termo_gerado_url: termoGeradoUrl || path
+            });
+            
+            // Force status update by calling updateIbanRequestUrls or similar, 
+            // but we can also let approveRequest trigger. To set status to 'assinado' 
+            // when manual file is uploaded:
+            const { error: statusErr } = await supabase
+                .schema('core_personal')
+                .from('iban_change_requests')
+                .update({
+                    status: 'assinado',
+                    termo_assinado_url: path,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', request.id);
+
+            if (statusErr) throw statusErr;
+
             setTermoAssinadoUrl(path);
-            toast.success('Termo assinado anexado com sucesso!');
+            toast.success('Termo assinado anexado manualmente e marcado como assinado!');
         } catch (err) {
             console.error(err);
             toast.error('Erro ao enviar termo assinado.');
         } finally {
             setIsUploadingTermo(false);
         }
+    };
+
+    const handleCopySigningLink = () => {
+        const link = `${window.location.origin}/public/assinar-iban/${request.token}`;
+        navigator.clipboard.writeText(link);
+        toast.success('Link de assinatura digital copiado!');
+    };
+
+    const handleSendWhatsApp = () => {
+        const link = `${window.location.origin}/public/assinar-iban/${request.token}`;
+        const message = `Olá ${request.worker?.nome}, o seu Termo de Autorização para alteração de IBAN (Banco: ${request.new_banco}) já foi gerado. Por favor, acesse o link abaixo para desenhar sua assinatura digital e confirmar a alteração:\n\n${link}`;
+        
+        let phone = request.worker?.movil || '';
+        phone = phone.replace(/\D/g, ''); // Keep only numbers
+        
+        const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
     };
 
     const handleApprove = async () => {
@@ -250,7 +299,7 @@ export function ReviewIbanRequestDialog({
                 workerId: request.worker_id,
                 newIban: request.new_iban,
                 newBanco: request.new_banco,
-                termoAssinadoUrl: termoAssinadoUrl || termoGeradoUrl, // fallback to generated if no signed uploaded
+                termoAssinadoUrl: termoAssinadoUrl || termoGeradoUrl, // fallback
                 comprovanteUrl: request.comprovante_url,
                 empresaId
             });
@@ -282,8 +331,11 @@ export function ReviewIbanRequestDialog({
         }
     };
 
+    // Helper for direct Supabase calls inside the component
+    const supabase = require('@/shared/supabase/client').supabase;
+
     return (
-        <Dialog open={open} onOpenChange={isApproving || isRejecting ? undefined : onOpenChange}>
+        <Dialog open={open} onOpenChange={isApproving || isRejecting || isSettingAwaitingSig ? undefined : onOpenChange}>
             <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="border-b pb-3">
                     <DialogTitle className="text-slate-900 text-lg font-bold flex items-center">
@@ -321,7 +373,7 @@ export function ReviewIbanRequestDialog({
                             </div>
                             <div>
                                 <span className="text-xs text-slate-500 block">Novo IBAN</span>
-                                <span className="text-sm font-mono text-slate-900 font-bold">{request.new_iban || 'Aguardando envio'}</span>
+                                <span className="text-sm font-mono text-slate-900 font-bold break-all">{request.new_iban || 'Aguardando envio'}</span>
                             </div>
                         </div>
                     </div>
@@ -337,7 +389,7 @@ export function ReviewIbanRequestDialog({
                                         <FileText className="w-4 h-4" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-slate-800">Foto do IBAN / Cartão</p>
+                                        <p className="text-xs font-semibold text-slate-800">Foto / PDF do IBAN</p>
                                         <p className="text-[10px] text-slate-400">OCR IA ou Foto enviada</p>
                                     </div>
                                 </div>
@@ -384,80 +436,175 @@ export function ReviewIbanRequestDialog({
                         </div>
                     </div>
 
-                    {/* LAUNCH DOCUMENT / GENERATE PDF ACTION */}
+                    {/* DYNAMIC WORKFLOW ACCORDING TO STATUS */}
                     <div className="border-t pt-4 space-y-4">
                         <Label className="text-slate-700 text-xs font-bold uppercase tracking-wider block">Geração do Termo e Assinatura</Label>
                         
-                        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-                            {/* 1. PDF Generation */}
-                            <div className="flex-1 border border-slate-200 bg-slate-50/50 rounded-xl p-4 flex flex-col justify-between">
+                        {/* 1. STATUS: ENVIADO - NEED TO GENERATE THE TERM */}
+                        {request.status === 'enviado' && (
+                            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-4 flex flex-col justify-between space-y-3">
                                 <div>
-                                    <h4 className="text-xs font-semibold text-slate-800 mb-1">1. Criar Termo de Autorização</h4>
-                                    <p className="text-[10px] text-slate-500 leading-normal">
-                                        Gere um termo oficial em PDF com o novo IBAN para assinatura física ou digital.
+                                    <h4 className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                                        <Info className="w-4 h-4 text-indigo-500" />
+                                        Passo 1: Gerar Termo de Autorização
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 leading-normal">
+                                        Para que o colaborador assine a alteração, você deve primeiro aprovar as informações bancárias visualizadas acima e gerar o termo em PDF no sistema. Isso habilitará o link de assinatura digital dele.
                                     </p>
                                 </div>
                                 <Button 
-                                    className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white w-full border-0 shadow-sm"
-                                    onClick={handleGeneratePdf}
-                                    disabled={isGeneratingPdf || !request.new_iban}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-full border-0 shadow-md shadow-indigo-600/10 h-10"
+                                    onClick={handleGeneratePdfAndAwaitingSignature}
+                                    disabled={isGeneratingPdf || isSettingAwaitingSig || !request.new_iban}
                                     size="sm"
                                 >
-                                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                                    {termoGeradoUrl ? 'Re-gerar e Baixar PDF' : 'Gerar Termo em PDF'}
+                                    {isGeneratingPdf || isSettingAwaitingSig ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <FileText className="w-4 h-4 mr-2" />
+                                    )}
+                                    Gerar Termo de Autorização e Enviar para Assinatura
                                 </Button>
                             </div>
+                        )}
 
-                            {/* 2. PDF Upload of Signed document */}
-                            <div className="flex-1 border border-slate-200 bg-slate-50/50 rounded-xl p-4 flex flex-col justify-between">
-                                <div>
-                                    <h4 className="text-xs font-semibold text-slate-800 mb-1">2. Termo Assinado pelo Trabalhador</h4>
-                                    <p className="text-[10px] text-slate-500 leading-normal">
-                                        Anexe a via assinada de volta no sistema para manter o histórico de auditoria.
-                                    </p>
-                                </div>
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    ref={termoInputRef}
-                                    onChange={handleUploadSignedTerm}
-                                    accept="application/pdf,image/png,image/jpeg"
-                                />
-                                {termoAssinadoUrl ? (
-                                    <div className="mt-3 flex gap-2">
+                        {/* 2. STATUS: AGUARDANDO ASSINATURA - LINK GENERATED, WAITING WORKER */}
+                        {request.status === 'aguardando_assinatura' && (
+                            <div className="space-y-4">
+                                <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-3.5">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-amber-800 mb-1 flex items-center gap-1.5">
+                                            <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                                            Passo 2: Aguardando Assinatura Digital do Trabalhador
+                                        </h4>
+                                        <p className="text-[11px] text-amber-700 leading-normal">
+                                            O documento em PDF foi gerado. Envie o link seguro abaixo para que o trabalhador desenhe a sua assinatura e valide a alteração bancária no celular ou computador:
+                                        </p>
+                                    </div>
+
+                                    {/* Link and Share Actions */}
+                                    <div className="flex gap-2">
                                         <Button 
                                             variant="outline" 
-                                            size="sm" 
-                                            className="flex-1 bg-white border-slate-200 hover:bg-slate-50 text-slate-600"
-                                            onClick={() => handleViewFile(termoAssinadoUrl, 'termo_assinado')}
-                                            disabled={isViewingFile === 'termo_assinado'}
+                                            size="sm"
+                                            className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border-slate-200 flex items-center justify-center gap-1.5 text-xs h-9"
+                                            onClick={handleCopySigningLink}
                                         >
-                                            {isViewingFile === 'termo_assinado' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
-                                            Ver
+                                            <Copy className="w-4 h-4" />
+                                            Copiar Link
                                         </Button>
                                         <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="text-rose-500 hover:bg-rose-50 h-9 px-3"
-                                            onClick={() => { setTermoAssinadoUrl(null); setTermoAssinadoFile(null); }}
+                                            size="sm"
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs border-0 shadow-sm h-9"
+                                            onClick={handleSendWhatsApp}
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Share2 className="w-4 h-4" />
+                                            WhatsApp
                                         </Button>
                                     </div>
-                                ) : (
+                                </div>
+
+                                {/* Manual Upload Fallback */}
+                                <div className="border border-slate-200 bg-slate-50/40 rounded-xl p-4 space-y-3">
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-slate-800 mb-0.5">Alternativa: Carregar Termo Assinado Manualmente</h4>
+                                        <p className="text-[10px] text-slate-500 leading-normal">
+                                            Caso o colaborador tenha assinado o termo físico à mão, anexe o arquivo ou foto digitalizada da via assinada aqui:
+                                        </p>
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        ref={termoInputRef}
+                                        onChange={handleUploadSignedTerm}
+                                        accept="application/pdf,image/png,image/jpeg,image/jpg"
+                                    />
                                     <Button 
-                                        className="mt-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-full"
+                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-full text-xs h-9"
                                         onClick={() => termoInputRef.current?.click()}
-                                        disabled={isUploadingTermo || !termoGeradoUrl}
+                                        disabled={isUploadingTermo}
                                         size="sm"
                                         variant="outline"
                                     >
                                         {isUploadingTermo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2 text-slate-500" />}
-                                        Carregar Assinado
+                                        Carregar Documento Assinado
                                     </Button>
-                                )}
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* 3. STATUS: ASSINADO - READY TO ACTIVATE */}
+                        {request.status === 'assinado' && (
+                            <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-4 flex flex-col space-y-3">
+                                <div className="flex items-start gap-2.5">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                        <h4 className="text-xs font-bold text-emerald-800 mb-0.5">
+                                            Termo de Autorização Assinado Digitalmente!
+                                        </h4>
+                                        <p className="text-[11px] text-emerald-700 leading-normal">
+                                            O trabalhador assinou eletronicamente o termo com os dados bancários corretos. Você pode visualizar o documento assinado antes de validar.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="flex-1 bg-white border-emerald-200 hover:bg-emerald-50 text-emerald-700 text-xs h-9"
+                                        onClick={() => handleViewFile(termoAssinadoUrl, 'termo_assinado')}
+                                        disabled={isViewingFile === 'termo_assinado'}
+                                    >
+                                        {isViewingFile === 'termo_assinado' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
+                                        Visualizar Termo Assinado
+                                    </Button>
+                                    {request.termo_gerado_url && (
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-slate-500 hover:bg-slate-100 text-xs h-9"
+                                            onClick={() => handleViewFile(request.termo_gerado_url, 'termo_gerado')}
+                                        >
+                                            Ver Termo Original
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 4. STATUS: APROVADO / REJEITADO - HISTORY ONLY */}
+                        {(request.status === 'aprovado' || request.status === 'rejeitado') && (
+                            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-4 space-y-2">
+                                <h4 className="text-xs font-bold text-slate-800">Histórico de Arquivamento</h4>
+                                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-slate-400 block text-[10px]">Status Final</span>
+                                        <span className={`font-semibold uppercase ${request.status === 'aprovado' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {request.status === 'aprovado' ? 'Aprovado' : 'Rejeitado'}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-slate-400 block text-[10px]">Documento Assinado</span>
+                                        {termoAssinadoUrl ? (
+                                            <button 
+                                                className="text-indigo-600 hover:underline text-left font-medium"
+                                                onClick={() => handleViewFile(termoAssinadoUrl, 'termo_assinado')}
+                                            >
+                                                Visualizar Termo
+                                            </button>
+                                        ) : (
+                                            <span className="text-slate-500 font-medium">Nenhum termo arquivado</span>
+                                        )}
+                                    </div>
+                                    {request.rejection_reason && (
+                                        <div className="col-span-2 pt-1.5 border-t">
+                                            <span className="text-slate-400 block text-[10px]">Motivo da Rejeição</span>
+                                            <span className="text-rose-700 italic block">{request.rejection_reason}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* REJECTION FORM */}
@@ -498,15 +645,19 @@ export function ReviewIbanRequestDialog({
                 <DialogFooter className="flex sm:justify-between items-center w-full gap-2 border-t pt-4 mt-2">
                     {!showRejectionForm && (
                         <>
-                            <Button 
-                                variant="ghost" 
-                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 px-3 w-full sm:w-auto"
-                                onClick={() => setShowRejectionForm(true)}
-                                disabled={isApproving || isRejecting}
-                            >
-                                <XCircle className="w-4 h-4 mr-2" />
-                                Rejeitar
-                            </Button>
+                            {request.status !== 'aprovado' && request.status !== 'rejeitado' ? (
+                                <Button 
+                                    variant="ghost" 
+                                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 px-3 w-full sm:w-auto"
+                                    onClick={() => setShowRejectionForm(true)}
+                                    disabled={isApproving || isRejecting}
+                                >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Rejeitar
+                                </Button>
+                            ) : (
+                                <div />
+                            )}
                             <div className="flex gap-2 w-full sm:w-auto flex-1 justify-end">
                                 <Button 
                                     variant="outline" 
@@ -516,14 +667,16 @@ export function ReviewIbanRequestDialog({
                                 >
                                     Fechar
                                 </Button>
-                                <Button 
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1 sm:flex-initial shadow-md shadow-indigo-600/10 border-0"
-                                    onClick={handleApprove}
-                                    disabled={isApproving || !request.new_iban || (!termoAssinadoUrl && !termoGeradoUrl)}
-                                >
-                                    {isApproving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                                    Aprovar e Ativar IBAN
-                                </Button>
+                                {request.status !== 'aprovado' && request.status !== 'rejeitado' && (
+                                    <Button 
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1 sm:flex-initial shadow-md shadow-indigo-600/10 border-0"
+                                        onClick={handleApprove}
+                                        disabled={isApproving || request.status !== 'assinado' || !request.new_iban}
+                                    >
+                                        {isApproving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                                        Aprovar e Ativar IBAN
+                                    </Button>
+                                )}
                             </div>
                         </>
                     )}

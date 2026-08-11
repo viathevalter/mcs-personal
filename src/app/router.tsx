@@ -14,6 +14,7 @@ import { SeguridadePage } from '../features/seguridade/SeguridadePage';
 import { HoleritesPage } from '../features/holerites/pages/HoleritesPage';
 import { BankAccountsPage } from '../features/bank-accounts/pages/BankAccountsPage';
 import { UpdateIbanPage } from '../features/bank-accounts/pages/UpdateIbanPage';
+import { IbanSigningPage } from '../features/bank-accounts/pages/IbanSigningPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ContractSigningPage } from '../features/documents/pages/ContractSigningPage';
 import { WorkerDocCapturePage } from '../features/documents/pages/WorkerDocCapturePage';
@@ -160,6 +161,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/update-iban/:token',
         element: <UpdateIbanPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/assinar-iban/:token',
+        element: <IbanSigningPage />,
         errorElement: <RootErrorBoundary />,
     },
     {

@@ -99,7 +99,8 @@ const migrationsToRun = [
   '20260803100000_improve_replacement_flow_questions.sql',
   '20260811120000_fix_alocar_trabalhador_completed_at.sql',
   '20260811121000_fix_alocar_trabalhador_solicitudes_completed_at.sql',
-  '20260811110000_iban_change_requests.sql'
+  '20260811110000_iban_change_requests.sql',
+  '20260811130000_update_iban_requests_status.sql'
 ];
 
 async function run() {

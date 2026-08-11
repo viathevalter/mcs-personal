@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { 
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
-    XCircle, Clock, Link2, ChevronRight, HelpCircle
+    XCircle, Clock, Link2, ChevronRight, HelpCircle, PenTool
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -156,10 +156,10 @@ export function BankAccountsPage() {
     const comIban = bankAccounts?.filter(acc => acc.status_month === 'ATIVO' && acc.iban).length || 0;
     const semIban = bankAccounts?.filter(acc => acc.status_month === 'ATIVO' && !acc.iban).length || 0;
     const compPendentes = bankAccounts?.filter(acc => acc.status_month === 'ATIVO' && acc.iban && !acc.certificado_url).length || 0;
-    const trocasPendentes = ibanRequests?.filter(req => req.status === 'enviado').length || 0;
+    const trocasPendentes = ibanRequests?.filter(req => ['enviado', 'aguardando_assinatura', 'assinado'].includes(req.status)).length || 0;
 
     const findActiveRequest = (workerId: string) => {
-        return ibanRequests?.find(req => req.worker_id === workerId && req.status === 'enviado');
+        return ibanRequests?.find(req => req.worker_id === workerId && ['enviado', 'aguardando_assinatura', 'assinado'].includes(req.status));
     };
 
     return (
@@ -637,6 +637,8 @@ export function BankAccountsPage() {
                                         ibanRequests.map((req, index) => {
                                             const isPendingUpload = req.status === 'pendente_envio';
                                             const isSubmitted = req.status === 'enviado';
+                                            const isAwaitingSignature = req.status === 'aguardando_assinatura';
+                                            const isSigned = req.status === 'assinado';
                                             const isApproved = req.status === 'aprovado';
                                             const isRejected = req.status === 'rejeitado';
 
@@ -656,13 +658,17 @@ export function BankAccountsPage() {
                                                             isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                             isRejected ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                             isSubmitted ? 'bg-indigo-50 text-indigo-700 border-indigo-200 animate-pulse' :
-                                                            'bg-amber-50 text-amber-700 border-amber-200'
+                                                            isAwaitingSignature ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
+                                                            isSigned ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                                                            'bg-slate-50 text-slate-700 border-slate-200'
                                                         }`}>
                                                             {isApproved && <CheckCircle2 className="w-3 h-3 mr-1" />}
                                                             {isRejected && <XCircle className="w-3 h-3 mr-1" />}
                                                             {isSubmitted && <Clock className="w-3 h-3 mr-1" />}
+                                                            {isAwaitingSignature && <Clock className="w-3 h-3 mr-1 text-amber-500" />}
+                                                            {isSigned && <PenTool className="w-3 h-3 mr-1 text-sky-500" />}
                                                             {isPendingUpload && <Send className="w-3 h-3 mr-1" />}
-                                                            {req.status.replace('_', ' ')}
+                                                            {req.status === 'aguardando_assinatura' ? 'Aguardando Assinatura' : req.status.replace('_', ' ')}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="font-mono text-[13px] text-slate-700">
@@ -675,16 +681,18 @@ export function BankAccountsPage() {
                                                         {formatDate(req.created_at)}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        {isSubmitted && (
+                                                        {(isSubmitted || isAwaitingSignature || isSigned) && (
                                                             <Button 
                                                                 size="sm" 
-                                                                className="h-7 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm border-0"
+                                                                className={`h-7 px-3 text-xs font-semibold shadow-sm border-0 ${
+                                                                    isSigned ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                                                }`}
                                                                 onClick={() => {
                                                                     setReviewRequestData(req);
                                                                     setReviewRequestOpen(true);
                                                                 }}
                                                             >
-                                                                Avaliar Troca
+                                                                {isSigned ? 'Ativar IBAN' : 'Avaliar Troca'}
                                                             </Button>
                                                         )}
                                                         {isPendingUpload && (

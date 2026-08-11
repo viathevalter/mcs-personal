@@ -3,7 +3,7 @@ import { mapSupabaseError } from '@/shared/api/supabaseError';
 
 const BUCKET_NAME = 'worker-incoming-docs';
 
-export type IbanRequestStatus = 'pendente_envio' | 'enviado' | 'aprovado' | 'rejeitado';
+export type IbanRequestStatus = 'pendente_envio' | 'enviado' | 'aguardando_assinatura' | 'assinado' | 'aprovado' | 'rejeitado';
 
 export interface IbanChangeRequest {
     id: string;
@@ -240,4 +240,36 @@ export async function getIbanRequestFileUrl(filePath: string): Promise<string> {
     }
 
     return data.signedUrl;
+}
+
+export async function setIbanRequestAwaitingSignature(id: string, termoGeradoUrl: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('iban_change_requests')
+        .update({
+            termo_gerado_url: termoGeradoUrl,
+            status: 'aguardando_assinatura',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
+export async function submitSignedIbanRequestTerm(token: string, termoAssinadoUrl: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('iban_change_requests')
+        .update({
+            termo_assinado_url: termoAssinadoUrl,
+            status: 'assinado',
+            updated_at: new Date().toISOString()
+        })
+        .eq('token', token);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
 }
