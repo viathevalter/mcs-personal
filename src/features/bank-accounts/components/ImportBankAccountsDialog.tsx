@@ -56,46 +56,24 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
     const [step, setStep] = useState<ImportStep>('UPLOAD');
     const [isParsing, setIsParsing] = useState(false);
 
-    // Fetch ALL workers using official listWorkers RPC
-    const { data: workersData } = useQuery({
-        queryKey: ['all-workers-for-bank-import-dialog', selectedEmpresaId],
+    // Query ALL workers directly from core_personal.workers across all companies
+    const { data: allWorkers = [] } = useQuery({
+        queryKey: ['all-workers-direct-for-bank-import-all-companies'],
         queryFn: async () => {
-            if (!selectedEmpresaId) return [];
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, nome, contratante');
 
-            let allWorkersData: any[] = [];
-            let currentPage = 1;
-            const pageSize = 1000;
-            let hasMore = true;
-
-            while (hasMore) {
-                const res = await listWorkers({
-                    empresaId: selectedEmpresaId,
-                    statusTrabajador: ['ativos', 'inativos', 'pendientes_ingreso'],
-                    page: currentPage,
-                    pageSize: pageSize,
-                    sortColumn: 'nome',
-                    sortDirection: 'asc'
-                });
-
-                if (res.data && res.data.length > 0) {
-                    allWorkersData = [...allWorkersData, ...res.data];
-                    if (res.data.length < pageSize) {
-                        hasMore = false;
-                    } else {
-                        currentPage++;
-                    }
-                } else {
-                    hasMore = false;
-                }
+            if (error) {
+                console.error("Error fetching workers for bank import:", error);
+                return [];
             }
-
-            return allWorkersData;
+            return data || [];
         },
-        enabled: isOpen && !!selectedEmpresaId,
+        enabled: isOpen,
         staleTime: 60 * 1000
     });
-
-    const workers = workersData || [];
 
     // File state
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -187,15 +165,17 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
 
     const generatePreview = async () => {
         // Guarantee workers list is populated inline
-        let currentWorkers = workers;
-        if ((!currentWorkers || currentWorkers.length === 0) && selectedEmpresaId) {
-            const res = await listWorkers({
-                empresaId: selectedEmpresaId,
-                statusTrabajador: ['ativos', 'inativos', 'pendientes_ingreso'],
-                page: 1,
-                pageSize: 1000
-            });
-            currentWorkers = res.data || [];
+        let currentWorkers = allWorkers;
+        if (!currentWorkers || currentWorkers.length === 0) {
+            const { data, error } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, nome, contratante');
+            if (data && data.length > 0) {
+                currentWorkers = data;
+            } else if (error) {
+                console.error("Inline fetch workers error:", error);
+            }
         }
 
         const rows: ParsedRow[] = [];
@@ -253,7 +233,7 @@ export function ImportBankAccountsDialog({ trigger }: ImportBankAccountsDialogPr
                 iban: rawIban,
 
                 workerId: matchedWorker?.id,
-                empresaId: matchedWorker?.empresa_id,
+                empresaId: selectedEmpresaId || matchedWorker?.contratante || '',
                 nomeSistema: matchedWorker?.nome,
                 status,
                 errorMessage,
