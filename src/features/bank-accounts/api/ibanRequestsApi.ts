@@ -273,3 +273,24 @@ export async function submitSignedIbanRequestTerm(token: string, termoAssinadoUr
         throw mapSupabaseError(error);
     }
 }
+
+export async function updateIbanRequestData(
+    id: string,
+    data: {
+        new_iban?: string;
+        new_banco?: string;
+    }
+): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('iban_change_requests')
+        .update({
+            ...data,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}

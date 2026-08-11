@@ -8,7 +8,8 @@ import {
     rejectIbanRequest, 
     uploadIbanRequestFile,
     setIbanRequestAwaitingSignature,
-    submitSignedIbanRequestTerm
+    submitSignedIbanRequestTerm,
+    updateIbanRequestData
 } from '../api/ibanRequestsApi';
 
 export const useAllIbanRequests = (empresaId?: string) => {
@@ -101,6 +102,17 @@ export const useSubmitSignedIbanRequestTerm = () => {
             submitSignedIbanRequestTerm(variables.token, variables.termoAssinadoUrl),
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['iban-change-request-by-token', variables.token] });
+        }
+    });
+};
+
+export const useUpdateIbanRequestData = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (variables: { id: string; data: { new_iban?: string; new_banco?: string }; empresaId: string }) => 
+            updateIbanRequestData(variables.id, variables.data),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['all-iban-change-requests', variables.empresaId] });
         }
     });
 };

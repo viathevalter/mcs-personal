@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useIbanRequestByToken, useSubmitSignedIbanRequestTerm, useUploadIbanRequestFile } from '../hooks/useIbanRequests';
 import { getIbanRequestFileUrl } from '../api/ibanRequestsApi';

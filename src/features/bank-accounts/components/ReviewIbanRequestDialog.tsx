@@ -7,10 +7,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
     Loader2, FileText, CheckCircle2, XCircle, Download, 
-    Upload, Eye, Trash2, ArrowRight, Info, ShieldCheck, Copy, Share2
+    Upload, Eye, Trash2, ArrowRight, Info, ShieldCheck, Copy, Share2,
+    Save, RefreshCw, ExternalLink, Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { IbanChangeRequest } from '../api/ibanRequestsApi';
@@ -19,7 +21,8 @@ import {
     useApproveIbanRequest, 
     useRejectIbanRequest, 
     useUploadIbanRequestFile, 
-    useSetIbanRequestAwaitingSignature 
+    useSetIbanRequestAwaitingSignature,
+    useUpdateIbanRequestData
 } from '../hooks/useIbanRequests';
 
 interface ReviewIbanRequestDialogProps {
@@ -36,6 +39,12 @@ export function ReviewIbanRequestDialog({
     const { mutateAsync: rejectRequest, isPending: isRejecting } = useRejectIbanRequest();
     const { mutateAsync: uploadFile } = useUploadIbanRequestFile();
     const { mutateAsync: setAwaitingSignature, isPending: isSettingAwaitingSig } = useSetIbanRequestAwaitingSignature();
+    const { mutateAsync: updateRequestData, isPending: isUpdatingData } = useUpdateIbanRequestData();
+
+    // Editable fields
+    const [editableBanco, setEditableBanco] = useState(request.new_banco || '');
+    const [editableIban, setEditableIban] = useState(request.new_iban || '');
+    const [hasDataChanged, setHasDataChanged] = useState(false);
 
     const [rejectionReason, setRejectionReason] = useState('');
     const [showRejectionForm, setShowRejectionForm] = useState(false);
@@ -43,19 +52,69 @@ export function ReviewIbanRequestDialog({
     // File URLs
     const [termoGeradoUrl, setTermoGeradoUrl] = useState<string | null>(request.termo_gerado_url);
     const [termoAssinadoUrl, setTermoAssinadoUrl] = useState<string | null>(request.termo_assinado_url);
-    const [termoAssinadoFile, setTermoAssinadoFile] = useState<File | null>(null);
+
+    // Media Viewer State
+    const [activeTabDoc, setActiveTabDoc] = useState<'iban_photo' | 'comprovante' | 'termo_assinado'>('iban_photo');
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isUploadingTermo, setIsUploadingTermo] = useState(false);
-    const [isViewingFile, setIsViewingFile] = useState<string | null>(null);
 
     const termoInputRef = useRef<HTMLInputElement>(null);
 
-    // Sync status updates when request changes
+    // Track input edits
     useEffect(() => {
+        setEditableBanco(request.new_banco || '');
+        setEditableIban(request.new_iban || '');
         setTermoGeradoUrl(request.termo_gerado_url);
         setTermoAssinadoUrl(request.termo_assinado_url);
+        setHasDataChanged(false);
     }, [request]);
+
+    const handleBancoChange = (val: string) => {
+        setEditableBanco(val);
+        setHasDataChanged(true);
+    };
+
+    const handleIbanChange = (val: string) => {
+        setEditableIban(val.toUpperCase());
+        setHasDataChanged(true);
+    };
+
+    // Load Document Preview URL for the selected tab
+    useEffect(() => {
+        let isMounted = true;
+        
+        async function loadDocPreview() {
+            let path: string | null = null;
+            if (activeTabDoc === 'iban_photo') path = request.iban_photo_url;
+            else if (activeTabDoc === 'comprovante') path = request.comprovante_url;
+            else if (activeTabDoc === 'termo_assinado') path = termoAssinadoUrl || termoGeradoUrl;
+
+            if (!path) {
+                setPreviewUrl(null);
+                return;
+            }
+
+            setIsLoadingPreview(true);
+            try {
+                const url = await getIbanRequestFileUrl(path);
+                if (isMounted) setPreviewUrl(url);
+            } catch (err) {
+                console.error("Error loading preview URL:", err);
+                if (isMounted) setPreviewUrl(null);
+            } finally {
+                if (isMounted) setIsLoadingPreview(false);
+            }
+        }
+
+        loadDocPreview();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [activeTabDoc, request, termoAssinadoUrl, termoGeradoUrl]);
 
     const maskIban = (iban: string | null | undefined) => {
         if (!iban) return '-';
@@ -66,23 +125,38 @@ export function ReviewIbanRequestDialog({
         return `${start} •••• •••• •••• ${end}`;
     };
 
-    const handleViewFile = async (filePath: string | null, type: string) => {
-        if (!filePath) return;
-        setIsViewingFile(type);
+    const handleSaveManualEdits = async () => {
+        if (!editableIban || editableIban.trim().length < 15) {
+            toast.error('Por favor, insira um número de IBAN válido.');
+            return;
+        }
+
         try {
-            const url = await getIbanRequestFileUrl(filePath);
-            window.open(url, '_blank', 'noopener,noreferrer');
-        } catch (err) {
-            console.error(err);
-            toast.error('Erro ao gerar link de visualização do arquivo.');
-        } finally {
-            setIsViewingFile(null);
+            await updateRequestData({
+                id: request.id,
+                data: {
+                    new_banco: editableBanco,
+                    new_iban: editableIban.replace(/\s+/g, '')
+                },
+                empresaId
+            });
+
+            setHasDataChanged(false);
+            toast.success('Dados bancários atualizados e salvos com sucesso!');
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar alterações.');
         }
     };
 
     // PDF Generation using jsPDF (Blank form for signing)
     const handleGeneratePdfAndAwaitingSignature = async () => {
         if (!request.worker) return;
+        
+        // Save edits first if modified
+        if (hasDataChanged) {
+            await handleSaveManualEdits();
+        }
+
         setIsGeneratingPdf(true);
 
         try {
@@ -146,9 +220,9 @@ export function ReviewIbanRequestDialog({
 
             doc.setFont('Helvetica', 'normal');
             doc.setFontSize(10);
-            doc.text(`Banco Destinatário:   ${request.new_banco || '-'}`, margin + 5, y + 16);
+            doc.text(`Banco Destinatário:   ${editableBanco || request.new_banco || '-'}`, margin + 5, y + 16);
             doc.setFont('Helvetica', 'bold');
-            doc.text(`IBAN da Conta:          ${request.new_iban || '-'}`, margin + 5, y + 24);
+            doc.text(`IBAN da Conta:          ${editableIban || request.new_iban || '-'}`, margin + 5, y + 24);
 
             y += 44;
 
@@ -200,7 +274,7 @@ export function ReviewIbanRequestDialog({
             const path = await uploadFile({
                 token: request.token,
                 file: pdfFile,
-                docType: 'termo_assinado' // Store in the same doc category
+                docType: 'termo_assinado'
             });
 
             // Set Request status to Awaiting Signature in DB
@@ -231,7 +305,6 @@ export function ReviewIbanRequestDialog({
             return;
         }
 
-        setTermoAssinadoFile(file);
         setIsUploadingTermo(true);
 
         try {
@@ -241,14 +314,6 @@ export function ReviewIbanRequestDialog({
                 docType: 'termo_assinado'
             });
 
-            await updateIbanRequestUrls(request.id, { 
-                termo_assinado_url: path,
-                termo_gerado_url: termoGeradoUrl || path
-            });
-            
-            // Force status update by calling updateIbanRequestUrls or similar, 
-            // but we can also let approveRequest trigger. To set status to 'assinado' 
-            // when manual file is uploaded:
             const { error: statusErr } = await supabase
                 .schema('core_personal')
                 .from('iban_change_requests')
@@ -262,7 +327,8 @@ export function ReviewIbanRequestDialog({
             if (statusErr) throw statusErr;
 
             setTermoAssinadoUrl(path);
-            toast.success('Termo assinado anexado manualmente e marcado como assinado!');
+            setActiveTabDoc('termo_assinado');
+            toast.success('Termo assinado anexado manualmente!');
         } catch (err) {
             console.error(err);
             toast.error('Erro ao enviar termo assinado.');
@@ -279,7 +345,7 @@ export function ReviewIbanRequestDialog({
 
     const handleSendWhatsApp = () => {
         const link = `${window.location.origin}/public/assinar-iban/${request.token}`;
-        const message = `Olá ${request.worker?.nome}, o seu Termo de Autorização para alteração de IBAN (Banco: ${request.new_banco}) já foi gerado. Por favor, acesse o link abaixo para desenhar sua assinatura digital e confirmar a alteração:\n\n${link}`;
+        const message = `Olá ${request.worker?.nome}, o seu Termo de Autorização para alteração de IBAN (Banco: ${editableBanco || request.new_banco}) já foi gerado. Por favor, acesse o link abaixo para desenhar sua assinatura digital e confirmar a alteração:\n\n${link}`;
         
         let phone = request.worker?.movil || '';
         phone = phone.replace(/\D/g, ''); // Keep only numbers
@@ -289,7 +355,14 @@ export function ReviewIbanRequestDialog({
     };
 
     const handleApprove = async () => {
-        if (!request.new_iban || !request.new_banco) {
+        if (hasDataChanged) {
+            await handleSaveManualEdits();
+        }
+
+        const finalIban = editableIban || request.new_iban;
+        const finalBanco = editableBanco || request.new_banco;
+
+        if (!finalIban || !finalBanco) {
             toast.error('Dados bancários incompletos na solicitação.');
             return;
         }
@@ -298,9 +371,9 @@ export function ReviewIbanRequestDialog({
             await approveRequest({
                 id: request.id,
                 workerId: request.worker_id,
-                newIban: request.new_iban,
-                newBanco: request.new_banco,
-                termoAssinadoUrl: termoAssinadoUrl || termoGeradoUrl, // fallback
+                newIban: finalIban,
+                newBanco: finalBanco,
+                termoAssinadoUrl: termoAssinadoUrl || termoGeradoUrl,
                 comprovanteUrl: request.comprovante_url,
                 empresaId
             });
@@ -332,354 +405,385 @@ export function ReviewIbanRequestDialog({
         }
     };
 
+    const isPdfFile = (url: string | null) => {
+        if (!url) return false;
+        return url.toLowerCase().includes('.pdf') || url.includes('application/pdf');
+    };
 
     return (
         <Dialog open={open} onOpenChange={isApproving || isRejecting || isSettingAwaitingSig ? undefined : onOpenChange}>
-            <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
-                <DialogHeader className="border-b pb-3">
-                    <DialogTitle className="text-slate-900 text-lg font-bold flex items-center">
-                        <FileText className="w-5 h-5 mr-2 text-indigo-600" />
-                        Avaliar Troca de IBAN
-                    </DialogTitle>
-                    <DialogDescription className="text-slate-500 text-xs">
-                        Trabalhador: <span className="font-semibold text-slate-800">{request.worker?.nome}</span> ({request.worker?.cod_colab})
-                    </DialogDescription>
+            <DialogContent className="sm:max-w-6xl bg-white max-h-[92vh] flex flex-col p-0 overflow-hidden">
+                
+                {/* Modal Header */}
+                <DialogHeader className="p-5 border-b bg-slate-50/80 flex flex-row items-center justify-between">
+                    <div>
+                        <DialogTitle className="text-slate-900 text-lg font-bold flex items-center">
+                            <ShieldCheck className="w-5 h-5 mr-2 text-indigo-600" />
+                            Revisão e Validação de Troca de IBAN
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-500 text-xs mt-0.5">
+                            Confera o documento enviado, audite a extração da IA e valide o novo IBAN para o trabalhador.
+                        </DialogDescription>
+                    </div>
                 </DialogHeader>
 
-                <div className="py-4 space-y-5">
+                {/* Main Split Layout Area */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-hidden min-h-[550px]">
                     
-                    {/* Comparison Side-by-side */}
-                    <div className="grid grid-cols-2 gap-4 bg-slate-50 border rounded-xl p-4">
-                        <div className="space-y-3">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Dados Atuais</span>
-                            <div>
-                                <span className="text-xs text-slate-500 block">Banco</span>
-                                <span className="text-sm text-slate-600 font-medium">{request.old_banco || 'Não informado'}</span>
-                            </div>
-                            <div>
-                                <span className="text-xs text-slate-500 block">IBAN</span>
-                                <span className="text-sm font-mono text-slate-500">{maskIban(request.old_iban)}</span>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3 border-l pl-4">
-                            <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider block flex items-center">
-                                Proposta de Alteração <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                            </span>
-                            <div>
-                                <span className="text-xs text-slate-500 block">Novo Banco</span>
-                                <span className="text-sm text-slate-900 font-bold">{request.new_banco || 'Aguardando envio'}</span>
-                            </div>
-                            <div>
-                                <span className="text-xs text-slate-500 block">Novo IBAN</span>
-                                <span className="text-sm font-mono text-slate-900 font-bold break-all">{request.new_iban || 'Aguardando envio'}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* COLLABORATOR ATTACHMENTS */}
-                    <div className="space-y-2.5">
-                        <Label className="text-slate-700 text-xs font-bold uppercase tracking-wider block">Documentos Enviados pelo Trabalhador</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {/* Photo of IBAN */}
-                            <div className="border rounded-xl p-3 flex items-center justify-between bg-white shadow-sm">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-9 h-9 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <FileText className="w-4 h-4" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-slate-800">Foto / PDF do IBAN</p>
-                                        <p className="text-[10px] text-slate-400">OCR IA ou Foto enviada</p>
-                                    </div>
-                                </div>
-                                {request.iban_photo_url ? (
-                                    <Button 
-                                        size="sm" 
-                                        variant="ghost" 
-                                        className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600"
-                                        onClick={() => handleViewFile(request.iban_photo_url, 'iban_photo')}
-                                        disabled={isViewingFile === 'iban_photo'}
-                                    >
-                                        {isViewingFile === 'iban_photo' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                                    </Button>
-                                ) : (
-                                    <span className="text-[10px] text-slate-400 font-medium">Não anexado</span>
-                                )}
-                            </div>
-
-                            {/* Proof of Titularity */}
-                            <div className="border rounded-xl p-3 flex items-center justify-between bg-white shadow-sm">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-9 h-9 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <FileText className="w-4 h-4" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-slate-800">Comprovante do Banco</p>
-                                        <p className="text-[10px] text-slate-400">Titularidade oficial</p>
-                                    </div>
-                                </div>
-                                {request.comprovante_url ? (
-                                    <Button 
-                                        size="sm" 
-                                        variant="ghost" 
-                                        className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600"
-                                        onClick={() => handleViewFile(request.comprovante_url, 'comprovante')}
-                                        disabled={isViewingFile === 'comprovante'}
-                                    >
-                                        {isViewingFile === 'comprovante' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                                    </Button>
-                                ) : (
-                                    <span className="text-[10px] text-slate-400 font-medium">Não anexado</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* DYNAMIC WORKFLOW ACCORDING TO STATUS */}
-                    <div className="border-t pt-4 space-y-4">
-                        <Label className="text-slate-700 text-xs font-bold uppercase tracking-wider block">Geração do Termo e Assinatura</Label>
+                    {/* LEFT COLUMN: Media Viewer (7 cols) */}
+                    <div className="lg:col-span-7 bg-slate-950 flex flex-col border-r border-slate-800 p-4 min-h-[400px]">
                         
-                        {/* 1. STATUS: ENVIADO - NEED TO GENERATE THE TERM */}
-                        {request.status === 'enviado' && (
-                            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-4 flex flex-col justify-between space-y-3">
-                                <div>
-                                    <h4 className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                                        <Info className="w-4 h-4 text-indigo-500" />
-                                        Passo 1: Gerar Termo de Autorização
-                                    </h4>
-                                    <p className="text-[11px] text-slate-500 leading-normal">
-                                        Para que o colaborador assine a alteração, você deve primeiro aprovar as informações bancárias visualizadas acima e gerar o termo em PDF no sistema. Isso habilitará o link de assinatura digital dele.
-                                    </p>
-                                </div>
-                                <Button 
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-full border-0 shadow-md shadow-indigo-600/10 h-10"
-                                    onClick={handleGeneratePdfAndAwaitingSignature}
-                                    disabled={isGeneratingPdf || isSettingAwaitingSig || !request.new_iban}
-                                    size="sm"
+                        {/* Document Tabs */}
+                        <div className="flex items-center gap-1.5 border-b border-slate-800 pb-3 mb-3">
+                            <button
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-all ${
+                                    activeTabDoc === 'iban_photo' 
+                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                                }`}
+                                onClick={() => setActiveTabDoc('iban_photo')}
+                            >
+                                <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
+                                Documento / Foto IBAN
+                            </button>
+
+                            <button
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-all ${
+                                    activeTabDoc === 'comprovante' 
+                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                                }`}
+                                onClick={() => setActiveTabDoc('comprovante')}
+                            >
+                                <FileText className="w-3.5 h-3.5 mr-1.5" />
+                                Comprovante Oficial
+                            </button>
+
+                            {(termoAssinadoUrl || termoGeradoUrl) && (
+                                <button
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-all ${
+                                        activeTabDoc === 'termo_assinado' 
+                                            ? 'bg-indigo-600 text-white shadow-md' 
+                                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                                    }`}
+                                    onClick={() => setActiveTabDoc('termo_assinado')}
                                 >
-                                    {isGeneratingPdf || isSettingAwaitingSig ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : (
-                                        <FileText className="w-4 h-4 mr-2" />
-                                    )}
-                                    Gerar Termo de Autorização e Enviar para Assinatura
-                                </Button>
-                            </div>
-                        )}
+                                    <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+                                    Termo de Autorização
+                                </button>
+                            )}
+                        </div>
 
-                        {/* 2. STATUS: AGUARDANDO ASSINATURA - LINK GENERATED, WAITING WORKER */}
-                        {request.status === 'aguardando_assinatura' && (
-                            <div className="space-y-4">
-                                <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-3.5">
-                                    <div>
-                                        <h4 className="text-xs font-bold text-amber-800 mb-1 flex items-center gap-1.5">
-                                            <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
-                                            Passo 2: Aguardando Assinatura Digital do Trabalhador
-                                        </h4>
-                                        <p className="text-[11px] text-amber-700 leading-normal">
-                                            O documento em PDF foi gerado. Envie o link seguro abaixo para que o trabalhador desenhe a sua assinatura e valide a alteração bancária no celular ou computador:
-                                        </p>
+                        {/* Document Viewer Container */}
+                        <div className="flex-1 bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden flex items-center justify-center relative p-2 min-h-[420px]">
+                            {isLoadingPreview ? (
+                                <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
+                                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                                    <span className="text-xs">Carregando arquivo...</span>
+                                </div>
+                            ) : previewUrl ? (
+                                isPdfFile(previewUrl) ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center">
+                                        <iframe 
+                                            src={`${previewUrl}#toolbar=0`} 
+                                            className="w-full h-full min-h-[460px] rounded-lg border-0"
+                                            title="Visualizador de PDF"
+                                        />
+                                        <div className="mt-2">
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline"
+                                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 text-xs h-7"
+                                                onClick={() => window.open(previewUrl, '_blank')}
+                                            >
+                                                <ExternalLink className="w-3 h-3 mr-1" /> Abrir PDF em Nova Guia
+                                            </Button>
+                                        </div>
                                     </div>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center overflow-auto">
+                                        <img 
+                                            src={previewUrl} 
+                                            alt="Documento do IBAN" 
+                                            className="max-h-[480px] max-w-full object-contain rounded-lg shadow-xl"
+                                        />
+                                    </div>
+                                )
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-600 p-6 text-center">
+                                    <FileText className="w-12 h-12 opacity-30 mb-2" />
+                                    <p className="text-xs font-semibold text-slate-400">Nenhum documento anexado nesta categoria</p>
+                                    <p className="text-[10px] text-slate-600 mt-1">Selecione outra aba no topo para visualizar o comprovativo.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                                    {/* Link and Share Actions */}
+                    {/* RIGHT COLUMN: Form & Audit Controls (5 cols) */}
+                    <div className="lg:col-span-5 p-5 overflow-y-auto space-y-5 bg-white flex flex-col justify-between">
+                        
+                        <div className="space-y-5">
+                            
+                            {/* Worker Header Card */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Trabalhador Titular</span>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <span className="text-sm font-bold text-slate-900 block">{request.worker?.nome}</span>
+                                        <span className="text-xs font-mono text-slate-500">ID / Código: {request.worker?.cod_colab || '-'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Current IBAN vs Proposed Editable Form */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <Label className="text-slate-900 text-xs font-extrabold uppercase tracking-wider block">
+                                        Dados Cadastrais Revisados
+                                    </Label>
+                                    {hasDataChanged && (
+                                        <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                                            Alterações pendentes
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Bank Field */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="edit_banco" className="text-slate-600 text-xs font-medium">Nome do Banco / Entidade</Label>
+                                    <Input 
+                                        id="edit_banco"
+                                        value={editableBanco}
+                                        onChange={(e) => handleBancoChange(e.target.value)}
+                                        placeholder="Ex: Santander, BBVA, Wise..."
+                                        className="bg-slate-50 border-slate-200 font-medium text-slate-900 h-9 text-xs"
+                                    />
+                                </div>
+
+                                {/* IBAN Field */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="edit_iban" className="text-slate-600 text-xs font-medium">Número de IBAN</Label>
+                                    <Input 
+                                        id="edit_iban"
+                                        value={editableIban}
+                                        onChange={(e) => handleIbanChange(e.target.value)}
+                                        placeholder="Ex: ES41 0000..."
+                                        className="bg-slate-50 border-slate-200 font-mono font-bold uppercase text-slate-900 h-9 text-xs"
+                                    />
+                                </div>
+
+                                {/* Save Edit Action */}
+                                {hasDataChanged && (
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={handleSaveManualEdits}
+                                        disabled={isUpdatingData}
+                                        className="w-full bg-slate-900 hover:bg-slate-800 text-white border-0 text-xs h-8 shadow-sm"
+                                    >
+                                        {isUpdatingData ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                                        Salvar Ajustes nos Dados
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Current Registered Bank Details for Comparison */}
+                            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-xs space-y-1">
+                                <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider block">IBAN Cadastrado Anterior no Sistema</span>
+                                <div className="flex justify-between font-mono text-slate-600 pt-0.5">
+                                    <span>Banco: <strong className="text-slate-800 font-sans">{request.old_banco || '-'}</strong></span>
+                                    <span>{maskIban(request.old_iban)}</span>
+                                </div>
+                            </div>
+
+                            {/* DYNAMIC WORKFLOW ACCORDING TO STATUS */}
+                            <div className="border-t pt-3 space-y-3">
+                                <Label className="text-slate-900 text-xs font-bold uppercase tracking-wider block">Etapa de Assinatura</Label>
+                                
+                                {/* 1. STATUS: ENVIADO - NEED TO GENERATE THE TERM */}
+                                {request.status === 'enviado' && (
+                                    <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-3.5 space-y-3">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-800 mb-0.5 flex items-center gap-1.5">
+                                                <Info className="w-4 h-4 text-indigo-500" />
+                                                Passo 1: Gerar Termo de Autorização
+                                            </h4>
+                                            <p className="text-[10px] text-slate-500 leading-normal">
+                                                Após conferir o documento à esquerda e validar os dados, clique abaixo para gerar o termo em PDF e liberar o link de assinatura do colaborador.
+                                            </p>
+                                        </div>
+                                        <Button 
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white w-full border-0 shadow-md text-xs h-9"
+                                            onClick={handleGeneratePdfAndAwaitingSignature}
+                                            disabled={isGeneratingPdf || isSettingAwaitingSig || !editableIban}
+                                            size="sm"
+                                        >
+                                            {isGeneratingPdf || isSettingAwaitingSig ? (
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <FileText className="w-4 h-4 mr-2" />
+                                            )}
+                                            Gerar Termo e Enviar para Assinatura
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* 2. STATUS: AGUARDANDO ASSINATURA - LINK GENERATED, WAITING WORKER */}
+                                {request.status === 'aguardando_assinatura' && (
+                                    <div className="space-y-3">
+                                        <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-3.5 space-y-3">
+                                            <div>
+                                                <h4 className="text-xs font-bold text-amber-800 mb-0.5 flex items-center gap-1.5">
+                                                    <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                                                    Aguardando Assinatura Digital
+                                                </h4>
+                                                <p className="text-[10px] text-amber-700 leading-normal">
+                                                    Envie o link para o trabalhador desenhar a assinatura no celular:
+                                                </p>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm"
+                                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border-slate-200 flex items-center justify-center gap-1 text-xs h-8"
+                                                    onClick={handleCopySigningLink}
+                                                >
+                                                    <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                                </Button>
+                                                <Button 
+                                                    size="sm"
+                                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1 text-xs border-0 h-8 shadow-sm"
+                                                    onClick={handleSendWhatsApp}
+                                                >
+                                                    <Share2 className="w-3.5 h-3.5" /> WhatsApp
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="border border-slate-200 bg-slate-50/40 rounded-xl p-3 space-y-2">
+                                            <h4 className="text-[11px] font-semibold text-slate-800">Carregar Termo Assinado Manualmente</h4>
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                ref={termoInputRef}
+                                                onChange={handleUploadSignedTerm}
+                                                accept="application/pdf,image/png,image/jpeg,image/jpg"
+                                            />
+                                            <Button 
+                                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-full text-xs h-8"
+                                                onClick={() => termoInputRef.current?.click()}
+                                                disabled={isUploadingTermo}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                {isUploadingTermo ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5 text-slate-500" />}
+                                                Carregar Documento Assinado
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 3. STATUS: ASSINADO - READY TO ACTIVATE */}
+                                {request.status === 'assinado' && (
+                                    <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-3 flex flex-col space-y-2">
+                                        <div className="flex items-start gap-2">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <h4 className="text-xs font-bold text-emerald-800">
+                                                    Termo Assinado Eletronicamente!
+                                                </h4>
+                                                <p className="text-[10px] text-emerald-700 leading-normal">
+                                                    Assinatura registrada. Clique no botão de ativação abaixo para atualizar o cadastro.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* REJECTION FORM */}
+                            {showRejectionForm && (
+                                <div className="border-t pt-3 space-y-2.5 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
+                                    <Label htmlFor="rejection_reason" className="text-rose-900 text-xs font-bold uppercase tracking-wider block">Motivo da Rejeição</Label>
+                                    <Textarea 
+                                        id="rejection_reason" 
+                                        placeholder="Informe o motivo..."
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        className="bg-white border-rose-200 focus:border-rose-500 text-slate-800 text-xs"
+                                        rows={2}
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="bg-white text-slate-600 text-xs h-7"
+                                            onClick={() => setShowRejectionForm(false)}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs h-7 border-0"
+                                            onClick={handleReject}
+                                            disabled={isRejecting}
+                                        >
+                                            {isRejecting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 mr-1" />}
+                                            Confirmar Rejeição
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+
+                        {/* Dialog Footer Actions */}
+                        <div className="flex justify-between items-center border-t pt-3 mt-4 gap-2">
+                            {!showRejectionForm && (
+                                <>
+                                    {request.status !== 'aprovado' && request.status !== 'rejeitado' ? (
+                                        <Button 
+                                            variant="ghost" 
+                                            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 px-3 text-xs h-9"
+                                            onClick={() => setShowRejectionForm(true)}
+                                            disabled={isApproving || isRejecting}
+                                        >
+                                            <XCircle className="w-4 h-4 mr-1.5" />
+                                            Rejeitar
+                                        </Button>
+                                    ) : (
+                                        <div />
+                                    )}
+
                                     <div className="flex gap-2">
                                         <Button 
                                             variant="outline" 
-                                            size="sm"
-                                            className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border-slate-200 flex items-center justify-center gap-1.5 text-xs h-9"
-                                            onClick={handleCopySigningLink}
+                                            onClick={() => onOpenChange(false)} 
+                                            disabled={isApproving || isRejecting}
+                                            className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs h-9"
                                         >
-                                            <Copy className="w-4 h-4" />
-                                            Copiar Link
+                                            Fechar
                                         </Button>
-                                        <Button 
-                                            size="sm"
-                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs border-0 shadow-sm h-9"
-                                            onClick={handleSendWhatsApp}
-                                        >
-                                            <Share2 className="w-4 h-4" />
-                                            WhatsApp
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Manual Upload Fallback */}
-                                <div className="border border-slate-200 bg-slate-50/40 rounded-xl p-4 space-y-3">
-                                    <div>
-                                        <h4 className="text-xs font-semibold text-slate-800 mb-0.5">Alternativa: Carregar Termo Assinado Manualmente</h4>
-                                        <p className="text-[10px] text-slate-500 leading-normal">
-                                            Caso o colaborador tenha assinado o termo físico à mão, anexe o arquivo ou foto digitalizada da via assinada aqui:
-                                        </p>
-                                    </div>
-                                    <input 
-                                        type="file" 
-                                        className="hidden" 
-                                        ref={termoInputRef}
-                                        onChange={handleUploadSignedTerm}
-                                        accept="application/pdf,image/png,image/jpeg,image/jpg"
-                                    />
-                                    <Button 
-                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-full text-xs h-9"
-                                        onClick={() => termoInputRef.current?.click()}
-                                        disabled={isUploadingTermo}
-                                        size="sm"
-                                        variant="outline"
-                                    >
-                                        {isUploadingTermo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2 text-slate-500" />}
-                                        Carregar Documento Assinado
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 3. STATUS: ASSINADO - READY TO ACTIVATE */}
-                        {request.status === 'assinado' && (
-                            <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-4 flex flex-col space-y-3">
-                                <div className="flex items-start gap-2.5">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <h4 className="text-xs font-bold text-emerald-800 mb-0.5">
-                                            Termo de Autorização Assinado Digitalmente!
-                                        </h4>
-                                        <p className="text-[11px] text-emerald-700 leading-normal">
-                                            O trabalhador assinou eletronicamente o termo com os dados bancários corretos. Você pode visualizar o documento assinado antes de validar.
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="flex-1 bg-white border-emerald-200 hover:bg-emerald-50 text-emerald-700 text-xs h-9"
-                                        onClick={() => handleViewFile(termoAssinadoUrl, 'termo_assinado')}
-                                        disabled={isViewingFile === 'termo_assinado'}
-                                    >
-                                        {isViewingFile === 'termo_assinado' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
-                                        Visualizar Termo Assinado
-                                    </Button>
-                                    {request.termo_gerado_url && (
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="text-slate-500 hover:bg-slate-100 text-xs h-9"
-                                            onClick={() => handleViewFile(request.termo_gerado_url, 'termo_gerado')}
-                                        >
-                                            Ver Termo Original
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 4. STATUS: APROVADO / REJEITADO - HISTORY ONLY */}
-                        {(request.status === 'aprovado' || request.status === 'rejeitado') && (
-                            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-4 space-y-2">
-                                <h4 className="text-xs font-bold text-slate-800">Histórico de Arquivamento</h4>
-                                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-slate-400 block text-[10px]">Status Final</span>
-                                        <span className={`font-semibold uppercase ${request.status === 'aprovado' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            {request.status === 'aprovado' ? 'Aprovado' : 'Rejeitado'}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-slate-400 block text-[10px]">Documento Assinado</span>
-                                        {termoAssinadoUrl ? (
-                                            <button 
-                                                className="text-indigo-600 hover:underline text-left font-medium"
-                                                onClick={() => handleViewFile(termoAssinadoUrl, 'termo_assinado')}
+                                        
+                                        {request.status !== 'aprovado' && request.status !== 'rejeitado' && (
+                                            <Button 
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md border-0 text-xs h-9 px-4 font-semibold"
+                                                onClick={handleApprove}
+                                                disabled={isApproving || request.status !== 'assinado' || (!editableIban && !request.new_iban)}
                                             >
-                                                Visualizar Termo
-                                            </button>
-                                        ) : (
-                                            <span className="text-slate-500 font-medium">Nenhum termo arquivado</span>
+                                                {isApproving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
+                                                Aprovar e Ativar IBAN
+                                            </Button>
                                         )}
                                     </div>
-                                    {request.rejection_reason && (
-                                        <div className="col-span-2 pt-1.5 border-t">
-                                            <span className="text-slate-400 block text-[10px]">Motivo da Rejeição</span>
-                                            <span className="text-rose-700 italic block">{request.rejection_reason}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* REJECTION FORM */}
-                    {showRejectionForm && (
-                        <div className="border-t pt-4 space-y-3 bg-rose-50/50 p-4 rounded-xl border border-rose-100">
-                            <Label htmlFor="rejection_reason" className="text-rose-900 text-xs font-bold uppercase tracking-wider block">Motivo da Rejeição</Label>
-                            <Textarea 
-                                id="rejection_reason" 
-                                placeholder="Informe detalhadamente o porquê desta conta não ser válida..."
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                className="bg-white border-rose-200 focus:border-rose-500 text-slate-800 text-xs"
-                                rows={3}
-                            />
-                            <div className="flex gap-2 justify-end">
-                                <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    className="bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
-                                    onClick={() => setShowRejectionForm(false)}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button 
-                                    size="sm" 
-                                    className="bg-rose-600 hover:bg-rose-700 text-white border-0 shadow-sm shadow-rose-600/10"
-                                    onClick={handleReject}
-                                    disabled={isRejecting}
-                                >
-                                    {isRejecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-                                    Confirmar Rejeição
-                                </Button>
-                            </div>
+                                </>
+                            )}
                         </div>
-                    )}
+
+                    </div>
                 </div>
 
-                <DialogFooter className="flex sm:justify-between items-center w-full gap-2 border-t pt-4 mt-2">
-                    {!showRejectionForm && (
-                        <>
-                            {request.status !== 'aprovado' && request.status !== 'rejeitado' ? (
-                                <Button 
-                                    variant="ghost" 
-                                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 px-3 w-full sm:w-auto"
-                                    onClick={() => setShowRejectionForm(true)}
-                                    disabled={isApproving || isRejecting}
-                                >
-                                    <XCircle className="w-4 h-4 mr-2" />
-                                    Rejeitar
-                                </Button>
-                            ) : (
-                                <div />
-                            )}
-                            <div className="flex gap-2 w-full sm:w-auto flex-1 justify-end">
-                                <Button 
-                                    variant="outline" 
-                                    onClick={() => onOpenChange(false)} 
-                                    disabled={isApproving || isRejecting}
-                                    className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
-                                >
-                                    Fechar
-                                </Button>
-                                {request.status !== 'aprovado' && request.status !== 'rejeitado' && (
-                                    <Button 
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1 sm:flex-initial shadow-md shadow-indigo-600/10 border-0"
-                                        onClick={handleApprove}
-                                        disabled={isApproving || request.status !== 'assinado' || !request.new_iban}
-                                    >
-                                        {isApproving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                                        Aprovar e Ativar IBAN
-                                    </Button>
-                                )}
-                            </div>
-                        </>
-                    )}
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
