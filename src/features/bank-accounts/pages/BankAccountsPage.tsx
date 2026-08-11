@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { 
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
-    XCircle, Clock, Link2, ChevronRight, HelpCircle, PenTool
+    XCircle, Clock, Link2, ChevronRight, HelpCircle, PenTool,
+    ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,8 @@ export function BankAccountsPage() {
     const [onlyNovos, setOnlyNovos] = useState<boolean>(false);
 
     // Sort control for Table
-    const [sortColumn, setSortColumn] = useState<'worker_nome' | 'worker_codigo' | 'banco' | 'iban' | 'data_ingresso'>('worker_nome');
+    type SortColumn = 'worker_codigo' | 'worker_nome' | 'status_month' | 'data_ingresso' | 'iban' | 'banco' | 'contratante';
+    const [sortColumn, setSortColumn] = useState<SortColumn>('worker_nome');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const [revealedIbans, setRevealedIbans] = useState<Set<string>>(new Set());
@@ -137,8 +139,8 @@ export function BankAccountsPage() {
     }) || [];
 
     const sortedAccounts = [...filteredAccounts].sort((a, b) => {
-        let valA = a[sortColumn] || '';
-        let valB = b[sortColumn] || '';
+        let valA: any = a[sortColumn] || '';
+        let valB: any = b[sortColumn] || '';
 
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
@@ -148,13 +150,36 @@ export function BankAccountsPage() {
         return 0;
     });
 
-    const toggleSort = (column: typeof sortColumn) => {
+    const toggleSort = (column: SortColumn) => {
         if (sortColumn === column) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
             setSortColumn(column);
             setSortDirection('asc');
         }
+    };
+
+    const renderSortHeader = (col: SortColumn, label: string, extraClasses: string = '') => {
+        const isSorted = sortColumn === col;
+        return (
+            <TableHead 
+                onClick={() => toggleSort(col)} 
+                className={`cursor-pointer font-bold text-xs text-slate-700 uppercase hover:text-indigo-600 transition-colors whitespace-nowrap select-none py-3 ${extraClasses}`}
+            >
+                <div className="flex items-center gap-1.5">
+                    <span>{label}</span>
+                    {isSorted ? (
+                        sortDirection === 'asc' ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-indigo-600 font-extrabold" />
+                        ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-indigo-600 font-extrabold" />
+                        )
+                    ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 opacity-60" />
+                    )}
+                </div>
+            </TableHead>
+        );
     };
 
     const formatDate = (dateString: string | null) => {
@@ -449,25 +474,23 @@ export function BankAccountsPage() {
                         </div>
                     </div>
 
-                    {/* Table Section */}
-                    <div className="flex-1 bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col relative z-0">
-                        <div className="flex-1 overflow-auto">
+                    {/* Table Section with Sticky Header & Internal Scroll */}
+                    <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative z-0 max-h-[calc(100vh-320px)] min-h-[450px]">
+                        <div className="flex-1 overflow-y-auto overflow-x-auto">
                             <Table>
-                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] border-b border-slate-200">
+                                <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md shadow-[0_2px_4px_0_rgba(0,0,0,0.05)] border-b border-slate-200">
                                     <TableRow className="hover:bg-transparent">
-                                        <TableHead className="w-[60px] font-semibold text-xs text-slate-500 uppercase">Nº</TableHead>
-                                        <TableHead onClick={() => toggleSort('worker_codigo')} className="w-[80px] cursor-pointer font-semibold text-xs text-slate-500 uppercase hover:text-indigo-600 transition-colors whitespace-nowrap">ID {sortColumn === 'worker_codigo' && (sortDirection === 'asc' ? '↑' : '↓')}</TableHead>
-                                        <TableHead onClick={() => toggleSort('worker_nome')} className="cursor-pointer font-semibold text-xs text-slate-500 uppercase hover:text-indigo-600 transition-colors whitespace-nowrap">
-                                            TRABALHADOR {sortColumn === 'worker_nome' && (sortDirection === 'asc' ? '↑' : '↓')}
-                                        </TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase text-center border-l whitespace-nowrap">STATUS</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase text-center whitespace-nowrap">DATA ENTRADA</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase border-l whitespace-nowrap w-[230px]">IBAN</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase">BANCO</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase text-center border-l border-r whitespace-nowrap">CERT. TITUL.</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase text-center border-r">AUTORIZAÇÃO</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase text-center w-[120px]">AÇÕES</TableHead>
-                                        <TableHead className="font-semibold text-xs text-slate-500 uppercase border-l w-[120px]">EMPRESA</TableHead>
+                                        <TableHead className="w-[50px] font-bold text-xs text-slate-700 uppercase text-center py-3">Nº</TableHead>
+                                        {renderSortHeader('worker_codigo', 'ID', 'w-[90px]')}
+                                        {renderSortHeader('worker_nome', 'TRABALHADOR')}
+                                        {renderSortHeader('status_month', 'STATUS', 'text-center border-l')}
+                                        {renderSortHeader('data_ingresso', 'DATA ENTRADA', 'text-center')}
+                                        {renderSortHeader('iban', 'IBAN', 'border-l w-[230px]')}
+                                        {renderSortHeader('banco', 'BANCO')}
+                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center border-l border-r whitespace-nowrap py-3">CERT. TITUL.</TableHead>
+                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center border-r py-3">AUTORIZAÇÃO</TableHead>
+                                        <TableHead className="font-bold text-xs text-slate-700 uppercase text-center w-[120px] py-3">AÇÕES</TableHead>
+                                        {renderSortHeader('contratante', 'EMPRESA', 'border-l w-[120px]')}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
