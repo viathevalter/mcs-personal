@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
     Wallet, Camera, UploadCloud, CheckCircle2, Loader2, 
-    Sparkles, ShieldCheck, AlertCircle, RefreshCw, FileCheck, Trash2
+    Sparkles, ShieldCheck, AlertCircle, FileCheck, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,13 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useIbanRequestByToken, useSubmitIbanRequest, useUploadIbanRequestFile } from '../hooks/useIbanRequests';
 import { processDocumentOcr } from '@/features/documents/api/contractsApi';
-import { getIbanRequestFileUrl } from '../api/ibanRequestsApi';
+import { useTranslation } from 'react-i18next';
 
 export function UpdateIbanPage() {
     const { token } = useParams<{ token: string }>();
+    const { t, i18n } = useTranslation();
+    const currentLanguage = i18n.language || 'pt';
+
     const [success, setSuccess] = useState(false);
     
     // Form fields
@@ -48,7 +51,7 @@ export function UpdateIbanPage() {
     }, [request]);
 
     const maskIban = (iban: string | null | undefined) => {
-        if (!iban) return 'Não cadastrado';
+        if (!iban) return t('updateIban.notRegistered');
         const clean = iban.replace(/\s+/g, '');
         if (clean.length < 8) return iban;
         const start = clean.substring(0, 4);
@@ -73,11 +76,11 @@ export function UpdateIbanPage() {
             // 1. Upload to bucket worker-incoming-docs
             const path = await uploadFile({ token, file, docType: 'iban_photo' });
             setIbanPhotoUrl(path);
-            toast.success('Foto do IBAN enviada com sucesso!');
+            toast.success(t('updateIban.toastPhotoSuccess'));
 
             // 2. Run OCR using AI
             setIsOcrProcessing(true);
-            toast.info('IA analisando a imagem para extrair o IBAN...', { icon: '🤖' });
+            toast.info(t('updateIban.toastOcrRunning'), { icon: '🤖' });
             
             try {
                 const ocrResult = await processDocumentOcr({
@@ -90,17 +93,17 @@ export function UpdateIbanPage() {
                     const { iban, banco } = ocrResult.data;
                     if (iban) {
                         setNewIban(iban.toUpperCase());
-                        toast.success('IBAN extraído com sucesso pela IA!', { icon: '✨' });
+                        toast.success(t('updateIban.toastOcrSuccess'), { icon: '✨' });
                     }
                     if (banco) {
                         setNewBanco(banco.toUpperCase());
                     }
                 } else {
-                    toast.info('Não foi possível ler o IBAN automaticamente. Por favor, digite manualmente.');
+                    toast.info(t('updateIban.toastOcrFail'));
                 }
             } catch (ocrErr: any) {
                 console.warn('OCR error:', ocrErr);
-                toast.info('IA não conseguiu ler a imagem de forma nítida. Insira o IBAN manualmente.');
+                toast.info(t('updateIban.toastOcrError'));
             } finally {
                 setIsOcrProcessing(false);
             }
@@ -128,7 +131,7 @@ export function UpdateIbanPage() {
         try {
             const path = await uploadFile({ token, file, docType: 'comprovante' });
             setComprovanteUrl(path);
-            toast.success('Comprovativo oficial enviado com sucesso!');
+            toast.success(t('updateIban.toastCompSuccess'));
         } catch (err) {
             console.error(err);
             toast.error('Erro ao enviar comprovativo.');
@@ -167,7 +170,7 @@ export function UpdateIbanPage() {
                 }
             });
 
-            toast.success('Dados bancários enviados com sucesso!');
+            toast.success(t('updateIban.toastSubmitSuccess'));
             setSuccess(true);
         } catch (err: any) {
             toast.error(err.message || 'Erro ao submeter os dados.');
@@ -188,9 +191,9 @@ export function UpdateIbanPage() {
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
                 <div className="max-w-md w-full bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 text-center shadow-xl backdrop-blur-md">
                     <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">Solicitação Inválida</h2>
+                    <h2 className="text-xl font-bold text-white mb-2">{t('updateIban.errorTitle')}</h2>
                     <p className="text-slate-400 text-sm mb-6">
-                        O link que você acessou expirou, já foi utilizado ou é inválido. Por favor, solicite um novo link ao departamento de Recursos Humanos.
+                        {t('updateIban.errorGeneric')}
                     </p>
                 </div>
             </div>
@@ -200,32 +203,69 @@ export function UpdateIbanPage() {
     if (success) {
         return (
             <div className="min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/80 flex flex-col items-center justify-center p-4">
-                <div className="max-w-md w-full bg-slate-900/60 border border-indigo-500/20 rounded-2xl p-8 text-center shadow-2xl backdrop-blur-xl">
+                <div className="max-w-md w-full bg-slate-900/60 border border-indigo-500/20 rounded-2xl p-8 text-center shadow-2xl backdrop-blur-xl relative">
+                    {/* Language Switcher */}
+                    <div className="absolute top-4 right-4 flex gap-1">
+                        <button 
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded ${currentLanguage.startsWith('pt') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800/50'}`}
+                            onClick={() => i18n.changeLanguage('pt')}
+                        >
+                            PT
+                        </button>
+                        <button 
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded ${currentLanguage.startsWith('es') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800/50'}`}
+                            onClick={() => i18n.changeLanguage('es')}
+                        >
+                            ES
+                        </button>
+                    </div>
+
                     <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-3">Dados Enviados!</h2>
+                    <h2 className="text-2xl font-bold text-white mb-3">{t('updateIban.successTitle')}</h2>
                     <p className="text-indigo-200 text-sm leading-relaxed mb-6">
-                        Olá, <span className="font-semibold text-white">{request.worker?.nome}</span>. Suas novas informações de IBAN foram recebidas pelo RH.
+                        {t('updateIban.successText', { name: request.worker?.nome })}
                     </p>
                     <div className="bg-indigo-950/40 border border-indigo-500/10 rounded-xl p-4 text-left text-xs text-indigo-300 mb-6 leading-relaxed">
                         <p className="font-semibold text-white mb-1.5 flex items-center">
-                            <ShieldCheck className="w-4 h-4 mr-1 text-indigo-400" /> O que acontece agora?
+                            <ShieldCheck className="w-4 h-4 mr-1 text-indigo-400" /> {t('updateIban.successInstructionTitle')}
                         </p>
                         <ol className="list-decimal pl-4 space-y-1">
-                            <li>O gestor irá avaliar e auditar seus documentos bancários.</li>
-                            <li>Será gerado o **Termo de Autorização** oficial.</li>
-                            <li>Após a assinatura do termo, sua nova conta será ativada para pagamentos.</li>
+                            <li>{t('updateIban.successInstruction1')}</li>
+                            <li>{t('updateIban.successInstruction2')}</li>
+                            <li>{t('updateIban.successInstruction3')}</li>
                         </ol>
                     </div>
-                    <p className="text-[11px] text-slate-500">Obrigado pela sua colaboração. Você pode fechar esta janela.</p>
+                    <p className="text-[11px] text-slate-500">{t('updateIban.successFooter')}</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 p-4">
+        <div className="min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 p-4 relative">
+            
+            {/* Language Switcher */}
+            <div className="absolute top-4 right-4 flex gap-1 z-55">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={`h-7 px-2 text-[10px] font-bold rounded ${currentLanguage.startsWith('pt') ? 'bg-indigo-600 text-white hover:bg-indigo-600' : 'text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800'}`}
+                    onClick={() => i18n.changeLanguage('pt')}
+                >
+                    PT
+                </Button>
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={`h-7 px-2 text-[10px] font-bold rounded ${currentLanguage.startsWith('es') ? 'bg-indigo-600 text-white hover:bg-indigo-600' : 'text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800'}`}
+                    onClick={() => i18n.changeLanguage('es')}
+                >
+                    ES
+                </Button>
+            </div>
+
             <div className="sm:mx-auto sm:w-full sm:max-w-xl">
                 <div className="flex justify-center mb-4">
                     <div className="w-12 h-12 bg-indigo-600/15 border border-indigo-500/30 rounded-2xl flex items-center justify-center text-indigo-400 shadow-lg">
@@ -233,10 +273,10 @@ export function UpdateIbanPage() {
                     </div>
                 </div>
                 <h2 className="text-center text-3xl font-extrabold text-white tracking-tight">
-                    Atualização Bancária (IBAN)
+                    {t('updateIban.title')}
                 </h2>
                 <p className="mt-2 text-center text-sm text-indigo-200/70">
-                    Formulário seguro para atualização de conta corrente para pagamentos
+                    {t('updateIban.subtitle')}
                 </p>
             </div>
 
@@ -247,21 +287,21 @@ export function UpdateIbanPage() {
                     <div className="bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-4 mb-6">
                         <div className="grid grid-cols-2 gap-4 text-xs">
                             <div>
-                                <span className="text-slate-400 block mb-0.5">Colaborador</span>
+                                <span className="text-slate-400 block mb-0.5">{t('updateIban.collaborator')}</span>
                                 <span className="text-white font-semibold text-sm">{request.worker?.nome}</span>
                             </div>
                             <div>
-                                <span className="text-slate-400 block mb-0.5">ID / Código</span>
+                                <span className="text-slate-400 block mb-0.5">{t('updateIban.workerCode')}</span>
                                 <span className="text-slate-300 font-mono text-sm">{request.worker?.cod_colab || '-'}</span>
                             </div>
                             <div className="col-span-2 border-t border-indigo-950/60 pt-3 flex justify-between items-center">
                                 <div>
-                                    <span className="text-slate-400 block mb-0.5">IBAN Cadastrado Anterior</span>
+                                    <span className="text-slate-400 block mb-0.5">{t('updateIban.currentIban')}</span>
                                     <span className="text-slate-300 font-mono">{maskIban(request.old_iban)}</span>
                                 </div>
                                 {request.old_banco && (
                                     <div className="text-right">
-                                        <span className="text-slate-400 block mb-0.5">Banco Anterior</span>
+                                        <span className="text-slate-400 block mb-0.5">{t('updateIban.currentBank')}</span>
                                         <span className="text-slate-300 font-medium">{request.old_banco}</span>
                                     </div>
                                 )}
@@ -274,9 +314,9 @@ export function UpdateIbanPage() {
                         {/* 1. PHOTO/CAMERA UPLOAD AREA (WITH OCR) */}
                         <div className="space-y-2">
                             <Label className="text-slate-300 text-sm font-medium flex items-center justify-between">
-                                <span>1. Foto do Cartão Bancário ou Cabeçalho (Opcional, ativa IA)</span>
+                                <span>{t('updateIban.step1Title')}</span>
                                 <span className="text-[10px] text-indigo-400 flex items-center bg-indigo-950/50 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                                    <Sparkles className="w-3 h-3 mr-1 animate-pulse" /> Preenchimento por IA
+                                    <Sparkles className="w-3 h-3 mr-1 animate-pulse" /> {t('updateIban.step1BtnOcr')}
                                 </span>
                             </Label>
                             
@@ -285,7 +325,7 @@ export function UpdateIbanPage() {
                                 className="hidden" 
                                 ref={photoInputRef}
                                 onChange={photoInputSelect => handlePhotoSelect(photoInputSelect)}
-                                accept="image/png,image/jpeg,image/jpg"
+                                accept="image/*"
                             />
 
                             {!ibanPhotoFile ? (
@@ -296,8 +336,8 @@ export function UpdateIbanPage() {
                                     <div className="w-10 h-10 bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-md">
                                         <Camera className="w-5 h-5" />
                                     </div>
-                                    <p className="text-xs font-semibold text-slate-300">Tire uma foto ou anexe imagem do seu IBAN</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Nossa IA tentará ler o número do IBAN automaticamente</p>
+                                    <p className="text-xs font-semibold text-slate-300">{t('updateIban.step1Placeholder')}</p>
+                                    <p className="text-[10px] text-slate-500 mt-1">{t('updateIban.step1PlaceholderSub')}</p>
                                 </div>
                             ) : (
                                 <div className="border border-indigo-500/20 bg-indigo-950/10 rounded-xl p-4 flex items-center justify-between">
@@ -324,11 +364,11 @@ export function UpdateIbanPage() {
                         {/* 2. FORM FIELDS */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="new_iban" className="text-slate-300 text-sm font-medium">Novo IBAN (Número completo)</Label>
+                                <Label htmlFor="new_iban" className="text-slate-300 text-sm font-medium">{t('updateIban.newIbanLabel')}</Label>
                                 <div className="relative">
                                     <Input
                                         id="new_iban"
-                                        placeholder="Ex: ES21 0000..."
+                                        placeholder={t('updateIban.newIbanPlaceholder')}
                                         value={newIban}
                                         onChange={(e) => setNewIban(e.target.value.toUpperCase())}
                                         className={`bg-slate-950/40 border-slate-800 text-white font-mono uppercase ${isOcrProcessing ? 'pl-9 text-indigo-300' : ''}`}
@@ -342,10 +382,10 @@ export function UpdateIbanPage() {
                             </div>
                             
                             <div className="space-y-2">
-                                <Label htmlFor="new_banco" className="text-slate-300 text-sm font-medium">Nome do Banco</Label>
+                                <Label htmlFor="new_banco" className="text-slate-300 text-sm font-medium">{t('updateIban.newBankLabel')}</Label>
                                 <Input
                                     id="new_banco"
-                                    placeholder="Ex: Santander, BBVA..."
+                                    placeholder={t('updateIban.newBankPlaceholder')}
                                     value={newBanco}
                                     onChange={(e) => setNewBanco(e.target.value)}
                                     className="bg-slate-950/40 border-slate-800 text-white"
@@ -358,7 +398,7 @@ export function UpdateIbanPage() {
                         {/* 3. OFFICIAL PROOF OF TITULARITY */}
                         <div className="space-y-2">
                             <Label className="text-slate-300 text-sm font-medium">
-                                2. Comprovativo Oficial de Titularidade (PDF ou Imagem) <span className="text-rose-500">*</span>
+                                {t('updateIban.step2Title')} <span className="text-rose-500">*</span>
                             </Label>
                             
                             <input 
@@ -366,7 +406,7 @@ export function UpdateIbanPage() {
                                 className="hidden" 
                                 ref={compInputRef}
                                 onChange={compInputSelect => handleCompSelect(compInputSelect)}
-                                accept="application/pdf,image/png,image/jpeg,image/jpg"
+                                accept="application/pdf,image/*"
                             />
 
                             {!comprovanteFile ? (
@@ -377,8 +417,8 @@ export function UpdateIbanPage() {
                                     <div className="w-10 h-10 bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-md">
                                         <UploadCloud className="w-5 h-5" />
                                     </div>
-                                    <p className="text-xs font-semibold text-slate-300">Anexe o Comprovativo do Banco</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Extrato da conta onde mostre o seu nome e o IBAN completo</p>
+                                    <p className="text-xs font-semibold text-slate-300">{t('updateIban.step2Placeholder')}</p>
+                                    <p className="text-[10px] text-slate-500 mt-1">{t('updateIban.step2PlaceholderSub')}</p>
                                 </div>
                             ) : (
                                 <div className="border border-indigo-500/20 bg-indigo-950/10 rounded-xl p-4 flex items-center justify-between">
@@ -414,7 +454,7 @@ export function UpdateIbanPage() {
                                 ) : (
                                     <ShieldCheck className="w-4 h-4 mr-2" />
                                 )}
-                                {isSubmitting ? 'Enviando dados de forma segura...' : 'Enviar Novos Dados Bancários'}
+                                {isSubmitting ? t('updateIban.btnSubmitting') : t('updateIban.btnSubmit')}
                             </Button>
                         </div>
                     </form>
