@@ -294,17 +294,15 @@ export function UpdateIbanPage() {
                                 <span className="text-slate-400 block mb-0.5">{t('updateIban.workerCode')}</span>
                                 <span className="text-slate-300 font-mono text-sm">{request.worker?.cod_colab || '-'}</span>
                             </div>
-                            <div className="col-span-2 border-t border-indigo-950/60 pt-3 flex justify-between items-center">
+                            <div className="col-span-2 border-t border-indigo-950/60 pt-3 space-y-2.5">
+                                <div>
+                                    <span className="text-slate-400 block mb-0.5">{t('updateIban.currentBank')}</span>
+                                    <span className="text-slate-200 font-semibold text-sm">{request.old_banco || '-'}</span>
+                                </div>
                                 <div>
                                     <span className="text-slate-400 block mb-0.5">{t('updateIban.currentIban')}</span>
-                                    <span className="text-slate-300 font-mono">{maskIban(request.old_iban)}</span>
+                                    <span className="text-slate-200 font-mono text-sm break-all tracking-tight">{maskIban(request.old_iban)}</span>
                                 </div>
-                                {request.old_banco && (
-                                    <div className="text-right">
-                                        <span className="text-slate-400 block mb-0.5">{t('updateIban.currentBank')}</span>
-                                        <span className="text-slate-300 font-medium">{request.old_banco}</span>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -325,7 +323,7 @@ export function UpdateIbanPage() {
                                 className="hidden" 
                                 ref={photoInputRef}
                                 onChange={photoInputSelect => handlePhotoSelect(photoInputSelect)}
-                                accept="image/*"
+                                accept="application/pdf,image/*"
                             />
 
                             {!ibanPhotoFile ? (
