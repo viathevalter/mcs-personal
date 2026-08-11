@@ -182,7 +182,7 @@ export function EditManualAllocationModal({ open, onOpenChange, workerCodColab, 
                     </Button>
                     <Button 
                         onClick={handleSave} 
-                        disabled={isPending || !cliente || !contratante || !funcion}
+                        disabled={isPending || !cliente || !contratante}
                     >
                         {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                         Salvar Alterações
