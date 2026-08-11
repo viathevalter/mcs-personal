@@ -441,7 +441,7 @@ export function DocumentacionTasksPage() {
     };
 
     const loadTaskWorkers = async (task: any) => {
-        if (!task || !selectedEmpresaId) return;
+        if (!task) return;
         try {
             setLoadingTaskWorkers(true);
             setTaskWorkers([]);
@@ -564,7 +564,7 @@ export function DocumentacionTasksPage() {
                     status: t.status || 'pendente'
                 }));
             } else if (pedidoId) {
-                // Fetch from worker_assignments
+                // Fetch from worker_assignments for this specific order
                 const { data: assignments, error: assignErr } = await supabase
                     .schema('core_personal')
                     .from('worker_assignments')
@@ -572,7 +572,6 @@ export function DocumentacionTasksPage() {
                         *,
                         worker:workers(id, nome, cod_colab, email, movil, funcion)
                     `)
-                    .eq('empresa_id', selectedEmpresaId)
                     .eq('pedido_id', pedidoId)
                     .in('status', ['planned', 'active']);
 
@@ -634,7 +633,8 @@ export function DocumentacionTasksPage() {
             // Caso contrário, cria uma nova solicitação silenciosamente na hora!
             try {
                 const loadingToast = toast.loading("Gerando link de envio de documentos...");
-                const res = await createDocumentRequest(selectedEmpresaId!, item.worker.id);
+                const empId = taskMetadata?.empresaId || item.worker?.empresa_id || selectedEmpresaId!;
+                const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
                 inviteLink = `${window.location.origin}/enviar-documentos/${res.token}`;
                 
                 // Atualiza a lista local
