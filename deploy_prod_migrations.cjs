@@ -113,7 +113,8 @@ const migrationsToRun = [
   '20260716190000_unify_carvisa_client.sql',
   '20260720130000_fix_search_workers_company_filter.sql',
   '20260803100000_improve_replacement_flow_questions.sql',
-  '20260811120000_fix_alocar_trabalhador_completed_at.sql'
+  '20260811120000_fix_alocar_trabalhador_completed_at.sql',
+  '20260811121000_fix_alocar_trabalhador_solicitudes_completed_at.sql'
 ];
 
 async function run() {

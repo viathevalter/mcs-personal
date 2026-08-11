@@ -97,7 +97,8 @@ const migrationsToRun = [
   '20260708130000_update_pedidos_on_solicitud_completion.sql',
   '20260708140000_auto_complete_date_change_solicitudes.sql',
   '20260803100000_improve_replacement_flow_questions.sql',
-  '20260811120000_fix_alocar_trabalhador_completed_at.sql'
+  '20260811120000_fix_alocar_trabalhador_completed_at.sql',
+  '20260811121000_fix_alocar_trabalhador_solicitudes_completed_at.sql'
 ];
 
 async function run() {
