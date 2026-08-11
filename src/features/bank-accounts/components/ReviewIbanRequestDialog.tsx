@@ -46,6 +46,7 @@ export function ReviewIbanRequestDialog({
     const [editableIban, setEditableIban] = useState(request.new_iban || '');
     const [hasDataChanged, setHasDataChanged] = useState(false);
 
+    const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
     const [showRejectionForm, setShowRejectionForm] = useState(false);
     
@@ -355,6 +356,8 @@ export function ReviewIbanRequestDialog({
     };
 
     const handleApprove = async () => {
+        if (isSubmittingApproval || isApproving) return;
+
         if (hasDataChanged) {
             await handleSaveManualEdits();
         }
@@ -366,6 +369,8 @@ export function ReviewIbanRequestDialog({
             toast.error('Dados bancários incompletos na solicitação.');
             return;
         }
+
+        setIsSubmittingApproval(true);
 
         try {
             await approveRequest({
@@ -382,6 +387,8 @@ export function ReviewIbanRequestDialog({
             onOpenChange(false);
         } catch (err: any) {
             toast.error(err.message || 'Erro ao aprovar solicitação.');
+        } finally {
+            setIsSubmittingApproval(false);
         }
     };
 
@@ -770,9 +777,9 @@ export function ReviewIbanRequestDialog({
                                             <Button 
                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md border-0 text-xs h-9 px-4 font-semibold"
                                                 onClick={handleApprove}
-                                                disabled={isApproving || request.status !== 'assinado' || (!editableIban && !request.new_iban)}
+                                                disabled={isApproving || isSubmittingApproval || request.status !== 'assinado' || (!editableIban && !request.new_iban)}
                                             >
-                                                {isApproving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
+                                                {isApproving || isSubmittingApproval ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
                                                 Aprovar e Ativar IBAN
                                             </Button>
                                         )}
