@@ -71,13 +71,25 @@ export async function uploadIbanDocument({ empresaId, workerId, docType, file }:
 
 
 export async function getIbanDocumentDownloadUrl(filePath: string): Promise<string> {
-    const { data, error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .createSignedUrl(filePath, 60 * 60); // 1 hour link
+    if (!filePath) throw new Error("Caminho do arquivo não fornecido.");
 
-    if (error) {
-        throw mapSupabaseError(error);
+    // Try first in 'mcs-personal-docs'
+    const { data: d1, error: e1 } = await supabase.storage
+        .from('mcs-personal-docs')
+        .createSignedUrl(filePath, 3600);
+
+    if (!e1 && d1?.signedUrl) {
+        return d1.signedUrl;
     }
 
-    return data.signedUrl;
+    // Try fallback in 'worker-incoming-docs'
+    const { data: d2, error: e2 } = await supabase.storage
+        .from('worker-incoming-docs')
+        .createSignedUrl(filePath, 3600);
+
+    if (!e2 && d2?.signedUrl) {
+        return d2.signedUrl;
+    }
+
+    throw e1 || e2 || new Error("Não foi possível gerar link assinado do documento.");
 }

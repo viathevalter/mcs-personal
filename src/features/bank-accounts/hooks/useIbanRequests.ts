@@ -58,10 +58,11 @@ export const useApproveIbanRequest = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (variables: { id: string; workerId: string; newIban: string; newBanco: string; termoAssinadoUrl: string | null; comprovanteUrl: string | null; empresaId: string }) => 
-            approveIbanRequest(variables.id, variables.workerId, variables.newIban, variables.newBanco, variables.termoAssinadoUrl, variables.comprovanteUrl),
+            approveIbanRequest(variables.id, variables.workerId, variables.newIban, variables.newBanco, variables.termoAssinadoUrl, variables.comprovanteUrl, variables.empresaId),
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['all-iban-change-requests', variables.empresaId] });
             queryClient.invalidateQueries({ queryKey: ['all-bank-accounts', variables.empresaId] });
+            queryClient.invalidateQueries({ queryKey: ['worker_documents', variables.workerId] });
         }
     });
 };

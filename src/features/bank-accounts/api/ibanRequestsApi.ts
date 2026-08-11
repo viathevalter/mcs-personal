@@ -127,7 +127,8 @@ export async function approveIbanRequest(
     newIban: string,
     newBanco: string,
     termoAssinadoUrl: string | null,
-    comprovanteUrl: string | null
+    comprovanteUrl: string | null,
+    empresaId?: string
 ): Promise<void> {
     // 1. Set all active IBANs for this worker to INATIVO
     const { error: deactivateError } = await supabase
@@ -172,6 +173,41 @@ export async function approveIbanRequest(
 
     if (requestError) {
         throw mapSupabaseError(requestError);
+    }
+
+    // 4. Sync documents to worker_documents for digital archive profile
+    if (empresaId) {
+        if (comprovanteUrl) {
+            await supabase
+                .schema('core_personal')
+                .from('worker_documents')
+                .insert({
+                    empresa_id: empresaId,
+                    worker_id: workerId,
+                    doc_type: 'Cert. Titularidade Banco',
+                    file_path: comprovanteUrl,
+                    file_name: `Certificado_Titularidade_IBAN_${newIban.substring(0, 8)}.pdf`,
+                    file_size: 1024,
+                    mime_type: 'application/pdf'
+                })
+                .catch(err => console.warn("Erro ao registrar comprovante no worker_documents:", err));
+        }
+
+        if (termoAssinadoUrl) {
+            await supabase
+                .schema('core_personal')
+                .from('worker_documents')
+                .insert({
+                    empresa_id: empresaId,
+                    worker_id: workerId,
+                    doc_type: 'Autorização IBAN',
+                    file_path: termoAssinadoUrl,
+                    file_name: `Termo_Autorizacao_IBAN_Assinado_${newIban.substring(0, 8)}.pdf`,
+                    file_size: 1024,
+                    mime_type: 'application/pdf'
+                })
+                .catch(err => console.warn("Erro ao registrar termo assinado no worker_documents:", err));
+        }
     }
 }
 
