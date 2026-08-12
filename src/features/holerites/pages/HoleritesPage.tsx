@@ -111,6 +111,49 @@ function formatHoursClean(val: number | string): string {
     return rounded.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function getWorkerStatusBadge(worker: any, mesReferencia: string) {
+    if (!mesReferencia) return null;
+
+    const endOfMonthStr = `${mesReferencia}-31`;
+    const startOfMonthStr = `${mesReferencia}-01`;
+    const baixaDate = worker.data_baixa ? worker.data_baixa.substring(0, 10) : null;
+
+    // 1. If data_baixa is in a FUTURE month relative to mesReferencia:
+    // Worker was active throughout mesReferencia!
+    if (baixaDate && baixaDate > endOfMonthStr) {
+        return null;
+    }
+
+    // 2. If data_baixa occurred DURING mesReferencia
+    if (baixaDate && baixaDate >= startOfMonthStr && baixaDate <= endOfMonthStr) {
+        return (
+            <Badge className="bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-[10px] py-0 px-1.5 font-semibold">
+                Baixa no Mês ({formatDateClean(baixaDate)})
+            </Badge>
+        );
+    }
+
+    // 3. If data_baixa occurred BEFORE mesReferencia
+    if (baixaDate && baixaDate < startOfMonthStr) {
+        return (
+            <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 text-[10px] py-0 px-1.5 font-semibold" title="Trabalhador inativo em meses anteriores, mas com lançamentos/horas no período">
+                Baixa Anterior ({formatDateClean(baixaDate)})
+            </Badge>
+        );
+    }
+
+    // 4. Fallback if worker status is inactive with no date
+    if (worker.status_trabajador === 'INATIVO' || worker.status_trabajador === 'Inativo') {
+        return (
+            <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 text-[10px] py-0 px-1.5 font-semibold">
+                Inativo
+            </Badge>
+        );
+    }
+
+    return null;
+}
+
 function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
     if (!mesCompetencia) return false;
     const dIngresso = worker.data_ingresso || worker.data_alta_seguridad || worker.created_at;
@@ -259,14 +302,23 @@ export function HoleritesPage() {
                 }
             }
 
-            // Fetch faturas to overlay pro-forma adjustments from Faturamento
+            // Fetch faturas to overlay pro-forma adjustments & map client names
             const { data: faturas, error: faturasErr } = await supabase
                 .schema('core_finance')
                 .from('faturas')
-                .select('id, status, ajustes_json');
+                .select('id, status, cliente_nombre, client_id, ajustes_json');
 
             if (faturasErr) {
                 console.error("Error fetching faturas for holerites adjustments:", faturasErr);
+            }
+
+            const faturaClientMap = new Map<string, string>();
+            if (faturas) {
+                faturas.forEach((f: any) => {
+                    if (f.cliente_nombre) {
+                        faturaClientMap.set(f.id, f.cliente_nombre);
+                    }
+                });
             }
 
             // Global map of disputed/adjusted hours: key = `${worker_id}_${dateStr}` -> adjusted hours value
@@ -291,6 +343,7 @@ export function HoleritesPage() {
             const dailyRawMap = new Map<string, number>();
             const dailyEffectiveMap = new Map<string, number>();
             const adjustedWorkerIds = new Set<string>();
+            const workerClientsMap = new Map<string, Set<string>>();
 
             allRows.forEach((row: any) => {
                 if (row.worker_id && row.data_trabalho) {
@@ -302,6 +355,13 @@ export function HoleritesPage() {
 
                     const prevRaw = dailyRawMap.get(key) || 0;
                     dailyRawMap.set(key, prevRaw + rawH);
+
+                    // Track client for worker
+                    const cName = faturaClientMap.get(row.fatura_id) || null;
+                    if (cName) {
+                        if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
+                        workerClientsMap.get(row.worker_id)!.add(cName);
+                    }
                 }
             });
 
@@ -330,7 +390,7 @@ export function HoleritesPage() {
                 sumMap.set(wId, (sumMap.get(wId) || 0) + effVal);
             });
 
-            return { sumMap, rawSumMap, adjustedWorkerIds };
+            return { sumMap, rawSumMap, adjustedWorkerIds, workerClientsMap };
         },
         enabled: Boolean(mesReferencia),
         refetchOnWindowFocus: false,
@@ -560,7 +620,10 @@ export function HoleritesPage() {
         const matchesSearch = worker.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
                               worker.niss?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               worker.cod_colab?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCliente = clienteFilter === 'all' || worker.cliente_nombre === clienteFilter;
+        const matchesCliente = clienteFilter === 'all' || 
+                              worker.cliente_nombre === clienteFilter ||
+                              worker.cliente === clienteFilter ||
+                              (dbHoursSummary?.workerClientsMap?.get(worker.id)?.has(clienteFilter) ?? false);
         const matchesContratante = contratanteFilter === 'all' || worker.contratante === contratanteFilter || (worker.contratante && worker.contratante.includes(contratanteFilter));
         const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 
@@ -930,11 +993,7 @@ export function HoleritesPage() {
                                                                         Novo no Mês
                                                                     </Badge>
                                                                 )}
-                                                                {(worker.status_trabajador === 'INATIVO' || worker.status_trabajador === 'Inativo' || worker.data_baixa) && (
-                                                                    <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 text-[10px] py-0 px-1.5 font-semibold">
-                                                                        Inativo{worker.data_baixa ? ` em ${formatDateClean(worker.data_baixa)}` : ''}
-                                                                    </Badge>
-                                                                )}
+                                                                {getWorkerStatusBadge(worker, mesReferencia)}
                                                             </div>
                                                             <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
                                                                 {worker.cod_colab && <span>Cód: {worker.cod_colab}</span>}
