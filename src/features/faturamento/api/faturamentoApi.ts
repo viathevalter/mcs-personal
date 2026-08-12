@@ -1188,6 +1188,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
   
       const hoursMap = new Map<string, number>();
       const valueMap = new Map<string, number>();
+      const baseValueMap = new Map<string, number>();
 
       faturas.forEach(f => {
         const faturaHours = hoursSums.filter(h => h.fatura_id === f.id);
@@ -1242,6 +1243,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
 
         hoursMap.set(f.id, totHoras);
         valueMap.set(f.id, totValorFinal);
+        baseValueMap.set(f.id, totValor);
       });
   
       return faturas.map(f => {
@@ -1251,6 +1253,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
   
         const computedH = hoursMap.get(f.id);
         const computedV = valueMap.get(f.id);
+        const computedBaseV = baseValueMap.get(f.id);
         const storedH = f.ajustes_json?.total_horas;
         const storedV = f.ajustes_json?.total_valor;
 
@@ -1261,6 +1264,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         const finalH = storedH !== undefined ? storedH : ((computedH && computedH > 0) ? computedH : (f.total_horas || 0));
         const baseNetValue = ((Number(f.total_valor_base || f.total_valor || 0)) + incrementos - reducoes) * (1 + ivaPct / 100);
         const finalV = storedV !== undefined ? storedV : ((computedV && computedV > 0) ? computedV : baseNetValue);
+        const finalBaseV = f.total_valor_base || f.ajustes_json?.total_valor_base || computedBaseV || f.total_valor || 0;
 
         return {
           ...f,
@@ -1283,7 +1287,8 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             province: client.province || null
           } : undefined,
           total_horas: finalH,
-          total_valor: finalV
+          total_valor: finalV,
+          total_valor_base: finalBaseV
         };
       }).filter(f => f.status !== 'pending_client_approval' || (f.total_horas !== undefined && f.total_horas > 0));
   } catch (error: any) {

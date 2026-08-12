@@ -2056,18 +2056,25 @@ MCS - Gestão Comercial`;
       let effTotalValor = 0;
       const processedKeys = new Set<string>();
 
+      // Group mappedHours by worker and date key first to handle duplicate daily records
+      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
       mappedHours.forEach((h: any) => {
         const wId = h.worker_id;
         if (!wId) return;
         const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
         const key = `${wId}_${dateKey}`;
+        
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, { wId, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+        }
+        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+      });
+
+      groupedMap.forEach((gVal, key) => {
         processedKeys.add(key);
-
-        const hoursVal = getDisputedHourValue(disputedObj, wId, dateKey, Number(h.horas_totais || 0));
-        const rate = Number(h.tarifa_faturada || 0);
-
+        const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours);
         effTotalHoras += hoursVal;
-        effTotalValor += hoursVal * rate;
+        effTotalValor += hoursVal * gVal.rate;
       });
 
       Object.keys(disputedObj).forEach(wId => {
