@@ -64,6 +64,7 @@ import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
+import { isHolding, isHoldingId } from '@/shared/utils/empresaUtils';
 
 const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
@@ -214,12 +215,15 @@ export function HoleritesPage() {
                 setSelectedEmpresaId(String(matched.id));
             }
         } else if (nextVal === 'all') {
-            setSelectedEmpresaId('');
+            const holdingEmp = empresas?.find(e => isHolding(e));
+            if (holdingEmp) {
+                setSelectedEmpresaId(String(holdingEmp.id));
+            }
         }
     };
 
     useEffect(() => {
-        if (!selectedEmpresaId || selectedEmpresaId === 'all') {
+        if (!selectedEmpresaId || selectedEmpresaId === 'all' || isHoldingId(selectedEmpresaId, empresas)) {
             if (contratanteFilter !== 'all') {
                 setContratanteFilter('all');
             }
@@ -238,7 +242,7 @@ export function HoleritesPage() {
                 }
             }
         }
-    }, [selectedEmpresaId, empresas, contratantesUnicos]);
+    }, [selectedEmpresaId, empresas, contratantesUnicos, contratanteFilter]);
 
     // Reset pagination to page 1 whenever filters change
     useEffect(() => {
