@@ -21,12 +21,15 @@ import {
     Clock, 
     Briefcase,
     ChevronDown,
-    Check
+    Check,
+    UserCheck,
+    UserX,
+    Wallet
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 
 interface WorkerCostDetail {
     id: string;
@@ -59,6 +62,55 @@ interface ClientProfitabilityData {
     isFromDatabase?: boolean;
 }
 
+// Generate realistic roster of workers if needed for large teams (e.g. 48 workers)
+function generateWorkerRoster(count: number, avgRate: number, avgCost: number): WorkerCostDetail[] {
+    const roles = [
+        'Soldador TIG (GTAW)', 'Soldador MIG-MAG (GMAW)', 'Soldador Eletrodo (SMAW)', 
+        'Tubista Industrial', 'Serralheiro Montador', 'Encarregado de Obra', 
+        'Eletricista Industrial', 'Técnico Automação', 'Ajudante Técnico', 'Montador de Estruturas'
+    ];
+    const names = [
+        'Sebastián Felipe Milán', 'Nelson Enrique Montoya', 'Alexander Gil Herrera',
+        'Isaías Muñoz Machado', 'Danix Jhonatan Palma', 'Andrés Felipe Gómez',
+        'Dino Eder Vargas', 'Carlos Santos', 'Manuel Oliveira', 'António Ferreira',
+        'Joaquim Silva', 'Pedro Rodrigues', 'Miguel Arantes', 'Rui Costa',
+        'Fernando Gomes', 'Jorge Mendonça', 'Lucas Pereira', 'André Martins',
+        'Diogo Ribeiro', 'Vasco Fernandes', 'Tiago Neves', 'Gonçalo Lopes',
+        'Hugo Alencastro', 'Bernardo Silveira', 'Gabriel Vasconcelos', 'Matheus Duarte',
+        'Rafael Fonseca', 'Vinícius Ramos', 'Thiago Cavalcanti', 'Guilherme Barreto',
+        'Rodrigo Azevedo', 'Felipe Guimarães', 'Bruno Nogueira', 'Leonardo Cardoso',
+        'Eduardo Peixoto', 'Marcelo Brandão', 'Daniel Siqueira', 'Alexandre Toledo',
+        'Renato Meireles', 'Gustavo Paiva', 'Leandro Santana', 'Luciano Aguiar',
+        'Otávio Lacerda', 'Caio Sales', 'Victor Bicalho', 'Fabiano Drummond',
+        'Henrique Caldeira', 'Igor Pestana'
+    ];
+
+    const roster: WorkerCostDetail[] = [];
+    for (let i = 0; i < count; i++) {
+        const name = names[i % names.length] + (i >= names.length ? ` ${Math.floor(i / names.length) + 1}` : '');
+        const role = roles[i % roles.length];
+        const isInactive = i > 0 && i % 8 === 0;
+        const hours = isInactive ? Math.floor(Math.random() * 20) + 5 : Math.floor(Math.random() * 80) + 120;
+        
+        // Rate variations (+/- 15%)
+        const rateVar = (i % 5 - 2) * 1.5;
+        const clientRate = Math.max(18, Math.round((avgRate + rateVar) * 100) / 100);
+        const costRate = Math.max(14, Math.round((avgCost + (i % 3 - 1) * 1.0) * 100) / 100);
+
+        roster.push({
+            id: `w-gen-${i + 1}`,
+            name,
+            role,
+            hours,
+            hourlyRateClient: clientRate,
+            hourlyRateWorker: costRate,
+            status: isInactive ? 'Inativo' : 'Ativo'
+        });
+    }
+
+    return roster.sort((a, b) => b.hours - a.hours);
+}
+
 // Default operational scenarios used to populate metrics for client simulations
 const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
     {
@@ -77,13 +129,7 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
         taxesAndCharges: 8467.20,
         estimatedMarginPercent: 24.0,
         overdueInvoices: 14200.00,
-        workers: [
-            { id: 'w1', name: 'Carlos Santos', role: 'Soldador TIG 6G', hours: 180, hourlyRateClient: 34.00, hourlyRateWorker: 19.50 },
-            { id: 'w2', name: 'Manuel Oliveira', role: 'Serralheiro Montador', hours: 176, hourlyRateClient: 31.00, hourlyRateWorker: 18.00 },
-            { id: 'w3', name: 'António Ferreira', role: 'Tubista Industrial', hours: 180, hourlyRateClient: 32.00, hourlyRateWorker: 18.50 },
-            { id: 'w4', name: 'Joaquim Silva', role: 'Encarregado de Obra', hours: 184, hourlyRateClient: 38.00, hourlyRateWorker: 22.00 },
-            { id: 'w5', name: 'Pedro Rodrigues', role: 'Soldador MIG/MAG', hours: 170, hourlyRateClient: 30.00, hourlyRateWorker: 17.50 },
-        ]
+        workers: generateWorkerRoster(14, 31.50, 18.20)
     },
     {
         id: 'c2',
@@ -101,11 +147,7 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
         taxesAndCharges: 5376.00,
         estimatedMarginPercent: 20.0,
         overdueInvoices: 18500.00,
-        workers: [
-            { id: 'w6', name: 'Miguel Arantes', role: 'Tubista Especialista', hours: 168, hourlyRateClient: 29.00, hourlyRateWorker: 19.50 },
-            { id: 'w7', name: 'Rui Costa', role: 'Soldador Raio-X', hours: 160, hourlyRateClient: 29.00, hourlyRateWorker: 19.00 },
-            { id: 'w8', name: 'Fernando Gomes', role: 'Ajudante Técnico', hours: 152, hourlyRateClient: 24.00, hourlyRateWorker: 16.00 },
-        ]
+        workers: generateWorkerRoster(10, 28.00, 18.90)
     },
     {
         id: 'c3',
@@ -113,21 +155,17 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
         code: 'CLI-059',
         city: 'San Sebastián, ES',
         activeProject: 'Manutenção Preventiva Refinaria',
-        workerCount: 18,
-        totalHours: 2880,
+        workerCount: 48, // 48 Trabalhadores contratados
+        totalHours: 7680,
         avgRateClient: 34.00,
         avgCostWorker: 17.80,
-        billedAmount: 97920.00,
-        workerPayrollCost: 51264.00,
-        extraCosts: 7100.00,
-        taxesAndCharges: 11750.40,
+        billedAmount: 261120.00,
+        workerPayrollCost: 136704.00,
+        extraCosts: 18278.40,
+        taxesAndCharges: 31334.40,
         estimatedMarginPercent: 28.0,
         overdueInvoices: 0.00,
-        workers: [
-            { id: 'w9', name: 'Jorge Mendonça', role: 'Técnico Tubista', hours: 176, hourlyRateClient: 35.00, hourlyRateWorker: 18.00 },
-            { id: 'w10', name: 'Lucas Pereira', role: 'Soldador TIG', hours: 180, hourlyRateClient: 34.00, hourlyRateWorker: 17.50 },
-            { id: 'w11', name: 'André Martins', role: 'Serralheiro Mecânico', hours: 184, hourlyRateClient: 33.00, hourlyRateWorker: 17.50 },
-        ]
+        workers: generateWorkerRoster(48, 34.00, 17.80)
     },
     {
         id: 'c4',
@@ -145,10 +183,7 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
         taxesAndCharges: 2937.60,
         estimatedMarginPercent: 15.0,
         overdueInvoices: 4500.00,
-        workers: [
-            { id: 'w12', name: 'Diogo Ribeiro', role: 'Montador Especializado', hours: 160, hourlyRateClient: 26.00, hourlyRateWorker: 19.50 },
-            { id: 'w13', name: 'Vasco Fernandes', role: 'Soldador de Estruturas', hours: 160, hourlyRateClient: 25.00, hourlyRateWorker: 19.00 },
-        ]
+        workers: generateWorkerRoster(6, 25.50, 19.20)
     },
     {
         id: 'c5',
@@ -166,10 +201,7 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
         taxesAndCharges: 5068.80,
         estimatedMarginPercent: 25.0,
         overdueInvoices: 0.00,
-        workers: [
-            { id: 'w14', name: 'Tiago Neves', role: 'Eletricista Industrial', hours: 160, hourlyRateClient: 33.00, hourlyRateWorker: 17.50 },
-            { id: 'w15', name: 'Gonçalo Lopes', role: 'Técnico Automação', hours: 160, hourlyRateClient: 35.00, hourlyRateWorker: 18.50 },
-        ]
+        workers: generateWorkerRoster(8, 33.00, 17.50)
     }
 ];
 
@@ -181,6 +213,10 @@ export function AnalisesPage() {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'profitable' | 'tight' | 'loss' | 'overdue'>('all');
     
+    // Worker table search & status filter
+    const [workerSearchTerm, setWorkerSearchTerm] = useState<string>('');
+    const [workerStatusFilter, setWorkerStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
     // Simulator states
     const [selectedClientId, setSelectedClientId] = useState<string>('c1');
     const [rateAdjustment, setRateAdjustment] = useState<number>(0); // €/h increase
@@ -294,7 +330,7 @@ export function AnalisesPage() {
 
             const realWorkersList = realClientStats 
                 ? Array.from(realClientStats.workersMap.values()).sort((a, b) => b.hours - a.hours)
-                : fallbackScenario.workers;
+                : generateWorkerRoster(fallbackScenario.workerCount, fallbackScenario.avgRateClient, fallbackScenario.avgCostWorker);
 
             const totalHours = realClientStats ? Math.round(realClientStats.totalHours * 10) / 10 : fallbackScenario.totalHours;
             const billedAmount = realClientStats ? Math.round(realClientStats.billedAmount * 100) / 100 : fallbackScenario.billedAmount;
@@ -368,12 +404,12 @@ export function AnalisesPage() {
         const totalNetMarginPercent = totalBilled > 0 ? (totalNetProfit / totalBilled) * 100 : 0;
 
         return {
-            totalBilled,
-            totalPayroll,
-            totalCosts,
-            totalNetProfit,
-            totalNetMarginPercent,
-            totalOverdue,
+            totalBilled: Math.round(totalBilled * 100) / 100,
+            totalPayroll: Math.round(totalPayroll * 100) / 100,
+            totalCosts: Math.round(totalCosts * 100) / 100,
+            totalNetProfit: Math.round(totalNetProfit * 100) / 100,
+            totalNetMarginPercent: Math.round(totalNetMarginPercent * 10) / 10,
+            totalOverdue: Math.round(totalOverdue * 100) / 100,
             lossCount,
             tightCount,
             totalClients: clientsData.length
@@ -417,7 +453,7 @@ export function AnalisesPage() {
         return clientsData.find(c => c.id === selectedClientId) || clientsData[0];
     }, [clientsData, selectedClientId]);
 
-    // Simulator calculations for active client
+    // Simulator calculations for active client with exact 2-decimal rounding
     const simulationResult = useMemo(() => {
         if (!activeClient) return null;
 
@@ -425,25 +461,26 @@ export function AnalisesPage() {
         const simulatedRate = Math.max(0, currentRate + rateAdjustment);
         const rateDiff = simulatedRate - currentRate;
 
-        const currentBilled = activeClient.billedAmount;
-        const currentPayroll = activeClient.workerPayrollCost;
-        const currentExtras = activeClient.extraCosts;
-        const currentTaxes = activeClient.taxesAndCharges;
-        const currentTotalCosts = currentPayroll + currentExtras + currentTaxes;
+        const currentBilled = Math.round(activeClient.billedAmount * 100) / 100;
+        const currentPayroll = Math.round(activeClient.workerPayrollCost * 100) / 100;
+        const currentExtras = Math.round(activeClient.extraCosts * 100) / 100;
+        const currentTaxes = Math.round(activeClient.taxesAndCharges * 100) / 100;
+        const currentTotalCosts = Math.round((currentPayroll + currentExtras + currentTaxes) * 100) / 100;
         
-        const currentNetProfit = currentBilled - currentTotalCosts;
+        const currentNetProfit = Math.round((currentBilled - currentTotalCosts) * 100) / 100;
 
         // Simulated values
-        const simulatedBilled = currentBilled + (activeClient.totalHours * rateDiff);
+        const simulatedBilled = Math.round((currentBilled + (activeClient.totalHours * rateDiff)) * 100) / 100;
         
         const taxRate = currentBilled > 0 ? (currentTaxes / currentBilled) : 0.12;
-        const simulatedTaxes = simulatedBilled * (taxRate + (customTaxAdjustmentPercent / 100));
-        const simulatedTotalCosts = currentPayroll + currentExtras + simulatedTaxes;
+        const simulatedTaxes = Math.round((simulatedBilled * (taxRate + (customTaxAdjustmentPercent / 100))) * 100) / 100;
+        const simulatedTotalCosts = Math.round((currentPayroll + currentExtras + simulatedTaxes) * 100) / 100;
 
-        const simulatedNetProfit = simulatedBilled - simulatedTotalCosts;
-        const simulatedNetMargin = simulatedBilled > 0 ? (simulatedNetProfit / simulatedBilled) * 100 : 0;
+        const simulatedNetProfit = Math.round((simulatedBilled - simulatedTotalCosts) * 100) / 100;
+        const simulatedNetMargin = simulatedBilled > 0 ? Math.round(((simulatedNetProfit / simulatedBilled) * 100) * 10) / 10 : 0;
+        const currentNetMargin = currentBilled > 0 ? Math.round(((currentNetProfit / currentBilled) * 100) * 10) / 10 : 0;
         
-        const profitGain = simulatedNetProfit - currentNetProfit;
+        const profitGain = Math.round((simulatedNetProfit - currentNetProfit) * 100) / 100;
 
         return {
             currentRate,
@@ -453,14 +490,70 @@ export function AnalisesPage() {
             simulatedBilled,
             currentNetProfit,
             simulatedNetProfit,
-            currentNetMargin: currentBilled > 0 ? (currentNetProfit / currentBilled) * 100 : 0,
+            currentNetMargin,
             simulatedNetMargin,
             profitGain,
             currentTotalCosts,
             simulatedTotalCosts,
+            simulatedTaxes,
             estimatedMargin: activeClient.estimatedMarginPercent
         };
     }, [activeClient, rateAdjustment, customTaxAdjustmentPercent]);
+
+    // Workers filtered list for active client table
+    const filteredActiveWorkers = useMemo(() => {
+        if (!activeClient || !activeClient.workers) return [];
+        return activeClient.workers.filter(w => {
+            const matchesSearch = w.name.toLowerCase().includes(workerSearchTerm.toLowerCase()) || 
+                                  w.role.toLowerCase().includes(workerSearchTerm.toLowerCase());
+            
+            if (!matchesSearch) return false;
+
+            if (workerStatusFilter === 'active') return w.status !== 'Inativo';
+            if (workerStatusFilter === 'inactive') return w.status === 'Inativo';
+
+            return true;
+        });
+    }, [activeClient, workerSearchTerm, workerStatusFilter]);
+
+    // Calculate aggregated totals for the active client's worker team
+    const workerTeamSummary = useMemo(() => {
+        if (!activeClient || !activeClient.workers) return { totalHours: 0, totalBilled: 0, totalCost: 0, totalProfit: 0, activeCount: 0, inactiveCount: 0 };
+        
+        let totalHours = 0;
+        let totalBilled = 0;
+        let totalCost = 0;
+        let activeCount = 0;
+        let inactiveCount = 0;
+
+        activeClient.workers.forEach(w => {
+            const effectiveRate = w.hourlyRateClient + rateAdjustment;
+            const billed = w.hours * effectiveRate;
+            const cost = w.hours * w.hourlyRateWorker;
+
+            totalHours += w.hours;
+            totalBilled += billed;
+            totalCost += cost;
+
+            if (w.status === 'Inativo') {
+                inactiveCount++;
+            } else {
+                activeCount++;
+            }
+        });
+
+        const totalProfit = Math.round((totalBilled - totalCost) * 100) / 100;
+
+        return {
+            totalHours: Math.round(totalHours * 10) / 10,
+            totalBilled: Math.round(totalBilled * 100) / 100,
+            totalCost: Math.round(totalCost * 100) / 100,
+            totalProfit,
+            activeCount,
+            inactiveCount,
+            totalCount: activeClient.workers.length
+        };
+    }, [activeClient, rateAdjustment]);
 
     const handleSelectClientForSimulation = (clientId: string) => {
         setSelectedClientId(clientId);
@@ -573,7 +666,7 @@ export function AnalisesPage() {
                                 </div>
                             </div>
                             <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                                € {globalSummary.totalBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                € {globalSummary.totalBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <div className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                                 <TrendingUp className="h-3.5 w-3.5" />
@@ -590,7 +683,7 @@ export function AnalisesPage() {
                                 </div>
                             </div>
                             <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                                € {globalSummary.totalPayroll.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                € {globalSummary.totalPayroll.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <p className="mt-1 text-xs text-slate-500">
                                 {((globalSummary.totalPayroll / globalSummary.totalBilled) * 100).toFixed(1)}% do faturamento
@@ -606,7 +699,7 @@ export function AnalisesPage() {
                                 </div>
                             </div>
                             <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                € {globalSummary.totalNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                € {globalSummary.totalNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <div className="mt-1 flex items-center gap-1.5">
                                 <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -624,7 +717,7 @@ export function AnalisesPage() {
                                 </div>
                             </div>
                             <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">
-                                € {globalSummary.totalOverdue.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                € {globalSummary.totalOverdue.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <p className="mt-1 text-xs text-slate-500">
                                 Faturas com pagamento em atraso
@@ -744,7 +837,7 @@ export function AnalisesPage() {
                         </div>
                     </div>
 
-                    {/* Table of Client Profitability */}
+                    {/* Table of Client Profitability with Inner Mouse Scroll Container */}
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div>
@@ -752,7 +845,7 @@ export function AnalisesPage() {
                                     Ranqueamento Financeiro de Clientes
                                 </h3>
                                 <p className="text-xs text-slate-500">
-                                    Comparativo entre Tarifa Cobrada, Custos Trabalhistas, Margem Real e Inadimplência.
+                                    Comparativo entre Tarifa Cobrada, Custos Trabalhistas, Margem Real e Inadimplência. Role com a roda do mouse na galeria.
                                 </p>
                             </div>
                             <span className="text-xs font-semibold text-slate-400">
@@ -760,9 +853,10 @@ export function AnalisesPage() {
                             </span>
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                        {/* Scrollable container with sticky header */}
+                        <div className="overflow-x-auto max-h-[520px] overflow-y-auto relative border-t border-slate-100 dark:border-slate-800">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-20 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3.5">Cliente / Obra</th>
                                         <th className="px-4 py-3.5 text-center">Equipe / Horas</th>
@@ -842,14 +936,14 @@ export function AnalisesPage() {
                                                             € {client.avgCostWorker.toFixed(2)} /h
                                                         </span>
                                                         <span className="text-xs text-slate-400">
-                                                            € {client.workerPayrollCost.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} tot.
+                                                            € {client.workerPayrollCost.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tot.
                                                         </span>
                                                     </div>
                                                 </td>
 
                                                 {/* Faturamento Total */}
                                                 <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-white">
-                                                    € {client.billedAmount.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                    € {client.billedAmount.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
 
                                                 {/* Lucro Real */}
@@ -858,7 +952,7 @@ export function AnalisesPage() {
                                                         "font-bold",
                                                         isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                                                     )}>
-                                                        € {netProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                        € {netProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
                                                 </td>
 
@@ -880,7 +974,7 @@ export function AnalisesPage() {
                                                 <td className="px-4 py-4 text-right">
                                                     {client.overdueInvoices > 0 ? (
                                                         <span className="font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded text-xs border border-amber-500/20">
-                                                            € {client.overdueInvoices.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                            € {client.overdueInvoices.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </span>
                                                     ) : (
                                                         <span className="text-xs text-slate-400">Em dia (0 €)</span>
@@ -921,7 +1015,7 @@ export function AnalisesPage() {
                                     {activeClient.name} <span className="text-slate-400 font-normal text-base">({activeClient.code})</span>
                                 </h2>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    Obra: <span className="font-semibold text-slate-700 dark:text-slate-300">{activeClient.activeProject}</span> • {activeClient.city}
+                                    Obra: <span className="font-semibold text-slate-700 dark:text-slate-300">{activeClient.activeProject}</span> • {activeClient.city} • <span className="font-bold text-yellow-600 dark:text-yellow-400">{activeClient.workerCount} Trabalhadores Contratados</span>
                                 </p>
                             </div>
 
@@ -972,7 +1066,7 @@ export function AnalisesPage() {
                                                     >
                                                         <div className="truncate pr-2">
                                                             <div className="font-semibold">{c.name}</div>
-                                                            <div className="text-[10px] text-slate-400">{c.code} • {c.activeProject}</div>
+                                                            <div className="text-[10px] text-slate-400">{c.code} • {c.workerCount} trabalhadores</div>
                                                         </div>
                                                         {c.id === selectedClientId && (
                                                             <Check className="h-4 w-4 text-yellow-500 shrink-0" />
@@ -1092,7 +1186,7 @@ export function AnalisesPage() {
                                         <div className="text-xs font-semibold text-slate-500 uppercase">Lucro Operacional Real</div>
                                         <div className="mt-3 flex items-baseline gap-2">
                                             <span className="text-3xl font-black text-slate-900 dark:text-white">
-                                                € {simulationResult.simulatedNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                € {simulationResult.simulatedNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                             {simulationResult.profitGain !== 0 && (
                                                 <span className={cn(
@@ -1100,14 +1194,14 @@ export function AnalisesPage() {
                                                     simulationResult.profitGain > 0 ? "text-emerald-500" : "text-rose-500"
                                                 )}>
                                                     {simulationResult.profitGain > 0 ? '+' : ''}
-                                                    € {simulationResult.profitGain.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                    € {simulationResult.profitGain.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-2">
                                             <span className="text-slate-400">Lucro Anterior (Base):</span>
                                             <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                € {simulationResult.currentNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                € {simulationResult.currentNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -1161,7 +1255,7 @@ export function AnalisesPage() {
                                                 <span className="text-xs text-slate-400">({activeClient.totalHours}h x €{simulationResult.simulatedRate.toFixed(2)}/h)</span>
                                             </div>
                                             <span className="font-bold text-slate-900 dark:text-white text-base">
-                                                € {simulationResult.simulatedBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                € {simulationResult.simulatedBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
 
@@ -1172,7 +1266,7 @@ export function AnalisesPage() {
                                                 <span className="text-slate-700 dark:text-slate-300">Salários e Custo Direto dos Trabalhadores</span>
                                             </div>
                                             <span className="font-semibold text-rose-600 dark:text-rose-400">
-                                                - € {activeClient.workerPayrollCost.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                - € {activeClient.workerPayrollCost.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
 
@@ -1183,7 +1277,7 @@ export function AnalisesPage() {
                                                 <span className="text-slate-700 dark:text-slate-300">Alojamento, Transporte & Logística</span>
                                             </div>
                                             <span className="font-semibold text-rose-600 dark:text-rose-400">
-                                                - € {activeClient.extraCosts.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                - € {activeClient.extraCosts.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
 
@@ -1194,7 +1288,7 @@ export function AnalisesPage() {
                                                 <span className="text-slate-700 dark:text-slate-300">Impostos & Taxas sobre Faturamento</span>
                                             </div>
                                             <span className="font-semibold text-rose-600 dark:text-rose-400">
-                                                - € {simulationResult.simulatedTotalCosts - (activeClient.workerPayrollCost + activeClient.extraCosts)}
+                                                - € {simulationResult.simulatedTaxes.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
 
@@ -1205,7 +1299,7 @@ export function AnalisesPage() {
                                                 <span className="font-bold text-slate-900 dark:text-white text-base">Lucro Operacional Projetado</span>
                                             </div>
                                             <span className="font-black text-emerald-600 dark:text-emerald-400 text-xl">
-                                                € {simulationResult.simulatedNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                                                € {simulationResult.simulatedNetProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -1214,25 +1308,113 @@ export function AnalisesPage() {
                         </div>
                     )}
 
-                    {/* Workers Team Allocation Table */}
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    {/* Workers Team Allocation Table with Summary Header KPIs & Footer Totals */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden space-y-4 p-6">
+                        {/* Table Header with KPI Cards */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
                             <div>
-                                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                                    Equipe Alocada & Rentabilidade por Trabalhador
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Users className="h-5 w-5 text-yellow-500" />
+                                    <span>Equipe Alocada & Rentabilidade por Trabalhador</span>
                                 </h3>
                                 <p className="text-xs text-slate-500">
-                                    Detalhamento dos salários, tarifa praticada e lucro individual gerado em {activeClient.name}.
+                                    Detalhamento dos salários, horas, tarifas e lucro individual gerado em {activeClient.name}.
                                 </p>
                             </div>
-                            <span className="text-xs font-semibold text-slate-400">
-                                {activeClient.workers.length} trabalhadores cadastrados
-                            </span>
+
+                            {/* Search and Worker Status Filters */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Buscar trabalhador ou função..."
+                                        value={workerSearchTerm}
+                                        onChange={(e) => setWorkerSearchTerm(e.target.value)}
+                                        className="rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:border-yellow-500 min-w-[200px]"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => setWorkerStatusFilter('all')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-md transition-colors",
+                                            workerStatusFilter === 'all'
+                                                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
+                                                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                        )}
+                                    >
+                                        Todos ({workerTeamSummary.totalCount})
+                                    </button>
+                                    <button
+                                        onClick={() => setWorkerStatusFilter('active')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-md transition-colors",
+                                            workerStatusFilter === 'active'
+                                                ? "bg-emerald-500 text-white shadow-sm"
+                                                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                        )}
+                                    >
+                                        Ativos ({workerTeamSummary.activeCount})
+                                    </button>
+                                    <button
+                                        onClick={() => setWorkerStatusFilter('inactive')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-md transition-colors",
+                                            workerStatusFilter === 'inactive'
+                                                ? "bg-rose-500 text-white shadow-sm"
+                                                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                        )}
+                                    >
+                                        Inativos ({workerTeamSummary.inactiveCount})
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                        {/* Top KPI Cards for Active Client's Worker Team */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
+                                <span className="text-[11px] font-semibold text-slate-500 uppercase">Trabalhadores</span>
+                                <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                    {workerTeamSummary.totalCount} <span className="text-xs font-normal text-slate-400">({workerTeamSummary.activeCount} ativos)</span>
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
+                                <span className="text-[11px] font-semibold text-slate-500 uppercase">Horas Totais</span>
+                                <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                    {workerTeamSummary.totalHours.toLocaleString()} h
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
+                                <span className="text-[11px] font-semibold text-slate-500 uppercase">Faturamento Equipe</span>
+                                <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                    € {workerTeamSummary.totalBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
+                                <span className="text-[11px] font-semibold text-slate-500 uppercase">Custo Salários</span>
+                                <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                                    € {workerTeamSummary.totalCost.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-emerald-500/10 p-3 border border-emerald-500/20 col-span-2 sm:col-span-1">
+                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Lucro da Equipe</span>
+                                <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                    € {workerTeamSummary.totalProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Scrollable Workers Gallery Table with Mouse Wheel Support */}
+                        <div className="overflow-x-auto max-h-[520px] overflow-y-auto relative border border-slate-200 dark:border-slate-800 rounded-lg">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-100 dark:bg-slate-800/90 sticky top-0 z-20 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-md">
                                     <tr>
                                         <th className="px-6 py-3.5">Trabalhador / Função</th>
                                         <th className="px-3 py-3.5 text-center">Status</th>
@@ -1245,61 +1427,101 @@ export function AnalisesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                    {activeClient.workers.map((worker) => {
-                                        const effectiveClientRate = worker.hourlyRateClient + rateAdjustment;
-                                        const billed = worker.hours * effectiveClientRate;
-                                        const cost = worker.hours * worker.hourlyRateWorker;
-                                        const profit = billed - cost;
+                                    {filteredActiveWorkers.length > 0 ? (
+                                        filteredActiveWorkers.map((worker) => {
+                                            const effectiveClientRate = worker.hourlyRateClient + rateAdjustment;
+                                            const billed = Math.round((worker.hours * effectiveClientRate) * 100) / 100;
+                                            const cost = Math.round((worker.hours * worker.hourlyRateWorker) * 100) / 100;
+                                            const profit = Math.round((billed - cost) * 100) / 100;
 
-                                        return (
-                                            <tr key={worker.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                                <td className="px-6 py-3.5">
-                                                    <div className="font-semibold text-slate-900 dark:text-white">
-                                                        {worker.name}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500">
-                                                        {worker.role}
-                                                    </div>
-                                                </td>
+                                            return (
+                                                <tr key={worker.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                                    <td className="px-6 py-3.5">
+                                                        <div className="font-semibold text-slate-900 dark:text-white">
+                                                            {worker.name}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            {worker.role}
+                                                        </div>
+                                                    </td>
 
-                                                <td className="px-3 py-3.5 text-center">
-                                                    <span className={cn(
-                                                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                                        worker.status === 'Inativo' 
-                                                            ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
-                                                            : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
-                                                    )}>
-                                                        {worker.status || 'Ativo'}
-                                                    </span>
-                                                </td>
+                                                    <td className="px-3 py-3.5 text-center">
+                                                        <span className={cn(
+                                                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                                            worker.status === 'Inativo' 
+                                                                ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                                                                : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                                                        )}>
+                                                            {worker.status || 'Ativo'}
+                                                        </span>
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-center font-semibold text-slate-900 dark:text-white">
-                                                    {worker.hours}h
-                                                </td>
+                                                    <td className="px-4 py-3.5 text-center font-semibold text-slate-900 dark:text-white">
+                                                        {worker.hours}h
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-right font-semibold text-slate-900 dark:text-white">
-                                                    € {effectiveClientRate.toFixed(2)} /h
-                                                </td>
+                                                    <td className="px-4 py-3.5 text-right font-semibold text-slate-900 dark:text-white">
+                                                        € {effectiveClientRate.toFixed(2)} /h
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-right text-slate-700 dark:text-slate-300">
-                                                    € {worker.hourlyRateWorker.toFixed(2)} /h
-                                                </td>
+                                                    <td className="px-4 py-3.5 text-right text-slate-700 dark:text-slate-300">
+                                                        € {worker.hourlyRateWorker.toFixed(2)} /h
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-right font-semibold text-slate-900 dark:text-white">
-                                                    € {billed.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                                </td>
+                                                    <td className="px-4 py-3.5 text-right font-semibold text-slate-900 dark:text-white">
+                                                        € {billed.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-right text-slate-600 dark:text-slate-400">
-                                                    € {cost.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                                </td>
+                                                    <td className="px-4 py-3.5 text-right text-slate-600 dark:text-slate-400">
+                                                        € {cost.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
 
-                                                <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                                    € {profit.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                                    <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                                        € {profit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={8} className="px-6 py-8 text-center text-xs text-slate-400">
+                                                Nenhum trabalhador encontrado com o filtro atual.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
+
+                                {/* Sticky Footer Totals Row */}
+                                <tfoot className="bg-slate-100 dark:bg-slate-800 sticky bottom-0 z-20 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs shadow-md">
+                                    <tr>
+                                        <td className="px-6 py-3.5">
+                                            TOTAL DA EQUIPE ({filteredActiveWorkers.length} de {activeClient.workers.length} exibidos)
+                                        </td>
+                                        <td className="px-3 py-3.5 text-center">
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                                                {workerTeamSummary.activeCount} Ativos
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3.5 text-center font-black">
+                                            {workerTeamSummary.totalHours.toLocaleString()}h
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-bold">
+                                            € {activeClient.avgRateClient.toFixed(2)}/h
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-bold">
+                                            € {activeClient.avgCostWorker.toFixed(2)}/h
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-black text-slate-900 dark:text-white">
+                                            € {workerTeamSummary.totalBilled.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-black text-rose-600 dark:text-rose-400">
+                                            € {workerTeamSummary.totalCost.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                            € {workerTeamSummary.totalProfit.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
