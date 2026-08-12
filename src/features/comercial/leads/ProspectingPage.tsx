@@ -134,16 +134,14 @@ export function ProspectingPage() {
 
   // Live execution state
   const [activeJob, setActiveJob] = useState<LeadProspectingJob | null>(null);
-  const [isProcessingLoop, setIsProcessingLoop] = useState(false);
-  const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: 'info' | 'success' | 'warn' | 'error' }>>([]);
   const isLoopRunningRef = useRef(false);
 
-  // Select first active or recent job by default
+  // Reset ref on unmount
   useEffect(() => {
-    if (jobs.length > 0 && !selectedJobId) {
-      setSelectedJobId(jobs[0].id);
-    }
-  }, [jobs, selectedJobId]);
+    return () => {
+      isLoopRunningRef.current = false;
+    };
+  }, []);
 
   // Automatic Sequential Queue Runner for All Pending/Processing Missions
   useEffect(() => {
@@ -191,7 +189,16 @@ export function ProspectingPage() {
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
 
       let currentJob = job;
-      while (isLoopRunningRef.current && currentJob.processed_count < currentJob.target_count && currentJob.status !== 'paused') {
+      let shouldContinue = true;
+
+      while (isLoopRunningRef.current && shouldContinue) {
+        const isEmailTarget = currentJob.email_required ?? true;
+        const currentMetric = isEmailTarget ? currentJob.found_emails_count : currentJob.processed_count;
+
+        if (currentMetric >= currentJob.target_count || currentJob.status === 'paused') {
+          break;
+        }
+
         addLog(`[Lote Engine] Raspagem inteligente: "${currentJob.keywords}" em ${currentJob.location}...`, 'info');
 
         const stepResult = await ProspectingService.processJobStep(currentJob, 5);
@@ -203,6 +210,7 @@ export function ProspectingPage() {
 
         if (stepResult.completed) {
           addLog(`Missão "${currentJob.title}" concluída com sucesso!`, 'success');
+          shouldContinue = false;
           break;
         }
 
@@ -211,12 +219,21 @@ export function ProspectingPage() {
         addLog(`Pausa anti-bloqueio de ${currentJob.delay_seconds}s entre lotes para proteção de IP...`, 'warn');
         await new Promise((resolve) => setTimeout(resolve, waitMs));
 
-        // Refetch latest state
-        const updatedJobs = await jobs;
-        const refetched = updatedJobs?.find((j) => j.id === currentJob.id);
+        // Refetch latest state directly from DB
+        const { data: refetched } = await supabase
+          .schema('core_comercial')
+          .from('lead_prospecting_jobs')
+          .select('*')
+          .eq('id', currentJob.id)
+          .maybeSingle();
+
         if (refetched) {
-          currentJob = refetched;
-          if (refetched.status === 'paused') break;
+          currentJob = refetched as LeadProspectingJob;
+          if (currentJob.status === 'paused') {
+            addLog(`Missão "${currentJob.title}" pausada pelo operador.`, 'warn');
+            shouldContinue = false;
+            break;
+          }
         }
       }
     } catch (err: any) {
