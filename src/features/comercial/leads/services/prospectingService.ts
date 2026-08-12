@@ -142,7 +142,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           messages: [
             {
               role: 'system',
-              content: 'You are a real-time web crawler and business data verification proxy in Spain. You ONLY return 100% verified, real public web data.',
+              content: 'You are a B2B business data assistant for industrial companies in Spain. Return ONLY a valid JSON array.',
             },
             {
               role: 'user',
@@ -168,12 +168,12 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       for (const item of rawResults) {
         const validEmail = this.sanitizeEmail(item.email);
         
-        // 1. If email is required, verify REAL MX Mail Server via Google DNS. Discard hallucinated emails!
-        if (emailRequired && validEmail) {
+        let finalEmail = validEmail;
+        if (validEmail) {
           const hasMx = await ProspectingService.checkMxRecord(validEmail);
           if (!hasMx) {
-            console.warn(`[Prospecting Verification] Descartando empresa fictícia "${item.company_name}" - Servidor MX de e-mail (${validEmail}) não existe no DNS.`);
-            continue;
+            console.warn(`[Prospecting Verification] Servidor MX de e-mail (${validEmail}) não existe no DNS. Definindo e-mail como null.`);
+            finalEmail = null;
           }
         }
 
@@ -189,7 +189,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           address: item.address || null,
           city: item.city || location,
           province: item.province || location,
-          email: validEmail,
+          email: finalEmail,
           linkedin_url: validLinkedin,
           instagram_url: validInstagram,
           sector: item.sector || keywords,
