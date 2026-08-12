@@ -84,7 +84,7 @@ export class ProspectingService {
     }
 
     const emailInstruction = emailRequired
-      ? 'CRITICAL: ONLY return companies with real, active corporate emails. If no real email is listed on their website, set email to null.'
+      ? 'MANDATORY STRICT RULE: ONLY return active Spanish companies that HAVE a verified corporate email address (e.g. gerencia@, compras@, comercial@, presupuestos@, info@). DO NOT return any company if you cannot verify its corporate email. Every object in the returned JSON MUST have a valid, non-null email string.'
       : 'Include email address whenever available on official pages.';
 
     const cleanLocation = location.replace(/,?\s*espanha/i, '').trim();
@@ -124,7 +124,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     "address": "Calle Example 123, Polígono Industrial" or null,
     "city": "${location}",
     "province": "${location}",
-    "email": "gerencia@realcompany.es" or null,
+    "email": "gerencia@realcompany.es",
     "linkedin_url": "https://www.linkedin.com/company/realcompany" or null,
     "instagram_url": "https://www.instagram.com/realcompany" or null,
     "sector": "${cleanKeywords}"
@@ -334,6 +334,9 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     for (const item of scraped) {
       const normName = item.company_name.trim().toLowerCase();
       const normEmail = item.email?.trim().toLowerCase();
+
+      // If job requires verified email, skip companies that do not have an email
+      if (isEmailTarget && !normEmail) continue;
 
       // Deduplication check: skip if company name or email is already captured in Staging or CRM
       if (existingCompanySet.has(normName)) continue;
