@@ -134,6 +134,8 @@ export function ProspectingPage() {
 
   // Live execution state
   const [activeJob, setActiveJob] = useState<LeadProspectingJob | null>(null);
+  const [isProcessingLoop, setIsProcessingLoop] = useState(false);
+  const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: 'info' | 'success' | 'warn' | 'error' }>>([]);
   const isLoopRunningRef = useRef(false);
 
   // Reset ref on unmount
