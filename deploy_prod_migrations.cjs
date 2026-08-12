@@ -116,7 +116,8 @@ const migrationsToRun = [
   '20260811120000_fix_alocar_trabalhador_completed_at.sql',
   '20260811121000_fix_alocar_trabalhador_solicitudes_completed_at.sql',
   '20260811110000_iban_change_requests.sql',
-  '20260811130000_update_iban_requests_status.sql'
+  '20260811130000_update_iban_requests_status.sql',
+  '20260812130000_fix_worker_active_client_logic.sql'
 ];
 
 async function run() {

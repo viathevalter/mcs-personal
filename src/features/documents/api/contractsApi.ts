@@ -60,7 +60,7 @@ export async function listContracts({ empresaId, workerId, status, contractType 
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente
+                id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente, cod_colab
             ),
             assignment:worker_assignments (
                 id,
@@ -106,13 +106,81 @@ export async function listContracts({ empresaId, workerId, status, contractType 
         }
     }
 
-    return contracts.map(c => ({
-        ...c,
-        assignment: c.assignment ? {
-            ...c.assignment,
-            client: clientsMap.get(c.assignment.client_id) || null
-        } : null
-    })) as unknown as Contract[];
+    // Resolve active/last client for workers when assignment_id is null
+    const codColabs = [...new Set(contracts.map(c => c.worker?.cod_colab).filter(Boolean))];
+    const allocationsGroupByWorker = new Map<string, any[]>();
+    
+    if (codColabs.length > 0) {
+        const { data: allocData } = await supabase
+            .schema('core_personal')
+            .from('vw_worker_allocations')
+            .select('cod_colab, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador, fechafinpedido, inserted_at')
+            .in('cod_colab', codColabs);
+
+        if (allocData) {
+            allocData.forEach(alloc => {
+                if (alloc.cod_colab) {
+                    if (!allocationsGroupByWorker.has(alloc.cod_colab)) {
+                        allocationsGroupByWorker.set(alloc.cod_colab, []);
+                    }
+                    allocationsGroupByWorker.get(alloc.cod_colab)!.push(alloc);
+                }
+            });
+        }
+    }
+
+    function getPertinentClientForContract(contratante: string, workerAllocations: any[]): string | null {
+        if (!workerAllocations || workerAllocations.length === 0) return null;
+
+        const contractorUpper = contratante.toUpperCase().trim();
+        let filtered = workerAllocations.filter(alloc => {
+            if (!alloc.contratante) return false;
+            const allocContrUpper = alloc.contratante.toUpperCase().trim();
+            return contractorUpper.includes(allocContrUpper) || allocContrUpper.includes(contractorUpper);
+        });
+
+        if (filtered.length === 0) {
+            filtered = workerAllocations;
+        }
+
+        const sorted = [...filtered].sort((a, b) => {
+            const currentDateStr = new Date().toISOString().split('T')[0];
+            const isAActive = (!a.fechasalidatrabajador || a.fechasalidatrabajador >= currentDateStr) 
+                && (!a.fechafinpedido || a.fechafinpedido >= currentDateStr);
+            const isBActive = (!b.fechasalidatrabajador || b.fechasalidatrabajador >= currentDateStr) 
+                && (!b.fechafinpedido || b.fechafinpedido >= currentDateStr);
+
+            if (isAActive && !isBActive) return -1;
+            if (!isAActive && isBActive) return 1;
+
+            const dateA = a.fechainiciopedido ? new Date(a.fechainiciopedido).getTime() : 0;
+            const dateB = b.fechainiciopedido ? new Date(b.fechainiciopedido).getTime() : 0;
+            if (dateB !== dateA) return dateB - dateA;
+
+            const insA = a.inserted_at ? new Date(a.inserted_at).getTime() : 0;
+            const insB = b.inserted_at ? new Date(b.inserted_at).getTime() : 0;
+            return insB - insA;
+        });
+
+        return sorted[0]?.cliente_nombre || null;
+    }
+
+    return contracts.map(c => {
+        const workerAllocs = c.worker?.cod_colab ? (allocationsGroupByWorker.get(c.worker.cod_colab) || []) : [];
+        const pertinentClient = c.contratante ? getPertinentClientForContract(c.contratante, workerAllocs) : null;
+
+        return {
+            ...c,
+            worker: c.worker ? {
+                ...c.worker,
+                cliente: pertinentClient || c.worker.cliente
+            } : undefined,
+            assignment: c.assignment ? {
+                ...c.assignment,
+                client: clientsMap.get(c.assignment.client_id) || null
+            } : null
+        };
+    }) as unknown as Contract[];
 }
 
 export interface GenerateContractPayload {
