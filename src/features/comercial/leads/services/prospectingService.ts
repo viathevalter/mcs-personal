@@ -261,20 +261,22 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       .eq('job_id', job.id);
 
     const existingCount = existingResults?.length || 0;
+    const existingEmailsCount = existingResults?.filter((r) => r.email).length || 0;
+    const isEmailTarget = job.email_required ?? true;
+    const currentTargetMetric = isEmailTarget ? existingEmailsCount : existingCount;
 
-    if (existingCount >= job.target_count) {
-      const emailsCount = existingResults?.filter((r) => r.email).length || 0;
+    if (currentTargetMetric >= job.target_count) {
       await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
         .update({
           status: 'completed',
           processed_count: existingCount,
-          found_emails_count: emailsCount,
+          found_emails_count: existingEmailsCount,
           updated_at: new Date().toISOString(),
         })
         .eq('id', job.id);
-      return { processed: existingCount, foundEmails: emailsCount, completed: true };
+      return { processed: existingCount, foundEmails: existingEmailsCount, completed: true };
     }
 
     // Query ALL staging results for this empresa_id to ensure global anti-duplication
@@ -297,14 +299,17 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       ...(allCRMLeads || []).map((l) => l.company_name?.trim()),
     ])).filter((n): n is string => Boolean(n));
 
-    const remaining = job.target_count - existingCount;
+    const remaining = isEmailTarget
+      ? Math.max(1, job.target_count - existingEmailsCount)
+      : Math.max(1, job.target_count - existingCount);
+
     const currentFetchCount = Math.min(remaining, batchSize);
     const scraped = await this.searchCompaniesViaAIsa(
       job.keywords,
       job.location,
       currentFetchCount,
       job.search_source || 'google_maps',
-      job.email_required ?? true,
+      isEmailTarget,
       job.api_key_override || undefined,
       existingCompanyNames
     );
@@ -368,18 +373,18 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     }
 
     const totalCurrentResults = existingCount + recordsToInsert.length;
-    const existingEmails = existingResults?.filter((r) => r.email).length || 0;
-    const newFoundEmails = existingEmails + foundEmailsCount;
+    const totalCurrentEmails = existingEmailsCount + foundEmailsCount;
     
-    // Auto-complete ONLY when target is reached OR if AIsa returned 0 companies
-    const isCompleted = totalCurrentResults >= job.target_count || (scraped.length === 0 && existingCount > 0);
+    // Auto-complete ONLY when email target is reached OR if AIsa returned 0 companies
+    const updatedMetric = isEmailTarget ? totalCurrentEmails : totalCurrentResults;
+    const isCompleted = updatedMetric >= job.target_count || (scraped.length === 0 && existingCount > 0);
 
     await supabase
       .schema('core_comercial')
       .from('lead_prospecting_jobs')
       .update({
         processed_count: totalCurrentResults,
-        found_emails_count: newFoundEmails,
+        found_emails_count: totalCurrentEmails,
         status: isCompleted ? 'completed' : 'processing',
         updated_at: new Date().toISOString(),
       })
