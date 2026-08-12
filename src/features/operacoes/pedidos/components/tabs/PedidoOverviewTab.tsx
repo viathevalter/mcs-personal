@@ -300,19 +300,21 @@ export function PedidoOverviewTab({ pedido }: Props) {
       </Card>
 
       {/* 5. NOTES CARD */}
-      {pedido.general_notes && (
-        <Card className="md:col-span-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm animate-fade-in">
-          <CardHeader className="border-b pb-3">
-            <CardTitle className="text-base font-bold text-slate-850 dark:text-slate-100 flex items-center gap-2">
-              <FileText className="h-4.5 w-4.5 text-blue-500" />
-              Observações do Pedido
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+      <Card className="md:col-span-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm animate-fade-in">
+        <CardHeader className="border-b pb-3">
+          <CardTitle className="text-base font-bold text-slate-850 dark:text-slate-100 flex items-center gap-2">
+            <FileText className="h-4.5 w-4.5 text-blue-500" />
+            Observações do Pedido
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {pedido.general_notes ? (
             <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{pedido.general_notes}</p>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Nenhuma observação cadastrada para este pedido. Você pode adicionar clicando no botão "Editar Pedido" no cabeçalho.</p>
+          )}
+        </CardContent>
+      </Card>
 
     </div>
   );

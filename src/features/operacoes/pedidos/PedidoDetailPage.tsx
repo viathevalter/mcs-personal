@@ -4,10 +4,17 @@ import { usePedidoDetail } from './hooks/usePedidoDetail';
 import { usePedidoSolicitudes } from './hooks/usePedidoSolicitudes';
 import { usePedidoTasks } from './hooks/usePedidoTasks';
 import { usePedidoTimeline } from './hooks/usePedidoTimeline';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2 } from 'lucide-react';
 import { PedidoStatusBadge } from './components/PedidoStatusBadge';
 
 import { PedidoOverviewTab } from './components/tabs/PedidoOverviewTab';
@@ -24,10 +31,51 @@ export function PedidoDetailPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const { hasFinanceAccess } = usePedidoFinanceAccess();
+  const queryClient = useQueryClient();
 
   const { data, isLoading: isLoadingPedido, error } = usePedidoDetail(id);
   const pedido = data?.pedido;
   const items = data?.items || [];
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleOpenEdit = () => {
+    setEditStartDate(pedido?.expected_start_date || '');
+    setEditEndDate(pedido?.expected_end_date || '');
+    setEditNotes(pedido?.general_notes || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setIsUpdating(true);
+    try {
+      const { error: updateError } = await supabase
+        .schema('core_comercial')
+        .from('pedidos')
+        .update({
+          expected_start_date: editStartDate || null,
+          expected_end_date: editEndDate || null,
+          general_notes: editNotes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Pedido atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['pedido', id] });
+      setIsEditDialogOpen(false);
+    } catch (err: any) {
+      console.error('Erro ao atualizar pedido:', err);
+      toast.error('Erro ao atualizar pedido: ' + err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const { data: solicitudes = [], isLoading: isLoadingSolicitudes } = usePedidoSolicitudes(id);
   const solicitudIds = solicitudes.map(s => s.id);
@@ -85,6 +133,13 @@ export function PedidoDetailPage() {
         </div>
         
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleOpenEdit}
+            className="border-blue-300 dark:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold"
+          >
+            <Pencil className="mr-2 h-4 w-4" /> Editar Pedido
+          </Button>
           <Button 
             variant="outline" 
             className="hidden lg:flex" 
@@ -208,6 +263,65 @@ export function PedidoDetailPage() {
           <PedidoDocumentosTab />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Pedido Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Informações do Pedido</DialogTitle>
+            <DialogDescription>
+              Ajuste as datas previstas e observações gerais do pedido.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-start-date">Início Previsto</Label>
+                <Input
+                  id="edit-start-date"
+                  type="date"
+                  value={editStartDate}
+                  onChange={e => setEditStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-end-date">Fim Previsto</Label>
+                <Input
+                  id="edit-end-date"
+                  type="date"
+                  value={editEndDate}
+                  onChange={e => setEditEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Observações do Pedido</Label>
+              <Textarea
+                id="edit-notes"
+                placeholder="Insira observações relevantes sobre o pedido..."
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                className="min-h-[120px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isUpdating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isUpdating} className="bg-indigo-650 hover:bg-indigo-700 text-white">
+              {isUpdating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Alterações'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
