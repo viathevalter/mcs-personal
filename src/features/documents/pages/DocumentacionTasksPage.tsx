@@ -22,7 +22,7 @@ import {
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
-    Calendar, MapPin, Clock, AlertTriangle
+    Calendar, MapPin, Clock, AlertTriangle, FolderPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -944,6 +944,95 @@ Muchas gracias.`;
         } catch (err) {
             console.error("Erro ao baixar documento:", err);
             toast.error("Erro ao gerar link de download do documento.");
+        }
+    };
+
+    const handleAttachContractToWorkerProfile = async (contract: Contract) => {
+        const rawPath = contract.signed_document_url || contract.document_url;
+        if (!rawPath) {
+            toast.error("Nenhum arquivo de contrato disponível para este registro.");
+            return;
+        }
+
+        if (!contract.worker_id) {
+            toast.error("Trabalhador não identificado neste contrato.");
+            return;
+        }
+
+        try {
+            const loadingToast = toast.loading("Arquivando contrato no cadastro do colaborador...");
+
+            const isPdf = rawPath.toLowerCase().endsWith('.pdf');
+            const ext = isPdf ? 'pdf' : 'docx';
+            const mimeType = isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+            const isAlta = contract.contract_type === 'contrato_alta';
+            const docType = isAlta ? 'contrato_alta' : 'contrato_trabalho';
+            const statusPrefix = contract.status === 'signed' ? 'Contrato Assinado' : isAlta ? 'Contrato de Alta' : 'Contrato de Trabalho';
+
+            const workerName = contract.worker?.nome || 'Trabalhador';
+            const fileName = `${statusPrefix} - ${workerName}.${ext}`;
+
+            // Get file size from storage.objects in bucket worker-contracts
+            let fileSize = 0;
+            try {
+                const cleanFolder = rawPath.includes('/') ? rawPath.substring(0, rawPath.lastIndexOf('/')) : '';
+                const cleanFileName = rawPath.includes('/') ? rawPath.substring(rawPath.lastIndexOf('/') + 1) : rawPath;
+                const { data: storageObj } = await supabase.storage
+                    .from('worker-contracts')
+                    .list(cleanFolder, { search: cleanFileName });
+                fileSize = storageObj?.[0]?.metadata?.size || 0;
+            } catch {
+                fileSize = 0;
+            }
+
+            // Full path stored in worker_documents: worker-contracts/filePath
+            const targetFilePath = rawPath.startsWith('worker-contracts/') ? rawPath : `worker-contracts/${rawPath}`;
+
+            // Check if already in worker_documents for this worker
+            const { data: existingDoc } = await supabase
+                .schema('core_personal')
+                .from('worker_documents')
+                .select('id')
+                .eq('worker_id', contract.worker_id)
+                .eq('file_path', targetFilePath)
+                .maybeSingle();
+
+            if (existingDoc) {
+                const { error: updateErr } = await supabase
+                    .schema('core_personal')
+                    .from('worker_documents')
+                    .update({
+                        doc_type: docType,
+                        file_name: fileName,
+                        file_size: fileSize,
+                        mime_type: mimeType
+                    })
+                    .eq('id', existingDoc.id);
+
+                if (updateErr) throw updateErr;
+            } else {
+                const { error: insertErr } = await supabase
+                    .schema('core_personal')
+                    .from('worker_documents')
+                    .insert({
+                        empresa_id: contract.empresa_id || selectedEmpresaId,
+                        worker_id: contract.worker_id,
+                        doc_type: docType,
+                        file_path: targetFilePath,
+                        file_name: fileName,
+                        file_size: fileSize,
+                        mime_type: mimeType
+                    });
+
+                if (insertErr) throw insertErr;
+            }
+
+            toast.dismiss(loadingToast);
+            toast.success(`Contrato (${statusPrefix}) arquivado no cadastro de ${workerName} com sucesso!`);
+        } catch (err: any) {
+            console.error("Erro ao arquivar contrato no cadastro:", err);
+            toast.error(`Erro ao arquivar contrato: ${err.message || 'Erro desconhecido'}`);
         }
     };
 
@@ -2237,14 +2326,24 @@ Muchas gracias.`;
                                                         <TableCell className="text-sm text-slate-500">
                                                             {contract.created_at ? new Date(contract.created_at).toLocaleDateString('pt-PT') : '-'}
                                                         </TableCell>
-                                                        <TableCell className="text-right space-x-2 whitespace-nowrap">
+                                                        <TableCell className="text-right space-x-1.5 whitespace-nowrap">
                                                             <Button
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 onClick={() => handleDownloadContract(contract)}
-                                                                title="Baixar Contrato"
+                                                                title="Visualizar / Baixar Contrato"
                                                             >
                                                                 <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleAttachContractToWorkerProfile(contract)}
+                                                                title="Arquivar Contrato no Cadastro do Trabalhador"
+                                                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
+                                                            >
+                                                                <FolderPlus className="h-4 w-4" />
                                                             </Button>
 
                                                             {contract.status !== 'no_signature' && (

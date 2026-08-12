@@ -16,12 +16,35 @@ export const jobFunctionQuestionsApi = {
       query = query.eq('empresa_id', empresaId);
     }
 
-    const { data, error } = await query
+    let { data, error } = await query
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return data as JobFunctionQuestion[];
+
+    // Fallback: If no questions found for this specific empresa_id, fetch any questions registered for this job_function
+    if ((!data || data.length === 0) && empresaId) {
+      const fallbackQuery = await supabase
+        .schema('core_comercial')
+        .from('job_function_questions')
+        .select('*')
+        .eq('job_function_id', jobFunctionId)
+        .neq('status', 'archived')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (!fallbackQuery.error && fallbackQuery.data && fallbackQuery.data.length > 0) {
+        // Deduplicate by question_text to present a clean set of questions
+        const seen = new Set<string>();
+        data = fallbackQuery.data.filter(q => {
+          if (seen.has(q.question_text)) return false;
+          seen.add(q.question_text);
+          return true;
+        });
+      }
+    }
+
+    return (data || []) as JobFunctionQuestion[];
   },
 
   async createQuestion(empresaId: string, payload: CreateJobFunctionQuestionDTO): Promise<JobFunctionQuestion> {
