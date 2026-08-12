@@ -23,6 +23,8 @@ import {
     ChevronDown,
     Check
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
 
@@ -33,6 +35,7 @@ interface WorkerCostDetail {
     hours: number;
     hourlyRateClient: number; // tarifa cobrada do cliente (€/h)
     hourlyRateWorker: number; // custo hora trabalhador (€/h)
+    status?: 'Ativo' | 'Inativo';
 }
 
 interface ClientProfitabilityData {
@@ -199,36 +202,131 @@ export function AnalisesPage() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Query real worker hours and worker statuses from Supabase
+    const { data: realHoursData } = useQuery({
+        queryKey: ['real-client-hours-analises', period],
+        queryFn: async () => {
+            const startDate = `${period}-01`;
+            const endDate = `${period}-31T23:59:59Z`;
+
+            const { data: hours, error: err1 } = await supabase
+                .schema('core_finance')
+                .from('horas_trabalhadas')
+                .select('id, client_id, worker_id, horas_totais, tarifa_faturada, data_trabalho')
+                .gte('data_trabalho', startDate)
+                .lte('data_trabalho', endDate);
+
+            if (err1 || !hours || hours.length === 0) return null;
+
+            const { data: workers } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, nome, funcion, status_trabajador, data_baixa');
+
+            const workerMap = new Map((workers || []).map((w: any) => [w.id, w]));
+
+            const clientMap = new Map<string, {
+                totalHours: number;
+                billedAmount: number;
+                payrollCost: number;
+                workersMap: Map<string, WorkerCostDetail>;
+            }>();
+
+            hours.forEach((h: any) => {
+                const clientId = h.client_id;
+                const workerId = h.worker_id;
+                const hrs = Number(h.horas_totais || 0);
+                const rate = Number(h.tarifa_faturada || 25);
+                const workerObj = workerMap.get(workerId);
+
+                if (!clientId || !workerId || hrs <= 0) return;
+
+                if (!clientMap.has(clientId)) {
+                    clientMap.set(clientId, {
+                        totalHours: 0,
+                        billedAmount: 0,
+                        payrollCost: 0,
+                        workersMap: new Map(),
+                    });
+                }
+
+                const cData = clientMap.get(clientId)!;
+                cData.totalHours += hrs;
+                cData.billedAmount += hrs * rate;
+
+                const workerCostRate = rate > 30 ? 19.50 : rate > 25 ? 18.00 : 16.50;
+                cData.payrollCost += hrs * workerCostRate;
+
+                if (!cData.workersMap.has(workerId)) {
+                    const isBaixa = Boolean(workerObj?.data_baixa);
+                    const isStatusInactive = workerObj?.status_trabajador && (
+                        workerObj.status_trabajador.toLowerCase().includes('inativ') ||
+                        workerObj.status_trabajador.toLowerCase().includes('baixa') ||
+                        workerObj.status_trabajador.toLowerCase().includes('deslig')
+                    );
+
+                    cData.workersMap.set(workerId, {
+                        id: workerId,
+                        name: workerObj?.nome || 'Trabalhador Especializado',
+                        role: workerObj?.funcion || 'Operacional Subcontratado',
+                        hours: 0,
+                        hourlyRateClient: rate,
+                        hourlyRateWorker: workerCostRate,
+                        status: (isBaixa || isStatusInactive) ? 'Inativo' : 'Ativo',
+                    });
+                }
+
+                const wDetail = cData.workersMap.get(workerId)!;
+                wDetail.hours += hrs;
+            });
+
+            return clientMap;
+        }
+    });
+
     // Merge real database clients with operational scenarios
     const clientsData: ClientProfitabilityData[] = useMemo(() => {
         if (!dbClients || dbClients.length === 0) return INITIAL_CLIENTS_ANALYSIS;
         
-        // Map real DB clients into the profitability framework
         const realClientsMapped: ClientProfitabilityData[] = dbClients.map((dbc, idx) => {
+            const realClientStats = realHoursData?.get(dbc.id);
             const fallbackScenario = INITIAL_CLIENTS_ANALYSIS[idx % INITIAL_CLIENTS_ANALYSIS.length];
+
+            const realWorkersList = realClientStats 
+                ? Array.from(realClientStats.workersMap.values()).sort((a, b) => b.hours - a.hours)
+                : fallbackScenario.workers;
+
+            const totalHours = realClientStats ? Math.round(realClientStats.totalHours * 10) / 10 : fallbackScenario.totalHours;
+            const billedAmount = realClientStats ? Math.round(realClientStats.billedAmount * 100) / 100 : fallbackScenario.billedAmount;
+            const workerPayrollCost = realClientStats ? Math.round(realClientStats.payrollCost * 100) / 100 : fallbackScenario.workerPayrollCost;
+            const workerCount = realClientStats ? realClientStats.workersMap.size : fallbackScenario.workerCount;
+            const avgRateClient = totalHours > 0 ? billedAmount / totalHours : fallbackScenario.avgRateClient;
+            const avgCostWorker = totalHours > 0 ? workerPayrollCost / totalHours : fallbackScenario.avgCostWorker;
+            const extraCosts = Math.round(billedAmount * 0.07 * 100) / 100;
+            const taxesAndCharges = Math.round(billedAmount * 0.12 * 100) / 100;
+
             return {
                 id: dbc.id,
-                name: dbc.name || dbc.legal_name || `Cliente ${dbc.code || idx + 1}`,
-                legalName: dbc.legal_name || undefined,
-                code: dbc.code || `CLI-${100 + idx}`,
-                city: dbc.city || fallbackScenario.city,
+                name: (dbc as any).trade_name || (dbc as any).legal_name || (dbc as any).name || `Cliente ${(dbc as any).codigo || idx + 1}`,
+                legalName: (dbc as any).legal_name || undefined,
+                code: (dbc as any).codigo || (dbc as any).code || `CLI-${100 + idx}`,
+                city: (dbc as any).city || (dbc as any).province || fallbackScenario.city,
                 activeProject: fallbackScenario.activeProject,
-                workerCount: fallbackScenario.workerCount,
-                totalHours: fallbackScenario.totalHours,
-                avgRateClient: fallbackScenario.avgRateClient,
-                avgCostWorker: fallbackScenario.avgCostWorker,
-                billedAmount: fallbackScenario.billedAmount,
-                workerPayrollCost: fallbackScenario.workerPayrollCost,
-                extraCosts: fallbackScenario.extraCosts,
-                taxesAndCharges: fallbackScenario.taxesAndCharges,
+                workerCount,
+                totalHours,
+                avgRateClient,
+                avgCostWorker,
+                billedAmount,
+                workerPayrollCost,
+                extraCosts,
+                taxesAndCharges,
                 estimatedMarginPercent: fallbackScenario.estimatedMarginPercent,
                 overdueInvoices: fallbackScenario.overdueInvoices,
-                workers: fallbackScenario.workers,
+                workers: realWorkersList,
                 isFromDatabase: true,
             };
         });
 
-        // Ensure we include both real DB clients and scenario benchmarks if DB list is small
         if (realClientsMapped.length < INITIAL_CLIENTS_ANALYSIS.length) {
             const existingIds = new Set(realClientsMapped.map(c => c.id));
             const extra = INITIAL_CLIENTS_ANALYSIS.filter(c => !existingIds.has(c.id));
@@ -236,7 +334,7 @@ export function AnalisesPage() {
         }
 
         return realClientsMapped;
-    }, [dbClients]);
+    }, [dbClients, realHoursData]);
 
     // Calculate totals for Global View
     const globalSummary = useMemo(() => {
@@ -1137,6 +1235,7 @@ export function AnalisesPage() {
                                 <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                                     <tr>
                                         <th className="px-6 py-3.5">Trabalhador / Função</th>
+                                        <th className="px-3 py-3.5 text-center">Status</th>
                                         <th className="px-4 py-3.5 text-center">Horas</th>
                                         <th className="px-4 py-3.5 text-right">Tarifa Cobrada</th>
                                         <th className="px-4 py-3.5 text-right">Custo Hora</th>
@@ -1161,6 +1260,17 @@ export function AnalisesPage() {
                                                     <div className="text-xs text-slate-500">
                                                         {worker.role}
                                                     </div>
+                                                </td>
+
+                                                <td className="px-3 py-3.5 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                                        worker.status === 'Inativo' 
+                                                            ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                                                            : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                                                    )}>
+                                                        {worker.status || 'Ativo'}
+                                                    </span>
                                                 </td>
 
                                                 <td className="px-4 py-3.5 text-center font-semibold text-slate-900 dark:text-white">
