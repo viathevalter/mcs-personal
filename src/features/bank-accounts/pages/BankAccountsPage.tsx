@@ -3,12 +3,13 @@ import {
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
     XCircle, Clock, Link2, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, HelpCircle, PenTool,
-    ArrowUpDown, ArrowUp, ArrowDown
+    ArrowUpDown, ArrowUp, ArrowDown, Trash2
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAllBankAccounts } from '../hooks/useAllBankAccounts';
-import { useAllIbanRequests } from '../hooks/useIbanRequests';
+import { useAllIbanRequests, useDeleteIbanRequest } from '../hooks/useIbanRequests';
 import type { IbanChangeRequest } from '../api/ibanRequestsApi';
 
 import { ImportBankAccountsDialog } from '../components/ImportBankAccountsDialog';
@@ -82,8 +83,25 @@ export function BankAccountsPage() {
     // Fetch primary bank accounts and request history
     const { data: bankAccounts, isLoading: isLoadingAccounts } = useAllBankAccounts(selectedEmpresaId || undefined, periodMonth, periodYear);
     const { data: ibanRequests, isLoading: isLoadingRequests } = useAllIbanRequests(selectedEmpresaId || undefined);
+    const deleteRequestMutation = useDeleteIbanRequest();
 
     const isLoading = isLoadingAccounts || isLoadingRequests;
+
+    const handleDeleteRequest = (requestId: string, workerName?: string) => {
+        if (confirm(`Tem certeza que deseja excluir esta solicitação de troca de IBAN${workerName ? ` de ${workerName}` : ''}?`)) {
+            deleteRequestMutation.mutate(
+                { id: requestId, empresaId: selectedEmpresaId || '' },
+                {
+                    onSuccess: () => {
+                        toast.success("Solicitação de troca excluída com sucesso!");
+                    },
+                    onError: (err: any) => {
+                        toast.error(`Erro ao excluir solicitação: ${err.message || 'Erro desconhecido'}`);
+                    }
+                }
+            );
+        }
+    };
 
     const toggleIbanVisibility = (id: string, e: React.MouseEvent) => {
         e.preventDefault();
@@ -882,46 +900,46 @@ export function BankAccountsPage() {
                                                         {formatDate(req.created_at)}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        {(isSubmitted || isAwaitingSignature || isSigned) && (
-                                                            <Button 
-                                                                size="sm" 
-                                                                className={`h-7 px-3 text-xs font-semibold shadow-sm border-0 ${
-                                                                    isSigned ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                                                }`}
-                                                                onClick={() => {
-                                                                    setReviewRequestData(req);
-                                                                    setReviewRequestOpen(true);
-                                                                }}
-                                                            >
-                                                                {isSigned ? 'Ativar IBAN' : 'Avaliar Troca'}
-                                                            </Button>
-                                                        )}
-                                                        {isPendingUpload && (
-                                                            <Button 
-                                                                variant="outline"
-                                                                size="sm" 
-                                                                className="h-7 px-2 bg-white hover:bg-slate-50 border-slate-200 text-slate-600 flex items-center justify-center mx-auto"
-                                                                onClick={() => {
-                                                                    setCreateRequestData({
-                                                                        workerId: req.worker_id,
-                                                                        workerName: req.worker?.nome || '',
-                                                                        currentIban: req.old_iban,
-                                                                        currentBanco: req.old_banco
-                                                                    });
-                                                                    // Simulates reopening to show copy link
-                                                                    setTokenForReopen(req.token);
-                                                                }}
-                                                            >
-                                                                <Link2 className="w-3.5 h-3.5 mr-1" />
-                                                                Ver Link
-                                                            </Button>
-                                                        )}
-                                                        {isApproved && (
-                                                            <div className="flex gap-1.5 justify-center">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            {(isSubmitted || isAwaitingSignature || isSigned) && (
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    className={`h-7 px-3 text-xs font-semibold shadow-sm border-0 ${
+                                                                        isSigned ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                                                    }`}
+                                                                    onClick={() => {
+                                                                        setReviewRequestData(req);
+                                                                        setReviewRequestOpen(true);
+                                                                    }}
+                                                                >
+                                                                    {isSigned ? 'Ativar IBAN' : 'Avaliar Troca'}
+                                                                </Button>
+                                                            )}
+                                                            {isPendingUpload && (
+                                                                <Button 
+                                                                    variant="outline"
+                                                                    size="sm" 
+                                                                    className="h-7 px-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+                                                                    onClick={() => {
+                                                                        setCreateRequestData({
+                                                                            workerId: req.worker_id,
+                                                                            workerName: req.worker?.nome || '',
+                                                                            currentIban: req.old_iban,
+                                                                            currentBanco: req.old_banco
+                                                                        });
+                                                                        // Simulates reopening to show copy link
+                                                                        setTokenForReopen(req.token);
+                                                                    }}
+                                                                >
+                                                                    <Link2 className="w-3.5 h-3.5 mr-1" />
+                                                                    Ver Link
+                                                                </Button>
+                                                            )}
+                                                            {isApproved && (
                                                                 <Button 
                                                                     variant="ghost" 
                                                                     size="sm" 
-                                                                    className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600"
+                                                                    className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
                                                                     onClick={async () => {
                                                                         if (req.termo_assinado_url || req.termo_gerado_url) {
                                                                             const path = req.termo_assinado_url || req.termo_gerado_url || '';
@@ -933,13 +951,24 @@ export function BankAccountsPage() {
                                                                 >
                                                                     <FileText className="w-4 h-4" />
                                                                 </Button>
-                                                            </div>
-                                                        )}
-                                                        {isRejected && (
-                                                            <span className="text-[10px] text-rose-500 font-semibold cursor-help" title={`Motivo: ${req.rejection_reason || 'Não informado'}`}>
-                                                                Ver Motivo
-                                                            </span>
-                                                        )}
+                                                            )}
+                                                            {isRejected && (
+                                                                <span className="text-[10px] text-rose-500 font-semibold cursor-help mr-1" title={`Motivo: ${req.rejection_reason || 'Não informado'}`}>
+                                                                    Ver Motivo
+                                                                </span>
+                                                            )}
+
+                                                            {/* Botão de Exclusão */}
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors"
+                                                                onClick={() => handleDeleteRequest(req.id, req.worker?.nome)}
+                                                                title="Excluir Solicitação de Troca"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             );

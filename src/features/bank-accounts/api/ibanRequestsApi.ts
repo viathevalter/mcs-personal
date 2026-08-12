@@ -349,3 +349,15 @@ export async function updateIbanRequestData(
         throw mapSupabaseError(error);
     }
 }
+
+export async function deleteIbanRequest(id: string): Promise<void> {
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('iban_change_requests')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}

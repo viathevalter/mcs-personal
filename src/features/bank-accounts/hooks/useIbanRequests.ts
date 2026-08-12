@@ -9,7 +9,8 @@ import {
     uploadIbanRequestFile,
     setIbanRequestAwaitingSignature,
     submitSignedIbanRequestTerm,
-    updateIbanRequestData
+    updateIbanRequestData,
+    deleteIbanRequest
 } from '../api/ibanRequestsApi';
 
 export const useAllIbanRequests = (empresaId?: string) => {
@@ -112,6 +113,17 @@ export const useUpdateIbanRequestData = () => {
     return useMutation({
         mutationFn: (variables: { id: string; data: { new_iban?: string; new_banco?: string }; empresaId: string }) => 
             updateIbanRequestData(variables.id, variables.data),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['all-iban-change-requests', variables.empresaId] });
+        }
+    });
+};
+
+export const useDeleteIbanRequest = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (variables: { id: string; empresaId: string }) => 
+            deleteIbanRequest(variables.id),
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['all-iban-change-requests', variables.empresaId] });
         }
