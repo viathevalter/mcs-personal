@@ -95,6 +95,7 @@ import { LeadsPage } from '../features/comercial/leads/LeadsPage';
 import { KanbanPage } from '../features/comercial/leads/KanbanPage';
 import { CampaignsPage } from '../features/comercial/leads/CampaignsPage';
 import { ProspectingPage } from '../features/comercial/leads/ProspectingPage';
+import { AnalisesPage } from '../features/comercial/analises/AnalisesPage';
 import { ComercialSettingsPage } from '../features/comercial/settings/ComercialSettingsPage';
 
 import { LogisticaLayout } from '../features/logistica/layout/LogisticaLayout';
@@ -267,6 +268,7 @@ export const router = createBrowserRouter([
                     { path: 'estimaciones/new', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/:id', element: <EstimacionDetailPage /> },
                     { path: 'estimaciones/:id/editar', element: <NewEstimacionPage /> },
+                    { path: 'analises', element: <AnalisesPage /> },
                     { path: 'configuracion', element: <ComercialSettingsPage /> }
                 ]
             },
