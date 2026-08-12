@@ -32,6 +32,7 @@ import {
   Bookmark,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   useProspectingJobs,
   useProspectingResults,
@@ -63,15 +64,59 @@ export function ProspectingPage() {
   const createJobMutation = useCreateProspectingJob();
   const updateStatusMutation = useUpdateJobStatus();
   const deleteJobMutation = useDeleteJob();
+  const clearAllJobsMutation = useClearEmpresaProspectingJobs();
   const importResultsMutation = useImportResults();
+
+  const handleDeleteSingleJob = (jobId: string, jobTitle: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (confirm(`Tem certeza que deseja excluir a missão "${jobTitle}" e seus leads em staging?`)) {
+      deleteJobMutation.mutate(jobId, {
+        onSuccess: () => {
+          toast.success(`Missão "${jobTitle}" excluída com sucesso!`);
+          if (selectedJobId === jobId) {
+            setSelectedJobId(null);
+          }
+        },
+        onError: (err: any) => {
+          toast.error(`Erro ao excluir missão: ${err.message || 'Erro desconhecido'}`);
+        }
+      });
+    }
+  };
+
+  const handleClearAllJobs = () => {
+    if (confirm('Atenção: Deseja realmente excluir TODAS as missões de busca e leads em staging desta empresa?')) {
+      clearAllJobsMutation.mutate(undefined, {
+        onSuccess: () => {
+          toast.success('Todas as missões da empresa foram limpas com sucesso.');
+          setSelectedJobId(null);
+        },
+        onError: (err: any) => {
+          toast.error(`Erro ao limpar missões: ${err.message || 'Erro desconhecido'}`);
+        }
+      });
+    }
+  };
+
+  const handleResumeOrExpandJob = async (job: LeadProspectingJob, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const newTarget = job.processed_count >= job.target_count ? job.target_count + 500 : job.target_count;
+    try {
+      await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
+      addLog(`Missão "${job.title}" reativada para buscar mais empresas (Alvo: ${newTarget}).`, 'info');
+      handleStartProcessing({ ...job, status: 'processing', target_count: newTarget });
+    } catch (err: any) {
+      toast.error(`Erro ao reativar missão: ${err.message}`);
+    }
+  };
 
   // State for new job form modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('Madrid, Espanha');
-  const [targetCount, setTargetCount] = useState(25);
-  const [delaySeconds, setDelaySeconds] = useState(3);
+  const [targetCount, setTargetCount] = useState<number>(500);
+  const [delaySeconds, setDelaySeconds] = useState<number>(3);
   const [searchSource, setSearchSource] = useState<SearchSourceEngine>('google_maps');
   const [emailRequired, setEmailRequired] = useState(true);
   const [sectorFilter, setSectorFilter] = useState('industrial');
@@ -99,6 +144,16 @@ export function ProspectingPage() {
       setSelectedJobId(jobs[0].id);
     }
   }, [jobs, selectedJobId]);
+
+  // Automatic Sequential Queue Runner for All Pending/Processing Missions
+  useEffect(() => {
+    if (!isLoopRunningRef.current && jobs.length > 0) {
+      const nextPendingJob = jobs.find((j) => j.status === 'processing' || j.status === 'pending');
+      if (nextPendingJob) {
+        handleStartProcessing(nextPendingJob);
+      }
+    }
+  }, [jobs]);
 
   // Keep active job sync
   useEffect(() => {
@@ -372,9 +427,20 @@ export function ProspectingPage() {
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Layers className="w-4 h-4 text-blue-500" /> {t('comercial.prospector.searchMissionsTitle', 'Histórico de Missões')}
               </h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                {jobs.length} criadas
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  {jobs.length} criadas
+                </span>
+                {jobs.length > 0 && (
+                  <button
+                    onClick={handleClearAllJobs}
+                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded transition-colors"
+                    title="Excluir todas as missões desta empresa"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Global Repositoriy Selector */}
@@ -418,8 +484,8 @@ export function ProspectingPage() {
                           : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       }`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-sm text-slate-900 dark:text-white line-clamp-1">{job.title}</h3>
                           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
                             <span className="flex items-center gap-1">
@@ -432,19 +498,39 @@ export function ProspectingPage() {
                             )}
                           </div>
                         </div>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            job.status === 'completed'
-                              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30'
-                              : job.status === 'processing'
-                              ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30 animate-pulse'
-                              : job.status === 'paused'
-                              ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {job.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              job.status === 'completed'
+                                ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30'
+                                : job.status === 'processing'
+                                ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30 animate-pulse'
+                                : job.status === 'paused'
+                                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {job.status}
+                          </span>
+
+                          {job.status !== 'processing' && (
+                            <button
+                              onClick={(e) => handleResumeOrExpandJob(job, e)}
+                              className="p-1 text-blue-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors"
+                              title="Continuar / Reativar Busca (+ Empresas)"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={(e) => handleDeleteSingleJob(job.id, job.title, e)}
+                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded transition-colors"
+                            title="Excluir Missão"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Progress Bar */}

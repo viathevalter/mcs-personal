@@ -277,9 +277,25 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       return { processed: existingCount, foundEmails: emailsCount, completed: true };
     }
 
-    const existingCompanyNames = (existingResults || [])
-      .map((r) => r.company_name?.trim())
-      .filter((n): n is string => Boolean(n));
+    // Query ALL staging results for this empresa_id to ensure global anti-duplication
+    const { data: allStaging } = await supabase
+      .schema('core_comercial')
+      .from('lead_prospecting_results')
+      .select('company_name, email')
+      .eq('empresa_id', job.empresa_id);
+
+    // Query ALL CRM leads for this empresa_id to ensure leads are never duplicated
+    const { data: allCRMLeads } = await supabase
+      .schema('core_comercial')
+      .from('leads')
+      .select('company_name, email')
+      .eq('empresa_id', job.empresa_id);
+
+    const existingCompanyNames = Array.from(new Set([
+      ...(existingResults || []).map((r) => r.company_name?.trim()),
+      ...(allStaging || []).map((r) => r.company_name?.trim()),
+      ...(allCRMLeads || []).map((l) => l.company_name?.trim()),
+    ])).filter((n): n is string => Boolean(n));
 
     const remaining = job.target_count - existingCount;
     const currentFetchCount = Math.min(remaining, batchSize);
@@ -293,11 +309,18 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       existingCompanyNames
     );
 
-    const existingCompanySet = new Set((existingResults || []).map((r) => r.company_name.trim().toLowerCase()));
+    const existingCompanySet = new Set(
+      [
+        ...(allStaging || []).map((r) => r.company_name?.trim().toLowerCase()),
+        ...(allCRMLeads || []).map((l) => l.company_name?.trim().toLowerCase()),
+      ].filter((n): n is string => Boolean(n))
+    );
+
     const existingEmailSet = new Set(
-      (existingResults || [])
-        .map((r) => r.email?.trim().toLowerCase())
-        .filter((e): e is string => Boolean(e))
+      [
+        ...(allStaging || []).map((r) => r.email?.trim().toLowerCase()),
+        ...(allCRMLeads || []).map((l) => l.email?.trim().toLowerCase()),
+      ].filter((e): e is string => Boolean(e))
     );
 
     let foundEmailsCount = 0;
@@ -307,7 +330,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       const normName = item.company_name.trim().toLowerCase();
       const normEmail = item.email?.trim().toLowerCase();
 
-      // Deduplication check: skip if company name or email is already captured
+      // Deduplication check: skip if company name or email is already captured in Staging or CRM
       if (existingCompanySet.has(normName)) continue;
       if (normEmail && existingEmailSet.has(normEmail)) continue;
 
@@ -348,9 +371,8 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const existingEmails = existingResults?.filter((r) => r.email).length || 0;
     const newFoundEmails = existingEmails + foundEmailsCount;
     
-    // Auto-complete if target reached OR if no new companies can be found after previous batches
-    const noNewItemsFound = scraped.length > 0 && recordsToInsert.length === 0;
-    const isCompleted = totalCurrentResults >= job.target_count || (noNewItemsFound && existingCount > 0);
+    // Auto-complete ONLY when target is reached OR if AIsa returned 0 companies
+    const isCompleted = totalCurrentResults >= job.target_count || (scraped.length === 0 && existingCount > 0);
 
     await supabase
       .schema('core_comercial')
