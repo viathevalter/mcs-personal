@@ -128,11 +128,50 @@ export function useDeleteJob() {
 
   return useMutation({
     mutationFn: async (jobId: string) => {
+      // 1. Clean staging results for this job
+      await supabase
+        .schema('core_comercial')
+        .from('lead_prospecting_results')
+        .delete()
+        .eq('job_id', jobId);
+
+      // 2. Delete the job
       const { error } = await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
         .delete()
         .eq('id', jobId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prospecting-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['prospecting-results'] });
+    },
+  });
+}
+
+export function useClearEmpresaProspectingJobs() {
+  const queryClient = useQueryClient();
+  const { selectedEmpresaId } = useEmpresa();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+
+      // 1. Delete staging results
+      await supabase
+        .schema('core_comercial')
+        .from('lead_prospecting_results')
+        .delete()
+        .eq('empresa_id', selectedEmpresaId);
+
+      // 2. Delete jobs
+      const { error } = await supabase
+        .schema('core_comercial')
+        .from('lead_prospecting_jobs')
+        .delete()
+        .eq('empresa_id', selectedEmpresaId);
 
       if (error) throw error;
     },
