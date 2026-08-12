@@ -1209,7 +1209,21 @@ export const Cobros = () => {
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium max-w-[200px] truncate" title={item.Cliente || 'Sem Nome'}>{item.Cliente || 'Sem Nome'}</div>
-                                            <div className="text-xs text-muted-foreground">{item.Num_doc}</div>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                <span>{item.Num_doc}</span>
+                                                {item.anexo_url && (
+                                                    <a 
+                                                        href={item.anexo_url} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title="Visualizar documento anexado"
+                                                        className="text-brand-primary hover:text-brand-primary/80 transition-colors p-0.5 rounded hover:bg-brand-primary/10"
+                                                    >
+                                                        <Paperclip size={12} />
+                                                    </a>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground text-sm font-medium">{item.Empresa || '-'}</TableCell>
                                         <TableCell className="text-muted-foreground text-sm">{item.periodo_fat || '-'}</TableCell>

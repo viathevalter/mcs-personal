@@ -24,7 +24,9 @@ import {
     Loader2, 
     ChevronRight,
     AlertCircle,
-    Info
+    Info,
+    Paperclip,
+    ExternalLink
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -313,6 +315,21 @@ export function CobroDetalhesSheet({
                                     <div className="flex items-center gap-1.5"><Briefcase size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.detail_sheet.deposit_bank', 'Banco de Depósito')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.Banco || t('financeiro.detail_sheet.not_linked', 'Não Vinculado')}</span></div>
                                     {titulo.periodo_fat && (
                                         <div className="flex items-center gap-1.5 col-span-2"><Info size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.detail_sheet.billing_month', 'Mês de Faturamento')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.periodo_fat}</span></div>
+                                    )}
+                                    {titulo.anexo_url && (
+                                        <div className="flex items-center gap-1.5 col-span-2 pt-1 border-t">
+                                            <Paperclip size={14} className="text-emerald-600" />
+                                            <span className="font-semibold text-slate-500">Documento Anexado:</span>
+                                            <a 
+                                                href={titulo.anexo_url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className="font-bold text-brand-primary hover:underline flex items-center gap-1"
+                                            >
+                                                <span>Visualizar anexo</span>
+                                                <ExternalLink size={12} />
+                                            </a>
+                                        </div>
                                     )}
                                 </div>
                             </div>

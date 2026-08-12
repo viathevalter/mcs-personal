@@ -17,7 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Paperclip, Loader2 } from 'lucide-react';
+import { Paperclip, Loader2, FileText, ExternalLink, X } from 'lucide-react';
+import { supabase } from '@/shared/supabase/client';
+import { toast } from 'sonner';
 
 import type { ContasReceber, Cliente, FinanceiroCategoria, Obra, Banco } from '../types';
 import { fetchClientes, fetchCategorias, fetchObras, fetchModernEmpresas, fetchBancos } from '../data/loader';
@@ -46,6 +48,55 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
   
   // UI State
   const [centroCustoTipo, setCentroCustoTipo] = useState<'departamento' | 'obra'>('departamento');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop() || 'pdf';
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${Date.now()}_${cleanName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('financeiro-anexos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('financeiro-anexos')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+      setFormData(prev => ({ ...prev, anexo_url: publicUrl }));
+      toast.success('Arquivo anexado com sucesso!');
+    } catch (err: any) {
+      console.error('Error uploading file:', err);
+      toast.error('Erro ao fazer upload do anexo: ' + (err.message || 'Falha na conexão'));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -385,14 +436,71 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
                 />
               </div>
 
-              {/* Anexos Mockup */}
+              {/* Anexos */}
               <div className="space-y-2">
                 <Label>Anexos</Label>
-                <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center text-muted-foreground bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
-                  <Paperclip className="h-6 w-6 mb-2" />
-                  <p className="text-sm font-medium">Anexar arquivo</p>
-                  <p className="text-xs">Arraste a fatura ou comprovante aqui</p>
-                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" 
+                  className="hidden" 
+                />
+
+                {formData.anexo_url ? (
+                  <div className="border rounded-lg p-4 bg-emerald-50/50 border-emerald-200 flex items-center justify-between">
+                    <div className="flex items-center space-x-3 overflow-hidden">
+                      <div className="p-2 bg-emerald-100 rounded-lg text-emerald-700">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-emerald-900 truncate">Documento Anexado</p>
+                        <a 
+                          href={formData.anexo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[11px] text-brand-primary hover:underline flex items-center gap-1 font-medium"
+                        >
+                          <span>Visualizar arquivo</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setFormData(prev => ({ ...prev, anexo_url: undefined }))}
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors cursor-pointer ${
+                      isUploading 
+                        ? 'bg-blue-50/50 border-brand-primary/50 text-brand-primary' 
+                        : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-muted-foreground'
+                    }`}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-6 w-6 mb-2 animate-spin text-brand-primary" />
+                        <p className="text-sm font-medium text-brand-primary">Enviando arquivo...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Paperclip className="h-6 w-6 mb-2 text-slate-400" />
+                        <p className="text-sm font-medium text-slate-700">Anexar arquivo</p>
+                        <p className="text-xs text-slate-500">Arraste a fatura ou comprovante aqui (PDF, Imagens, Docs)</p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>

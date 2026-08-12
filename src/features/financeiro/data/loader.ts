@@ -146,7 +146,8 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
       Creado_por: row.creado_por || '',
       Modificado: parseDate(row.modificado),
       Modificado_por: row.modificado_por || '',
-      fatura_id: row.fatura_id || null
+      fatura_id: row.fatura_id || null,
+      anexo_url: row.anexo_url || null
     };
   });
 }
