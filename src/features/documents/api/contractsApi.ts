@@ -129,14 +129,29 @@ export async function listContracts({ empresaId, workerId, status, contractType 
         }
     }
 
+    function normalizeCompany(str: string): string {
+        if (!str) return '';
+        return str
+            .toUpperCase()
+            .replace(/,/g, '')
+            .replace(/\bLDA\b/g, '')
+            .replace(/\bSL\b/g, '')
+            .replace(/\bSRL\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
     function getPertinentClientForContract(contratante: string, workerAllocations: any[]): string | null {
         if (!workerAllocations || workerAllocations.length === 0) return null;
 
-        const contractorUpper = contratante.toUpperCase().trim();
+        const contractorNorm = normalizeCompany(contratante);
+        const contractorWords = contractorNorm.split(' ').filter(w => w.length > 2);
+
         let filtered = workerAllocations.filter(alloc => {
             if (!alloc.contratante) return false;
-            const allocContrUpper = alloc.contratante.toUpperCase().trim();
-            return contractorUpper.includes(allocContrUpper) || allocContrUpper.includes(contractorUpper);
+            const allocContrNorm = normalizeCompany(alloc.contratante);
+            if (contractorNorm.includes(allocContrNorm) || allocContrNorm.includes(contractorNorm)) return true;
+            return contractorWords.some(word => allocContrNorm.includes(word));
         });
 
         if (filtered.length === 0) {
@@ -145,10 +160,13 @@ export async function listContracts({ empresaId, workerId, status, contractType 
 
         const sorted = [...filtered].sort((a, b) => {
             const currentDateStr = new Date().toISOString().split('T')[0];
-            const isAActive = (!a.fechasalidatrabajador || a.fechasalidatrabajador >= currentDateStr) 
-                && (!a.fechafinpedido || a.fechafinpedido >= currentDateStr);
-            const isBActive = (!b.fechasalidatrabajador || b.fechasalidatrabajador >= currentDateStr) 
-                && (!b.fechafinpedido || b.fechafinpedido >= currentDateStr);
+            const salidaA = a.fechasalidatrabajador ? String(a.fechasalidatrabajador).split('T')[0] : null;
+            const salidaB = b.fechasalidatrabajador ? String(b.fechasalidatrabajador).split('T')[0] : null;
+            const finA = a.fechafinpedido ? String(a.fechafinpedido).split('T')[0] : null;
+            const finB = b.fechafinpedido ? String(b.fechafinpedido).split('T')[0] : null;
+
+            const isAActive = (!salidaA || salidaA >= currentDateStr) && (!finA || finA >= currentDateStr);
+            const isBActive = (!salidaB || salidaB >= currentDateStr) && (!finB || finB >= currentDateStr);
 
             if (isAActive && !isBActive) return -1;
             if (!isAActive && isBActive) return 1;
