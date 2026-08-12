@@ -98,13 +98,25 @@ export function ProspectingPage() {
     }
   };
 
+  const handleResumeOrExpandJob = async (job: LeadProspectingJob, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const newTarget = job.processed_count >= job.target_count ? job.target_count + 500 : job.target_count;
+    try {
+      await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
+      addLog(`Missão "${job.title}" reativada para buscar mais empresas (Alvo: ${newTarget}).`, 'info');
+      handleStartProcessing({ ...job, status: 'processing', target_count: newTarget });
+    } catch (err: any) {
+      toast.error(`Erro ao reativar missão: ${err.message}`);
+    }
+  };
+
   // State for new job form modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('Madrid, Espanha');
-  const [targetCount, setTargetCount] = useState(25);
-  const [delaySeconds, setDelaySeconds] = useState(3);
+  const [targetCount, setTargetCount] = useState<number>(500);
+  const [delaySeconds, setDelaySeconds] = useState<number>(3);
   const [searchSource, setSearchSource] = useState<SearchSourceEngine>('google_maps');
   const [emailRequired, setEmailRequired] = useState(true);
   const [sectorFilter, setSectorFilter] = useState('industrial');
@@ -132,6 +144,16 @@ export function ProspectingPage() {
       setSelectedJobId(jobs[0].id);
     }
   }, [jobs, selectedJobId]);
+
+  // Automatic Sequential Queue Runner for All Pending/Processing Missions
+  useEffect(() => {
+    if (!isLoopRunningRef.current && jobs.length > 0) {
+      const nextPendingJob = jobs.find((j) => j.status === 'processing' || j.status === 'pending');
+      if (nextPendingJob) {
+        handleStartProcessing(nextPendingJob);
+      }
+    }
+  }, [jobs]);
 
   // Keep active job sync
   useEffect(() => {
@@ -490,6 +512,16 @@ export function ProspectingPage() {
                           >
                             {job.status}
                           </span>
+
+                          {job.status !== 'processing' && (
+                            <button
+                              onClick={(e) => handleResumeOrExpandJob(job, e)}
+                              className="p-1 text-blue-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors"
+                              title="Continuar / Reativar Busca (+ Empresas)"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                          )}
 
                           <button
                             onClick={(e) => handleDeleteSingleJob(job.id, job.title, e)}
