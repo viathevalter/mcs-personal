@@ -128,14 +128,6 @@ export function useDeleteJob() {
 
   return useMutation({
     mutationFn: async (jobId: string) => {
-      // 1. Clean staging results for this job
-      await supabase
-        .schema('core_comercial')
-        .from('lead_prospecting_results')
-        .delete()
-        .eq('job_id', jobId);
-
-      // 2. Delete the job
       const { error } = await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
@@ -158,22 +150,19 @@ export function useClearEmpresaProspectingJobs() {
   return useMutation({
     mutationFn: async () => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-
-      // 1. Delete staging results
-      await supabase
+      const { error: err1 } = await supabase
         .schema('core_comercial')
         .from('lead_prospecting_results')
         .delete()
         .eq('empresa_id', selectedEmpresaId);
+      if (err1) throw err1;
 
-      // 2. Delete jobs
-      const { error } = await supabase
+      const { error: err2 } = await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
         .delete()
         .eq('empresa_id', selectedEmpresaId);
-
-      if (error) throw error;
+      if (err2) throw err2;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting-jobs'] });
