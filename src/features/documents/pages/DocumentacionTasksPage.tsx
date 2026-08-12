@@ -22,7 +22,7 @@ import {
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
-    Calendar, MapPin, Clock, AlertTriangle, FolderPlus
+    Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -198,6 +198,17 @@ export function DocumentacionTasksPage() {
 
     const [searchTermContracts, setSearchTermContracts] = useState('');
     const [statusFilterContracts, setStatusFilterContracts] = useState('all');
+    const [sortFieldContracts, setSortFieldContracts] = useState<'created_at' | 'worker' | 'empresa' | 'client' | 'type' | 'status'>('created_at');
+    const [sortDirectionContracts, setSortDirectionContracts] = useState<'asc' | 'desc'>('desc');
+
+    const handleContractSort = (field: 'created_at' | 'worker' | 'empresa' | 'client' | 'type' | 'status') => {
+        if (sortFieldContracts === field) {
+            setSortDirectionContracts(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortFieldContracts(field);
+            setSortDirectionContracts(field === 'created_at' ? 'desc' : 'asc');
+        }
+    };
 
     // Get unique list of empresas from docRequests dynamically
     const uniqueEmpresasRequests = useMemo(() => {
@@ -327,9 +338,9 @@ export function DocumentacionTasksPage() {
         });
     }, [docRequests, searchTermRequests, statusFilterRequests, empresaFilterRequests, clientFilterRequests, sortFieldRequests, sortDirectionRequests]);
 
-    // Filtrar contratos localmente
+    // Filtrar e ordenar contratos localmente
     const filteredContracts = useMemo(() => {
-        return contracts.filter(contract => {
+        const filtered = contracts.filter(contract => {
             const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sem Alocação';
             const empresaName = contract.contratante || '';
             const workerName = contract.worker?.nome || '';
@@ -348,7 +359,36 @@ export function DocumentacionTasksPage() {
             
             return textMatch && statusMatch;
         });
-    }, [contracts, searchTermContracts, statusFilterContracts]);
+
+        return filtered.sort((a, b) => {
+            let valA: any = '';
+            let valB: any = '';
+
+            if (sortFieldContracts === 'worker') {
+                valA = (a.worker?.nome || '').toLowerCase();
+                valB = (b.worker?.nome || '').toLowerCase();
+            } else if (sortFieldContracts === 'empresa') {
+                valA = (a.contratante || '').toLowerCase();
+                valB = (b.contratante || '').toLowerCase();
+            } else if (sortFieldContracts === 'client') {
+                valA = (a.assignment?.client?.trade_name || a.assignment?.client?.legal_name || a.worker?.cliente || 'Sem Alocação').toLowerCase();
+                valB = (b.assignment?.client?.trade_name || b.assignment?.client?.legal_name || b.worker?.cliente || 'Sem Alocação').toLowerCase();
+            } else if (sortFieldContracts === 'type') {
+                valA = (a.contract_type || '').toLowerCase();
+                valB = (b.contract_type || '').toLowerCase();
+            } else if (sortFieldContracts === 'status') {
+                valA = (a.status || '').toLowerCase();
+                valB = (b.status || '').toLowerCase();
+            } else {
+                valA = a.created_at || '';
+                valB = b.created_at || '';
+            }
+
+            if (valA < valB) return sortDirectionContracts === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirectionContracts === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [contracts, searchTermContracts, statusFilterContracts, sortFieldContracts, sortDirectionContracts]);
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
@@ -2234,13 +2274,45 @@ Muchas gracias.`;
                                     </Select>
                                 </div>
 
-                                {(searchTermContracts || statusFilterContracts !== 'all') && (
+                                <div className="w-[240px]">
+                                    <Select 
+                                        value={`${sortFieldContracts}_${sortDirectionContracts}`} 
+                                        onValueChange={(val) => {
+                                            if (val === 'created_at_desc') { setSortFieldContracts('created_at'); setSortDirectionContracts('desc'); }
+                                            else if (val === 'created_at_asc') { setSortFieldContracts('created_at'); setSortDirectionContracts('asc'); }
+                                            else if (val === 'worker_asc') { setSortFieldContracts('worker'); setSortDirectionContracts('asc'); }
+                                            else if (val === 'worker_desc') { setSortFieldContracts('worker'); setSortDirectionContracts('desc'); }
+                                            else if (val === 'empresa_asc') { setSortFieldContracts('empresa'); setSortDirectionContracts('asc'); }
+                                            else if (val === 'empresa_desc') { setSortFieldContracts('empresa'); setSortDirectionContracts('desc'); }
+                                            else if (val === 'client_asc') { setSortFieldContracts('client'); setSortDirectionContracts('asc'); }
+                                            else if (val === 'client_desc') { setSortFieldContracts('client'); setSortDirectionContracts('desc'); }
+                                        }}
+                                    >
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Ordenar por..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="created_at_desc">📅 Data (Mais Recente)</SelectItem>
+                                            <SelectItem value="created_at_asc">📅 Data (Mais Antigo)</SelectItem>
+                                            <SelectItem value="worker_asc">🔤 Trabalhador (A-Z / Crescente)</SelectItem>
+                                            <SelectItem value="worker_desc">🔤 Trabalhador (Z-A / Decrescente)</SelectItem>
+                                            <SelectItem value="empresa_asc">🏢 Empresa (A-Z / Crescente)</SelectItem>
+                                            <SelectItem value="empresa_desc">🏢 Empresa (Z-A / Decrescente)</SelectItem>
+                                            <SelectItem value="client_asc">🏬 Cliente (A-Z / Crescente)</SelectItem>
+                                            <SelectItem value="client_desc">🏬 Cliente (Z-A / Decrescente)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {(searchTermContracts || statusFilterContracts !== 'all' || sortFieldContracts !== 'created_at' || sortDirectionContracts !== 'desc') && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => {
                                             setSearchTermContracts('');
                                             setStatusFilterContracts('all');
+                                            setSortFieldContracts('created_at');
+                                            setSortDirectionContracts('desc');
                                         }}
                                         className="text-indigo-600 dark:text-indigo-400 font-semibold"
                                     >
@@ -2271,13 +2343,73 @@ Muchas gracias.`;
                                     <Table>
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
-                                                <TableHead>Trabalhador</TableHead>
-                                                <TableHead>Empresa</TableHead>
-                                                <TableHead>Cliente</TableHead>
-                                                <TableHead>Tipo</TableHead>
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('worker')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Trabalhador
+                                                        {sortFieldContracts === 'worker' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
+
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('empresa')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Empresa
+                                                        {sortFieldContracts === 'empresa' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
+
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('client')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Cliente
+                                                        {sortFieldContracts === 'client' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
+
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('type')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Tipo
+                                                        {sortFieldContracts === 'type' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
+
                                                 <TableHead>OTP Código</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead>Data de Geração</TableHead>
+
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('status')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Status
+                                                        {sortFieldContracts === 'status' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
+
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('created_at')}>
+                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                                                        Data de Geração
+                                                        {sortFieldContracts === 'created_at' ? (
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                        )}
+                                                    </div>
+                                                </TableHead>
                                                 <TableHead className="text-right">Ações</TableHead>
                                             </TableRow>
                                         </TableHeader>
