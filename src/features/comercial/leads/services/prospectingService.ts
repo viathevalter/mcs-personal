@@ -169,11 +169,12 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
         const validEmail = this.sanitizeEmail(item.email);
         
         let finalEmail = validEmail;
+        let confidenceScore = item.email ? 85 : 70;
+
         if (validEmail) {
           const hasMx = await ProspectingService.checkMxRecord(validEmail);
-          if (!hasMx) {
-            console.warn(`[Prospecting Verification] Servidor MX de e-mail (${validEmail}) não existe no DNS. Definindo e-mail como null.`);
-            finalEmail = null;
+          if (hasMx) {
+            confidenceScore = 95;
           }
         }
 
@@ -193,6 +194,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           linkedin_url: validLinkedin,
           instagram_url: validInstagram,
           sector: item.sector || keywords,
+          confidence_score: confidenceScore,
         });
       }
 
@@ -204,15 +206,34 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
   }
 
   /**
-   * Real-time DNS MX Record Check via Google Public DNS
+   * Real-time DNS MX Record Check via Google Public DNS with Cloudflare Fallback
    */
   static async checkMxRecord(email: string | null): Promise<boolean> {
     if (!email || !email.includes('@')) return false;
     const domain = email.split('@')[1].trim().toLowerCase();
+    
+    // Primary: Google DNS
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`, { signal: controller.signal });
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (data.Status === 0 && Array.isArray(data.Answer) && data.Answer.length > 0) {
+        return true;
+      }
+    } catch {
+      // Fallback
+    }
+
+    // Secondary: Cloudflare DNS
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
+        headers: { 'Accept': 'application/dns-json' },
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
       const data = await res.json();
       return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.length > 0;
