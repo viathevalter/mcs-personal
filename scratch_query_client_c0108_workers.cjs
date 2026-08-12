@@ -1,71 +1,44 @@
 const { Client } = require('pg');
 
-const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+const connStr = 'postgresql://postgres.pyahcgorkvwfwmlzspnv:Stkrt%40Dev2026@aws-1-eu-central-1.pooler.supabase.com:5432/postgres';
 
 async function run() {
-  const client = new Client({ connectionString: prodConnectionString });
-  await client.connect();
+    const client = new Client({ connectionString: connStr });
+    await client.connect();
 
-  try {
-    const targetId = '8a040637-d8c8-f52a-52ad-c24e2fc9dda2';
-    const targetCode = 'C0108';
-    const targetName = 'INSTALACIONES Y SISTEMAS HIDRAULICOS S.L';
+    console.log('--- Inspecting workers for INSTALACIONES Y SISTEMAS HIDRÁULICOS (C0108) ---');
 
-    console.log(`=== AUDITANDO CLIENTE C0108: ${targetName} ===`);
+    const clientId = '8a040637-d8c8-f52a-52ad-c24e2fc9dda2';
 
-    // 1. Check core_personal.workers
-    const w1 = await client.query(`
-      SELECT id, cod_colab, nome, status_trabajador, data_baixa, funcion, cliente, cod_cliente 
-      FROM core_personal.workers 
-      WHERE cliente ILIKE $1 OR cod_cliente LIKE $2 OR cod_cliente LIKE '%108%';
-    `, [`%HIDRAULICOS%`, `%${targetCode}%`]);
-    console.log(`\nWorkers in core_personal.workers matching C0108 / HIDRAULICOS (${w1.rows.length}):`);
-    console.log(w1.rows);
-
-    // 2. Check core_personal.worker_hours
-    const w2 = await client.query(`
-      SELECT wh.*, w.nome, w.status_trabajador, w.data_baixa, w.funcion
-      FROM core_personal.worker_hours wh
-      LEFT JOIN core_personal.workers w ON w.id = wh.worker_id
-      WHERE wh.cliente_nombre ILIKE '%HIDRAULICOS%' OR wh.cliente_nombre ILIKE '%C0108%';
+    // 1. Query core_personal.workers by cliente_nombre or client_id
+    const resWorkers = await client.query(`
+        SELECT id, nome, funcion, cliente_nombre, status_trabajador, data_baixa, cod_colab
+        FROM core_personal.workers
+        WHERE cliente_nombre ILIKE '%INSTALACIONES Y SISTEMAS HIDRÁULICOS%'
+           OR cliente_nombre ILIKE '%INSTALACIONES Y SIS. HIDRAULICOS%'
     `);
-    console.log(`\nHours in core_personal.worker_hours (${w2.rows.length}):`);
-    console.log(w2.rows.slice(0, 10));
+    console.log(`Found ${resWorkers.rows.length} workers in core_personal.workers with matching cliente_nombre:`);
+
+    // 2. Query worker_hours for July 2026 (period_year=2026, period_month=7)
+    const resWH = await client.query(`
+        SELECT wh.worker_id, w.nome, w.funcion, w.cliente_nombre, wh.period_year, wh.period_month, wh.status, wh.total_hours
+        FROM core_personal.worker_hours wh
+        JOIN core_personal.workers w ON w.id = wh.worker_id
+        WHERE (w.cliente_nombre ILIKE '%INSTALACIONES Y SISTEMAS HIDRÁULICOS%' OR w.cliente_nombre ILIKE '%INSTALACIONES Y SIS. HIDRAULICOS%')
+          AND wh.period_year = 2026 AND wh.period_month = 7
+    `);
+    console.log(`Found ${resWH.rows.length} worker_hours rows in July 2026 for this client:`);
 
     // 3. Check core_finance.horas_trabalhadas
-    const w3 = await client.query(`
-      SELECT ht.*, w.nome, w.status_trabajador, w.data_baixa, w.funcion
-      FROM core_finance.horas_trabalhadas ht
-      LEFT JOIN core_personal.workers w ON w.id = ht.worker_id
-      WHERE ht.client_id = $1;
-    `, [targetId]);
-    console.log(`\nHours in core_finance.horas_trabalhadas (${w3.rows.length}):`);
-    console.log(w3.rows.slice(0, 10));
+    const resHT = await client.query(`
+        SELECT ht.worker_id, w.nome, ht.horas_totais, ht.tarifa_faturada
+        FROM core_finance.horas_trabalhadas ht
+        JOIN core_personal.workers w ON w.id = ht.worker_id
+        WHERE ht.client_id = $1 OR w.cliente_nombre ILIKE '%INSTALACIONES Y SISTEMAS HIDRÁULICOS%'
+    `, [clientId]);
+    console.log(`Found ${resHT.rows.length} horas_trabalhadas rows in core_finance for this client`);
 
-    // 4. Check core_personal.worker_assignments
-    const w4 = await client.query(`
-      SELECT wa.*, w.nome, w.status_trabajador, w.data_baixa, w.funcion
-      FROM core_personal.worker_assignments wa
-      LEFT JOIN core_personal.workers w ON w.id = wa.worker_id
-      WHERE wa.client_id = $1;
-    `, [targetId]);
-    console.log(`\nAssignments in core_personal.worker_assignments (${w4.rows.length}):`);
-    console.log(w4.rows.slice(0, 10));
-
-    // 5. Check public.colaboradores or public.trabalhadores or public.contratados
-    const w5 = await client.query(`
-      SELECT id, nome, cliente, cod_cliente, funcao 
-      FROM public.trabalhadores 
-      WHERE cliente ILIKE '%HIDRAULICOS%' OR cod_cliente LIKE '%108%';
-    `);
-    console.log(`\nTrabalhadores em public.trabalhadores (${w5.rows.length}):`);
-    console.log(w5.rows.slice(0, 10));
-
-  } catch (err) {
-    console.error(err);
-  } finally {
     await client.end();
-  }
 }
 
-run();
+run().catch(console.error);

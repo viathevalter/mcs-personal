@@ -1,44 +1,29 @@
 const { Client } = require('pg');
 
-const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+const connStr = 'postgresql://postgres.pyahcgorkvwfwmlzspnv:Stkrt%40Dev2026@aws-1-eu-central-1.pooler.supabase.com:5432/postgres';
 
 async function run() {
-  const client = new Client({ connectionString: prodConnectionString });
-  await client.connect();
+    const client = new Client({ connectionString: connStr });
+    await client.connect();
 
-  try {
-    const clientsCols = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'core_common' AND table_name = 'clients';
-    `);
-    console.log('core_common.clients columns:', clientsCols.rows.map(c => c.column_name));
+    console.log('--- Inspecting core_common.clients schema ---');
 
-    const workersCols = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'core_personal' AND table_name = 'workers';
+    const resCols = await client.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_schema = 'core_common' AND table_name = 'clients'
     `);
-    console.log('core_personal.workers columns:', workersCols.rows.map(c => c.column_name));
+    console.log('Columns of core_common.clients:', resCols.rows.map(c => c.column_name));
 
-    const hoursCols = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'core_personal' AND table_name = 'worker_hours';
+    // Get all clients
+    const resClients = await client.query(`
+        SELECT id, trade_name, legal_name, codigo 
+        FROM core_common.clients 
+        LIMIT 20
     `);
-    console.log('core_personal.worker_hours columns:', hoursCols.rows.map(c => c.column_name));
+    console.log('Sample clients:', resClients.rows);
 
-    const finHoursCols = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'core_finance' AND table_name = 'horas_trabalhadas';
-    `);
-    console.log('core_finance.horas_trabalhadas columns:', finHoursCols.rows.map(c => c.column_name));
-  } catch (err) {
-    console.error(err);
-  } finally {
     await client.end();
-  }
 }
 
-run();
+run().catch(console.error);

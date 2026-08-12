@@ -1,65 +1,63 @@
 const { Client } = require('pg');
 
-const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+const connStr = 'postgresql://postgres.pyahcgorkvwfwmlzspnv:Stkrt%40Dev2026@aws-1-eu-central-1.pooler.supabase.com:5432/postgres';
 
 async function run() {
-  const client = new Client({ connectionString: prodConnectionString });
-  await client.connect();
+    const client = new Client({ connectionString: connStr });
+    await client.connect();
 
-  try {
-    const res = await client.query(`
-      SELECT 
-        w.id as worker_id,
-        w.nome as worker_name,
-        w.status_trabajador,
-        w.data_baixa,
-        w.funcion as worker_role,
-        SUM(CAST(ht.horas_totais AS NUMERIC)) as total_hours,
-        AVG(CAST(ht.tarifa_faturada AS NUMERIC)) as avg_rate
-      FROM core_finance.horas_trabalhadas ht
-      JOIN core_personal.workers w ON w.id = ht.worker_id
-      WHERE ht.client_id = '8a040637-d8c8-f52a-52ad-c24e2fc9dda2'
-        AND ht.data_trabalho >= '2026-07-01' AND ht.data_trabalho <= '2026-07-31T23:59:59Z'
-      GROUP BY w.id, w.nome, w.status_trabajador, w.data_baixa, w.funcion
-      ORDER BY w.nome;
+    console.log('--- Querying DB directly for INSTALACIONES Y SISTEMAS HIDRAULICOS S.L. ---');
+
+    // 1. Get Client record
+    const resClient = await client.query(`
+        SELECT id, name, legal_name, code, city 
+        FROM core_common.clients 
+        WHERE name ILIKE '%INSTALACIONES Y SISTEMAS HIDRAULICOS%' OR legal_name ILIKE '%INSTALACIONES Y SISTEMAS HIDRAULICOS%'
     `);
+    console.log('Client record:', resClient.rows);
 
-    console.log(`Total Workers Found for C0108 (Jul/2026): ${res.rows.length}`);
-    
-    let activeCount = 0;
-    let inactiveCount = 0;
+    const clientId = resClient.rows[0]?.id;
 
-    const list = res.rows.map(r => {
-      const isBaixa = Boolean(r.data_baixa);
-      const isStatusInactive = r.status_trabajador && (
-        r.status_trabajador.toLowerCase().includes('inativ') ||
-        r.status_trabajador.toLowerCase().includes('baixa') ||
-        r.status_trabajador.toLowerCase().includes('deslig')
-      );
+    // 2. Query workers assigned to this client on core_personal.workers
+    const resWorkers = await client.query(`
+        SELECT id, nome, funcion, cliente_nombre, status_trabajador, data_baixa, cod_colab
+        FROM core_personal.workers
+        WHERE cliente_nombre ILIKE '%INSTALACIONES Y SISTEMAS HIDRAULICOS%'
+        ORDER BY nome ASC
+    `);
+    console.log(`Found ${resWorkers.rows.length} workers in core_personal.workers for this client:`);
+    console.log(resWorkers.rows.slice(0, 10));
 
-      const isInactive = isBaixa || isStatusInactive;
-      if (isInactive) inactiveCount++;
-      else activeCount++;
+    // 3. Query worker_hours in core_personal.worker_hours for July 2026 (2026-07)
+    const resHours = await client.query(`
+        SELECT wh.worker_id, w.nome, w.funcion, wh.period_year, wh.period_month, wh.status, wh.total_hours
+        FROM core_personal.worker_hours wh
+        LEFT JOIN core_personal.workers w ON w.id = wh.worker_id
+        WHERE (w.cliente_nombre ILIKE '%INSTALACIONES Y SISTEMAS HIDRAULICOS%' OR wh.client_id = $1)
+          AND wh.period_year = 2026 AND wh.period_month = 7
+    `, [clientId || '00000000-0000-0000-0000-000000000000']);
 
-      return {
-        id: r.worker_id,
-        name: r.worker_name,
-        role: r.worker_role || 'Trabalhador Especializado',
-        hours: Number(r.total_hours || 0),
-        hourlyRateClient: Number(r.avg_rate || 25),
-        status: isInactive ? 'Inativo' : 'Ativo',
-        statusRaw: r.status_trabajador,
-        dataBaixa: r.data_baixa
-      };
-    });
+    console.log(`Found ${resHours.rows.length} worker_hours entries in 2026-07 for this client:`);
+    console.log(resHours.rows.slice(0, 10));
 
-    console.log(`Active: ${activeCount} | Inactive: ${inactiveCount}`);
-    console.log('\nFull 48 Workers List:\n', JSON.stringify(list, null, 2));
-  } catch (err) {
-    console.error(err);
-  } finally {
+    // 4. Query client_worker_tariffs & client_tariffs in core_common
+    const resTariffs = await client.query(`
+        SELECT * FROM core_common.client_tariffs WHERE client_id = $1
+    `, [clientId || '00000000-0000-0000-0000-000000000000']);
+    console.log('Client Job Tariffs:', resTariffs.rows);
+
+    const resWorkerTariffs = await client.query(`
+        SELECT * FROM core_common.client_worker_tariffs WHERE client_id = $1
+    `, [clientId || '00000000-0000-0000-0000-000000000000']);
+    console.log('Client Worker Exception Tariffs:', resWorkerTariffs.rows);
+
+    // 5. Query faturas in core_finance for this client in July 2026
+    const resFaturas = await client.query(`
+        SELECT * FROM core_finance.faturas WHERE client_id = $1
+    `, [clientId || '00000000-0000-0000-0000-000000000000']);
+    console.log('Client Faturas in DB:', resFaturas.rows);
+
     await client.end();
-  }
 }
 
-run();
+run().catch(console.error);

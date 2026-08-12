@@ -1,25 +1,25 @@
 const { Client } = require('pg');
 
-const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+const connStr = 'postgresql://postgres.pyahcgorkvwfwmlzspnv:Stkrt%40Dev2026@aws-1-eu-central-1.pooler.supabase.com:5432/postgres';
 
 async function run() {
-  const client = new Client({ connectionString: prodConnectionString });
-  await client.connect();
+    const client = new Client({ connectionString: connStr });
+    await client.connect();
 
-  try {
-    const res = await client.query(`
-      SELECT table_schema, table_name 
-      FROM information_schema.tables 
-      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-      ORDER BY table_schema, table_name;
+    console.log('--- Inspecting core_personal.workers columns ---');
+
+    const resCols = await client.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_schema = 'core_personal' AND table_name = 'workers'
     `);
-    console.log('Database Schemas and Tables:\n');
-    res.rows.forEach(r => console.log(`${r.table_schema}.${r.table_name}`));
-  } catch (err) {
-    console.error('Error:', err.message);
-  } finally {
+    console.log('Columns of core_personal.workers:', resCols.rows.map(c => c.column_name));
+
+    // Get 5 sample workers
+    const resW = await client.query(`SELECT * FROM core_personal.workers LIMIT 5`);
+    console.log('Sample worker:', resW.rows[0]);
+
     await client.end();
-  }
 }
 
-run();
+run().catch(console.error);
