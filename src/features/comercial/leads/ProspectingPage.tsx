@@ -472,7 +472,9 @@ export function ProspectingPage() {
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {jobs.map((job) => {
                   const isSelected = job.id === selectedJobId;
-                  const progressPct = job.target_count > 0 ? Math.min(100, Math.round((job.processed_count / job.target_count) * 100)) : 0;
+                  const isEmailTarget = job.email_required ?? true;
+                  const currentMetric = isEmailTarget ? job.found_emails_count : job.processed_count;
+                  const progressPct = job.target_count > 0 ? Math.min(100, Math.round((currentMetric / job.target_count) * 100)) : 0;
 
                   return (
                     <div
@@ -537,7 +539,13 @@ export function ProspectingPage() {
                       <div className="mt-3">
                         <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
                           <span>
-                            {job.processed_count} de {job.target_count} empresas
+                            {isEmailTarget ? (
+                              <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                                <Mail className="w-3 h-3 inline" /> {job.found_emails_count} de {job.target_count} e-mails
+                              </span>
+                            ) : (
+                              <span>{job.processed_count} de {job.target_count} empresas</span>
+                            )}
                           </span>
                           <span className="font-semibold text-blue-600 dark:text-blue-400">{progressPct}%</span>
                         </div>
