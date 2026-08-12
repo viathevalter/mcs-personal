@@ -164,13 +164,25 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
       const rawResults: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
 
-      const verifiedResults = rawResults.map((item) => {
-        const validWebsite = this.sanitizeUrl(item.website);
+      const verifiedResults = [];
+      for (const item of rawResults) {
+        const validEmail = this.sanitizeEmail(item.email);
+        
+        // 1. If email is required, verify REAL MX Mail Server via Google DNS. Discard hallucinated emails!
+        if (emailRequired && validEmail) {
+          const hasMx = await ProspectingService.checkMxRecord(validEmail);
+          if (!hasMx) {
+            console.warn(`[Prospecting Verification] Descartando empresa fictícia "${item.company_name}" - Servidor MX de e-mail (${validEmail}) não existe no DNS.`);
+            continue;
+          }
+        }
+
+        // 2. Verify REAL Website DNS A-Record
+        const validWebsite = await ProspectingService.checkWebsiteLive(item.website);
         const validLinkedin = this.sanitizeUrl(item.linkedin_url);
         const validInstagram = this.sanitizeUrl(item.instagram_url);
-        const validEmail = this.sanitizeEmail(item.email);
 
-        return {
+        verifiedResults.push({
           company_name: item.company_name,
           website: validWebsite,
           phone: item.phone || null,
@@ -181,13 +193,57 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
           linkedin_url: validLinkedin,
           instagram_url: validInstagram,
           sector: item.sector || keywords,
-        };
-      });
+        });
+      }
 
       return verifiedResults;
     } catch (err: any) {
       console.error('AIsa API Search error:', err.message);
       return [];
+    }
+  }
+
+  /**
+   * Real-time DNS MX Record Check via Google Public DNS
+   */
+  static async checkMxRecord(email: string | null): Promise<boolean> {
+    if (!email || !email.includes('@')) return false;
+    const domain = email.split('@')[1].trim().toLowerCase();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Real-time Website DNS A-Record Check via Google Public DNS
+   */
+  static async checkWebsiteLive(url: string | null): Promise<string | null> {
+    if (!url || url === '#' || url === 'null') return null;
+    let clean = url.trim();
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = `https://${clean}`;
+    }
+
+    try {
+      const domain = clean.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`https://dns.google/resolve?name=${domain}&type=A`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (data.Status !== 0 || !Array.isArray(data.Answer) || data.Answer.length === 0) {
+        return null; // NXDOMAIN or domain with no A-record
+      }
+      return clean;
+    } catch {
+      return null;
     }
   }
 
