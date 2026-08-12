@@ -75,10 +75,10 @@ export const Sidebar: React.FC = () => {
         <SectionLabel label={t('menu.main_menu')} />
         <div className="space-y-1">
           <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />
-          {isSystemAdmin && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
-          {(isSystemAdmin || isOps) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
+          {(isSystemAdmin || isRH) && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
+          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
           {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />}
-          {isSystemAdmin && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
+          {(isSystemAdmin || isRH) && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
         </div>
 
         {(isSystemAdmin || isRH || isOps) && (
