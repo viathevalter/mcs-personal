@@ -46,7 +46,7 @@ export function PedidoDetailPage() {
   const handleOpenEdit = () => {
     setEditStartDate(pedido?.expected_start_date || '');
     setEditEndDate(pedido?.expected_end_date || '');
-    setEditNotes(pedido?.general_notes || '');
+    setEditNotes(pedido?.notes || '');
     setIsEditDialogOpen(true);
   };
 
@@ -59,7 +59,7 @@ export function PedidoDetailPage() {
         .update({
           expected_start_date: editStartDate || null,
           expected_end_date: editEndDate || null,
-          general_notes: editNotes || null,
+          notes: editNotes || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
@@ -309,7 +309,7 @@ export function PedidoDetailPage() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isUpdating}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={isUpdating} className="bg-indigo-650 hover:bg-indigo-700 text-white">
+            <Button onClick={handleSaveEdit} disabled={isUpdating} className="bg-indigo-600 hover:bg-indigo-700 text-white">
               {isUpdating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

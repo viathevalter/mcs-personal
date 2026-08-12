@@ -17,7 +17,7 @@ export interface Pedido {
   total_cost_snapshot?: number;
   total_revenue_snapshot?: number;
   margin_percent_snapshot?: number;
-  general_notes?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 

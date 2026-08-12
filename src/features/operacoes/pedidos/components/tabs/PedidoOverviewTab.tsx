@@ -308,8 +308,8 @@ export function PedidoOverviewTab({ pedido }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          {pedido.general_notes ? (
-            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{pedido.general_notes}</p>
+          {pedido.notes ? (
+            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{pedido.notes}</p>
           ) : (
             <p className="text-sm text-muted-foreground italic">Nenhuma observação cadastrada para este pedido. Você pode adicionar clicando no botão "Editar Pedido" no cabeçalho.</p>
           )}
