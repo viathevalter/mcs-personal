@@ -53,7 +53,7 @@ BEGIN
       e.nome
     ) INTO NEW.origem_contratante
     FROM core_personal.workers w
-    LEFT JOIN core_common.empresas e ON e.id = w.empresa_id
+    LEFT JOIN core_common.empresas e ON e.id = NEW.empresa_id
     WHERE w.id = NEW.worker_id;
   END IF;
 
