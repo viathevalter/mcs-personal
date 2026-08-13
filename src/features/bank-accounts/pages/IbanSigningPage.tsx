@@ -384,11 +384,10 @@ export function IbanSigningPage() {
                 ? "¡Autorización firmada con éxito!" 
                 : "Autorização assinada com sucesso!");
 
-        } catch (err) {
-            console.error(err);
-            toast.error(currentLanguage.startsWith('es') 
-                ? "Error al procesar la firma." 
-                : "Erro ao processar a assinatura.");
+        } catch (err: any) {
+            console.error("Error signing IBAN authorization document:", err);
+            const errorMessage = err?.message || (currentLanguage.startsWith('es') ? "Error al procesar la firma." : "Erro ao processar a assinatura.");
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }
