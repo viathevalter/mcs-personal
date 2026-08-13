@@ -189,6 +189,15 @@ export function ProspectingPage() {
     addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
 
     try {
+      // Reset any stale processing jobs (except current) back to pending
+      await supabase
+        .schema('core_comercial')
+        .from('lead_prospecting_jobs')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('empresa_id', job.empresa_id)
+        .eq('status', 'processing')
+        .neq('id', job.id);
+
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
 
       let currentJob = job;
