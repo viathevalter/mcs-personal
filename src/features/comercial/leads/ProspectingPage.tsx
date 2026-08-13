@@ -303,9 +303,18 @@ export function ProspectingPage() {
     }
   };
 
+  const [filterCorporateDomainOnly, setFilterCorporateDomainOnly] = useState(false);
+
+  const isFreeEmailDomain = (email?: string | null) => {
+    if (!email) return false;
+    const domain = email.split('@')[1]?.toLowerCase().trim();
+    return ['gmail.com', 'hotmail.com', 'yahoo.com', 'yahoo.es', 'outlook.com', 'icloud.com'].includes(domain || '');
+  };
+
   // Select all or toggle results
   const filteredResults = results.filter((r) => {
     if (filterEmailOnly && !r.email) return false;
+    if (filterCorporateDomainOnly && (!r.email || isFreeEmailDomain(r.email))) return false;
     if (statusFilter === 'raw' && r.status !== 'raw') return false;
     if (statusFilter === 'imported' && r.status !== 'imported') return false;
     return true;
@@ -770,6 +779,18 @@ export function ProspectingPage() {
                   }`}
                 >
                   <Mail className="w-3.5 h-3.5 inline mr-1" /> Apenas com E-mail
+                </button>
+
+                <button
+                  onClick={() => setFilterCorporateDomainOnly(!filterCorporateDomainOnly)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    filterCorporateDomainOnly
+                      ? 'bg-emerald-100 dark:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
+                      : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                  title="Filtrar apenas e-mails de domínio próprio corporativo (@empresa.es), ocultando Gmail/Hotmail"
+                >
+                  <Building2 className="w-3.5 h-3.5 inline mr-1 text-emerald-500" /> Domínio Próprio (@empresa.es)
                 </button>
 
                 <button
