@@ -162,9 +162,9 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
       // Clean up centro_custo based on selection
       const dataToSave = { ...formData };
       if (centroCustoTipo === 'departamento') {
-         dataToSave.obra_id = undefined;
+         dataToSave.obra_id = null as any;
       } else {
-         dataToSave.departamento_id = undefined;
+         dataToSave.departamento_id = null as any;
       }
 
       await onSave(dataToSave);
@@ -246,10 +246,12 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
                       <SelectValue placeholder="Selecione a categoria (DRE)" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categorias.filter(c => c.ativo).map(c => (
+                      {categorias.filter(c => c.ativo && c.tipo?.toLowerCase() === 'receita').map(c => (
                         <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                       ))}
-                      {categorias.length === 0 && <SelectItem value="none" disabled>Nenhuma categoria cadastrada</SelectItem>}
+                      {categorias.filter(c => c.ativo && c.tipo?.toLowerCase() === 'receita').length === 0 && (
+                        <SelectItem value="none" disabled>Nenhuma categoria de receita cadastrada</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

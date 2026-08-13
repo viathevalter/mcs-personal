@@ -147,7 +147,10 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
       Modificado: parseDate(row.modificado),
       Modificado_por: row.modificado_por || '',
       fatura_id: row.fatura_id || null,
-      anexo_url: row.anexo_url || null
+      anexo_url: row.anexo_url || null,
+      categoria_id: row.categoria_id || null,
+      departamento_id: row.departamento_id || null,
+      obra_id: row.obra_id || null
     };
   });
 }
@@ -287,6 +290,9 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
       cliente: data.Cliente || null,
       obra: data.Obra || null,
       num_doc: data.Num_doc || null,
+      periodo_fat: data.periodo_fat || null,
+      banco: data.Banco || null,
+      obs: data.Obs || null,
       data_emissao: data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null,
       dt_venc: data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null,
       valot_total: data.Valot_total?.toString() || null,
@@ -320,6 +326,9 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.Cliente !== undefined) dbData.cliente = data.Cliente;
     if (data.Obra !== undefined) dbData.obra = data.Obra;
     if (data.Num_doc !== undefined) dbData.num_doc = data.Num_doc;
+    if (data.periodo_fat !== undefined) dbData.periodo_fat = data.periodo_fat;
+    if (data.Banco !== undefined) dbData.banco = data.Banco;
+    if (data.Obs !== undefined) dbData.obs = data.Obs;
     if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null;
     if (data.Dt_venc !== undefined) dbData.dt_venc = data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null;
     if (data.Valot_total !== undefined) dbData.valot_total = data.Valot_total?.toString() || null;
