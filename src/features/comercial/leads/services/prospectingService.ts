@@ -399,9 +399,10 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
     const totalCurrentResults = existingCount + recordsToInsert.length;
     const totalCurrentEmails = existingEmailsCount + foundEmailsCount;
     
-    // Auto-complete ONLY when email target is reached OR if AIsa returned 0 companies
+    // Auto-complete when email target is reached OR if no new uncaptured items can be found
     const updatedMetric = isEmailTarget ? totalCurrentEmails : totalCurrentResults;
-    const isCompleted = updatedMetric >= job.target_count || (scraped.length === 0 && existingCount > 0);
+    const noNewRecordsInserted = recordsToInsert.length === 0;
+    const isCompleted = updatedMetric >= job.target_count || scraped.length === 0 || (noNewRecordsInserted && existingCount > 0);
 
     await supabase
       .schema('core_comercial')
