@@ -20,36 +20,46 @@ export function useMutateSupplier() {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
 
+  const invalidateSuppliers = () => {
+    queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    queryClient.invalidateQueries({ queryKey: ['suppliers_list'] });
+  };
+
   const createMutation = useMutation({
     mutationFn: (payload: CreateSupplierDTO) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       return suppliersApi.createSupplier(selectedEmpresaId, payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    onSuccess: invalidateSuppliers,
+  });
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: (payloadList: CreateSupplierDTO[]) => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+      return suppliersApi.bulkCreateSuppliers(selectedEmpresaId, payloadList);
     },
+    onSuccess: invalidateSuppliers,
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateSupplierDTO }) => {
       return suppliersApi.updateSupplier(id, payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-    },
+    onSuccess: invalidateSuppliers,
   });
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => suppliersApi.archiveSupplier(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-    },
+    onSuccess: invalidateSuppliers,
   });
 
   return {
     createSupplier: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     
+    bulkCreateSuppliers: bulkCreateMutation.mutateAsync,
+    isBulkCreating: bulkCreateMutation.isPending,
+
     updateSupplier: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     
@@ -57,3 +67,4 @@ export function useMutateSupplier() {
     isArchiving: archiveMutation.isPending,
   };
 }
+

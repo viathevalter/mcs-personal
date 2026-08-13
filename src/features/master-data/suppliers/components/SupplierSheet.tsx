@@ -33,6 +33,8 @@ import { CountrySelector, RegionSelector } from '../../locations/components/Loca
 import type { Supplier, CreateSupplierDTO } from '../types';
 import { createSupplierSchema } from '../types';
 import { useMutateSupplier } from '../hooks/useSuppliers';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { suppliersApi } from '../api/suppliersApi';
 
 interface SupplierSheetProps {
   open: boolean;
@@ -42,6 +44,7 @@ interface SupplierSheetProps {
 
 export function SupplierSheet({ open, onOpenChange, supplier }: SupplierSheetProps) {
   const isEditing = !!supplier;
+  const { selectedEmpresaId } = useEmpresa();
   const { createSupplier, updateSupplier, isCreating, isUpdating } = useMutateSupplier();
   const isSaving = isCreating || isUpdating;
 
@@ -70,6 +73,7 @@ export function SupplierSheet({ open, onOpenChange, supplier }: SupplierSheetPro
   const selectedCountry = useWatch({ control: form.control, name: 'country_id' });
 
   useEffect(() => {
+    let isMounted = true;
     if (open) {
       if (supplier) {
         form.reset({
@@ -92,7 +96,7 @@ export function SupplierSheet({ open, onOpenChange, supplier }: SupplierSheetPro
         });
       } else {
         form.reset({
-          codigo: '',
+          codigo: 'Carregando...',
           trade_name: '',
           legal_name: '',
           tax_id: '',
@@ -109,9 +113,22 @@ export function SupplierSheet({ open, onOpenChange, supplier }: SupplierSheetPro
           notes: '',
           status: 'active',
         });
+        if (selectedEmpresaId) {
+          suppliersApi.getNextSupplierCode(selectedEmpresaId).then((nextCode) => {
+            if (isMounted) {
+              form.setValue('codigo', nextCode);
+            }
+          }).catch((err) => {
+            console.error('Erro ao buscar próximo código de fornecedor:', err);
+            if (isMounted) form.setValue('codigo', '');
+          });
+        }
       }
     }
-  }, [open, supplier, form]);
+    return () => {
+      isMounted = false;
+    };
+  }, [open, supplier, form, selectedEmpresaId]);
 
   const onSubmit = async (data: CreateSupplierDTO) => {
     try {

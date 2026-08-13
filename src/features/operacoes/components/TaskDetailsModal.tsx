@@ -3,7 +3,7 @@ import { X, Calendar, User, Briefcase, CheckCircle, Clock, AlertTriangle, Layers
 import { StatusBadge } from './ui/StatusBadge';
 import { ContextCard } from './ContextCard';
 import { RichTextRenderer, RichTextEditor } from './ui/RichTextEditor';
-import { FileAttachmentUploader, TaskAttachment } from './ui/FileAttachmentUploader';
+import { FileAttachmentUploader, type TaskAttachment } from './ui/FileAttachmentUploader';
 import type { IncidenciaTarefaExpandida } from '../services/types';
 import { updateTarefa } from '../services/incidencias';
 import { toast } from 'sonner';

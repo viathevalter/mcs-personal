@@ -13,7 +13,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Card } from '../components/ui/Card';
 import { AsyncSelect } from '../components/ui/AsyncSelect';
 import { RichTextEditor } from '../components/ui/RichTextEditor';
-import { FileAttachmentUploader, TaskAttachment } from '../components/ui/FileAttachmentUploader';
+import { FileAttachmentUploader, type TaskAttachment } from '../components/ui/FileAttachmentUploader';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { toast } from 'sonner';

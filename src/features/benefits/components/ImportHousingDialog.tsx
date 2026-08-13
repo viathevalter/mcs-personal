@@ -33,7 +33,7 @@ import {
     getCompetenceOptions,
     getCurrentCompetence,
     parseExcelDateToISO,
-    SimpleWorker
+    type SimpleWorker
 } from '@/shared/utils/importUtils';
 
 interface ImportHousingDialogProps {

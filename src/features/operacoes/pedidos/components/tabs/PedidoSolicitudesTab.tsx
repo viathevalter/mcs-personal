@@ -55,7 +55,7 @@ export function PedidoSolicitudesTab({ solicitudes, isLoading }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-900 dark:text-slate-200">{sol.title}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 capitalize">{sol.tipo.replace('_', ' ')}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 capitalize">{sol.tipo ? sol.tipo.replace('_', ' ') : '-'}</div>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-400 capitalize">
                     {sol.department || '-'}
@@ -69,7 +69,7 @@ export function PedidoSolicitudesTab({ solicitudes, isLoading }: Props) {
                       sol.priority === 'high' ? 'text-amber-600' :
                       sol.priority === 'normal' ? 'text-blue-600' : 'text-slate-500'
                     }`}>
-                      {sol.priority.toUpperCase()}
+                      {sol.priority ? sol.priority.toUpperCase() : '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
