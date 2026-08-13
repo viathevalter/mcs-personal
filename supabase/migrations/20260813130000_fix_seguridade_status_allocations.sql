@@ -68,14 +68,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_tipo_evento text;
+    v_tipo_evento core_personal.seguridade_tipo_evento;
     v_cliente text;
     v_contratante text;
     v_empresa_id uuid;
 BEGIN
     IF NEW.status_seguridad IS DISTINCT FROM OLD.status_seguridad THEN
         IF NEW.status_seguridad ILIKE '%Pendente%Alta%' OR NEW.status_seguridad ILIKE '%Pendiente%Alta%' THEN
-            v_tipo_evento := 'alta';
+            v_tipo_evento := 'alta'::core_personal.seguridade_tipo_evento;
             
             SELECT id INTO v_empresa_id
             FROM core_common.empresas
@@ -107,7 +107,7 @@ BEGIN
             END IF;
             
         ELSIF NEW.status_seguridad ILIKE '%Pendente%Baixa%' OR NEW.status_seguridad ILIKE '%Pendiente%Baja%' THEN
-            v_tipo_evento := 'baixa';
+            v_tipo_evento := 'baixa'::core_personal.seguridade_tipo_evento;
             
             SELECT id INTO v_empresa_id
             FROM core_common.empresas
