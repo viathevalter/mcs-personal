@@ -273,7 +273,7 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
    */
   static async processJobStep(
     job: LeadProspectingJob,
-    batchSize: number = 5
+    batchSize: number = 10
   ): Promise<{ processed: number; foundEmails: number; completed: boolean }> {
     const { data: existingResults } = await supabase
       .schema('core_comercial')

@@ -213,7 +213,7 @@ export function ProspectingPage() {
 
         addLog(`[Lote Engine] Raspagem inteligente: "${currentJob.keywords}" em ${currentJob.location}...`, 'info');
 
-        const stepResult = await ProspectingService.processJobStep(currentJob, 5);
+        const stepResult = await ProspectingService.processJobStep(currentJob, 10);
 
         addLog(
           `[Sucesso Lote] Extraídas ${stepResult.processed} empresas (${stepResult.foundEmails} com e-mail corporativo).`,
