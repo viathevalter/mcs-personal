@@ -1216,6 +1216,7 @@ Muchas gracias.`;
                 contrato_alta: 'Contrato de Alta',
                 doc_alta_seguridade: 'Doc Alta Seguridade',
                 doc_baixa_seguridade: 'Doc Baixa Seguridade',
+                doc_anulacao_alta: 'Anulação de Alta',
                 carta_renuncia: 'Carta de Renuncia',
                 carta_laboral: 'Carta Laboral',
                 prova_vida: 'Prova de Vida',
@@ -2756,6 +2757,7 @@ Muchas gracias.`;
                                             <option value="contrato_alta">Contrato de Alta</option>
                                             <option value="doc_alta_seguridade">Doc Alta Seguridade</option>
                                             <option value="doc_baixa_seguridade">Doc Baixa Seguridade</option>
+                                            <option value="doc_anulacao_alta">Anulação de Alta</option>
                                             <option value="carta_renuncia">Carta de Renuncia</option>
                                             <option value="carta_laboral">Carta Laboral</option>
                                             <option value="prova_vida">Prova de Vida</option>

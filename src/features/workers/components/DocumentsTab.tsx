@@ -29,6 +29,7 @@ const DOC_TYPES = [
     { value: 'contrato_alta', label: 'Contrato de Alta' },
     { value: 'doc_alta_seguridade', label: 'Doc Alta Seguridade' },
     { value: 'doc_baixa_seguridade', label: 'Doc Baixa Seguridade' },
+    { value: 'doc_anulacao_alta', label: 'Anulação de Alta' },
     { value: 'certificado_banco', label: 'Cert. Titularidade Banco' },
     { value: 'autorizacao_banco', label: 'Autorização Mudança Conta Banco' },
     { value: 'passaporte', label: 'Passaporte' },
