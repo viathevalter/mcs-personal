@@ -154,7 +154,7 @@ export function ProspectingPage() {
         handleStartProcessing(nextPendingJob);
       }
     }
-  }, [jobs]);
+  }, [jobs, isProcessingLoop]);
 
   // Keep active job sync
   useEffect(() => {
