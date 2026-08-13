@@ -89,10 +89,11 @@ export async function deleteWorkerDocument(document: WorkerDocument): Promise<vo
 }
 
 export async function getDocumentDownloadUrl(filePath: string): Promise<string> {
+    if (!filePath) return '';
     const buckets = ['mcs-personal-docs', 'worker-contracts', 'worker-incoming-docs', 'worker-documents', 'documents'];
     
     let bucketToUse = BUCKET_NAME;
-    let cleanPath = filePath;
+    let cleanPath = filePath.replace(/^\/+/, '').trim();
 
     // Detect bucket if path starts with bucket name
     for (const b of buckets) {

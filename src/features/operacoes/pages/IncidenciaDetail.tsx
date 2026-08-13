@@ -14,7 +14,7 @@ import type { Incidencia, IncidenciaTarefa, IncidenciaLog } from '../services/ty
 import { useLanguage } from '../i18n';
 import { ContextCard } from '../components/ContextCard';
 import { RichTextRenderer } from '../components/ui/RichTextEditor';
-import { FileAttachmentUploader, TaskAttachment } from '../components/ui/FileAttachmentUploader';
+import { FileAttachmentUploader, type TaskAttachment } from '../components/ui/FileAttachmentUploader';
 
 export const IncidenciaDetail: React.FC = () => {
     const { id } = useParams();

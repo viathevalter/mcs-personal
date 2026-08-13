@@ -140,14 +140,25 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
 
     const handleDownload = (filePath: string, fileName: string) => {
         downloadMutation.mutate(filePath, {
-            onSuccess: (url) => {
-                // Create a temporary link to download
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            onSuccess: async (url) => {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Servidor retornou erro ao carregar arquivo');
+                    const blob = await response.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
+                } catch (err) {
+                    console.warn('Falha no download via blob, abrindo link em nova aba:', err);
+                    window.open(url, '_blank');
+                }
             },
             onError: (err) => alert(`Falha ao obter link de download: ${err.message}`)
         });

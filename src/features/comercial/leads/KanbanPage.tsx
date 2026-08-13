@@ -45,7 +45,7 @@ import {
   Send,
   Globe
 } from 'lucide-react';
-import { useKanbanStages, useAllKanbanStages, useMutateKanban, KanbanStage } from './hooks/useKanban';
+import { useKanbanStages, useAllKanbanStages, useMutateKanban, type KanbanStage } from './hooks/useKanban';
 import { useLeads, useMutateLead } from './hooks/useLeads';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useTranslation } from 'react-i18next';

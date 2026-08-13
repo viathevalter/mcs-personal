@@ -125,7 +125,7 @@ export function PedidoOverviewTab({ pedido }: Props) {
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Tipo do Pedido</p>
-              <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 capitalize">{pedido.order_type.replace('_', ' ')}</p>
+              <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 capitalize">{pedido.order_type ? pedido.order_type.replace('_', ' ') : '-'}</p>
             </div>
             <div className="col-span-2">
               <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Cliente</p>

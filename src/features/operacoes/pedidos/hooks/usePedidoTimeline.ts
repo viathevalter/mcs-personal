@@ -22,13 +22,13 @@ export function usePedidoTimeline(pedidoId: string | undefined, solicitudIds: st
         supabase
           .schema('core_comercial')
           .from('pedido_events')
-          .select('*, actor:users!actor_id(raw_user_meta_data)')
+          .select('*')
           .eq('pedido_id', pedidoId),
         
         supabase
           .schema('core_comercial')
           .from('pedido_status_history')
-          .select('*, actor:users!actor_id(raw_user_meta_data)')
+          .select('*')
           .eq('pedido_id', pedidoId),
       ];
 
@@ -37,7 +37,7 @@ export function usePedidoTimeline(pedidoId: string | undefined, solicitudIds: st
           supabase
             .schema('core_operacoes')
             .from('solicitud_timeline')
-            .select('*, actor:users!actor_id(raw_user_meta_data)')
+            .select('*')
             .in('solicitud_id', solicitudIds)
         );
       }

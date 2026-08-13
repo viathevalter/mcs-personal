@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Box, Home, Calendar, ArrowLeft, Menu } from 'lucide-react';
+import { Box, Home, Calendar, ArrowLeft, Menu, Users, FileText, DollarSign, Layers } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -14,9 +14,10 @@ export const Sidebar: React.FC = () => {
       to={to}
       title={!isSidebarOpen ? label : ''}
       className={({ isActive }) =>
-        `flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${isActive
-          ? 'bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 font-medium'
-          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+        `flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+          isActive
+            ? 'bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 font-medium'
+            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
         } ${!isSidebarOpen && 'justify-center'}`
       }
     >
@@ -26,7 +27,7 @@ export const Sidebar: React.FC = () => {
   );
 
   const SectionLabel = ({ label }: { label: string }) => (
-    <div className={`px-3 mb-2 mt-6 ${!isSidebarOpen && 'text-center'}`}>
+    <div className={`px-3 mb-2 mt-4 ${!isSidebarOpen && 'text-center'}`}>
       <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
         {isSidebarOpen ? label : '• • •'}
       </p>
@@ -43,7 +44,7 @@ export const Sidebar: React.FC = () => {
           {isSidebarOpen && (
             <div className="min-w-0">
               <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">Logística</h1>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Alojamentos</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Alojamentos & Operações</p>
             </div>
           )}
         </div>
@@ -67,17 +68,25 @@ export const Sidebar: React.FC = () => {
 
       <div className="flex-1 px-3 py-2 space-y-4">
         <div>
-          <SectionLabel label="Gestão" />
+          <SectionLabel label="Gestão & Alocação" />
           <div className="space-y-1">
             <NavItem to="/logistica/dashboard" icon={Calendar} label="Ocupação (Gantt)" />
+            <NavItem to="/logistica/demandas" icon={Users} label="Demandas de Alocação" />
           </div>
         </div>
 
         <div>
           <SectionLabel label="Registros" />
           <div className="space-y-1">
-            <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamentos" />
-            <NavItem to="/logistica/registros/provedores" icon={Box} label="Provedores" />
+            <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamentos & Provedores" />
+          </div>
+        </div>
+
+        <div>
+          <SectionLabel label="Financeiro" />
+          <div className="space-y-1">
+            <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianças" />
+            <NavItem to="/logistica/financeiro" icon={DollarSign} label="Ordens de Pagamento" />
           </div>
         </div>
       </div>
