@@ -206,25 +206,30 @@ BEGIN
             FROM core_personal.worker_status_history h
             LEFT JOIN public.mcs_users u ON u.id = h.changed_by
             WHERE h.worker_id = w.id 
-              AND h.change_type = 'TRABALHADOR'
             ORDER BY h.created_at DESC 
             LIMIT 1
         ),
-        'hist_observacoes', (
-            SELECT h.comments
-            FROM core_personal.worker_status_history h
-            WHERE h.worker_id = w.id 
-              AND h.change_type = 'TRABALHADOR'
-            ORDER BY h.created_at DESC 
-            LIMIT 1
+        'hist_observacoes', COALESCE(
+            ss.observacoes,
+            (
+                SELECT h.comments
+                FROM core_personal.worker_status_history h
+                WHERE h.worker_id = w.id 
+                  AND h.comments IS NOT NULL AND h.comments <> ''
+                ORDER BY h.created_at DESC 
+                LIMIT 1
+            )
         ),
-        'hist_data_efetiva', (
-            SELECT h.effective_date
-            FROM core_personal.worker_status_history h
-            WHERE h.worker_id = w.id 
-              AND h.change_type = 'TRABALHADOR'
-            ORDER BY h.created_at DESC 
-            LIMIT 1
+        'hist_data_efetiva', COALESCE(
+            ss.data_efetiva,
+            (
+                SELECT h.effective_date
+                FROM core_personal.worker_status_history h
+                WHERE h.worker_id = w.id 
+                  AND h.effective_date IS NOT NULL
+                ORDER BY h.created_at DESC 
+                LIMIT 1
+            )
         ),
         'worker', json_build_object(
           'id', w.id,
