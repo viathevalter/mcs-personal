@@ -120,13 +120,16 @@ export function useHiringReport(filters: HiringReportFilters) {
         return emptyReport();
       }
 
-      // 1. Try querying specifically for the selected empresa_id
+      // 1. Fetch report data for the selected empresa_id
       let result = await fetchReportDataForEmpresa(filters.empresa_id, filters);
 
-      // 2. Fallback: If selected company returns 0 items (e.g. Holding company Login Pro with no direct assignments),
-      // fetch across ALL companies in the group (empresaId = null)
-      if (result.assignmentsData.length === 0 && result.activeWorkers.length === 0) {
-        result = await fetchReportDataForEmpresa(null, filters);
+      // 2. Fallback / Holding Aggregation: If selected company returns 0 or very few items (e.g. Holding company Login Pro with no direct assignments),
+      // fetch across ALL companies in the group (empresaId = null) to ensure holding aggregates all child companies.
+      if (result.combined.length === 0 || (result.assignmentsData.length === 0 && result.activeWorkers.length <= 5)) {
+        const groupResult = await fetchReportDataForEmpresa(null, filters);
+        if (groupResult.combined.length > result.combined.length) {
+          result = groupResult;
+        }
       }
 
       return processAssignments(result.combined, filters, result.targetEmpresaNome);
@@ -189,11 +192,34 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresaIds.push(filters.empresa_id);
   }
 
+  // Calculate all months covered by startDate and endDate for multi-month queries
   const now = new Date();
-  const periodYear = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
-  const periodMonth = filters.startDate ? Number(filters.startDate.split('-')[1]) || (now.getMonth() + 1) : (now.getMonth() + 1);
+  const startY = filters.startDate ? Number(filters.startDate.split('-')[0]) || now.getFullYear() : now.getFullYear();
+  const startM = filters.startDate ? Number(filters.startDate.split('-')[1]) || (now.getMonth() + 1) : (now.getMonth() + 1);
+  const endY = filters.endDate ? Number(filters.endDate.split('-')[0]) || startY : startY;
+  const endM = filters.endDate ? Number(filters.endDate.split('-')[1]) || startM : startM;
 
-  const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes] = await Promise.all([
+  const monthsToFetch: { year: number; month: number }[] = [];
+  if (startY === endY) {
+    const minM = Math.min(startM, endM);
+    const maxM = Math.max(startM, endM);
+    for (let m = minM; m <= maxM; m++) {
+      monthsToFetch.push({ year: startY, month: m });
+    }
+  } else {
+    monthsToFetch.push({ year: startY, month: startM });
+    monthsToFetch.push({ year: endY, month: endM });
+  }
+
+  // If fetching custom or all periods, also include adjacent months so cross-month workers are included
+  if (monthsToFetch.length === 1 && startM > 1) {
+    monthsToFetch.push({ year: startY, month: startM - 1 });
+  }
+  if (monthsToFetch.length === 1 && startM < 12) {
+    monthsToFetch.push({ year: startY, month: startM + 1 });
+  }
+
+  const [pedidosRes, allClientsRes, sitesRes, empresasRes] = await Promise.all([
     pedidoIds.length > 0 
       ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
       : Promise.resolve({ data: [] }),
@@ -204,20 +230,28 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresaIds.length > 0
       ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
       : Promise.resolve({ data: [] }),
-    Promise.resolve(
-      supabase.schema('core_personal').rpc('get_hours_control_workers', {
-        p_empresa_id: empresaId,
-        p_period_year: periodYear,
-        p_period_month: periodMonth,
-        p_contratante: null,
-        p_cliente_nombre: null
-      })
-    ).catch((err) => {
-      console.error('Error in get_hours_control_workers:', err);
-      return { data: [] };
-    })
   ]);
 
+  // Fetch RPC get_hours_control_workers across all target months to get all active workers
+  const activeWorkersMap = new Map<string, any>();
+  await Promise.all(
+    monthsToFetch.map(async ({ year, month }) => {
+      try {
+        const { data } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
+          p_empresa_id: empresaId,
+          p_period_year: year,
+          p_period_month: month,
+          p_contratante: null,
+          p_cliente_nombre: null
+        });
+        (data || []).forEach((w: any) => activeWorkersMap.set(w.id, w));
+      } catch (err) {
+        console.error('Error fetching RPC for month:', year, month, err);
+      }
+    })
+  );
+
+  const activeWorkers = Array.from(activeWorkersMap.values());
   const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
   const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
   const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
@@ -239,7 +273,6 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
   const allClients = allClientsRes.data || [];
-  const activeWorkers = activeWorkersRes.data || [];
 
   // Fetch latest colaborador_por_pedido allocations for virtual assignments to get exact fechainiciopedido/reemplazo start dates and exit dates
   const activeWorkerCodes = activeWorkers.map((w: any) => w.cod_colab).filter(Boolean);
@@ -441,26 +474,27 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range: Include workers who STARTED work within [startDate, endDate]
+  // Filter by Date Range: Include workers who STARTED work within [startDate, endDate] OR were ACTIVE during [startDate, endDate]
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
-      const itemStart = item.start_date;
+      const start = item.start_date;
+      const end = item.end_date;
 
-      if (!itemStart) return true;
+      // Condition 1: Start date falls within the selected date range
+      const startedInPeriod = start ? (
+        (!filters.startDate || start >= filters.startDate) &&
+        (!filters.endDate || start <= filters.endDate)
+      ) : false;
 
-      if (filters.startDate && filters.endDate) {
-        return itemStart >= filters.startDate && itemStart <= filters.endDate;
-      }
-      if (filters.startDate) {
-        return itemStart >= filters.startDate;
-      }
-      if (filters.endDate) {
-        return itemStart <= filters.endDate;
-      }
+      // Condition 2: Active / working at any point during the selected date range
+      const activeInPeriod = (
+        (!start || !filters.endDate || start <= filters.endDate) &&
+        (!end || !filters.startDate || end >= filters.startDate || item.is_active)
+      );
 
-      return true;
+      return startedInPeriod || activeInPeriod;
     });
   }
 
