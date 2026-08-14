@@ -3,28 +3,30 @@ import {
   Users, 
   UserCheck, 
   UserMinus, 
-  TrendingUp, 
+  UserCog,
+  UserPlus,
   Clock, 
-  Calendar, 
+  TrendingUp, 
+  Search, 
   Filter, 
-  X, 
   FileSpreadsheet, 
-  ArrowUp, 
-  ArrowDown, 
-  ArrowUpDown, 
   RefreshCw,
-  Search,
+  X,
+  Briefcase,
+  Building2,
+  Calendar,
+  CheckCircle2,
+  AlertCircle,
   ShieldCheck,
   ShieldAlert,
-  CheckCircle2,
-  Building2,
-  UserCog
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
-
-import * as XLSX from 'xlsx';
-
-import { useHiringReport, type HiringReportFilters } from './hooks/useHiringReport';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useHiringReport, formatStandardContratante, formatStandardContratador } from './hooks/useHiringReport';
+import type { HiringReportFilters, WorkerDisplayStatus } from './hooks/useHiringReport';
+import * as XLSX from 'xlsx';
 
 type SortKey = 'worker_name' | 'contratante' | 'contratador' | 'client_name' | 'job_function_name' | 'tarifa_acordada' | 'start_date' | 'days_worked' | 'status' | 'status_seguridad';
 
@@ -38,82 +40,77 @@ function formatDateBR(dateStr: string | null): string {
   return dateStr;
 }
 
-function formatYMD(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function getPresetDates(preset: string) {
+function getPresetDates(preset: string): { startDate: string; endDate: string } {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
 
-  if (preset === 'this_month') {
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
+  const formatDateStr = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  switch (preset) {
+    case 'this_month': {
+      const first = new Date(year, month, 1);
+      const last = new Date(year, month + 1, 0);
+      return { startDate: formatDateStr(first), endDate: formatDateStr(last) };
+    }
+    case 'next_month': {
+      const first = new Date(year, month + 1, 1);
+      const last = new Date(year, month + 2, 0);
+      return { startDate: formatDateStr(first), endDate: formatDateStr(last) };
+    }
+    case 'last_month': {
+      const first = new Date(year, month - 1, 1);
+      const last = new Date(year, month, 0);
+      return { startDate: formatDateStr(first), endDate: formatDateStr(last) };
+    }
+    case 'last_90_days': {
+      const start = new Date();
+      start.setDate(start.getDate() - 90);
+      return { startDate: formatDateStr(start), endDate: formatDateStr(now) };
+    }
+    case 'this_year': {
+      const first = new Date(year, 0, 1);
+      const last = new Date(year, 11, 31);
+      return { startDate: formatDateStr(first), endDate: formatDateStr(last) };
+    }
+    case 'all': {
+      return { startDate: '', endDate: '' };
+    }
+    default: {
+      const first = new Date(year, month, 1);
+      const last = new Date(year, month + 1, 0);
+      return { startDate: formatDateStr(first), endDate: formatDateStr(last) };
+    }
   }
-  if (preset === 'next_month') {
-    const firstDay = new Date(year, month + 1, 1);
-    const lastDay = new Date(year, month + 2, 0);
-    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
-  }
-  if (preset === 'last_month') {
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
-  }
-  if (preset === 'last_90_days') {
-    const start = new Date();
-    start.setDate(now.getDate() - 90);
-    return { startDate: formatYMD(start), endDate: formatYMD(now) };
-  }
-  if (preset === 'this_year') {
-    const firstDay = new Date(year, 0, 1);
-    const lastDay = new Date(year, 11, 31);
-    return { startDate: formatYMD(firstDay), endDate: formatYMD(lastDay) };
-  }
-  return { startDate: '', endDate: '' };
 }
 
-const SortIcon: React.FC<{ field: SortKey; currentField: SortKey; direction: 'asc' | 'desc' }> = ({
-  field,
-  currentField,
-  direction,
-}) => {
-  if (field !== currentField) {
-    return <ArrowUpDown className="h-3 w-3 text-slate-300 dark:text-slate-600 group-hover:text-slate-500" />;
-  }
-  return direction === 'asc' ? (
-    <ArrowUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-  ) : (
-    <ArrowDown className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-  );
-};
-
-export const HiringReportPage: React.FC = () => {
+export function HiringReportPage() {
   const { selectedEmpresaId } = useEmpresa();
 
-  // Filters State
+  // Date Preset State
   const [presetFilter, setPresetFilter] = useState<string>('this_month');
-  
-  const initialDates = useMemo(() => getPresetDates('this_month'), []);
-  const [startDate, setStartDate] = useState<string>(initialDates.startDate);
-  const [endDate, setEndDate] = useState<string>(initialDates.endDate);
+  const defaultDates = useMemo(() => getPresetDates('this_month'), []);
 
+  const [startDate, setStartDate] = useState<string>(defaultDates.startDate);
+  const [endDate, setEndDate] = useState<string>(defaultDates.endDate);
+
+  // Dropdown Filter States
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [clientFilter, setClientFilter] = useState<string>('all');
   const [contratanteFilter, setContratanteFilter] = useState<string>('all');
   const [contratadorFilter, setContratadorFilter] = useState<string>('all');
-  const [clientFilter, setClientFilter] = useState<string>('all');
   const [pedidoFilter, setPedidoFilter] = useState<string>('all');
   const [jobFunctionFilter, setJobFunctionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
-  
-  // Interactive Active KPI Card State
-  const [activeKpiCard, setActiveKpiCard] = useState<string>('total');
+
+  // Interactive KPI Card Selection State
+  const [activeKpiCard, setActiveKpiCard] = useState<'total' | 'active' | 'pending_entry' | 'inactive' | 'alta' | 'regularizacao'>('total');
 
   // Sorting State
   const [sortField, setSortField] = useState<SortKey>('start_date');
@@ -145,13 +142,16 @@ export const HiringReportPage: React.FC = () => {
   };
 
   // Interactive KPI Card Click Handler
-  const handleKpiClick = (type: 'total' | 'active' | 'inactive' | 'alta' | 'regularizacao') => {
+  const handleKpiClick = (type: 'total' | 'active' | 'pending_entry' | 'inactive' | 'alta' | 'regularizacao') => {
     setActiveKpiCard(type);
     if (type === 'total') {
       setStatusFilter('all');
       setSeguridadFilter('all');
     } else if (type === 'active') {
       setStatusFilter('active');
+      setSeguridadFilter('all');
+    } else if (type === 'pending_entry') {
+      setStatusFilter('pending_entry');
       setSeguridadFilter('all');
     } else if (type === 'inactive') {
       setStatusFilter('inactive');
@@ -174,9 +174,9 @@ export const HiringReportPage: React.FC = () => {
     return reportData.items.filter(item => 
       item.worker_name.toLowerCase().includes(q) ||
       item.worker_document.toLowerCase().includes(q) ||
+      item.client_name.toLowerCase().includes(q) ||
       item.contratante.toLowerCase().includes(q) ||
       item.contratador.toLowerCase().includes(q) ||
-      item.client_name.toLowerCase().includes(q) ||
       item.pedido_codigo.toLowerCase().includes(q) ||
       item.job_function_name.toLowerCase().includes(q)
     );
@@ -232,8 +232,8 @@ export const HiringReportPage: React.FC = () => {
           valB = b.days_worked || 0;
           break;
         case 'status':
-          valA = a.is_active ? 1 : 0;
-          valB = b.is_active ? 1 : 0;
+          valA = a.status_label || '';
+          valB = b.status_label || '';
           break;
         case 'status_seguridad':
           valA = a.is_seguridad_alta ? 1 : 0;
@@ -261,62 +261,37 @@ export const HiringReportPage: React.FC = () => {
       'Trabalhador': item.worker_name,
       'Documento': item.worker_document,
       'Empresa do Grupo': item.contratante,
-      'Contratador / Recrutador': item.contratador,
+      'Contratador': item.contratador,
       'Cliente': item.client_name,
-      'Unidade / Obra': item.client_site_name,
-      'Número do Pedido': item.pedido_codigo,
+      'Obra / Unidade': item.client_site_name,
+      'Código Pedido': item.pedido_codigo,
       'Função / Perfil': item.job_function_name,
-      'Tarifa Acordada (€)': item.tarifa_acordada !== null ? item.tarifa_acordada : '-',
-      'Data de Início': formatDateBR(item.start_date),
-      'Data de Saída / Fim': formatDateBR(item.end_date),
+      'Tarifa €/h': item.tarifa_acordada ? `€ ${item.tarifa_acordada.toFixed(2)}` : '-',
+      'Início Trabalho': formatDateBR(item.start_date),
+      'Saída / Término': formatDateBR(item.end_date),
       'Dias Trabalhados': item.days_worked,
-      'Status Trabalhador': item.is_active ? 'Ativo' : 'Desligado / Substituído',
+      'Status': item.status_label,
       'Seguridade Social': item.status_seguridad,
-      'Status Alocação': item.status,
-      'Tipo de Entrada': item.assignment_type || 'Nova Contratação',
       'Observações / Motivo': item.notes || '-'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
-
-    const colWidths = [
-      { wch: 5 },   // #
-      { wch: 30 },  // Trabalhador
-      { wch: 15 },  // Documento
-      { wch: 22 },  // Empresa do Grupo
-      { wch: 22 },  // Contratador
-      { wch: 25 },  // Cliente
-      { wch: 20 },  // Unidade
-      { wch: 18 },  // Pedido
-      { wch: 30 },  // Função
-      { wch: 16 },  // Tarifa
-      { wch: 14 },  // Data Início
-      { wch: 14 },  // Data Saída
-      { wch: 16 },  // Dias Trabalhados
-      { wch: 14 },  // Status
-      { wch: 18 },  // Seguridade Social
-      { wch: 16 },  // Status Alocação
-      { wch: 18 },  // Tipo
-      { wch: 30 }   // Observações
-    ];
-    worksheet['!cols'] = colWidths;
-
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Contratações');
-
-    const dateSuffix = formatYMD(new Date());
-    XLSX.writeFile(workbook, `Relatorio_Contratacoes_${dateSuffix}.xlsx`);
+    
+    const fileName = `Relatorio_Contratacoes_${startDate || 'inicio'}_ate_${endDate || 'hoje'}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
   };
 
   const handleClearFilters = () => {
     setPresetFilter('this_month');
-    const dates = getPresetDates('this_month');
-    setStartDate(dates.startDate);
-    setEndDate(dates.endDate);
+    const d = getPresetDates('this_month');
+    setStartDate(d.startDate);
+    setEndDate(d.endDate);
     setSearchQuery('');
+    setClientFilter('all');
     setContratanteFilter('all');
     setContratadorFilter('all');
-    setClientFilter('all');
     setPedidoFilter('all');
     setJobFunctionFilter('all');
     setStatusFilter('all');
@@ -324,24 +299,29 @@ export const HiringReportPage: React.FC = () => {
     setActiveKpiCard('total');
   };
 
+  const SortIcon = ({ field, currentField, direction }: { field: SortKey; currentField: SortKey; direction: 'asc' | 'desc' }) => {
+    if (field !== currentField) return <ArrowUpDown className="h-3 w-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    return direction === 'asc' ? <ArrowUp className="h-3 w-3 text-indigo-600" /> : <ArrowDown className="h-3 w-3 text-indigo-600" />;
+  };
+
   return (
-    <div className="p-3 max-w-[1700px] mx-auto space-y-3 pb-10">
+    <div className="space-y-4 p-4 md:p-6 bg-slate-50 dark:bg-slate-950 min-h-screen">
       
-      {/* Header Section Compact */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 px-4 shadow-2xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
-              <FileSpreadsheet className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+      {/* Header Compact */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900/50 rounded-xl text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                 Controle de Contratações e Permanência
               </h1>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Relatório de trabalhadores contratados pelas empresas do grupo no período selecionado.
-              </p>
             </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Relatório de trabalhadores contratados pelas empresas do grupo no período selecionado.
+            </p>
           </div>
         </div>
 
@@ -570,7 +550,7 @@ export const HiringReportPage: React.FC = () => {
             >
               <option value="all">Todos os Pedidos</option>
               {reportData?.uniquePedidos?.map(p => (
-                <option key={p.id} value={p.id}>Pedido: {p.code}</option>
+                <option key={p.id} value={p.id}>{p.code}</option>
               ))}
             </select>
           </div>
@@ -600,16 +580,19 @@ export const HiringReportPage: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => {
-                setStatusFilter(e.target.value);
-                if (e.target.value === 'active') setActiveKpiCard('active');
-                else if (e.target.value === 'inactive') setActiveKpiCard('inactive');
+                const val = e.target.value;
+                setStatusFilter(val);
+                if (val === 'active') setActiveKpiCard('active');
+                else if (val === 'pending_entry') setActiveKpiCard('pending_entry');
+                else if (val === 'inactive') setActiveKpiCard('inactive');
                 else setActiveKpiCard('total');
               }}
               className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="all">Todos os Status</option>
-              <option value="active">Somente Ativos</option>
-              <option value="inactive">Somente Desligados / Encerrados</option>
+              <option value="active">● Somente Ativos</option>
+              <option value="pending_entry">● Pendente de Ingressar</option>
+              <option value="inactive">● Somente Desligados</option>
             </select>
           </div>
 
@@ -630,7 +613,7 @@ export const HiringReportPage: React.FC = () => {
       </div>
 
       {/* KPI Cards Grid Compact - Interactive Clickable Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         
         {/* Total Contratados (Clickable) */}
         <div 
@@ -690,6 +673,35 @@ export const HiringReportPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Pendente de Ingressar (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('pending_entry')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'pending_entry'
+              ? 'ring-2 ring-sky-500 border-sky-400 bg-sky-50/40 dark:bg-sky-950/40 shadow-sm'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+          }`}
+          title="Clique para filtrar trabalhadores pendentes de ingresso"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider truncate">
+              Pendente Ingresso
+            </span>
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'pending_entry' ? 'bg-sky-600 text-white' : 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400'}`}>
+              <UserPlus className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-black text-sky-600 dark:text-sky-400 leading-tight">
+              {reportData?.totalPendingEntry || 0} <span className="text-[10px] font-normal text-slate-500">aguardando</span>
+            </div>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'pending_entry' && <CheckCircle2 className="h-2.5 w-2.5 text-sky-600" />}
+              A ser admitido
+            </p>
+          </div>
+        </div>
+
         {/* Desligados / Saíram (Clickable) */}
         <div 
           onClick={() => handleKpiClick('inactive')}
@@ -719,15 +731,15 @@ export const HiringReportPage: React.FC = () => {
           </div>
         </div>
 
-        {/* De Alta (Seguridade Social) (Clickable) */}
+        {/* De Alta Seguridade Social (Clickable) */}
         <div 
           onClick={() => handleKpiClick('alta')}
           className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
             activeKpiCard === 'alta'
               ? 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/40 shadow-sm'
-              : 'border-emerald-200 dark:border-emerald-900/40 hover:border-emerald-300'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
           }`}
-          title="Clique para filtrar trabalhadores de alta na seguridade social"
+          title="Clique para filtrar apenas os trabalhadores De Alta na Seguridade Social"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate">
@@ -739,7 +751,7 @@ export const HiringReportPage: React.FC = () => {
           </div>
           <div>
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-tight">
-              {reportData?.totalAlta || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctAlta || 0).toFixed(1)}%)</span>
+              {reportData?.totalAlta || 0} <span className="text-[10px] font-normal text-slate-500">({reportData?.pctAlta || 0}%)</span>
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'alta' && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />}
@@ -748,15 +760,15 @@ export const HiringReportPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Em Regularização (Clickable) */}
+        {/* Em Regularização Seguridade Social (Clickable) */}
         <div 
           onClick={() => handleKpiClick('regularizacao')}
           className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
             activeKpiCard === 'regularizacao'
               ? 'ring-2 ring-amber-500 border-amber-400 bg-amber-50/40 dark:bg-amber-950/40 shadow-sm'
-              : 'border-amber-200 dark:border-amber-900/40 hover:border-amber-300'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
           }`}
-          title="Clique para filtrar trabalhadores em regularização"
+          title="Clique para filtrar os trabalhadores Em Regularização na Seguridade Social"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider truncate">
@@ -768,7 +780,7 @@ export const HiringReportPage: React.FC = () => {
           </div>
           <div>
             <div className="text-lg font-black text-amber-600 dark:text-amber-400 leading-tight">
-              {reportData?.totalRegularizacao || 0} <span className="text-[10px] font-normal text-slate-500">({(reportData?.pctRegularizacao || 0).toFixed(1)}%)</span>
+              {reportData?.totalRegularizacao || 0} <span className="text-[10px] font-normal text-slate-500">({reportData?.pctRegularizacao || 0}%)</span>
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'regularizacao' && <CheckCircle2 className="h-2.5 w-2.5 text-amber-600" />}
@@ -783,15 +795,17 @@ export const HiringReportPage: React.FC = () => {
             <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Taxa de Retenção
             </span>
-            <div className="p-1 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-lg shrink-0">
+            <div className="p-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
               <TrendingUp className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-lg font-black text-sky-600 dark:text-sky-400 leading-tight">
-              {(reportData?.retentionRate || 0).toFixed(1)}%
+            <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+              {reportData?.retentionRate || 0}%
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Permanência total</p>
+            <p className="text-[9px] text-slate-400 truncate">
+              Permanência total
+            </p>
           </div>
         </div>
 
@@ -801,156 +815,193 @@ export const HiringReportPage: React.FC = () => {
             <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               Permanência Média
             </span>
-            <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+            <div className="p-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
               <Clock className="h-3.5 w-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-tight">
+            <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">
               {reportData?.avgDaysWorked || 0} <span className="text-[10px] font-normal text-slate-500">dias</span>
             </div>
-            <p className="text-[9px] text-slate-400 truncate">Média em atividade</p>
+            <p className="text-[9px] text-slate-400 truncate">
+              Média em atividade
+            </p>
           </div>
         </div>
 
       </div>
 
-      {/* Breakdown Charts Section Compact */}
-      {reportData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          
-          {/* Contratações por Função / Perfil */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-                <span>Contratações por Função / Perfil</span>
-              </h2>
-              <span className="text-[10px] text-slate-400">
-                {reportData.functionBreakdown.length} perfis encontrados
-              </span>
+      {/* Visual Charts Row Compact */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        
+        {/* Function Breakdown Bar Chart */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-1.5">
+              <Briefcase className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Contratações por Função / Perfil
+              </h3>
             </div>
+            <span className="text-[10px] font-semibold text-slate-400">
+              {reportData?.functionBreakdown?.length || 0} perfis encontrados
+            </span>
+          </div>
 
-            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-              {reportData.functionBreakdown.map((item) => {
-                const percentage = reportData.totalHired > 0 ? (item.total / reportData.totalHired) * 100 : 0;
+          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+            {reportData?.functionBreakdown?.length === 0 ? (
+              <p className="text-[11px] text-slate-400 py-4 text-center">Nenhum perfil no período.</p>
+            ) : (
+              reportData?.functionBreakdown?.slice(0, 5).map(item => {
+                const maxVal = reportData.functionBreakdown[0]?.total || 1;
+                const activePct = (item.active / maxVal) * 100;
+                const inactivePct = (item.inactive / maxVal) * 100;
+
                 return (
-                  <div key={item.functionName} className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[240px]">
+                  <div key={item.functionName} className="space-y-0.5 text-[10px]">
+                    <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-medium">
+                      <span className="truncate max-w-[200px]" title={item.functionName}>
                         {item.functionName}
                       </span>
-                      <span className="text-slate-500 font-mono">
-                        {item.active} ativos ({item.total})
+                      <span className="font-mono text-slate-500">
+                        <strong className="text-slate-900 dark:text-white font-bold">{item.active}</strong> ativos ({item.total})
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                       <div 
-                        className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${(item.active / (reportData.totalHired || 1)) * 100}%` }}
+                        style={{ width: `${activePct}%` }} 
+                        className="bg-emerald-500 h-full rounded-l-full transition-all duration-500" 
                         title={`${item.active} ativos`}
                       />
                       <div 
+                        style={{ width: `${inactivePct}%` }} 
                         className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
-                        style={{ width: `${(item.inactive / (reportData.totalHired || 1)) * 100}%` }}
-                        title={`${item.inactive} inativos`}
+                        title={`${item.inactive} encerrados`}
                       />
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Empresa do Grupo Breakdown Bar Chart */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Desempenho por Empresa do Grupo
+              </h3>
             </div>
+            <span className="text-[10px] font-semibold text-slate-400">
+              {reportData?.contratanteBreakdown?.length || 0} empresas
+            </span>
           </div>
 
-          {/* Desempenho por Empresa do Grupo */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5 text-indigo-500" />
-                <span>Desempenho por Empresa do Grupo</span>
-              </h2>
-              <span className="text-[10px] text-slate-400">
-                {reportData.contratanteBreakdown.length} empresas
-              </span>
-            </div>
+          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+            {reportData?.contratanteBreakdown?.length === 0 ? (
+              <p className="text-[11px] text-slate-400 py-4 text-center">Nenhuma empresa no período.</p>
+            ) : (
+              reportData?.contratanteBreakdown?.map(item => {
+                const maxVal = reportData.contratanteBreakdown[0]?.total || 1;
+                const activePct = (item.active / maxVal) * 100;
+                const inactivePct = (item.inactive / maxVal) * 100;
+                const rate = item.total > 0 ? Math.round((item.active / item.total) * 100) : 0;
 
-            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-              {reportData.contratanteBreakdown.map((item) => {
-                const retention = item.total > 0 ? (item.active / item.total) * 100 : 0;
                 return (
-                  <div key={item.contratante} className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[240px]">
+                  <div key={item.contratante} className="space-y-0.5 text-[10px]">
+                    <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-medium">
+                      <span className="font-semibold text-indigo-700 dark:text-indigo-300">
                         {item.contratante}
                       </span>
-                      <span className="text-slate-500 font-mono">
-                        {item.total} contratados ({retention.toFixed(0)}% retenção)
+                      <span className="font-mono text-slate-500">
+                        <strong className="text-slate-900 dark:text-white font-bold">{item.total}</strong> contratados ({rate}% retenção)
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                       <div 
-                        className="bg-sky-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${(item.active / (reportData.totalHired || 1)) * 100}%` }}
+                        style={{ width: `${activePct}%` }} 
+                        className="bg-sky-500 h-full rounded-l-full transition-all duration-500" 
                         title={`${item.active} ativos`}
                       />
                       <div 
+                        style={{ width: `${inactivePct}%` }} 
                         className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
-                        style={{ width: `${(item.inactive / (reportData.totalHired || 1)) * 100}%` }}
-                        title={`${item.inactive} desligados`}
+                        title={`${item.inactive} encerrados`}
                       />
                     </div>
                   </div>
                 );
-              })}
-            </div>
+              })
+            )}
           </div>
-
         </div>
-      )}
 
-      {/* Main Table Gallery Section Compact */}
+      </div>
+
+      {/* Main Data Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
         
-        {/* Table Header */}
-        <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        {/* Table Header Controls */}
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
               Relação Detalhada de Contratações
-            </h3>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
+            </h2>
+            <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800">
               {sortedItems.length} registros
             </span>
+
+            {/* Active KPI Badge highlight */}
             {activeKpiCard !== 'total' && (
-              <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 flex items-center gap-1 shadow-2xs">
-                <Filter className="h-2.5 w-2.5" />
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1 ${
+                activeKpiCard === 'active'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : activeKpiCard === 'pending_entry'
+                  ? 'bg-sky-50 text-sky-700 border-sky-200'
+                  : activeKpiCard === 'inactive'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : activeKpiCard === 'alta'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>
                 Filtro KPI: {
-                  activeKpiCard === 'active' ? 'Somente Ativos' :
-                  activeKpiCard === 'inactive' ? 'Somente Desligados' :
+                  activeKpiCard === 'active' ? 'Ativos' :
+                  activeKpiCard === 'pending_entry' ? 'Pendente Ingresso' :
+                  activeKpiCard === 'inactive' ? 'Desligados' :
                   activeKpiCard === 'alta' ? 'De Alta (Seguridade)' : 'Em Regularização'
                 }
               </span>
             )}
           </div>
+
+          <div className="text-[11px] text-slate-400">
+            Exibindo alocações e trabalhadores
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
-            <RefreshCw className="h-5 w-5 animate-spin text-indigo-500" />
-            <span className="text-xs">Carregando relatório de contratações...</span>
-          </div>
-        ) : sortedItems.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 space-y-1">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada com os filtros selecionados.</p>
-            <p className="text-[11px] text-slate-400">Tente clicar em outro KPI ou limpar os filtros de pesquisa.</p>
-          </div>
-        ) : (
-          /* Isolated Scroll Container for Table Gallery Compact */
-          <div className="max-h-[500px] overflow-y-auto overflow-x-auto relative">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
-                <tr className="text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+        {/* Scrollable Table Container */}
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="p-12 text-center space-y-2">
+              <RefreshCw className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Carregando relatório de contratações...</p>
+            </div>
+          ) : sortedItems.length === 0 ? (
+            <div className="p-12 text-center space-y-2">
+              <Filter className="h-8 w-8 text-slate-300 mx-auto" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nenhuma contratação encontrada com os filtros selecionados.</p>
+              <p className="text-[11px] text-slate-400">Tente clicar em outro KPI ou limpar os filtros de pesquisa.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-slate-100/70 dark:bg-slate-800/70 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px]">
                   
-                  {/* Trabalhador Column */}
+                  {/* Worker Name Column */}
                   <th 
                     className="py-2.5 px-3 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors select-none group"
                     onClick={() => handleSort('worker_name')}
@@ -1063,57 +1114,61 @@ export const HiringReportPage: React.FC = () => {
                     </div>
                   </th>
 
-                  {/* Obs / Motivo Column */}
+                  {/* Notes / Reason Column */}
                   <th className="py-2.5 px-3">Obs / Motivo</th>
+
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {sortedItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    
-                    {/* Worker Name & Document */}
+                  <tr 
+                    key={item.id}
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    {/* Worker Info */}
                     <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-900 dark:text-white leading-snug">{item.worker_name}</div>
-                      <div className="text-[10px] text-slate-400">Doc: {item.worker_document}</div>
+                      <div className="font-bold text-slate-900 dark:text-white uppercase tracking-tight text-[11px]">
+                        {item.worker_name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        Doc: {item.worker_document}
+                      </div>
                     </td>
 
-                    {/* Empresa do Grupo */}
-                    <td className="py-2.5 px-3">
-                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium inline-block text-[11px]">
+                    {/* Empresa do Grupo Badge */}
+                    <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold text-[10px]">
                         {item.contratante}
                       </span>
                     </td>
 
-                    {/* Contratador (Wolmer / Contratação) */}
+                    {/* Contratador Badge */}
                     <td className="py-2.5 px-3">
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 font-semibold inline-flex items-center gap-1 text-[11px]">
-                        <UserCog className="h-3 w-3 text-indigo-500" />
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold text-[10px] inline-flex items-center gap-1">
+                        <UserCog className="h-2.5 w-2.5 text-indigo-500" />
                         {item.contratador}
                       </span>
                     </td>
 
-                    {/* Client & Order Code */}
+                    {/* Client & Pedido */}
                     <td className="py-2.5 px-3">
-                      <div className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{item.client_name}</div>
-                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-semibold">
+                      <div className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate max-w-[170px]" title={item.client_name}>
+                        {item.client_name}
+                      </div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
                         Pedido: {item.pedido_codigo}
                       </div>
                     </td>
 
-                    {/* Job Function */}
-                    <td className="py-2.5 px-3">
-                      <span className="font-medium text-slate-700 dark:text-slate-300 text-[11px]">{item.job_function_name}</span>
+                    {/* Function / Profile */}
+                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 font-medium text-[11px]">
+                      {item.job_function_name}
                     </td>
 
-                    {/* Agreed Rate */}
-                    <td className="py-2.5 px-3">
-                      {item.tarifa_acordada !== null ? (
-                        <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
-                          €{item.tarifa_acordada.toFixed(2)}/h
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">-</span>
-                      )}
+                    {/* Tarifa */}
+                    <td className="py-2.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                      {item.tarifa_acordada ? `€${item.tarifa_acordada.toFixed(2)}/h` : '-'}
                     </td>
 
                     {/* Start Date */}
@@ -1135,8 +1190,10 @@ export const HiringReportPage: React.FC = () => {
                     {/* Days Worked Badge */}
                     <td className="py-2.5 px-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold font-mono text-[10px] ${
-                        item.is_active 
+                        item.display_status === 'active' 
                           ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
+                          : item.display_status === 'pending_entry'
+                          ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30'
                           : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
                       }`}>
                         <Clock className="h-2.5 w-2.5" />
@@ -1146,13 +1203,17 @@ export const HiringReportPage: React.FC = () => {
 
                     {/* Status Badge */}
                     <td className="py-2.5 px-3">
-                      {item.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                          ● Ativo
+                      {item.display_status === 'pending_entry' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/30">
+                          ● Pendente Ingresso
                         </span>
-                      ) : (
+                      ) : item.display_status === 'inactive' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
                           ● Desligado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                          ● Ativo
                         </span>
                       )}
                     </td>
@@ -1179,10 +1240,11 @@ export const HiringReportPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
+
       </div>
 
     </div>
   );
-};
+}

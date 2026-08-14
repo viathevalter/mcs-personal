@@ -11,9 +11,11 @@ export interface HiringReportFilters {
   contratadorFilter?: string;
   pedidoFilter?: string;
   jobFunctionFilter?: string;
-  statusFilter?: string;    // 'all' | 'active' | 'inactive'
+  statusFilter?: string;    // 'all' | 'active' | 'pending_entry' | 'inactive'
   seguridadFilter?: string; // 'all' | 'alta' | 'regularizacao'
 }
+
+export type WorkerDisplayStatus = 'active' | 'pending_entry' | 'inactive';
 
 export interface HiringReportItem {
   id: string;
@@ -34,6 +36,8 @@ export interface HiringReportItem {
   planned_start_date: string | null;
   days_worked: number;
   status: string; // 'planned' | 'active' | 'paused' | 'completed' | 'cancelled' | 'replaced' | 'relocated'
+  display_status: WorkerDisplayStatus; // 'active' | 'pending_entry' | 'inactive'
+  status_label: string; // 'Ativo' | 'Pendente Ingresso' | 'Desligado'
   is_active: boolean;
   assignment_type: string | null;
   notes: string | null;
@@ -143,6 +147,7 @@ function emptyReport() {
     items: [],
     totalHired: 0,
     totalActive: 0,
+    totalPendingEntry: 0,
     totalInactive: 0,
     totalAlta: 0,
     totalRegularizacao: 0,
@@ -167,7 +172,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     .from('worker_assignments')
     .select(`
       *,
-      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, contractor, status_seguridad, data_baixa),
+      worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, contractor, status_seguridad, status_trabajador, data_baixa),
       replaced_assignment:worker_assignments!replacement_of_assignment_id(
         id,
         worker:workers(id, nome)
@@ -266,6 +271,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     client_site: sitesMap.get(a.client_site_id) || null,
     empresa: empresasMap.get(a.empresa_id) || null,
     status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
+    status_trabajador: a.worker?.status_trabajador || a.status_trabajador,
     end_date: a.end_date || a.worker?.data_baixa || null,
     contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
     contratador: formatStandardContratador(a.contractor || a.worker?.contractor || a.sp_created_by)
@@ -330,6 +336,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         start_date: allocationStartDate,
         end_date: endDate,
         status_seguridad: w.status_seguridad,
+        status_trabajador: w.status_trabajador,
         contratante: stdContratante,
         contratador: stdContratador,
         worker: {
@@ -344,6 +351,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           contratante: stdContratante,
           contractor: stdContratador,
           status_seguridad: w.status_seguridad,
+          status_trabajador: w.status_trabajador,
           data_baixa: w.data_baixa
         },
         client: matchedClient ? {
@@ -373,6 +381,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
 
 function processAssignments(assignments: any[], filters: HiringReportFilters, empresaNome: string) {
   const today = new Date();
+  const todayYMD = today.toISOString().split('T')[0];
   today.setHours(0, 0, 0, 0);
 
   // Map raw data into standardized HiringReportItem
@@ -402,9 +411,26 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       : a.worker?.data_baixa ? a.worker.data_baixa.split('T')[0]
       : (isInactiveStatus && a.planned_end_date ? a.planned_end_date.split('T')[0] : null);
 
-    const rawWorkerStatus = (a.worker?.status_trabajador || a.status || '').toLowerCase();
-    const isInactive = isInactiveStatus || rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!endDateStr;
-    const isActive = !isInactive;
+    const rawWorkerStatus = (a.worker?.status_trabajador || a.status_trabajador || a.status || '').toLowerCase();
+    
+    // Check for "Pendente Ingresso" / "Pendiente Ingresar"
+    const isPendingEntry = rawWorkerStatus.includes('pendiente') || rawWorkerStatus.includes('pendente') || (a.status === 'planned' && !!startDateStr && startDateStr > todayYMD);
+    const isInactive = !isPendingEntry && (isInactiveStatus || rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!endDateStr);
+    const isActive = !isPendingEntry && !isInactive;
+
+    let display_status: WorkerDisplayStatus = 'active';
+    let status_label = 'Ativo';
+
+    if (isPendingEntry) {
+      display_status = 'pending_entry';
+      status_label = 'Pendente Ingresso';
+    } else if (isInactive) {
+      display_status = 'inactive';
+      status_label = 'Desligado';
+    } else {
+      display_status = 'active';
+      status_label = 'Ativo';
+    }
 
     // Social Security Status Mapping (Alta vs Regularização)
     const rawSeg = a.status_seguridad || a.worker?.status_seguridad || '';
@@ -444,6 +470,8 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       planned_start_date: a.planned_start_date || null,
       days_worked: daysWorked,
       status: a.status || 'planned',
+      display_status,
+      status_label,
       is_active: isActive,
       assignment_type: a.assignment_type || null,
       notes: a.notes || null,
@@ -524,9 +552,11 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
   if (filters.statusFilter && filters.statusFilter !== 'all') {
     if (filters.statusFilter === 'active') {
-      filtered = filtered.filter(item => item.is_active);
+      filtered = filtered.filter(item => item.display_status === 'active');
+    } else if (filters.statusFilter === 'pending_entry') {
+      filtered = filtered.filter(item => item.display_status === 'pending_entry');
     } else if (filters.statusFilter === 'inactive') {
-      filtered = filtered.filter(item => !item.is_active);
+      filtered = filtered.filter(item => item.display_status === 'inactive');
     }
   }
 
@@ -540,8 +570,9 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
   // Aggregate Metrics for filtered set
   const totalHired = filtered.length;
-  const totalActive = filtered.filter(i => i.is_active).length;
-  const totalInactive = filtered.filter(i => !i.is_active).length;
+  const totalActive = filtered.filter(i => i.display_status === 'active').length;
+  const totalPendingEntry = filtered.filter(i => i.display_status === 'pending_entry').length;
+  const totalInactive = filtered.filter(i => i.display_status === 'inactive').length;
   
   // Social Security Metrics
   const totalAlta = filtered.filter(i => i.is_seguridad_alta).length;
@@ -587,6 +618,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     items: filtered,
     totalHired,
     totalActive,
+    totalPendingEntry,
     totalInactive,
     totalAlta,
     totalRegularizacao,
