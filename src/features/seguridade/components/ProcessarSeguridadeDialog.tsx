@@ -149,17 +149,20 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                         </div>
 
                         {/* Histórico da Inativação / Alta */}
-                        {(item.hist_data_efetiva || item.hist_observacoes) && (
+                        {(item.hist_data_efetiva || item.hist_observacoes || item.observacoes) && (
                             <div className="border border-border/50 bg-background/50 rounded p-2.5 mt-2 space-y-2">
-                                <p className="text-xs font-semibold text-foreground/80 border-b border-border/50 pb-1">
-                                    Histórico de {isAlta ? 'Alta' : 'Baixa'} (Trabalhador)
+                                <p className="text-xs font-semibold text-foreground/80 border-b border-border/50 pb-1 flex justify-between items-center">
+                                    <span>Histórico de {isAlta ? 'Alta' : 'Baixa'} (Trabalhador)</span>
+                                    {item.autor_inativacao && (
+                                        <span className="text-[11px] font-normal text-muted-foreground">Por: {item.autor_inativacao}</span>
+                                    )}
                                 </p>
                                 <div className="grid grid-cols-1 gap-1.5">
                                     <CopyableField 
                                         label="Data do Evento" 
-                                        value={item.hist_data_efetiva ? new Date(item.hist_data_efetiva).toLocaleDateString('pt-BR') : null} 
+                                        value={item.hist_data_efetiva ? new Date(item.hist_data_efetiva).toLocaleDateString('pt-BR') : (item.data_efetiva ? new Date(item.data_efetiva).toLocaleDateString('pt-BR') : null)} 
                                     />
-                                    <CopyableField label="Motivo/Obs" value={item.hist_observacoes} />
+                                    <CopyableField label="Motivo/Obs" value={item.hist_observacoes || item.observacoes || 'Não informada'} />
                                 </div>
                             </div>
                         )}
