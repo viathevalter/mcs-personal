@@ -94,10 +94,12 @@ export const useAllBankAccounts = (empresaId?: string, month?: number, year?: nu
                     const ingressDate = w.data_ingresso ? new Date(w.data_ingresso) : null;
                     const exitDate = w.data_baixa ? new Date(w.data_baixa) : null;
                     
-                    // Se não tiver data de ingresso, assumimos que está ativo se statusTrabajador for ativo,
-                    // mas num sistema de RH ideal a data_ingresso deveria existir. Vamos assumir que sim.
+                    // Se o colaborador possui IBAN ativo cadastrado no sistema, SEMPRE o mantemos visível
+                    // para permitir consulta financeira e pagamentos de resíduo/rescisão.
+                    const hasActiveIban = settingsData?.some(s => s.worker_id === w.id);
+                    if (hasActiveIban) return true;
+
                     if (ingressDate && ingressDate > monthEnd) return false; // Entered after this month
-                    
                     if (exitDate && exitDate < monthStart) return false; // Left before this month started
                     
                     return true;

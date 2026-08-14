@@ -74,11 +74,11 @@ export function ExportBankAccountsDialog({ trigger, bankAccounts, isLoading }: E
         const exportData = filteredData.map(acc => ({
             'Código Trabalhador': acc.worker_codigo,
             'Nome do Trabalhador': acc.worker_nome,
+            'Status': acc.status_month,
             'Empresa Contratante': acc.contratante || '',
             'Cliente Atual': acc.cliente_nome || '',
             'Banco': acc.banco || '',
             'IBAN': acc.iban || '',
-            'Observação': '', // We don't fetch observacoes globally to save bandwidth, keeping it blank mapped
             'Última Atualização IBAN': acc.updated_at ? format(new Date(acc.updated_at), 'dd/MM/yyyy HH:mm') : ''
         }));
 
