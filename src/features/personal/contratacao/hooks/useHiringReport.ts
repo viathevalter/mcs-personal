@@ -474,27 +474,26 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
   const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
 
-  // Filter by Date Range: Include workers who STARTED work within [startDate, endDate] OR were ACTIVE during [startDate, endDate]
+  // Filter by Hiring Date Range: Include workers whose WORK START DATE is within [startDate, endDate]
   let filtered = allItems;
 
   if (filters.startDate || filters.endDate) {
     filtered = filtered.filter(item => {
       const start = item.start_date;
-      const end = item.end_date;
 
-      // Condition 1: Start date falls within the selected date range
-      const startedInPeriod = start ? (
-        (!filters.startDate || start >= filters.startDate) &&
-        (!filters.endDate || start <= filters.endDate)
-      ) : false;
+      if (!start) return true;
 
-      // Condition 2: Active / working at any point during the selected date range
-      const activeInPeriod = (
-        (!start || !filters.endDate || start <= filters.endDate) &&
-        (!end || !filters.startDate || end >= filters.startDate || item.is_active)
-      );
+      if (filters.startDate && filters.endDate) {
+        return start >= filters.startDate && start <= filters.endDate;
+      }
+      if (filters.startDate) {
+        return start >= filters.startDate;
+      }
+      if (filters.endDate) {
+        return start <= filters.endDate;
+      }
 
-      return startedInPeriod || activeInPeriod;
+      return true;
     });
   }
 
