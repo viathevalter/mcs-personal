@@ -54,9 +54,17 @@ import {
   Instagram,
   Tag,
   MapPin,
-  Sparkles,
   FileText,
   Filter,
+  Download,
+  Ship,
+  Flame,
+  Layers,
+  FlaskConical,
+  CheckCircle2,
+  Factory,
+  BarChart3,
+  Building2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
@@ -738,6 +746,44 @@ export function LeadsPage() {
     new Set(leads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
   );
 
+  const sectorCounts = {
+    total: leads.length,
+    naval: leads.filter((l) => normalizeSectorName(l.sector) === 'Construção & Reparação Naval').length,
+    caldereria: leads.filter((l) => normalizeSectorName(l.sector) === 'Calderería & Tubería Industrial').length,
+    estructuras: leads.filter((l) => normalizeSectorName(l.sector) === 'Estructuras Metálicas & Montajes').length,
+    quimica: leads.filter((l) => normalizeSectorName(l.sector) === 'Industria Química & Petroquímica').length,
+    geral: leads.filter((l) => normalizeSectorName(l.sector) === 'Industrial Geral').length,
+  };
+
+  const handleExportExcel = () => {
+    if (filteredLeads.length === 0) {
+      toast.error('Nenhum lead disponível para exportação com os filtros atuais.');
+      return;
+    }
+
+    const exportData = filteredLeads.map((l) => ({
+      'Empresa / Organização': l.company_name || 'N/A',
+      'Setor': normalizeSectorName(l.sector),
+      'Nome do Contato': l.name || 'N/A',
+      'E-mail': l.email || 'N/A',
+      'Telefone': l.phone || 'N/A',
+      'Origem Lead': l.origen_lead || 'AIsa Prospecting',
+      'Website': l.website || '',
+      'LinkedIn': l.linkedin_url || '',
+      'Data Cadastro': l.created_at ? new Date(l.created_at).toLocaleDateString() : '',
+      'Observações': l.notes || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads Qualificados');
+
+    const sectorSlug = selectedSector === 'all' ? 'Todos_Setores' : selectedSector.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `Leads_Marketing_${sectorSlug}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    toast.success(`Exportados ${filteredLeads.length} leads em Excel (.xlsx) com sucesso!`);
+  };
+
   const filteredLeads = leads.filter((lead) => {
     const leadNormSector = normalizeSectorName(lead.sector);
     if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
@@ -799,7 +845,11 @@ export function LeadsPage() {
             {t('comercial.leads.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <Button onClick={handleExportExcel} variant="outline" className="border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm">
+            <Download className="mr-2 h-4 w-4" />
+            Exportar Excel ({filteredLeads.length})
+          </Button>
           <Button onClick={handleCopyNewLeadLink} variant="outline" className="border-slate-300 dark:border-slate-800">
             <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
             Link de Cadastro
@@ -816,6 +866,129 @@ export function LeadsPage() {
             <Plus className="mr-2 h-4 w-4" />
             {t('comercial.leads.btnNew')}
           </Button>
+        </div>
+      </div>
+
+      {/* Premium Executive KPI Dashboard Cards (Clickable Bento Grid) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Total Base */}
+        <div 
+          onClick={() => setSelectedSector('all')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'all' 
+              ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-amber-500/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base CRM</span>
+            <Building2 className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-foreground">{sectorCounts.total}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+            Ver Todos os Leads
+          </div>
+        </div>
+
+        {/* Naval */}
+        <div 
+          onClick={() => setSelectedSector('Construção & Reparação Naval')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'Construção & Reparação Naval' 
+              ? 'bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-blue-500/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Naval</span>
+            <Ship className="w-4 h-4 text-blue-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">{sectorCounts.naval}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
+            <span>Astilleros & 6G</span>
+            <span className="text-blue-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.naval / sectorCounts.total) * 100) : 0}%</span>
+          </div>
+        </div>
+
+        {/* Calderería */}
+        <div 
+          onClick={() => setSelectedSector('Calderería & Tubería Industrial')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'Calderería & Tubería Industrial' 
+              ? 'bg-amber-600/10 border-amber-600 ring-2 ring-amber-600/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-amber-600/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Calderería</span>
+            <Flame className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">{sectorCounts.caldereria}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
+            <span>Tubería Pesada</span>
+            <span className="text-amber-600 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.caldereria / sectorCounts.total) * 100) : 0}%</span>
+          </div>
+        </div>
+
+        {/* Estructuras */}
+        <div 
+          onClick={() => setSelectedSector('Estructuras Metálicas & Montajes')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'Estructuras Metálicas & Montajes' 
+              ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-emerald-500/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estructuras</span>
+            <Layers className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{sectorCounts.estructuras}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
+            <span>Talleres & Montajes</span>
+            <span className="text-emerald-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.estructuras / sectorCounts.total) * 100) : 0}%</span>
+          </div>
+        </div>
+
+        {/* Química */}
+        <div 
+          onClick={() => setSelectedSector('Industria Química & Petroquímica')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'Industria Química & Petroquímica' 
+              ? 'bg-purple-500/10 border-purple-500 ring-2 ring-purple-500/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-purple-500/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Química</span>
+            <FlaskConical className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-purple-600 dark:text-purple-400">{sectorCounts.quimica}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
+            <span>Paradas de Planta</span>
+            <span className="text-purple-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.quimica / sectorCounts.total) * 100) : 0}%</span>
+          </div>
+        </div>
+
+        {/* Industrial Geral */}
+        <div 
+          onClick={() => setSelectedSector('Industrial Geral')}
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
+            selectedSector === 'Industrial Geral' 
+              ? 'bg-slate-500/10 border-slate-500 ring-2 ring-slate-500/30' 
+              : 'bg-card hover:bg-muted/50 border-border hover:border-slate-500/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Geral</span>
+            <Factory className="w-4 h-4 text-slate-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-slate-700 dark:text-slate-300">{sectorCounts.geral}</div>
+          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
+            <span>Indústria Geral</span>
+            <span className="text-slate-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.geral / sectorCounts.total) * 100) : 0}%</span>
+          </div>
         </div>
       </div>
 
