@@ -146,7 +146,25 @@ export function ProspectingPage() {
   // Automatic Sequential Queue Runner for All Pending/Processing Missions
   useEffect(() => {
     if (!isLoopRunningRef.current && jobs.length > 0) {
-      const nextPendingJob = jobs.find((j) => j.status === 'processing' || j.status === 'pending');
+      // Auto-heal any jobs in state that reached their target count but are still marked processing/pending
+      const reachedTargetJobs = jobs.filter(
+        (j) =>
+          j.status !== 'completed' &&
+          (j.processed_count >= j.target_count || (j.email_required && j.found_emails_count >= j.target_count))
+      );
+      if (reachedTargetJobs.length > 0) {
+        reachedTargetJobs.forEach((j) => {
+          updateStatusMutation.mutate({ jobId: j.id, status: 'completed' });
+        });
+      }
+
+      // Pick next job that is pending or processing BUT has NOT reached target count yet
+      const nextPendingJob = jobs.find(
+        (j) =>
+          (j.status === 'processing' || j.status === 'pending') &&
+          j.processed_count < j.target_count &&
+          (!j.email_required || j.found_emails_count < j.target_count)
+      );
       if (nextPendingJob) {
         handleStartProcessing(nextPendingJob);
       }
@@ -183,18 +201,21 @@ export function ProspectingPage() {
     isLoopRunningRef.current = true;
     setIsProcessingLoop(true);
 
+    const isEmailTargetInitial = job.email_required ?? true;
+    const initialMetric = isEmailTargetInitial ? job.found_emails_count : job.processed_count;
+
+    // If job already reached target, mark as completed immediately and advance
+    if (initialMetric >= job.target_count) {
+      await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'completed' });
+      addLog(`Missão "${job.title}" já atingiu a meta de ${job.target_count} leads e foi concluída.`, 'success');
+      isLoopRunningRef.current = false;
+      setIsProcessingLoop(false);
+      return;
+    }
+
     addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
 
     try {
-      // Reset any stale processing jobs (except current) back to pending
-      await supabase
-        .schema('core_comercial')
-        .from('lead_prospecting_jobs')
-        .update({ status: 'pending', updated_at: new Date().toISOString() })
-        .eq('empresa_id', job.empresa_id)
-        .eq('status', 'processing')
-        .neq('id', job.id);
-
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
 
       let currentJob = job;
@@ -204,7 +225,15 @@ export function ProspectingPage() {
         const isEmailTarget = currentJob.email_required ?? true;
         const currentMetric = isEmailTarget ? currentJob.found_emails_count : currentJob.processed_count;
 
-        if (currentMetric >= currentJob.target_count || currentJob.status === 'paused') {
+        if (currentMetric >= currentJob.target_count) {
+          await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
+          addLog(`Missão "${currentJob.title}" atingiu a meta de ${currentJob.target_count} leads com sucesso!`, 'success');
+          shouldContinue = false;
+          break;
+        }
+
+        if (currentJob.status === 'paused') {
+          shouldContinue = false;
           break;
         }
 
@@ -218,6 +247,7 @@ export function ProspectingPage() {
         );
 
         if (stepResult.completed) {
+          await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
           addLog(`Missão "${currentJob.title}" concluída com sucesso!`, 'success');
           shouldContinue = false;
           break;
@@ -240,6 +270,10 @@ export function ProspectingPage() {
           currentJob = refetched as LeadProspectingJob;
           if (currentJob.status === 'paused') {
             addLog(`Missão "${currentJob.title}" pausada pelo operador.`, 'warn');
+            shouldContinue = false;
+            break;
+          }
+          if (currentJob.status === 'completed') {
             shouldContinue = false;
             break;
           }
