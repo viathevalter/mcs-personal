@@ -6,11 +6,11 @@ async function heal(dbName, conn) {
   const client = new Client({ connectionString: conn });
   await client.connect();
 
-  // Mark all jobs that reached target as completed
+  // Mark all jobs that reached target or within 5 leads of target as completed
   const res = await client.query(`
     UPDATE core_comercial.lead_prospecting_jobs
     SET status = 'completed', updated_at = NOW()
-    WHERE (processed_count >= target_count OR found_emails_count >= target_count)
+    WHERE (processed_count >= target_count - 5 OR found_emails_count >= target_count - 5)
       AND status != 'completed'
     RETURNING id, title, processed_count, found_emails_count, target_count;
   `);
