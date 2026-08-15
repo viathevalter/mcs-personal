@@ -156,6 +156,16 @@ export function ProspectingPage() {
     }
   }, [jobs, isProcessingLoop]);
 
+  // Auto-select active or first processing job
+  useEffect(() => {
+    if (!selectedJobId && jobs.length > 0) {
+      const firstActive = jobs.find((j) => j.status === 'processing' || j.status === 'pending') || jobs[0];
+      if (firstActive) {
+        setSelectedJobId(firstActive.id);
+      }
+    }
+  }, [jobs, selectedJobId]);
+
   // Keep active job sync
   useEffect(() => {
     if (selectedJobId) {
