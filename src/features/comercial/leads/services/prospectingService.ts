@@ -17,10 +17,30 @@ export interface ScrapedCompanyRaw {
   sector?: string | null;
 }
 
-export interface ImportLeadOptions {
-  audienceTag?: string;
-  customNotes?: string;
-  sector?: string;
+export function normalizeSectorName(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== 'string') return 'Industrial Geral';
+  const str = raw.toLowerCase().trim();
+
+  if (str.includes('naval') || str.includes('astillero') || str.includes('armador')) {
+    return 'Construção & Reparação Naval';
+  }
+  if (str.includes('calderer') || str.includes('tuberia') || str.includes('presión') || str.includes('paradas de planta')) {
+    return 'Calderería & Tubería Industrial';
+  }
+  if (str.includes('estructura') || str.includes('metalúrg') || str.includes('mecaniz') || str.includes('montaje') || str.includes('talleres')) {
+    return 'Estructuras Metálicas & Montajes';
+  }
+  if (str.includes('químic') || str.includes('petroquímic')) {
+    return 'Industria Química & Petroquímica';
+  }
+  if (str.includes('ingenier') || str.includes('epc') || str.includes('subcontratac')) {
+    return 'Ingeniería & Contratistas EPC';
+  }
+  if (str.includes('construcc')) {
+    return 'Construcción & Obras';
+  }
+
+  return 'Industrial Geral';
 }
 
 /**
@@ -451,7 +471,8 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
         options.onProgress(currentIndex, totalToProcess);
       }
 
-      const leadSector = options?.sector ? options.sector.trim() : 'Caldeiraria / Industrial';
+      const rawSector = options?.sector || res.sector;
+      const leadSector = normalizeSectorName(rawSector);
 
       const customNoteText = options?.customNotes
         ? `${options.customNotes}\n[Setor: ${leadSector}] [Público: ${audienceTag || 'Geral'}]\nLead capturado via AIsa Prospecting. Cidade: ${res.city || ''}`
