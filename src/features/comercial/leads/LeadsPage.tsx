@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useLeads, useMutateLead } from './hooks/useLeads';
+import { normalizeSectorName } from './services/prospectingService';
 import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
@@ -734,11 +735,12 @@ export function LeadsPage() {
   const [selectedSector, setSelectedSector] = useState<string>('all');
 
   const availableSectors = Array.from(
-    new Set(leads.map((l) => l.sector).filter(Boolean))
+    new Set(leads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
   );
 
   const filteredLeads = leads.filter((lead) => {
-    if (selectedSector !== 'all' && lead.sector !== selectedSector) return false;
+    const leadNormSector = normalizeSectorName(lead.sector);
+    if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -841,7 +843,7 @@ export function LeadsPage() {
               <SelectItem value="all">Todos os Setores ({leads.length})</SelectItem>
               {availableSectors.map((sec, idx) => (
                 <SelectItem key={idx} value={sec!}>
-                  {sec} ({leads.filter((l) => l.sector === sec).length})
+                  {sec} ({leads.filter((l) => normalizeSectorName(l.sector) === sec).length})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -937,7 +939,7 @@ export function LeadsPage() {
                     <td className="p-4 align-middle text-foreground/90">
                       {lead.sector ? (
                         <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded text-xs font-semibold">
-                          {lead.sector}
+                          {normalizeSectorName(lead.sector)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground/60 italic text-xs">--</span>
