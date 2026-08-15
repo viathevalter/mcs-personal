@@ -320,19 +320,17 @@ Return ONLY a valid JSON array of objects with the exact schema below, with no m
       return { processed: existingCount, foundEmails: existingEmailsCount, completed: true };
     }
 
-    // Query ALL staging results for this empresa_id to ensure global anti-duplication
+    // Query ALL staging results globally to ensure zero duplicate company searches across all companies
     const { data: allStaging } = await supabase
       .schema('core_comercial')
       .from('lead_prospecting_results')
-      .select('company_name, email')
-      .eq('empresa_id', job.empresa_id);
+      .select('company_name, email');
 
-    // Query ALL CRM leads for this empresa_id to ensure leads are never duplicated
+    // Query ALL CRM leads globally to ensure leads are never re-scraped or duplicated
     const { data: allCRMLeads } = await supabase
       .schema('core_comercial')
       .from('leads')
-      .select('company_name, email')
-      .eq('empresa_id', job.empresa_id);
+      .select('company_name, email');
 
     const existingCompanyNames = Array.from(new Set([
       ...(existingResults || []).map((r) => r.company_name?.trim()),
