@@ -313,6 +313,29 @@ export function ProspectingPage() {
     }
   };
 
+  // Mission filtering state
+  const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+
+  const jobCounts = {
+    total: jobs.length,
+    processing: jobs.filter((j) => j.status === 'processing').length,
+    pending: jobs.filter((j) => j.status === 'pending').length,
+    completed: jobs.filter((j) => j.status === 'completed').length,
+    paused: jobs.filter((j) => j.status === 'paused').length,
+  };
+
+  const filteredJobs = jobs.filter((j) => {
+    if (jobStatusFilter !== 'all' && j.status !== jobStatusFilter) return false;
+    if (!jobSearchTerm) return true;
+    const term = jobSearchTerm.toLowerCase().trim();
+    return (
+      (j.title && j.title.toLowerCase().includes(term)) ||
+      (j.location && j.location.toLowerCase().includes(term)) ||
+      (j.keywords && j.keywords.toLowerCase().includes(term))
+    );
+  });
+
   const [filterCorporateDomainOnly, setFilterCorporateDomainOnly] = useState(false);
 
   const isFreeEmailDomain = (email?: string | null) => {
@@ -336,6 +359,27 @@ export function ProspectingPage() {
     } else {
       setSelectedResultIds(filteredResults.map((r) => r.id));
     }
+  };
+
+  const handleSelectAllVerified = () => {
+    const verifiedIds = filteredResults.filter((r) => r.email).map((r) => r.id);
+    setSelectedResultIds(verifiedIds);
+    toast.success(`${verifiedIds.length} e-mails verificados selecionados para importação!`);
+  };
+
+  const handleQuickConvertMissionLeads = () => {
+    const verifiedIds = results.filter((r) => r.email).map((r) => r.id);
+    if (verifiedIds.length === 0) {
+      toast.error('Nenhum e-mail verificado encontrado nesta missão.');
+      return;
+    }
+    setSelectedResultIds(verifiedIds);
+    if (activeJob) {
+      setAudienceTag(activeJob.title || activeJob.keywords);
+      setImportSector(activeJob.sector_filter || 'Calderería & Tubería Industrial');
+      setCustomNotes(`Leads qualificados capturados na missão "${activeJob.title}" em ${activeJob.location}.`);
+    }
+    setIsImportModalOpen(true);
   };
 
   const handleToggleSelectResult = (id: string) => {
@@ -508,17 +552,76 @@ export function ProspectingPage() {
               </span>
             </button>
 
+            {/* Quick Status Filter Tabs for Missions */}
+            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] mb-2.5">
+              <button
+                onClick={() => setJobStatusFilter('all')}
+                className={`py-1 rounded font-semibold transition-colors text-center ${
+                  jobStatusFilter === 'all'
+                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                Todas ({jobCounts.total})
+              </button>
+              <button
+                onClick={() => setJobStatusFilter('processing')}
+                className={`py-1 rounded font-semibold transition-colors text-center ${
+                  jobStatusFilter === 'processing'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'
+                }`}
+                title="Missões ativas executando raspagem"
+              >
+                ⚡ Ativas ({jobCounts.processing})
+              </button>
+              <button
+                onClick={() => setJobStatusFilter('pending')}
+                className={`py-1 rounded font-semibold transition-colors text-center ${
+                  jobStatusFilter === 'pending'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+                title="Missões na fila de espera"
+              >
+                ⏳ Fila ({jobCounts.pending})
+              </button>
+              <button
+                onClick={() => setJobStatusFilter('completed')}
+                className={`py-1 rounded font-semibold transition-colors text-center ${
+                  jobStatusFilter === 'completed'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-emerald-500'
+                }`}
+                title="Missões finalizadas"
+              >
+                ✅ Fim ({jobCounts.completed})
+              </button>
+            </div>
+
+            {/* Quick Search Input for Missions */}
+            <div className="relative mb-3">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filtrar por nome, cidade ou setor..."
+                value={jobSearchTerm}
+                onChange={(e) => setJobSearchTerm(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
             {loadingJobs ? (
               <div className="py-8 text-center text-slate-500 dark:text-slate-400 text-sm flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin text-blue-500" /> {t('comercial.prospector.loadingMissions', 'Carregando missões...')}
               </div>
-            ) : jobs.length === 0 ? (
+            ) : filteredJobs.length === 0 ? (
               <div className="py-8 text-center text-slate-500 dark:text-slate-400 text-sm border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
-                {t('comercial.prospector.noMissions', 'Nenhuma missão iniciada. Clique em "Nova Missão de Busca" para começar.')}
+                Nenhuma missão encontrada com os filtros selecionados.
               </div>
             ) : (
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                {jobs.map((job) => {
+                {filteredJobs.map((job) => {
                   const isSelected = job.id === selectedJobId;
                   const isEmailTarget = job.email_required ?? true;
                   const currentMetric = isEmailTarget ? job.found_emails_count : job.processed_count;
@@ -672,6 +775,16 @@ export function ProspectingPage() {
                   )}
                 </div>
 
+                {emailsStagingCount > 0 && (
+                  <button
+                    onClick={handleQuickConvertMissionLeads}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold py-2.5 px-3 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                    title="Converter todos os e-mails qualificados desta missão em leads oficiais do CRM"
+                  >
+                    <Download className="w-4 h-4" /> ⚡ Converter ({emailsStagingCount}) Leads Desta Missão no CRM
+                  </button>
+                )}
+
                 {activeJob.status !== 'completed' && (
                   <button
                     onClick={() => handleCompleteJobNow(activeJob)}
@@ -801,6 +914,15 @@ export function ProspectingPage() {
                   title="Filtrar apenas e-mails de domínio próprio corporativo (@empresa.es), ocultando Gmail/Hotmail"
                 >
                   <Building2 className="w-3.5 h-3.5 inline mr-1 text-emerald-500" /> Domínio Próprio (@empresa.es)
+                </button>
+
+                <button
+                  onClick={handleSelectAllVerified}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  title="Selecionar todos os e-mails qualificados da lista atual para importação"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 inline mr-1 text-blue-500" />
+                  Sel. Todos E-mails ({filteredResults.filter((r) => r.email).length})
                 </button>
 
                 <button
@@ -1175,15 +1297,20 @@ export function ProspectingPage() {
                   <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor / Classificação Comercial *
                   </label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     disabled={importResultsMutation.isPending}
-                    placeholder="ex: Caldeiraria, Metalúrgica, Industrial"
                     value={importSector}
                     onChange={(e) => setImportSector(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer text-xs font-medium"
+                  >
+                    <option value="Construção & Reparação Naval">🚢 Construção & Reparação Naval</option>
+                    <option value="Calderería & Tubería Industrial">🏗️ Calderería & Tubería Industrial</option>
+                    <option value="Estructuras Metálicas & Montajes">⚙️ Estructuras Metálicas & Montajes</option>
+                    <option value="Industria Química & Petroquímica">🧪 Industria Química & Petroquímica</option>
+                    <option value="Ingeniería & Contratistas EPC">📐 Ingeniería & Contratistas EPC</option>
+                    <option value="Construcción & Obras">🧱 Construcción & Obras</option>
+                    <option value="Industrial Geral">🏬 Industrial Geral</option>
+                  </select>
                 </div>
 
                 <div>
