@@ -31,24 +31,49 @@ export function useProspectingResults(jobId?: string | null) {
   return useQuery({
     queryKey: ['prospecting-results', jobId, selectedEmpresaId],
     queryFn: async () => {
-      // Query all shared staging results globally so leads are available to all companies
-      let query = supabase
-        .schema('core_comercial')
-        .from('lead_prospecting_results')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50000);
-
       if (jobId && jobId !== 'all') {
-        query = query.eq('job_id', jobId);
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('lead_prospecting_results')
+          .select('*')
+          .eq('job_id', jobId)
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        if (error) throw error;
+        return (data || []) as LeadProspectingResult[];
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as LeadProspectingResult[];
+      // Fetch all records across chunks of 1000 to bypass PostgREST max_rows = 1000 default limit
+      const CHUNK_SIZE = 1000;
+      let allResults: LeadProspectingResult[] = [];
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore && offset < 50000) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('lead_prospecting_results')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + CHUNK_SIZE - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allResults = allResults.concat(data as LeadProspectingResult[]);
+          if (data.length < CHUNK_SIZE) {
+            hasMore = false;
+          } else {
+            offset += CHUNK_SIZE;
+          }
+        }
+      }
+
+      return allResults;
     },
     enabled: Boolean(selectedEmpresaId),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
   });
 }
 
