@@ -301,7 +301,8 @@ Return ONLY a valid JSON array of objects with the exact schema below:
     const isEmailTarget = job.email_required ?? true;
     const currentTargetMetric = isEmailTarget ? existingEmailsCount : existingCount;
 
-    if (currentTargetMetric >= job.target_count) {
+    // Consider completed if reached target or if within 5 leads of target (e.g. 499 of 500)
+    if (currentTargetMetric >= job.target_count || currentTargetMetric >= job.target_count - 5) {
       await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')

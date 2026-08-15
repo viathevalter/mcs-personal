@@ -146,11 +146,11 @@ export function ProspectingPage() {
   // Automatic Sequential Queue Runner for All Pending/Processing Missions
   useEffect(() => {
     if (!isLoopRunningRef.current && jobs.length > 0) {
-      // Auto-heal any jobs in state that reached their target count but are still marked processing/pending
+      // Auto-heal any jobs in state that reached their target count (or within 5 leads, e.g. 499 of 500)
       const reachedTargetJobs = jobs.filter(
         (j) =>
           j.status !== 'completed' &&
-          (j.processed_count >= j.target_count || (j.email_required && j.found_emails_count >= j.target_count))
+          (j.processed_count >= j.target_count - 5 || (j.email_required && j.found_emails_count >= j.target_count - 5))
       );
       if (reachedTargetJobs.length > 0) {
         reachedTargetJobs.forEach((j) => {
@@ -162,8 +162,8 @@ export function ProspectingPage() {
       const nextPendingJob = jobs.find(
         (j) =>
           (j.status === 'processing' || j.status === 'pending') &&
-          j.processed_count < j.target_count &&
-          (!j.email_required || j.found_emails_count < j.target_count)
+          j.processed_count < j.target_count - 5 &&
+          (!j.email_required || j.found_emails_count < j.target_count - 5)
       );
       if (nextPendingJob) {
         handleStartProcessing(nextPendingJob);
@@ -204,10 +204,10 @@ export function ProspectingPage() {
     const isEmailTargetInitial = job.email_required ?? true;
     const initialMetric = isEmailTargetInitial ? job.found_emails_count : job.processed_count;
 
-    // If job already reached target, mark as completed immediately and advance
-    if (initialMetric >= job.target_count) {
+    // If job already reached target (or within 5 leads, e.g. 499 of 500), mark as completed immediately and advance
+    if (initialMetric >= job.target_count - 5) {
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'completed' });
-      addLog(`Missão "${job.title}" já atingiu a meta de ${job.target_count} leads e foi concluída.`, 'success');
+      addLog(`Missão "${job.title}" atingiu a meta (${initialMetric}/${job.target_count} leads) e foi concluída.`, 'success');
       isLoopRunningRef.current = false;
       setIsProcessingLoop(false);
       return;
@@ -225,7 +225,7 @@ export function ProspectingPage() {
         const isEmailTarget = currentJob.email_required ?? true;
         const currentMetric = isEmailTarget ? currentJob.found_emails_count : currentJob.processed_count;
 
-        if (currentMetric >= currentJob.target_count) {
+        if (currentMetric >= currentJob.target_count - 5) {
           await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
           addLog(`Missão "${currentJob.title}" atingiu a meta de ${currentJob.target_count} leads com sucesso!`, 'success');
           shouldContinue = false;
