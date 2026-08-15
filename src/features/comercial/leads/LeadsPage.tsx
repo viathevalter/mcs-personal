@@ -741,6 +741,74 @@ export function LeadsPage() {
   };
 
   const [selectedSector, setSelectedSector] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('all');
+
+  const detectLeadCountry = (lead: any) => {
+    if (lead.country_id) {
+      const c = String(lead.country_id).toUpperCase();
+      if (['ES', 'PT', 'FR', 'DE', 'IT', 'NL', 'BE', 'GB'].includes(c)) {
+        return c;
+      }
+    }
+    if (lead.phone) {
+      const p = String(lead.phone).trim();
+      if (p.startsWith('+34') || p.startsWith('34')) return 'ES';
+      if (p.startsWith('+351') || p.startsWith('351')) return 'PT';
+      if (p.startsWith('+33') || p.startsWith('33')) return 'FR';
+      if (p.startsWith('+49') || p.startsWith('49')) return 'DE';
+      if (p.startsWith('+39') || p.startsWith('39')) return 'IT';
+      if (p.startsWith('+31') || p.startsWith('31')) return 'NL';
+      if (p.startsWith('+32') || p.startsWith('32')) return 'BE';
+      if (p.startsWith('+44') || p.startsWith('44')) return 'GB';
+    }
+    if (lead.email) {
+      const em = String(lead.email).toLowerCase().trim();
+      if (em.endsWith('.es')) return 'ES';
+      if (em.endsWith('.pt')) return 'PT';
+      if (em.endsWith('.fr')) return 'FR';
+      if (em.endsWith('.de')) return 'DE';
+      if (em.endsWith('.it')) return 'IT';
+      if (em.endsWith('.nl')) return 'NL';
+      if (em.endsWith('.be')) return 'BE';
+      if (em.endsWith('.uk') || em.endsWith('.co.uk')) return 'GB';
+    }
+    if (Array.isArray(lead.tags)) {
+      const tagStr = lead.tags.join(' ').toLowerCase();
+      if (tagStr.includes('portugal') || tagStr.includes('🇵🇹')) return 'PT';
+      if (tagStr.includes('frança') || tagStr.includes('france') || tagStr.includes('🇫🇷')) return 'FR';
+      if (tagStr.includes('alemanha') || tagStr.includes('germany') || tagStr.includes('🇩🇪')) return 'DE';
+      if (tagStr.includes('itália') || tagStr.includes('italy') || tagStr.includes('🇮🇹')) return 'IT';
+      if (tagStr.includes('holanda') || tagStr.includes('netherlands') || tagStr.includes('🇳🇱')) return 'NL';
+      if (tagStr.includes('bélgica') || tagStr.includes('belgium') || tagStr.includes('🇧🇪')) return 'BE';
+      if (tagStr.includes('reino unido') || tagStr.includes('uk') || tagStr.includes('🇬🇧')) return 'GB';
+    }
+    return 'ES';
+  };
+
+  const countryLabels: Record<string, { name: string; flag: string }> = {
+    ES: { name: 'Espanha', flag: '🇪🇸' },
+    PT: { name: 'Portugal', flag: '🇵🇹' },
+    FR: { name: 'França', flag: '🇫🇷' },
+    DE: { name: 'Alemanha', flag: '🇩🇪' },
+    IT: { name: 'Itália', flag: '🇮🇹' },
+    NL: { name: 'Holanda', flag: '🇳🇱' },
+    BE: { name: 'Bélgica', flag: '🇧🇪' },
+    GB: { name: 'Reino Unido', flag: '🇬🇧' },
+    OTHER: { name: 'Outros', flag: '🌍' },
+  };
+
+  const countryCounts = {
+    total: leads.length,
+    ES: leads.filter((l) => detectLeadCountry(l) === 'ES').length,
+    PT: leads.filter((l) => detectLeadCountry(l) === 'PT').length,
+    FR: leads.filter((l) => detectLeadCountry(l) === 'FR').length,
+    DE: leads.filter((l) => detectLeadCountry(l) === 'DE').length,
+    IT: leads.filter((l) => detectLeadCountry(l) === 'IT').length,
+    NL: leads.filter((l) => detectLeadCountry(l) === 'NL').length,
+    BE: leads.filter((l) => detectLeadCountry(l) === 'BE').length,
+    GB: leads.filter((l) => detectLeadCountry(l) === 'GB').length,
+    OTHER: leads.filter((l) => detectLeadCountry(l) === 'OTHER').length,
+  };
 
   const availableSectors = Array.from(
     new Set(leads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
@@ -761,25 +829,31 @@ export function LeadsPage() {
       return;
     }
 
-    const exportData = filteredLeads.map((l) => ({
-      'Empresa / Organização': l.company_name || 'N/A',
-      'Setor': normalizeSectorName(l.sector),
-      'Nome do Contato': l.name || 'N/A',
-      'E-mail': l.email || 'N/A',
-      'Telefone': l.phone || 'N/A',
-      'Origem Lead': l.origen_lead || 'AIsa Prospecting',
-      'Website': l.website || '',
-      'LinkedIn': l.linkedin_url || '',
-      'Data Cadastro': l.created_at ? new Date(l.created_at).toLocaleDateString() : '',
-      'Observações': l.notes || '',
-    }));
+    const exportData = filteredLeads.map((l) => {
+      const cCode = detectLeadCountry(l);
+      const cInfo = countryLabels[cCode] || countryLabels.ES;
+      return {
+        'Empresa / Organização': l.company_name || 'N/A',
+        'País': `${cInfo.flag} ${cInfo.name}`,
+        'Setor': normalizeSectorName(l.sector),
+        'Nome do Contato': l.name || 'N/A',
+        'E-mail': l.email || 'N/A',
+        'Telefone': l.phone || 'N/A',
+        'Origem Lead': l.origen_lead || 'AIsa Prospecting',
+        'Website': l.website || '',
+        'LinkedIn': l.linkedin_url || '',
+        'Data Cadastro': l.created_at ? new Date(l.created_at).toLocaleDateString() : '',
+        'Observações': l.notes || '',
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads Qualificados');
 
     const sectorSlug = selectedSector === 'all' ? 'Todos_Setores' : selectedSector.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `Leads_Marketing_${sectorSlug}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const countrySlug = selectedCountry === 'all' ? 'Global' : selectedCountry;
+    const fileName = `Leads_Marketing_${countrySlug}_${sectorSlug}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     XLSX.writeFile(workbook, fileName);
     toast.success(`Exportados ${filteredLeads.length} leads em Excel (.xlsx) com sucesso!`);
   };
@@ -787,6 +861,7 @@ export function LeadsPage() {
   const filteredLeads = leads.filter((lead) => {
     const leadNormSector = normalizeSectorName(lead.sector);
     if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
+    if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -992,35 +1067,58 @@ export function LeadsPage() {
         </div>
       </div>
 
-      {/* Filters Bar: Search & Sector Filter */}
-      <div className="flex flex-col md:flex-row items-center gap-4 bg-card border p-4 rounded-xl shadow-sm justify-between">
+      {/* Filters Bar: Search, Country & Sector Filters */}
+      <div className="flex flex-col md:flex-row items-center gap-3 bg-card border p-3.5 rounded-xl shadow-sm justify-between">
         <div className="relative flex-1 w-full max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('comercial.leads.searchPlaceholder')}
-            className="pl-10 focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
+            className="pl-10 h-9 text-xs focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        {/* Sector Filter Dropdown */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter className="w-4 h-4 text-yellow-500 shrink-0" />
-          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Filtrar por Setor:</span>
-          <Select value={selectedSector} onValueChange={setSelectedSector}>
-            <SelectTrigger className="w-full md:w-56 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
-              <SelectValue placeholder="Todos os Setores" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Setores ({leads.length})</SelectItem>
-              {availableSectors.map((sec, idx) => (
-                <SelectItem key={idx} value={sec!}>
-                  {sec} ({leads.filter((l) => normalizeSectorName(l.sector) === sec).length})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap sm:flex-nowrap">
+          {/* Country Filter Dropdown */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <Globe className="w-4 h-4 text-blue-500 shrink-0" />
+            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+              <SelectTrigger className="w-full sm:w-44 h-9 text-xs font-semibold focus-visible:ring-blue-500">
+                <SelectValue placeholder="Todos os Países" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🌐 Todos Países ({leads.length})</SelectItem>
+                <SelectItem value="ES">🇪🇸 Espanha ({countryCounts.ES})</SelectItem>
+                <SelectItem value="PT">🇵🇹 Portugal ({countryCounts.PT})</SelectItem>
+                <SelectItem value="FR">🇫🇷 França ({countryCounts.FR})</SelectItem>
+                <SelectItem value="DE">🇩🇪 Alemanha ({countryCounts.DE})</SelectItem>
+                <SelectItem value="IT">🇮🇹 Itália ({countryCounts.IT})</SelectItem>
+                <SelectItem value="NL">🇳🇱 Holanda ({countryCounts.NL})</SelectItem>
+                <SelectItem value="BE">🇧🇪 Bélgica ({countryCounts.BE})</SelectItem>
+                <SelectItem value="GB">🇬🇧 Reino Unido ({countryCounts.GB})</SelectItem>
+                <SelectItem value="OTHER">🌍 Outros ({countryCounts.OTHER})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sector Filter Dropdown */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-yellow-500 shrink-0" />
+            <Select value={selectedSector} onValueChange={setSelectedSector}>
+              <SelectTrigger className="w-full sm:w-56 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
+                <SelectValue placeholder="Todos os Setores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Setores ({leads.length})</SelectItem>
+                {availableSectors.map((sec, idx) => (
+                  <SelectItem key={idx} value={sec!}>
+                    {sec} ({leads.filter((l) => normalizeSectorName(l.sector) === sec).length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       {error ? (
@@ -1043,26 +1141,26 @@ export function LeadsPage() {
             <UserPlus className="h-8 w-8 text-muted-foreground" />
           </div>
           <h3 className="text-xl font-semibold text-foreground mb-2">{t('comercial.leads.emptyTitle')}</h3>
-          <p className="text-muted-foreground max-w-md mb-6">
-            {searchTerm ? t('comercial.leads.emptySearchDesc') : t('comercial.leads.emptyDesc')}
-          </p>
-          {searchTerm && (
-            <Button variant="outline" onClick={() => setSearchTerm('')}>
-              {t('comercial.leads.btnClearFilters')}
-            </Button>
-          )}
+          <p className="text-muted-foreground max-w-sm mb-6 text-sm">{t('comercial.leads.emptyDesc')}</p>
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold"
+          >
+            <Plus className="h-4 w-4" />
+            {t('comercial.leads.btnNew')}
+          </Button>
         </div>
       ) : (
         <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
-          <div className="overflow-auto max-h-[600px] scrollbar-thin">
-            <table className="w-full caption-bottom text-sm border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 border-b shadow-sm">
-                <tr className="border-b transition-colors bg-slate-50 dark:bg-slate-900">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/30">
+                <tr>
                   <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
                     {renderSortHeader('company_name', t('comercial.leads.table.company'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {renderSortHeader('sector', i18n.resolvedLanguage === 'es' ? 'Sector' : i18n.resolvedLanguage === 'en' ? 'Sector' : 'Setor')}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    {t('comercial.leads.table.sector')}
                   </th>
                   <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
                     {renderSortHeader('name', t('comercial.leads.table.name'))}
@@ -1082,42 +1180,52 @@ export function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0 bg-card">
-                {paginatedSortedLeads.map((lead) => (
-                  <tr
-                    key={lead.id}
-                    onClick={() => handleOpenDetails(lead)}
-                    className="border-b transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer group"
-                  >
-                    <td className="p-4 align-middle font-medium text-foreground">
-                      {lead.company_name ? (
-                        <div className="space-y-1">
-                          <span className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            <Building className="h-4 w-4 text-yellow-500 shrink-0" />
-                            {lead.company_name}
-                          </span>
-                          {lead.tags && lead.tags.length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap pl-6">
-                              {lead.tags.map((tg, idx) => (
-                                <span key={idx} className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/40">
-                                  {tg}
-                                </span>
-                              ))}
+                {paginatedSortedLeads.map((lead) => {
+                  const cCode = detectLeadCountry(lead);
+                  const cInfo = countryLabels[cCode] || countryLabels.ES;
+
+                  return (
+                    <tr
+                      key={lead.id}
+                      onClick={() => handleOpenDetails(lead)}
+                      className="border-b transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer group"
+                    >
+                      <td className="p-4 align-middle font-medium text-foreground">
+                        {lead.company_name ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                <Building className="h-4 w-4 text-yellow-500 shrink-0" />
+                                {lead.company_name}
+                              </span>
+                              <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                <span>{cInfo.flag}</span>
+                                <span>{cCode}</span>
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/60 italic text-sm font-normal">{t('comercial.leads.table.noCompany')}</span>
-                      )}
-                    </td>
-                    <td className="p-4 align-middle text-foreground/90">
-                      {lead.sector ? (
-                        <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded text-xs font-semibold">
-                          {normalizeSectorName(lead.sector)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/60 italic text-xs">--</span>
-                      )}
-                    </td>
+                            {lead.tags && lead.tags.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap pl-6">
+                                {lead.tags.map((tg, idx) => (
+                                  <span key={idx} className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/40">
+                                    {tg}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic text-sm font-normal">{t('comercial.leads.table.noCompany')}</span>
+                        )}
+                      </td>
+                      <td className="p-4 align-middle text-foreground/90">
+                        {lead.sector ? (
+                          <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded text-xs font-semibold">
+                            {normalizeSectorName(lead.sector)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic text-xs">--</span>
+                        )}
+                      </td>
                     <td className="p-4 align-middle text-foreground/90">
                       <span className="flex flex-col">
                         <span>{lead.name}</span>
@@ -1286,8 +1394,9 @@ export function LeadsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                );
+              })}
+            </tbody>
             </table>
           </div>
         </div>

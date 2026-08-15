@@ -59,7 +59,7 @@ const ensureAbsoluteUrl = (url?: string | null): string => {
 export function ProspectingPage() {
   const { t } = useTranslation();
   const { data: jobs = [], isLoading: loadingJobs } = useProspectingJobs();
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string>('all');
   const { data: results = [], isLoading: loadingResults } = useProspectingResults(selectedJobId);
 
   const createJobMutation = useCreateProspectingJob();
@@ -75,7 +75,7 @@ export function ProspectingPage() {
         onSuccess: () => {
           toast.success(`Missão "${jobTitle}" excluída com sucesso!`);
           if (selectedJobId === jobId) {
-            setSelectedJobId(null);
+            setSelectedJobId('all');
           }
         },
         onError: (err: any) => {
@@ -90,7 +90,7 @@ export function ProspectingPage() {
       clearAllJobsMutation.mutate(undefined, {
         onSuccess: () => {
           toast.success('Todas as missões da empresa foram limpas com sucesso.');
-          setSelectedJobId(null);
+          setSelectedJobId('all');
         },
         onError: (err: any) => {
           toast.error(`Erro ao limpar missões: ${err.message || 'Erro desconhecido'}`);
@@ -116,6 +116,7 @@ export function ProspectingPage() {
   const [title, setTitle] = useState('');
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('Madrid, Espanha');
+  const [missionCountry, setMissionCountry] = useState('ES');
   const [targetCount, setTargetCount] = useState<number>(500);
   const [delaySeconds, setDelaySeconds] = useState<number>(3);
   const [searchSource, setSearchSource] = useState<SearchSourceEngine>('google_maps');
@@ -125,13 +126,9 @@ export function ProspectingPage() {
   // Import modal state (Tagging, Sector & Custom Notes for Audience Segmentation)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [audienceTag, setAudienceTag] = useState('');
-  const [importSector, setImportSector] = useState('Caldeiraria / Metalurgia');
+  const [importSector, setImportSector] = useState('Calderería & Tubería Industrial');
+  const [importCountry, setImportCountry] = useState('ES');
   const [customNotes, setCustomNotes] = useState('');
-
-  // Staging table selections & filters
-  const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
-  const [filterEmailOnly, setFilterEmailOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
 
   // Live execution state
   const [activeJob, setActiveJob] = useState<LeadProspectingJob | null>(null);
@@ -156,30 +153,20 @@ export function ProspectingPage() {
     }
   }, [jobs, isProcessingLoop]);
 
-  // Auto-select active or first processing job
-  useEffect(() => {
-    if (!selectedJobId && jobs.length > 0) {
-      const firstActive = jobs.find((j) => j.status === 'processing' || j.status === 'pending') || jobs[0];
-      if (firstActive) {
-        setSelectedJobId(firstActive.id);
-      }
-    }
-  }, [jobs, selectedJobId]);
-
   // Keep active job sync
   useEffect(() => {
-    if (selectedJobId) {
+    if (selectedJobId && selectedJobId !== 'all') {
       const current = jobs.find((j) => j.id === selectedJobId) || null;
       setActiveJob(current);
       if (current) {
         setAudienceTag(current.title || current.keywords);
-        setImportSector(current.keywords || 'Caldeiraria / Metalurgia');
+        setImportSector(current.sector_filter || 'Calderería & Tubería Industrial');
         setCustomNotes(`Leads qualificados capturados na missão "${current.title}" em ${current.location}.`);
       }
     } else {
       setActiveJob(null);
-      setAudienceTag('Prospecção Geral');
-      setImportSector('Caldeiraria / Industrial');
+      setAudienceTag('Prospecção Geral Espanha');
+      setImportSector('Calderería & Tubería Industrial');
       setCustomNotes('Leads qualificados importados via AIsa Prospecting.');
     }
   }, [jobs, selectedJobId]);
@@ -336,7 +323,64 @@ export function ProspectingPage() {
     );
   });
 
+  // Staging table selections & filters
+  const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
+  const [filterEmailOnly, setFilterEmailOnly] = useState(false);
   const [filterCorporateDomainOnly, setFilterCorporateDomainOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
+  const [stagingSearchTerm, setStagingSearchTerm] = useState('');
+  const [stagingCountryFilter, setStagingCountryFilter] = useState<string>('all');
+  const [stagingCurrentPage, setStagingCurrentPage] = useState<number>(1);
+  const [stagingPageSize, setStagingPageSize] = useState<number>(50);
+
+  const detectResultCountry = (item: LeadProspectingResult) => {
+    if (item.country) {
+      const c = item.country.toLowerCase();
+      if (c.includes('espan') || c.includes('spain') || c === 'es') return 'ES';
+      if (c.includes('portug') || c === 'pt') return 'PT';
+      if (c.includes('fran') || c === 'fr') return 'FR';
+      if (c.includes('alem') || c.includes('germ') || c === 'de') return 'DE';
+      if (c.includes('ital') || c === 'it') return 'IT';
+      if (c.includes('holan') || c.includes('nether') || c === 'nl') return 'NL';
+      if (c.includes('belg') || c === 'be') return 'BE';
+      if (c.includes('uk') || c.includes('brit') || c.includes('reino') || c === 'gb') return 'GB';
+    }
+    if (item.phone) {
+      if (item.phone.startsWith('+34') || item.phone.startsWith('34')) return 'ES';
+      if (item.phone.startsWith('+351') || item.phone.startsWith('351')) return 'PT';
+      if (item.phone.startsWith('+33') || item.phone.startsWith('33')) return 'FR';
+      if (item.phone.startsWith('+49') || item.phone.startsWith('49')) return 'DE';
+      if (item.phone.startsWith('+39') || item.phone.startsWith('39')) return 'IT';
+      if (item.phone.startsWith('+31') || item.phone.startsWith('31')) return 'NL';
+      if (item.phone.startsWith('+32') || item.phone.startsWith('32')) return 'BE';
+      if (item.phone.startsWith('+44') || item.phone.startsWith('44')) return 'GB';
+    }
+    if (item.email) {
+      if (item.email.endsWith('.es')) return 'ES';
+      if (item.email.endsWith('.pt')) return 'PT';
+      if (item.email.endsWith('.fr')) return 'FR';
+      if (item.email.endsWith('.de')) return 'DE';
+      if (item.email.endsWith('.it')) return 'IT';
+      if (item.email.endsWith('.nl')) return 'NL';
+      if (item.email.endsWith('.be')) return 'BE';
+      if (item.email.endsWith('.uk') || item.email.endsWith('.co.uk')) return 'GB';
+    }
+    return 'ES';
+  };
+
+  const countryLabels: Record<string, { name: string; flag: string }> = {
+    ES: { name: 'Espanha', flag: '🇪🇸' },
+    PT: { name: 'Portugal', flag: '🇵🇹' },
+    FR: { name: 'França', flag: '🇫🇷' },
+    DE: { name: 'Alemanha', flag: '🇩🇪' },
+    IT: { name: 'Itália', flag: '🇮🇹' },
+    NL: { name: 'Holanda', flag: '🇳🇱' },
+    BE: { name: 'Bélgica', flag: '🇧🇪' },
+    GB: { name: 'Reino Unido', flag: '🇬🇧' },
+    OTHER: { name: 'Outros', flag: '🌍' },
+  };
+
+  const [filterCorporateDomainOnlyState, setFilterCorporateDomainOnlyState] = useState(false);
 
   const isFreeEmailDomain = (email?: string | null) => {
     if (!email) return false;
@@ -350,15 +394,42 @@ export function ProspectingPage() {
     if (filterCorporateDomainOnly && (!r.email || isFreeEmailDomain(r.email))) return false;
     if (statusFilter === 'raw' && r.status !== 'raw') return false;
     if (statusFilter === 'imported' && r.status !== 'imported') return false;
+    if (stagingCountryFilter !== 'all' && detectResultCountry(r) !== stagingCountryFilter) return false;
+    if (stagingSearchTerm) {
+      const term = stagingSearchTerm.toLowerCase().trim();
+      const matchCompany = r.company_name?.toLowerCase().includes(term);
+      const matchEmail = r.email?.toLowerCase().includes(term);
+      const matchPhone = r.phone?.includes(term);
+      const matchCity = r.city?.toLowerCase().includes(term);
+      const matchProvince = r.province?.toLowerCase().includes(term);
+      const matchAddress = r.address?.toLowerCase().includes(term);
+      const matchWebsite = r.website?.toLowerCase().includes(term);
+      if (!matchCompany && !matchEmail && !matchPhone && !matchCity && !matchProvince && !matchAddress && !matchWebsite) {
+        return false;
+      }
+    }
     return true;
   });
 
+  const totalStagingPages = Math.max(1, Math.ceil(filteredResults.length / stagingPageSize));
+  const paginatedResults = filteredResults.slice(
+    (stagingCurrentPage - 1) * stagingPageSize,
+    stagingCurrentPage * stagingPageSize
+  );
+
   const handleToggleSelectAll = () => {
-    if (selectedResultIds.length === filteredResults.length) {
-      setSelectedResultIds([]);
+    const currentPageIds = paginatedResults.map((r) => r.id);
+    const allPageSelected = currentPageIds.every((id) => selectedResultIds.includes(id));
+    if (allPageSelected) {
+      setSelectedResultIds((prev) => prev.filter((id) => !currentPageIds.includes(id)));
     } else {
-      setSelectedResultIds(filteredResults.map((r) => r.id));
+      setSelectedResultIds((prev) => Array.from(new Set([...prev, ...currentPageIds])));
     }
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedResultIds(filteredResults.map((r) => r.id));
+    toast.success(`${filteredResults.length} leads selecionados para importação!`);
   };
 
   const handleSelectAllVerified = () => {
@@ -407,7 +478,7 @@ export function ProspectingPage() {
         resultIds: selectedResultIds,
         options: {
           audienceTag: audienceTag || activeJob?.title || 'Prospecção AI',
-          sector: importSector || activeJob?.keywords || 'Caldeiraria / Metalurgia',
+          sector: importSector || activeJob?.keywords || 'Calderería & Tubería Industrial',
           customNotes: customNotes,
           onProgress: (current, total) => {
             setImportProgress({ current, total });
@@ -836,34 +907,108 @@ export function ProspectingPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700/80 shadow-sm dark:shadow-lg transition-colors">
             {/* Table Header & Controls with KPI Counters */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/80">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-indigo-500" /> {t('comercial.prospector.stagingTitle', 'Leads Capturados em Staging')}
-                  </h2>
+            <div className="space-y-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-indigo-500" /> {t('comercial.prospector.stagingTitle', 'Leads Capturados em Staging')}
+                    </h2>
 
-                  {/* Prominent KPI Badges */}
-                  <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-blue-300 dark:border-blue-700/50 shadow-sm">
-                    <Building2 className="w-3.5 h-3.5 text-blue-500" /> {totalStagingResultsCount} Empresas
-                  </span>
+                    {/* Prominent KPI Badges */}
+                    <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-blue-300 dark:border-blue-700/50 shadow-sm">
+                      <Building2 className="w-3.5 h-3.5 text-blue-500" /> {filteredResults.length} Filtrados / {totalStagingResultsCount} Total
+                    </span>
 
-                  <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-700/50 shadow-sm">
-                    <Mail className="w-3.5 h-3.5 text-emerald-500" /> {emailsStagingCount} E-mails Verificados
-                  </span>
+                    <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-extrabold px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-700/50 shadow-sm">
+                      <Mail className="w-3.5 h-3.5 text-emerald-500" /> {filteredResults.filter((r) => r.email).length} E-mails Verificados
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {selectedJobId === 'all'
+                      ? 'Visualizando Repositório Global de Todas as Missões de Busca.'
+                      : `Visualizando leads da missão selecionada.`}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {t('comercial.prospector.stagingSubtitle', 'Revise os leads qualificados e importe para a lista oficial do CRM.')}
-                </p>
+
+                {/* Import to CRM button */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleSelectAllFiltered}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 transition-colors"
+                    title="Selecionar todos os leads filtrados nesta busca"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5 inline mr-1 text-indigo-500" />
+                    Sel. Todos ({filteredResults.length})
+                  </button>
+
+                  <button
+                    onClick={handleSelectAllVerified}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    title="Selecionar todos os e-mails qualificados da lista atual para importação"
+                  >
+                    <Mail className="w-3.5 h-3.5 inline mr-1 text-blue-500" />
+                    Sel. E-mails ({filteredResults.filter((r) => r.email).length})
+                  </button>
+
+                  <button
+                    onClick={handleOpenImportModal}
+                    disabled={selectedResultIds.length === 0 || importResultsMutation.isPending}
+                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-md transition-all"
+                  >
+                    <Download className="w-4 h-4" /> Converter ({selectedResultIds.length}) para CRM
+                  </button>
+                </div>
               </div>
 
-              {/* Right Side Buttons & Status Tabs */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Status Filter Tabs */}
-                <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/80 text-xs">
+              {/* Filter Row: Search + Country + Status + Quick Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 pt-2">
+                {/* Search Text */}
+                <div className="lg:col-span-4 relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar empresa, cidade, e-mail, telefone..."
+                    value={stagingSearchTerm}
+                    onChange={(e) => {
+                      setStagingSearchTerm(e.target.value);
+                      setStagingCurrentPage(1);
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* Country Filter */}
+                <div className="lg:col-span-3">
+                  <select
+                    value={stagingCountryFilter}
+                    onChange={(e) => {
+                      setStagingCountryFilter(e.target.value);
+                      setStagingCurrentPage(1);
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none font-medium cursor-pointer"
+                  >
+                    <option value="all">🌐 Todos os Países</option>
+                    <option value="ES">🇪🇸 Espanha</option>
+                    <option value="PT">🇵🇹 Portugal</option>
+                    <option value="FR">🇫🇷 França</option>
+                    <option value="DE">🇩🇪 Alemanha</option>
+                    <option value="IT">🇮🇹 Itália</option>
+                    <option value="NL">🇳🇱 Holanda</option>
+                    <option value="BE">🇧🇪 Bélgica</option>
+                    <option value="GB">🇬🇧 Reino Unido</option>
+                    <option value="OTHER">🌍 Outros</option>
+                  </select>
+                </div>
+
+                {/* Status Tabs */}
+                <div className="lg:col-span-2 inline-flex p-0.5 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
                   <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    onClick={() => {
+                      setStatusFilter('all');
+                      setStagingCurrentPage(1);
+                    }}
+                    className={`flex-1 py-1 rounded-md font-medium text-center transition-colors text-[11px] ${
                       statusFilter === 'all'
                         ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -872,8 +1017,11 @@ export function ProspectingPage() {
                     Todas
                   </button>
                   <button
-                    onClick={() => setStatusFilter('raw')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    onClick={() => {
+                      setStatusFilter('raw');
+                      setStagingCurrentPage(1);
+                    }}
+                    className={`flex-1 py-1 rounded-md font-medium text-center transition-colors text-[11px] ${
                       statusFilter === 'raw'
                         ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -882,8 +1030,11 @@ export function ProspectingPage() {
                     Staging
                   </button>
                   <button
-                    onClick={() => setStatusFilter('imported')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    onClick={() => {
+                      setStatusFilter('imported');
+                      setStagingCurrentPage(1);
+                    }}
+                    className={`flex-1 py-1 rounded-md font-medium text-center transition-colors text-[11px] ${
                       statusFilter === 'imported'
                         ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -893,45 +1044,37 @@ export function ProspectingPage() {
                   </button>
                 </div>
 
-                <button
-                  onClick={() => setFilterEmailOnly(!filterEmailOnly)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    filterEmailOnly
-                      ? 'bg-indigo-100 dark:bg-indigo-600/30 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-500/50'
-                      : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Mail className="w-3.5 h-3.5 inline mr-1" /> Apenas com E-mail
-                </button>
+                {/* Toggles */}
+                <div className="lg:col-span-3 flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setFilterEmailOnly(!filterEmailOnly);
+                      setStagingCurrentPage(1);
+                    }}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border text-center transition-colors ${
+                      filterEmailOnly
+                        ? 'bg-indigo-100 dark:bg-indigo-600/30 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-500/50 font-bold'
+                        : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50'
+                    }`}
+                  >
+                    <Mail className="w-3 h-3 inline mr-1" /> E-mail
+                  </button>
 
-                <button
-                  onClick={() => setFilterCorporateDomainOnly(!filterCorporateDomainOnly)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    filterCorporateDomainOnly
-                      ? 'bg-emerald-100 dark:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50'
-                      : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                  title="Filtrar apenas e-mails de domínio próprio corporativo (@empresa.es), ocultando Gmail/Hotmail"
-                >
-                  <Building2 className="w-3.5 h-3.5 inline mr-1 text-emerald-500" /> Domínio Próprio (@empresa.es)
-                </button>
-
-                <button
-                  onClick={handleSelectAllVerified}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                  title="Selecionar todos os e-mails qualificados da lista atual para importação"
-                >
-                  <CheckSquare className="w-3.5 h-3.5 inline mr-1 text-blue-500" />
-                  Sel. Todos E-mails ({filteredResults.filter((r) => r.email).length})
-                </button>
-
-                <button
-                  onClick={handleOpenImportModal}
-                  disabled={selectedResultIds.length === 0 || importResultsMutation.isPending}
-                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-md transition-all"
-                >
-                  <Download className="w-4 h-4" /> Importar ({selectedResultIds.length}) para CRM
-                </button>
+                  <button
+                    onClick={() => {
+                      setFilterCorporateDomainOnly(!filterCorporateDomainOnly);
+                      setStagingCurrentPage(1);
+                    }}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border text-center transition-colors ${
+                      filterCorporateDomainOnly
+                        ? 'bg-emerald-100 dark:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/50 font-bold'
+                        : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/50'
+                    }`}
+                    title="Apenas e-mails corporativos de domínio próprio"
+                  >
+                    <Building2 className="w-3 h-3 inline mr-1 text-emerald-500" /> Domínio
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -942,134 +1085,189 @@ export function ProspectingPage() {
               </div>
             ) : filteredResults.length === 0 ? (
               <div className="py-16 text-center text-slate-500 dark:text-slate-400 text-sm border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
-                {t('comercial.prospector.noResults', 'Nenhum lead capturado para a missão selecionada.')}
+                Nenhum lead encontrado com os filtros selecionados.
               </div>
             ) : (
-              <div className="max-h-[620px] overflow-y-auto overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-inner custom-scrollbar">
-                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/95 backdrop-blur-md text-slate-600 dark:text-slate-300 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200 dark:border-slate-700/80 z-10 shadow-sm">
-                    <tr>
-                      <th className="p-3 w-8">
-                        <input
-                          type="checkbox"
-                          checked={selectedResultIds.length === filteredResults.length && filteredResults.length > 0}
-                          onChange={handleToggleSelectAll}
-                          className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500"
-                        />
-                      </th>
-                      <th className="p-3">{t('comercial.prospector.colCompany', 'Empresa')}</th>
-                      <th className="p-3">{t('comercial.prospector.colEmail', 'E-mail Corporativo')}</th>
-                      <th className="p-3">{t('comercial.prospector.colPhone', 'Telefone')}</th>
-                      <th className="p-3">{t('comercial.prospector.colWebSocial', 'Website & Redes')}</th>
-                      <th className="p-3">{t('comercial.prospector.colLocation', 'Localidade')}</th>
-                      <th className="p-3 text-center">{t('comercial.prospector.colStatus', 'Status')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50">
-                    {filteredResults.map((item) => {
-                      const isSelected = selectedResultIds.includes(item.id);
-                      const isImported = item.status === 'imported';
+              <div className="space-y-3">
+                <div className="max-h-[580px] overflow-y-auto overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-inner custom-scrollbar">
+                  <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/95 backdrop-blur-md text-slate-600 dark:text-slate-300 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200 dark:border-slate-700/80 z-10 shadow-sm">
+                      <tr>
+                        <th className="p-3 w-8">
+                          <input
+                            type="checkbox"
+                            checked={
+                              paginatedResults.length > 0 &&
+                              paginatedResults.every((r) => selectedResultIds.includes(r.id))
+                            }
+                            onChange={handleToggleSelectAll}
+                            className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            title="Selecionar/desmarcar todos da página atual"
+                          />
+                        </th>
+                        <th className="p-3">{t('comercial.prospector.colCompany', 'Empresa')}</th>
+                        <th className="p-3">{t('comercial.prospector.colEmail', 'E-mail Corporativo')}</th>
+                        <th className="p-3">{t('comercial.prospector.colPhone', 'Telefone')}</th>
+                        <th className="p-3">{t('comercial.prospector.colWebSocial', 'Website & Redes')}</th>
+                        <th className="p-3">{t('comercial.prospector.colLocation', 'Localidade & País')}</th>
+                        <th className="p-3 text-center">{t('comercial.prospector.colStatus', 'Status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50">
+                      {paginatedResults.map((item) => {
+                        const isSelected = selectedResultIds.includes(item.id);
+                        const isImported = item.status === 'imported';
+                        const countryCode = detectResultCountry(item);
+                        const countryInfo = countryLabels[countryCode] || countryLabels.ES;
 
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${
-                            isSelected ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''
-                          }`}
-                        >
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelectResult(item.id)}
-                              className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3">
-                            <div className="font-semibold text-slate-900 dark:text-white text-sm">{item.company_name}</div>
-                            {item.address && <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{item.address}</div>}
-                          </td>
-                          <td className="p-3">
-                            {item.email ? (
-                              <div className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/40">
-                                <Mail className="w-3.5 h-3.5" />
-                                <span>{item.email}</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">{t('comercial.prospector.notFound', 'Não encontrado')}</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            {item.phone ? (
-                              <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-                                <Phone className="w-3.5 h-3.5 text-slate-400" /> {item.phone}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">-</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5">
-                              {item.website ? (
-                                <a
-                                  href={ensureAbsoluteUrl(item.website)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
-                                  title={`Website Oficial: ${item.website}`}
-                                >
-                                  <Globe className="w-3.5 h-3.5" />
-                                </a>
-                              ) : null}
-
-                              {item.linkedin_url ? (
-                                <a
-                                  href={ensureAbsoluteUrl(item.linkedin_url)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
-                                  title={`LinkedIn: ${item.linkedin_url}`}
-                                >
-                                  <Linkedin className="w-3.5 h-3.5" />
-                                </a>
-                              ) : null}
-
-                              {item.instagram_url ? (
-                                <a
-                                  href={ensureAbsoluteUrl(item.instagram_url)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-pink-600 dark:text-pink-400 hover:text-pink-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
-                                  title={`Instagram: ${item.instagram_url}`}
-                                >
-                                  <Instagram className="w-3.5 h-3.5" />
-                                </a>
-                              ) : null}
-
-                              {!item.website && !item.linkedin_url && !item.instagram_url && (
-                                <span className="text-[11px] text-slate-400 italic">Sem links públicos</span>
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${
+                              isSelected ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''
+                            }`}
+                          >
+                            <td className="p-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectResult(item.id)}
+                                className="rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <div className="font-semibold text-slate-900 dark:text-white text-sm">{item.company_name}</div>
+                              {item.address && <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{item.address}</div>}
+                            </td>
+                            <td className="p-3">
+                              {item.email ? (
+                                <div className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/40">
+                                  <Mail className="w-3.5 h-3.5" />
+                                  <span>{item.email}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">{t('comercial.prospector.notFound', 'Não encontrado')}</span>
                               )}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <span className="text-slate-700 dark:text-slate-300">{item.city || item.province}</span>
-                          </td>
-                          <td className="p-3 text-center">
-                            {isImported ? (
-                              <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-500/30">
-                                <CheckCircle2 className="w-3 h-3" /> {t('comercial.prospector.statusCrm', 'CRM')}
-                              </span>
-                            ) : (
-                              <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                                {t('comercial.prospector.statusStaging', 'Staging')}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="p-3">
+                              {item.phone ? (
+                                <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                                  <Phone className="w-3.5 h-3.5 text-slate-400" /> {item.phone}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5">
+                                {item.website ? (
+                                  <a
+                                    href={ensureAbsoluteUrl(item.website)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                    title={`Website Oficial: ${item.website}`}
+                                  >
+                                    <Globe className="w-3.5 h-3.5" />
+                                  </a>
+                                ) : null}
+
+                                {item.linkedin_url ? (
+                                  <a
+                                    href={ensureAbsoluteUrl(item.linkedin_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                    title={`LinkedIn: ${item.linkedin_url}`}
+                                  >
+                                    <Linkedin className="w-3.5 h-3.5" />
+                                  </a>
+                                ) : null}
+
+                                {item.instagram_url ? (
+                                  <a
+                                    href={ensureAbsoluteUrl(item.instagram_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-pink-600 dark:text-pink-400 hover:text-pink-500 p-1 bg-slate-100 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 transition-colors"
+                                    title={`Instagram: ${item.instagram_url}`}
+                                  >
+                                    <Instagram className="w-3.5 h-3.5" />
+                                  </a>
+                                ) : null}
+
+                                {!item.website && !item.linkedin_url && !item.instagram_url && (
+                                  <span className="text-[11px] text-slate-400 italic">Sem links públicos</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                  <span>{countryInfo.flag}</span>
+                                  <span>{countryCode}</span>
+                                </span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">
+                                  {item.city || item.province || countryInfo.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-center">
+                              {isImported ? (
+                                <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-500/30">
+                                  <CheckCircle2 className="w-3 h-3" /> {t('comercial.prospector.statusCrm', 'CRM')}
+                                </span>
+                              ) : (
+                                <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                  {t('comercial.prospector.statusStaging', 'Staging')}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 pt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <div>
+                    Mostrando{' '}
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {(stagingCurrentPage - 1) * stagingPageSize + 1}
+                    </span>{' '}
+                    a{' '}
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {Math.min(stagingCurrentPage * stagingPageSize, filteredResults.length)}
+                    </span>{' '}
+                    de{' '}
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {filteredResults.length}
+                    </span>{' '}
+                    leads
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setStagingCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={stagingCurrentPage === 1}
+                      className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded font-semibold transition-colors"
+                    >
+                      Anterior
+                    </button>
+                    <span className="px-2 font-bold text-slate-900 dark:text-white">
+                      Pág. {stagingCurrentPage} de {totalStagingPages}
+                    </span>
+                    <button
+                      onClick={() => setStagingCurrentPage((p) => Math.min(totalStagingPages, p + 1))}
+                      disabled={stagingCurrentPage >= totalStagingPages}
+                      className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded font-semibold transition-colors"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1168,17 +1366,38 @@ export function ProspectingPage() {
 
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    {t('comercial.prospector.modalLocationLabel', 'Cidade / Região *')}
+                    País de Busca *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="ex: Madrid, Valencia, Catalunya"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <select
+                    value={missionCountry}
+                    onChange={(e) => setMissionCountry(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  >
+                    <option value="ES">🇪🇸 Espanha</option>
+                    <option value="PT">🇵🇹 Portugal</option>
+                    <option value="FR">🇫🇷 França</option>
+                    <option value="DE">🇩🇪 Alemanha</option>
+                    <option value="IT">🇮🇹 Itália</option>
+                    <option value="NL">🇳🇱 Holanda</option>
+                    <option value="BE">🇧🇪 Bélgica</option>
+                    <option value="GB">🇬🇧 Reino Unido</option>
+                    <option value="OTHER">🌍 Outro País</option>
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                  {t('comercial.prospector.modalLocationLabel', 'Cidade / Região / Província *')}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Madrid, Valencia, Catalunya, Porto, Lisboa..."
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1293,24 +1512,48 @@ export function ProspectingPage() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor / Classificação Comercial *
-                  </label>
-                  <select
-                    disabled={importResultsMutation.isPending}
-                    value={importSector}
-                    onChange={(e) => setImportSector(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer text-xs font-medium"
-                  >
-                    <option value="Construção & Reparação Naval">🚢 Construção & Reparação Naval</option>
-                    <option value="Calderería & Tubería Industrial">🏗️ Calderería & Tubería Industrial</option>
-                    <option value="Estructuras Metálicas & Montajes">⚙️ Estructuras Metálicas & Montajes</option>
-                    <option value="Industria Química & Petroquímica">🧪 Industria Química & Petroquímica</option>
-                    <option value="Ingeniería & Contratistas EPC">📐 Ingeniería & Contratistas EPC</option>
-                    <option value="Construcción & Obras">🧱 Construcción & Obras</option>
-                    <option value="Industrial Geral">🏬 Industrial Geral</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-yellow-500" /> Setor Comercial *
+                    </label>
+                    <select
+                      disabled={importResultsMutation.isPending}
+                      value={importSector}
+                      onChange={(e) => setImportSector(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer text-xs font-medium"
+                    >
+                      <option value="Construção & Reparação Naval">🚢 Construção & Reparação Naval</option>
+                      <option value="Calderería & Tubería Industrial">🏗️ Calderería & Tubería Industrial</option>
+                      <option value="Estructuras Metálicas & Montajes">⚙️ Estructuras Metálicas & Montajes</option>
+                      <option value="Industria Química & Petroquímica">🧪 Industria Química & Petroquímica</option>
+                      <option value="Ingeniería & Contratistas EPC">📐 Ingeniería & Contratistas EPC</option>
+                      <option value="Construcción & Obras">🧱 Construcción & Obras</option>
+                      <option value="Industrial Geral">🏬 Industrial Geral</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-500" /> País de Destino *
+                    </label>
+                    <select
+                      disabled={importResultsMutation.isPending}
+                      value={importCountry}
+                      onChange={(e) => setImportCountry(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer text-xs font-medium"
+                    >
+                      <option value="ES">🇪🇸 Espanha</option>
+                      <option value="PT">🇵🇹 Portugal</option>
+                      <option value="FR">🇫🇷 França</option>
+                      <option value="DE">🇩🇪 Alemanha</option>
+                      <option value="IT">🇮🇹 Itália</option>
+                      <option value="NL">🇳🇱 Holanda</option>
+                      <option value="BE">🇧🇪 Bélgica</option>
+                      <option value="GB">🇬🇧 Reino Unido</option>
+                      <option value="OTHER">🌍 Outros</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>

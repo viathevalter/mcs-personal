@@ -119,26 +119,21 @@ export class ProspectingService {
       : '';
 
     try {
-      const prompt = `Act as a real-time web crawler, search engine proxy, and business contact verifier for B2B leads in Spain.
-Search for ${count} REAL active companies in Spain matching core business activity: "${cleanKeywords}" strictly located anywhere within the region/province of "${location}" (including all its cities, towns, and industrial parks).
+      const prompt = `Act as an expert B2B lead researcher accessing real public records, Google Maps Places, eInforma, Empresite, and official Spanish Trade Registries (Registro Mercantil).
+Search for ${count} REAL, ACTIVE, EXISTING industrial companies operating in "${location}" matching core business activity: "${cleanKeywords}".
 
-CRITICAL INSTRUCTIONS:
-1. ${sourceInstructions}
-2. ${emailInstruction}
-3. EXPANDED METROPOLITAN & INDUSTRIAL BELT COVERAGE: Include companies physically located ANYWHERE in the metropolitan area, industrial belt (polígonos industriales), and full region/province of "${location}".
-   - If location is "Barcelona", "Catalunya" or near Vallès, include companies in Sabadell, Terrassa, Badalona, Granollers, Rubí, Sant Cugat, Barberà del Vallès, Cornellà, Martorell, Hospitalet, and all Vallès/Baix Llobregat industrial parks.
-   - If location is "Navarra" or "Pamplona", include Pamplona, Tudela, Barañain, Burlada, Estella, Tafalla, Ansoáin, Villava, Landaben, Agustinos, Noáin, etc.
-   - If location is "Madrid", include Getafe, Leganés, Fuenlabrada, Alcalá de Henares, Móstoles, Alcobendas, Coslada, etc.
-   - DO NOT limit results to central city limits; crawl the entire industrial belt and surrounding towns of "${location}".
-4. DO NOT REQUIRE THE COMPANY TRADE NAME TO CONTAIN THE WORD "${cleanLocation}". The company MUST operate in "${cleanKeywords}", but its trade name does NOT need to have "${cleanLocation}" in it (e.g. "Talleres Calderería Industrial S.L." is a valid match).
-5. HIGH-QUALITY DIRECT EMAILS: Prioritize direct departmental or decision-maker emails published on their web pages (such as gerencia@, direccion@, comercial@, compras@, presupuestos@, calidad@, tecnico@, or named contact emails like j.perez@domain.es). Only fallback to info@ or contacto@ if no direct departmental email is listed.
-6. STRICT WEBSITE VERIFICATION & NO DOMAIN GUESSING: NEVER guess or construct a website URL by combining "www." + email domain (e.g. if email is "gerencia@caldereriairati.es", DO NOT guess "https://www.caldereriairati.es"). Many industrial companies in Spain use custom domain emails for Outlook/Google Workspace without running an active public website. ONLY set "website" to a URL if the company HAS an active, verified public website listed on Google Maps or official business registries. Otherwise set "website" strictly to null.
-7. DO NOT invent fake domains or placeholders.${excludeInstruction}
+CRITICAL GROUNDING RULES (NO HALLUCINATIONS):
+1. Return ONLY real companies that ACTUALLY exist in the real world and can be found by exact name on Google Search, eInforma, Axesor, or Google Maps.
+2. The "company_name" MUST be the exact real trade name or legal name (Razón Social) as registered in Spain (e.g. "Viguesa de Calderería S.A.", "Astilleros Armada S.A.", "Nodosa Shipyard", "Cardama Shipyard", "Freire Shipyard", "Vicalsa S.A.").
+3. DO NOT invent or combine generic names like "Calderería Técnica Vigo S.A." if they do not exist.
+4. "website" MUST be the actual real URL of the company (e.g. "https://www.vicalsa.com", "https://www.armon.es") or null if no public site exists.
+5. "email" MUST be an active corporate email address of that exact company.
+6. EXPANDED COVERAGE: Include companies physically located anywhere in the metropolitan industrial belt of "${location}".${excludeInstruction}
 
-Return ONLY a valid JSON array of objects with the exact schema below, with no markdown codeblocks, no explanations, no commentary:
+Return ONLY a valid JSON array of objects with the exact schema below:
 [
   {
-    "company_name": "Exact Legal or Trade Name",
+    "company_name": "Exact Real Legal/Trade Name",
     "website": "https://www.realcompany.es" or null,
     "phone": "+34 976 123 456" or null,
     "address": "Calle Example 123, Polígono Industrial" or null,
