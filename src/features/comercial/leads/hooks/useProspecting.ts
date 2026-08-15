@@ -36,9 +36,10 @@ export function useProspectingResults(jobId?: string | null) {
         .schema('core_comercial')
         .from('lead_prospecting_results')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50000);
 
-      if (jobId) {
+      if (jobId && jobId !== 'all') {
         query = query.eq('job_id', jobId);
       }
 
@@ -47,7 +48,7 @@ export function useProspectingResults(jobId?: string | null) {
       return (data || []) as LeadProspectingResult[];
     },
     enabled: Boolean(selectedEmpresaId),
-    refetchInterval: 3000,
+    refetchInterval: 5000,
   });
 }
 

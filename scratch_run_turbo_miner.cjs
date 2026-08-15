@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 
 const AISA_BASE_URL = 'https://api.aisa.one/v1';
-const DEFAULT_AISA_API_KEY = 'sk-aisa-32b00aa7-7cfa-4682-9ed8-ea8ffb9ffce6';
+const DEFAULT_AISA_API_KEY = 'sk-aisa-yBrchxWrx7IAi8832rVsYN_I2znI4rjACKQ9gQFKGN8';
 const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
 function sanitizeEmail(email) {
