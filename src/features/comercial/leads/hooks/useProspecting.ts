@@ -10,12 +10,11 @@ export function useProspectingJobs() {
   return useQuery({
     queryKey: ['prospecting-jobs', selectedEmpresaId],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
+      // Query all shared prospecting jobs globally to avoid duplicate searches across companies
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -32,12 +31,11 @@ export function useProspectingResults(jobId?: string | null) {
   return useQuery({
     queryKey: ['prospecting-results', jobId, selectedEmpresaId],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
+      // Query all shared staging results globally so leads are available to all companies
       let query = supabase
         .schema('core_comercial')
         .from('lead_prospecting_results')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
 
       if (jobId) {
