@@ -218,6 +218,8 @@ export class ProspectingService {
         ALL_SPANISH_PROVINCES[baseIdx % ALL_SPANISH_PROVINCES.length],
         ALL_SPANISH_PROVINCES[(baseIdx + 1) % ALL_SPANISH_PROVINCES.length],
         ALL_SPANISH_PROVINCES[(baseIdx + 2) % ALL_SPANISH_PROVINCES.length],
+        ALL_SPANISH_PROVINCES[(baseIdx + 3) % ALL_SPANISH_PROVINCES.length],
+        ALL_SPANISH_PROVINCES[(baseIdx + 4) % ALL_SPANISH_PROVINCES.length],
       ];
     } else {
       targetProvinces = [cleanLocation];
