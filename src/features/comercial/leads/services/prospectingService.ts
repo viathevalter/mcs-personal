@@ -128,6 +128,41 @@ export class ProspectingService {
     let cleanKeywords = keywords.replace(new RegExp(cleanLocation, 'gi'), '').trim();
     if (!cleanKeywords) cleanKeywords = keywords;
 
+    const ALL_SPANISH_PROVINCES = [
+      'Vizcaya (Bilbao y Barakaldo)',
+      'Guipúzcoa (San Sebastián y Zumaia)',
+      'Álava (Vitoria-Gasteiz)',
+      'Pontevedra (Vigo y Marín)',
+      'A Coruña (Ferrol y Coirós)',
+      'Asturias (Gijón, Avilés y Oviedo)',
+      'Cantabria (Santander y Torrelavega)',
+      'Barcelona (Granollers, Sabadell y Vallès)',
+      'Tarragona y Reus',
+      'Madrid (Coslada, Alcalá y Getafe)',
+      'Cádiz (Puerto Real y Algeciras)',
+      'Sevilla y Alcalá de Guadaíra',
+      'Huelva',
+      'Valencia y Sagunto',
+      'Castellón',
+      'Alicante',
+      'Zaragoza',
+      'Murcia y Cartagena',
+      'Navarra (Pamplona)',
+      'Valladolid',
+      'Burgos',
+      'Córdoba (Lucena)',
+      'Ciudad Real (Puertollano)',
+      'Toledo',
+      'Jaén'
+    ];
+
+    // If national search or broad location, cycle through Spanish industrial provinces per batch
+    let targetProvince = cleanLocation;
+    if (!cleanLocation || cleanLocation.toLowerCase() === 'espanha' || cleanLocation.toLowerCase() === 'es' || cleanLocation.toLowerCase() === 'nacional') {
+      const cycleIdx = Math.floor(excludedCompanyNames.length / 5) % ALL_SPANISH_PROVINCES.length;
+      targetProvince = ALL_SPANISH_PROVINCES[cycleIdx];
+    }
+
     const excludedListStr = excludedCompanyNames.length > 0
       ? excludedCompanyNames.slice(-30).join(', ')
       : '';
@@ -136,19 +171,19 @@ export class ProspectingService {
       : '';
 
     try {
-      const prompt = `Search official Spanish Trade Registries (Registro Mercantil, eInforma, Empresite) and Google Maps for ${count} REAL, REGISTERED, EXISTING companies in "${cleanLocation}", Spain in sector: "${cleanKeywords}".
-RULE: Every company MUST have an existing corporate domain and verified email. Do not invent company names. If no real company exists in this location, return an empty array [].${excludeInstruction}
+      const prompt = `Provide ${count} established, real, registered industrial companies operating in "${targetProvince}", Spain matching sector: "${cleanKeywords}".
+Only return valid, non-fictional corporate companies with their official website and primary contact email.${excludeInstruction}
 
-Return JSON array:
+Return JSON array only:
 [
   {
-    "company_name": "Real Company S.A. / S.L.",
-    "website": "https://www.realcompany.es",
+    "company_name": "Exact Legal/Trade Name",
+    "website": "https://www.company.es",
     "phone": "+34 9xx xxx xxx",
-    "address": "Real street, Polígono Industrial",
-    "city": "${cleanLocation}",
-    "province": "${cleanLocation}",
-    "email": "contacto@realcompany.es",
+    "address": "Calle...",
+    "city": "${targetProvince}",
+    "province": "${targetProvince}",
+    "email": "contacto@company.es",
     "sector": "${cleanKeywords}"
   }
 ]`;
@@ -164,14 +199,14 @@ Return JSON array:
           messages: [
             {
               role: 'system',
-              content: 'You are a Spanish industrial B2B registry assistant. Return ONLY verified real companies in valid JSON format.',
+              content: 'You are a Spanish industrial B2B registry assistant. Return ONLY a valid JSON array.',
             },
             {
               role: 'user',
               content: prompt,
             },
           ],
-          temperature: 0.0,
+          temperature: 0.2,
         }),
       });
 
@@ -421,10 +456,9 @@ Return JSON array:
     const totalCurrentResults = existingCount + recordsToInsert.length;
     const totalCurrentEmails = existingEmailsCount + foundEmailsCount;
     
-    // Auto-complete when email target is reached OR if no new uncaptured items can be found
+    // Auto-complete ONLY when target is reached
     const updatedMetric = isEmailTarget ? totalCurrentEmails : totalCurrentResults;
-    const noNewRecordsInserted = recordsToInsert.length === 0;
-    const isCompleted = updatedMetric >= job.target_count || scraped.length === 0 || (noNewRecordsInserted && existingCount > 0);
+    const isCompleted = updatedMetric >= job.target_count;
 
     await supabase
       .schema('core_comercial')
