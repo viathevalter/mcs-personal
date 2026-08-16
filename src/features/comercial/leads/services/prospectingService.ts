@@ -128,6 +128,58 @@ export class ProspectingService {
     let cleanKeywords = keywords.replace(new RegExp(cleanLocation, 'gi'), '').trim();
     if (!cleanKeywords) cleanKeywords = keywords;
 
+    // 1. Fetch any matching un-imported companies from the Master Spanish CNAE Database
+    try {
+      const { data: masterCompanies } = await supabase
+        .schema('core_comercial')
+        .from('empresas_espanha_cnae')
+        .select('*')
+        .limit(50);
+
+      if (masterCompanies && masterCompanies.length > 0) {
+        const matchingMaster = masterCompanies.filter((mc) => {
+          const nameNorm = mc.razao_social?.trim().toLowerCase();
+          const isExcluded = excludedCompanyNames.some(
+            (exc) => exc.toLowerCase().includes(nameNorm) || nameNorm.includes(exc.toLowerCase())
+          );
+          if (isExcluded) return false;
+
+          if (emailRequired && (!mc.email || mc.email_status === 'invalido')) return false;
+
+          const sectorMatch = !cleanKeywords ||
+            mc.setor?.toLowerCase().includes(cleanKeywords.toLowerCase()) ||
+            mc.cnae_descricao?.toLowerCase().includes(cleanKeywords.toLowerCase()) ||
+            cleanKeywords.toLowerCase().includes(mc.cnae_codigo);
+
+          return sectorMatch;
+        });
+
+        for (const mc of matchingMaster) {
+          if (catalogHits.length < count) {
+            catalogHits.push({
+              company_name: mc.razao_social,
+              website: mc.website || null,
+              phone: mc.telefone || null,
+              address: mc.endereco || null,
+              city: mc.municipio || mc.provincia || 'Espanha',
+              province: mc.provincia || 'Espanha',
+              email: mc.email || null,
+              linkedin_url: mc.linkedin_url || null,
+              instagram_url: null,
+              sector: mc.setor || mc.cnae_descricao || keywords,
+              confidence_score: 100,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading from empresas_espanha_cnae:', e);
+    }
+
+    if (catalogHits.length >= count) {
+      return catalogHits;
+    }
+
     const ALL_SPANISH_PROVINCES = [
       'Vizcaya (Bilbao y Barakaldo)',
       'Guipúzcoa (San Sebastián y Zumaia)',
@@ -277,7 +329,38 @@ Return JSON array only:
       );
 
       const verifiedResults = verifiedResultsList.filter((item): item is NonNullable<typeof item> => Boolean(item));
-      return verifiedResults;
+
+      // Asynchronously upsert newly discovered verified companies to master registry table
+      if (verifiedResults.length > 0) {
+        (async () => {
+          try {
+            for (const v of verifiedResults) {
+              await supabase
+                .schema('core_comercial')
+                .from('empresas_espanha_cnae')
+                .insert({
+                  razao_social: v.company_name,
+                  cnae_codigo: '2529',
+                  cnae_descricao: v.sector,
+                  setor: v.sector,
+                  provincia: v.province,
+                  municipio: v.city,
+                  endereco: v.address,
+                  website: v.website,
+                  email: v.email,
+                  email_status: 'verificado_mx',
+                  telefone: v.phone,
+                  status_enriquecimento: 'enriquecido',
+                  data_enriquecimento: new Date().toISOString(),
+                });
+            }
+          } catch {
+            // Ignore background sync errors
+          }
+        })();
+      }
+
+      return [...catalogHits, ...verifiedResults];
     } catch (err: any) {
       console.error('AIsa API Search error:', err.message);
       return [];
