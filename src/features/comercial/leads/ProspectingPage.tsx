@@ -1519,10 +1519,42 @@ export function ProspectingPage() {
                 </div>
               </div>
 
+              {/* Seletor Rápido de Setor / CNAE Oficial */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1.5 flex items-center justify-between">
+                  <span>🏢 Seleção por CNAE Industrial Oficial (Espanha)</span>
+                  <span className="text-[10px] text-blue-500 font-normal">Clique para auto-preencher</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-2">
+                  {[
+                    { label: '🚢 Naval (CNAE 3011)', kw: 'Astilleros, Construcción Naval, Reparación de buques, Calderería naval, Soldadores 6G', titlePref: '🚢 Astilleros y Reparación Naval' },
+                    { label: '🏗️ Calderería (CNAE 2529)', kw: 'Calderería pesada, Depósitos a presión, Tubería industrial, Soldadura TIG MIG', titlePref: '🏗️ Calderería Pesada y Tubería' },
+                    { label: '⚙️ Estructuras (CNAE 2511)', kw: 'Fabricación de estructuras metálicas, Carpintería metálica, Siderurgia, Naves industriales', titlePref: '⚙️ Estructuras Metálicas y Talleres' },
+                    { label: '🧪 Química (CNAE 2011)', kw: 'Plantas petroquímicas, Refinerías, Paradas de planta, Tubería de alta presión', titlePref: '🧪 Petroquímica y Refinarias' },
+                    { label: '📐 Engenharia EPC (CNAE 7112)', kw: 'Contratistas EPC, Montajes industriales, Mantenimiento mecánico, Plantas industriales', titlePref: '📐 Engenharia EPC e Montagens' },
+                    { label: '🧱 Construção (CNAE 4120)', kw: 'Construcción industrial, Obra civil pesada, Estructuras de hormigón y metal', titlePref: '🧱 Construção Industrial e Obras' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setKeywords(preset.kw);
+                        if (!title || title.startsWith('🚢') || title.startsWith('🏗️') || title.startsWith('⚙️') || title.startsWith('🧪') || title.startsWith('📐') || title.startsWith('🧱')) {
+                          setTitle(`${preset.titlePref}${location ? ` - ${location}` : ''}`);
+                        }
+                      }}
+                      className="text-left px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 hover:border-blue-500 hover:text-blue-500 dark:hover:text-blue-400 text-[11px] font-medium transition-all"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    {t('comercial.prospector.modalKeywordsLabel', 'Palavras-chave / Segmento *')}
+                    {t('comercial.prospector.modalKeywordsLabel', 'Palavras-chave / Segmento / CNAE *')}
                   </label>
                   <input
                     type="text"
@@ -1555,6 +1587,45 @@ export function ProspectingPage() {
                   </select>
                 </div>
               </div>
+
+              {/* Seletor Rápido de Províncias da Espanha */}
+              {missionCountry === 'ES' && (
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1.5 flex items-center justify-between">
+                    <span>📍 Províncias / Pólos Industriais</span>
+                    <span className="text-[10px] text-blue-500 font-normal">Clique para selecionar polo</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {[
+                      { name: 'País Vasco', loc: 'Bilbao, Zamudio, Barakaldo, Vitoria (País Vasco)' },
+                      { name: 'Galicia', loc: 'Vigo, Ferrol, A Coruña, Pontevedra (Galicia)' },
+                      { name: 'Asturias', loc: 'Gijón, Avilés, Oviedo (Asturias)' },
+                      { name: 'Cantabria', loc: 'Santander, Torrelavega (Cantabria)' },
+                      { name: 'Andalucía', loc: 'Cádiz, Puerto Real, Huelva, Sevilla (Andalucía)' },
+                      { name: 'Cataluña', loc: 'Barcelona, Tarragona, Granollers (Cataluña)' },
+                      { name: 'Madrid', loc: 'Madrid, Coslada, Getafe, Alcalá (Madrid)' },
+                      { name: 'Valencia', loc: 'Valencia, Sagunto, Castellón (Com. Valenciana)' },
+                      { name: 'Murcia / Cartagena', loc: 'Cartagena, Murcia (Región de Murcia)' },
+                      { name: 'Toda a Espanha', loc: 'Espanha (Nacional)' },
+                    ].map((prov) => (
+                      <button
+                        key={prov.name}
+                        type="button"
+                        onClick={() => {
+                          setLocation(prov.loc);
+                          if (title && (title.includes(' - ') || title.startsWith('🚢') || title.startsWith('🏗️') || title.startsWith('⚙️') || title.startsWith('🧪') || title.startsWith('📐') || title.startsWith('🧱'))) {
+                            const prefix = title.split(' - ')[0];
+                            setTitle(`${prefix} - ${prov.name}`);
+                          }
+                        }}
+                        className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-[10px] font-medium transition-all"
+                      >
+                        {prov.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
