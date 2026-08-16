@@ -235,16 +235,17 @@ export class ProspectingService {
     try {
       // Dispatch parallel multi-hub workers
       const hubPromises = targetProvinces.map(async (provinceName) => {
-        const prompt = `Provide 15 established, real, registered industrial companies operating in "${provinceName}", Spain matching sector: "${cleanKeywords}".
-Only return valid, non-fictional corporate companies with their official website and primary contact email.${excludeInstruction}
+        const prompt = `Provide 20 real, active small/medium industrial workshops and fabricators (Pymes / Talleres de calderería, tubería industrial, cerrajería pesada, soldadura TIG/MIG, montajes mecánicos y mecanizado) located in polígonos industriales across "${provinceName}", Spain matching: "${cleanKeywords}".
+Target medium and small workshops (10 to 50 workers) situated in industrial estates (Polígonos Industriales) that subcontract welders, fitters, and tuberos.
+Only return valid, non-fictional registered companies with their official website and primary contact email.${excludeInstruction}
 
 Return JSON array only:
 [
   {
-    "company_name": "Exact Legal/Trade Name",
+    "company_name": "Exact Legal/Trade Name S.L. / S.A.",
     "website": "https://www.company.es",
     "phone": "+34 9xx xxx xxx",
-    "address": "Calle...",
+    "address": "Polígono Industrial...",
     "city": "${provinceName}",
     "province": "${provinceName}",
     "email": "contacto@company.es",
