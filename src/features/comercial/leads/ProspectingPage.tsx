@@ -158,8 +158,9 @@ export function ProspectingPage() {
         });
       }
 
-      // Pick next job that is pending or processing BUT has NOT reached target count yet
-      const nextPendingJob = jobs.find(
+      // Pick next job that is pending or processing BUT has NOT reached target count yet (in strict chronological order)
+      const sortedJobs = [...jobs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const nextPendingJob = sortedJobs.find(
         (j) =>
           (j.status === 'processing' || j.status === 'pending') &&
           j.processed_count < j.target_count - 5 &&
@@ -204,14 +205,8 @@ export function ProspectingPage() {
     const isEmailTargetInitial = job.email_required ?? true;
     const initialMetric = isEmailTargetInitial ? job.found_emails_count : job.processed_count;
 
-    // If job already reached target (or within 5 leads, e.g. 499 of 500), mark as completed immediately and advance
-    if (initialMetric >= job.target_count - 5) {
-      await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'completed' });
-      addLog(`Missão "${job.title}" atingiu a meta (${initialMetric}/${job.target_count} leads) e foi concluída.`, 'success');
-      isLoopRunningRef.current = false;
-      setIsProcessingLoop(false);
-      return;
-    }
+    setActiveJob(job);
+    setSelectedJobId(job.id);
 
     addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
 
@@ -242,7 +237,7 @@ export function ProspectingPage() {
 
         const stepResult = await ProspectingService.processJobStep(currentJob, 25);
 
-        if (stepResult.processed === 0) {
+        if (stepResult.processed <= 1) {
           consecutiveEmptyBatches++;
         } else {
           consecutiveEmptyBatches = 0;
@@ -253,7 +248,7 @@ export function ProspectingPage() {
           stepResult.processed > 0 ? 'success' : 'warn'
         );
 
-        if (stepResult.completed || (consecutiveEmptyBatches >= 2 && currentMetric > 0)) {
+        if (stepResult.completed || (consecutiveEmptyBatches >= 2 && currentMetric >= 30)) {
           await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
           addLog(
             `Missão "${currentJob.title}" concluída com saturação máxima (${currentMetric} empresas reais verificadas). Avançando para a próxima da fila...`,

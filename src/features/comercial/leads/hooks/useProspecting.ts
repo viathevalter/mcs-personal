@@ -15,7 +15,7 @@ export function useProspectingJobs() {
         .schema('core_comercial')
         .from('lead_prospecting_jobs')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       return (data || []) as LeadProspectingJob[];
