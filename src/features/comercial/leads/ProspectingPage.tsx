@@ -220,6 +220,7 @@ export function ProspectingPage() {
 
       let currentJob = job;
       let shouldContinue = true;
+      let consecutiveEmptyBatches = 0;
 
       while (isLoopRunningRef.current && shouldContinue) {
         const isEmailTarget = currentJob.email_required ?? true;
@@ -241,14 +242,23 @@ export function ProspectingPage() {
 
         const stepResult = await ProspectingService.processJobStep(currentJob, 25);
 
+        if (stepResult.processed === 0) {
+          consecutiveEmptyBatches++;
+        } else {
+          consecutiveEmptyBatches = 0;
+        }
+
         addLog(
-          `[Sucesso Lote] Extraídas ${stepResult.processed} empresas (${stepResult.foundEmails} com e-mail corporativo).`,
-          'success'
+          `[Sucesso Lote] Extraídas ${stepResult.processed} novas empresas (${stepResult.foundEmails} com e-mail corporativo).`,
+          stepResult.processed > 0 ? 'success' : 'warn'
         );
 
-        if (stepResult.completed) {
+        if (stepResult.completed || (consecutiveEmptyBatches >= 2 && currentMetric > 0)) {
           await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
-          addLog(`Missão "${currentJob.title}" concluída com sucesso!`, 'success');
+          addLog(
+            `Missão "${currentJob.title}" concluída com saturação máxima (${currentMetric} empresas reais verificadas). Avançando para a próxima da fila...`,
+            'success'
+          );
           shouldContinue = false;
           break;
         }
