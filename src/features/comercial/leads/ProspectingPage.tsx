@@ -42,7 +42,7 @@ import {
   useClearEmpresaProspectingJobs,
   useImportResults,
 } from './hooks/useProspecting';
-import { ProspectingService } from './services/prospectingService';
+import { ProspectingService, normalizeSectorName } from './services/prospectingService';
 import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from './types/prospectingTypes';
 import { supabase } from '@/shared/supabase/client';
 
