@@ -156,11 +156,19 @@ export class ProspectingService {
       'Jaén'
     ];
 
-    // If national search or broad location, cycle through Spanish industrial provinces per batch
-    let targetProvince = cleanLocation;
-    if (!cleanLocation || cleanLocation.toLowerCase() === 'espanha' || cleanLocation.toLowerCase() === 'es' || cleanLocation.toLowerCase() === 'nacional') {
-      const cycleIdx = Math.floor(excludedCompanyNames.length / 5) % ALL_SPANISH_PROVINCES.length;
-      targetProvince = ALL_SPANISH_PROVINCES[cycleIdx];
+    // If national search or broad location, cycle through multiple Spanish industrial provinces in parallel
+    const isNational = !cleanLocation || cleanLocation.toLowerCase() === 'espanha' || cleanLocation.toLowerCase() === 'es' || cleanLocation.toLowerCase() === 'nacional';
+    
+    let targetProvinces: string[] = [];
+    if (isNational) {
+      const baseIdx = Math.floor(excludedCompanyNames.length / 5);
+      targetProvinces = [
+        ALL_SPANISH_PROVINCES[baseIdx % ALL_SPANISH_PROVINCES.length],
+        ALL_SPANISH_PROVINCES[(baseIdx + 1) % ALL_SPANISH_PROVINCES.length],
+        ALL_SPANISH_PROVINCES[(baseIdx + 2) % ALL_SPANISH_PROVINCES.length],
+      ];
+    } else {
+      targetProvinces = [cleanLocation];
     }
 
     const excludedListStr = excludedCompanyNames.length > 0
@@ -171,7 +179,9 @@ export class ProspectingService {
       : '';
 
     try {
-      const prompt = `Provide ${count} established, real, registered industrial companies operating in "${targetProvince}", Spain matching sector: "${cleanKeywords}".
+      // Dispatch parallel multi-hub workers
+      const hubPromises = targetProvinces.map(async (provinceName) => {
+        const prompt = `Provide 15 established, real, registered industrial companies operating in "${provinceName}", Spain matching sector: "${cleanKeywords}".
 Only return valid, non-fictional corporate companies with their official website and primary contact email.${excludeInstruction}
 
 Return JSON array only:
@@ -181,43 +191,57 @@ Return JSON array only:
     "website": "https://www.company.es",
     "phone": "+34 9xx xxx xxx",
     "address": "Calle...",
-    "city": "${targetProvince}",
-    "province": "${targetProvince}",
+    "city": "${provinceName}",
+    "province": "${provinceName}",
     "email": "contacto@company.es",
     "sector": "${cleanKeywords}"
   }
 ]`;
 
-      const response = await fetch(`${AISA_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a Spanish industrial B2B registry assistant. Return ONLY a valid JSON array.',
+        try {
+          const res = await fetch(`${AISA_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
             },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.2,
-        }),
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a Spanish industrial B2B registry assistant. Return ONLY a valid JSON array.',
+                },
+                {
+                  role: 'user',
+                  content: prompt,
+                },
+              ],
+              temperature: 0.25,
+            }),
+          });
+
+          if (!res.ok) return [];
+          const json = await res.json();
+          const content = json.choices?.[0]?.message?.content || '[]';
+          const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
+          const items: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
+          return items.map((it) => ({
+            ...it,
+            city: it.city || provinceName,
+            province: it.province || provinceName,
+          }));
+        } catch {
+          return [];
+        }
       });
 
-      if (!response.ok) {
+      const hubResults = await Promise.all(hubPromises);
+      const rawResults = hubResults.flat();
+
+      if (rawResults.length === 0) {
         return catalogHits;
       }
-
-      const json = await response.json();
-      const content = json.choices?.[0]?.message?.content || '[]';
-      const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
-      const rawResults: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
 
       // Parallel concurrent verification for high speed & zero latency bottleneck
       const verifiedResultsList = await Promise.all(
@@ -241,8 +265,8 @@ Return JSON array only:
             website: validWebsite,
             phone: item.phone || null,
             address: item.address || null,
-            city: item.city || targetProvince,
-            province: item.province || targetProvince,
+            city: item.city,
+            province: item.province,
             email: validEmail,
             linkedin_url: validLinkedin,
             instagram_url: validInstagram,
