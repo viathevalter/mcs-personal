@@ -183,13 +183,16 @@ Return ONLY a valid JSON array of objects with the exact schema below:
       for (const item of rawResults) {
         const validEmail = this.sanitizeEmail(item.email);
         
-        let finalEmail = validEmail;
-        let confidenceScore = item.email ? 85 : 70;
+        // Strict DNS MX check: if email is required or provided, only keep if domain actually exists on the internet
+        if (emailRequired && !validEmail) {
+          continue;
+        }
 
         if (validEmail) {
           const hasMx = await ProspectingService.checkMxRecord(validEmail);
-          if (hasMx) {
-            confidenceScore = 95;
+          if (!hasMx) {
+            // Drop hallucinated / fake email domain immediately
+            continue;
           }
         }
 
@@ -205,11 +208,11 @@ Return ONLY a valid JSON array of objects with the exact schema below:
           address: item.address || null,
           city: item.city || location,
           province: item.province || location,
-          email: finalEmail,
+          email: validEmail,
           linkedin_url: validLinkedin,
           instagram_url: validInstagram,
           sector: item.sector || keywords,
-          confidence_score: confidenceScore,
+          confidence_score: 98,
         });
       }
 
