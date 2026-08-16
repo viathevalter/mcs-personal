@@ -219,43 +219,40 @@ Return JSON array only:
       const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
       const rawResults: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
 
-      const verifiedResults = [];
-      for (const item of rawResults) {
-        const validEmail = this.sanitizeEmail(item.email);
-        
-        // Strict DNS MX check: if email is required or provided, only keep if domain actually exists on the internet
-        if (emailRequired && !validEmail) {
-          continue;
-        }
+      // Parallel concurrent verification for high speed & zero latency bottleneck
+      const verifiedResultsList = await Promise.all(
+        rawResults.map(async (item) => {
+          const validEmail = this.sanitizeEmail(item.email);
+          if (emailRequired && !validEmail) return null;
 
-        if (validEmail) {
-          const hasMx = await ProspectingService.checkMxRecord(validEmail);
-          if (!hasMx) {
-            // Drop hallucinated / fake email domain immediately
-            continue;
+          if (validEmail) {
+            const hasMx = await ProspectingService.checkMxRecord(validEmail);
+            if (!hasMx) return null; // Drop invalid domain immediately
           }
-        }
 
-        // 2. Verify REAL Website DNS A-Record
-        const validWebsite = await ProspectingService.checkWebsiteLive(item.website);
-        const validLinkedin = this.sanitizeUrl(item.linkedin_url);
-        const validInstagram = this.sanitizeUrl(item.instagram_url);
+          const [validWebsite, validLinkedin, validInstagram] = await Promise.all([
+            ProspectingService.checkWebsiteLive(item.website),
+            Promise.resolve(this.sanitizeUrl(item.linkedin_url)),
+            Promise.resolve(this.sanitizeUrl(item.instagram_url)),
+          ]);
 
-        verifiedResults.push({
-          company_name: item.company_name,
-          website: validWebsite,
-          phone: item.phone || null,
-          address: item.address || null,
-          city: item.city || location,
-          province: item.province || location,
-          email: validEmail,
-          linkedin_url: validLinkedin,
-          instagram_url: validInstagram,
-          sector: item.sector || keywords,
-          confidence_score: 98,
-        });
-      }
+          return {
+            company_name: item.company_name,
+            website: validWebsite,
+            phone: item.phone || null,
+            address: item.address || null,
+            city: item.city || targetProvince,
+            province: item.province || targetProvince,
+            email: validEmail,
+            linkedin_url: validLinkedin,
+            instagram_url: validInstagram,
+            sector: item.sector || keywords,
+            confidence_score: 98,
+          };
+        })
+      );
 
+      const verifiedResults = verifiedResultsList.filter((item): item is NonNullable<typeof item> => Boolean(item));
       return verifiedResults;
     } catch (err: any) {
       console.error('AIsa API Search error:', err.message);
