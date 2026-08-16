@@ -364,8 +364,44 @@ export function ProspectingPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
   const [stagingSearchTerm, setStagingSearchTerm] = useState('');
   const [stagingCountryFilter, setStagingCountryFilter] = useState<string>('all');
+  const [stagingSectorFilter, setStagingSectorFilter] = useState<string>('all');
   const [stagingCurrentPage, setStagingCurrentPage] = useState<number>(1);
   const [stagingPageSize, setStagingPageSize] = useState<number>(50);
+
+  const jobMap = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs]);
+
+  const detectResultSector = useCallback(
+    (item: LeadProspectingResult) => {
+      const job = jobMap.get(item.job_id);
+      const text = `${job?.sector_filter || ''} ${job?.keywords || ''} ${job?.title || ''} ${item.company_name || ''}`;
+      return normalizeSectorName(text);
+    },
+    [jobMap]
+  );
+
+  const stagingSectorCounts = useMemo(() => {
+    const counts = {
+      total: results.length,
+      naval: 0,
+      caldereria: 0,
+      estructuras: 0,
+      quimica: 0,
+      epc: 0,
+      construccion: 0,
+      geral: 0,
+    };
+    results.forEach((r) => {
+      const sec = detectResultSector(r);
+      if (sec === 'Construção & Reparação Naval') counts.naval++;
+      else if (sec === 'Calderería & Tubería Industrial') counts.caldereria++;
+      else if (sec === 'Estructuras Metálicas & Montajes') counts.estructuras++;
+      else if (sec === 'Industria Química & Petroquímica') counts.quimica++;
+      else if (sec === 'Ingeniería & Contratistas EPC') counts.epc++;
+      else if (sec === 'Construcción & Obras') counts.construccion++;
+      else counts.geral++;
+    });
+    return counts;
+  }, [results, detectResultSector]);
 
   const detectResultCountry = (item: LeadProspectingResult) => {
     if (item.country) {
@@ -429,6 +465,7 @@ export function ProspectingPage() {
     if (statusFilter === 'raw' && r.status !== 'raw') return false;
     if (statusFilter === 'imported' && r.status !== 'imported') return false;
     if (stagingCountryFilter !== 'all' && detectResultCountry(r) !== stagingCountryFilter) return false;
+    if (stagingSectorFilter !== 'all' && detectResultSector(r) !== stagingSectorFilter) return false;
     if (stagingSearchTerm) {
       const term = stagingSearchTerm.toLowerCase().trim();
       const matchCompany = r.company_name?.toLowerCase().includes(term);
@@ -487,6 +524,22 @@ export function ProspectingPage() {
     setIsImportModalOpen(true);
   };
 
+  const handleSelectAndConvertSector = (sectorName: string) => {
+    const verifiedSectorLeads = results.filter(
+      (r) => r.email && (sectorName === 'all' || detectResultSector(r) === sectorName)
+    );
+    if (verifiedSectorLeads.length === 0) {
+      toast.error('Nenhum e-mail verificado encontrado para este setor.');
+      return;
+    }
+    const ids = verifiedSectorLeads.map((r) => r.id);
+    setSelectedResultIds(ids);
+    setImportSector(sectorName === 'all' ? 'Calderería & Tubería Industrial' : sectorName);
+    setAudienceTag(`Lote ${sectorName === 'all' ? 'Mailing Geral' : sectorName} - Espanha`);
+    setCustomNotes(`Leads qualificados do setor "${sectorName}" capturados e higienizados via AIsa Prospecting.`);
+    setIsImportModalOpen(true);
+  };
+
   const handleToggleSelectResult = (id: string) => {
     setSelectedResultIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -496,6 +549,11 @@ export function ProspectingPage() {
   // Open Import Modal
   const handleOpenImportModal = () => {
     if (selectedResultIds.length === 0) return;
+    if (stagingSectorFilter !== 'all') {
+      setImportSector(stagingSectorFilter);
+      setAudienceTag(`Lote ${stagingSectorFilter} - Espanha`);
+      setCustomNotes(`Leads qualificados do setor "${stagingSectorFilter}" capturados e higienizados via AIsa Prospecting.`);
+    }
     setIsImportModalOpen(true);
   };
 
@@ -940,7 +998,7 @@ export function ProspectingPage() {
         {/* Right Column: Staging Results Table & History */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700/80 shadow-sm dark:shadow-lg transition-colors">
-            {/* Table Header & Controls with KPI Counters */}
+            {/* Table Header & Controls with KPI Counters & Sector Pills */}
             <div className="space-y-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -985,6 +1043,17 @@ export function ProspectingPage() {
                     Sel. E-mails ({filteredResults.filter((r) => r.email).length})
                   </button>
 
+                  {stagingSectorFilter !== 'all' && (
+                    <button
+                      onClick={() => handleSelectAndConvertSector(stagingSectorFilter)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 transition-colors"
+                      title="Selecionar todos os e-mails deste setor e abrir conversão para CRM"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 inline mr-1 text-amber-600 dark:text-amber-400" />
+                      Converter Setor ({filteredResults.filter((r) => r.email).length})
+                    </button>
+                  )}
+
                   <button
                     onClick={handleOpenImportModal}
                     disabled={selectedResultIds.length === 0 || importResultsMutation.isPending}
@@ -995,10 +1064,51 @@ export function ProspectingPage() {
                 </div>
               </div>
 
-              {/* Filter Row: Search + Country + Status + Quick Filters */}
+              {/* Sector Quick Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                {[
+                  { key: 'all', label: '🏢 Todos os Setores', count: stagingSectorCounts.total },
+                  { key: 'Construção & Reparação Naval', label: '🚢 Naval', count: stagingSectorCounts.naval },
+                  { key: 'Calderería & Tubería Industrial', label: '🏗️ Calderería', count: stagingSectorCounts.caldereria },
+                  { key: 'Estructuras Metálicas & Montajes', label: '⚙️ Estructuras', count: stagingSectorCounts.estructuras },
+                  { key: 'Industria Química & Petroquímica', label: '🧪 Química', count: stagingSectorCounts.quimica },
+                  { key: 'Ingeniería & Contratistas EPC', label: '📐 Engenharia EPC', count: stagingSectorCounts.epc },
+                  { key: 'Construcción & Obras', label: '🧱 Construção', count: stagingSectorCounts.construccion },
+                  { key: 'Industrial Geral', label: '🏬 Geral', count: stagingSectorCounts.geral },
+                ].map((sec) => {
+                  const isActive = stagingSectorFilter === sec.key;
+                  return (
+                    <button
+                      key={sec.key}
+                      onClick={() => {
+                        setStagingSectorFilter(sec.key);
+                        setStagingCurrentPage(1);
+                      }}
+                      className={`whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-blue-600 text-white border-blue-700 shadow-sm font-semibold'
+                          : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{sec.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isActive
+                            ? 'bg-blue-700 text-white'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {sec.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Filter Row: Search + Country + Sector Dropdown + Status + Quick Filters */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 pt-2">
                 {/* Search Text */}
-                <div className="lg:col-span-4 relative">
+                <div className="lg:col-span-3 relative">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
@@ -1013,7 +1123,7 @@ export function ProspectingPage() {
                 </div>
 
                 {/* Country Filter */}
-                <div className="lg:col-span-3">
+                <div className="lg:col-span-2">
                   <select
                     value={stagingCountryFilter}
                     onChange={(e) => {
@@ -1032,6 +1142,27 @@ export function ProspectingPage() {
                     <option value="BE">🇧🇪 Bélgica</option>
                     <option value="GB">🇬🇧 Reino Unido</option>
                     <option value="OTHER">🌍 Outros</option>
+                  </select>
+                </div>
+
+                {/* Sector Dropdown */}
+                <div className="lg:col-span-3">
+                  <select
+                    value={stagingSectorFilter}
+                    onChange={(e) => {
+                      setStagingSectorFilter(e.target.value);
+                      setStagingCurrentPage(1);
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none font-medium cursor-pointer"
+                  >
+                    <option value="all">🏢 Todos os Setores ({stagingSectorCounts.total})</option>
+                    <option value="Construção & Reparação Naval">🚢 Naval ({stagingSectorCounts.naval})</option>
+                    <option value="Calderería & Tubería Industrial">🏗️ Calderería & Tubería ({stagingSectorCounts.caldereria})</option>
+                    <option value="Estructuras Metálicas & Montajes">⚙️ Estructuras Metálicas ({stagingSectorCounts.estructuras})</option>
+                    <option value="Industria Química & Petroquímica">🧪 Petroquímica & Química ({stagingSectorCounts.quimica})</option>
+                    <option value="Ingeniería & Contratistas EPC">📐 Engenharia EPC ({stagingSectorCounts.epc})</option>
+                    <option value="Construcción & Obras">🧱 Construcción & Obras ({stagingSectorCounts.construccion})</option>
+                    <option value="Industrial Geral">🏬 Industrial Geral ({stagingSectorCounts.geral})</option>
                   </select>
                 </div>
 
@@ -1079,7 +1210,7 @@ export function ProspectingPage() {
                 </div>
 
                 {/* Toggles */}
-                <div className="lg:col-span-3 flex items-center gap-1">
+                <div className="lg:col-span-2 flex items-center gap-1">
                   <button
                     onClick={() => {
                       setFilterEmailOnly(!filterEmailOnly);
@@ -1170,7 +1301,12 @@ export function ProspectingPage() {
                               />
                             </td>
                             <td className="p-3">
-                              <div className="font-semibold text-slate-900 dark:text-white text-sm">{item.company_name}</div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900 dark:text-white text-sm">{item.company_name}</span>
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600/50">
+                                  {detectResultSector(item)}
+                                </span>
+                              </div>
                               {item.address && <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{item.address}</div>}
                             </td>
                             <td className="p-3">
