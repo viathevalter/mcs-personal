@@ -235,7 +235,7 @@ export function ProspectingPage() {
 
         addLog(`[Lote Engine] Raspagem inteligente: "${currentJob.keywords}" em ${currentJob.location}...`, 'info');
 
-        const stepResult = await ProspectingService.processJobStep(currentJob, 25);
+        const stepResult = await ProspectingService.processJobStep(currentJob, 40);
 
         if (stepResult.processed <= 1) {
           consecutiveEmptyBatches++;
@@ -258,9 +258,9 @@ export function ProspectingPage() {
           break;
         }
 
-        // Wait delay to prevent rate limit & IP ban
-        const waitMs = (currentJob.delay_seconds || 3) * 1000;
-        addLog(`Pausa anti-bloqueio de ${currentJob.delay_seconds}s entre lotes para proteção de IP...`, 'warn');
+        // Optimized anti-blocking delay
+        const waitMs = Math.max(500, (currentJob.delay_seconds || 1) * 1000);
+        addLog(`Pausa otimizada de ${waitMs / 1000}s entre lotes...`, 'info');
         await new Promise((resolve) => setTimeout(resolve, waitMs));
 
         // Refetch latest state directly from DB
