@@ -92,7 +92,7 @@ serve(async (req) => {
       );
     }
 
-    // 2. Buscar até 50 e-mails pendentes estritamente da campanha prioritária da vez
+    // 2. Buscar até 25 e-mails pendentes estritamente da campanha prioritária da vez
     const { data: queueItems, error: errQueue } = await supabase
       .from("marketing_campaign_queue")
       .select(`
@@ -117,7 +117,7 @@ serve(async (req) => {
       `)
       .eq("status", "pending")
       .eq("campaign_id", targetCampaignId)
-      .limit(50);
+      .limit(25);
 
     if (errQueue) throw errQueue;
 
@@ -133,6 +133,8 @@ serve(async (req) => {
         { headers: corsHeaders(), status: 200 }
       );
     }
+
+    console.log(`Processando ${queueItems.length} e-mails da fila com cadência suave...`);
 
     console.log(`Processando ${queueItems.length} e-mails da fila...`);
 
@@ -296,8 +298,8 @@ serve(async (req) => {
 
           await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
 
-          // Delay de cadência controlado (~150ms) entre cada disparo
-          await new Promise((resolve) => setTimeout(resolve, 150));
+          // Delay de cadência controlado (~1350ms) entre cada disparo para evitar Greylisting/Transient Bounces
+          await new Promise((resolve) => setTimeout(resolve, 1350));
         }
       } catch (err: any) {
         console.error(`Falha ao processar item da fila ${item.id}:`, err.message);
