@@ -46,8 +46,12 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
     for (const e of events) {
         const key = `${e.trabalhador_id}||${e.mes_referencia}`;
         if (!activeHoleritesMap.has(key) && !holeritesToCreateMap.has(key)) {
+            const validEmpresaId = (e.empresa_id && e.empresa_id.length > 20)
+                ? e.empresa_id
+                : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+
             holeritesToCreateMap.set(key, {
-                empresa_id: e.empresa_id,
+                empresa_id: validEmpresaId,
                 worker_id: e.trabalhador_id,
                 mes_referencia: `${e.mes_referencia}-01`,
                 status: 'rascunho'

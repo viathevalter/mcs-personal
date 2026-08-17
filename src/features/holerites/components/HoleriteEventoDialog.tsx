@@ -81,21 +81,30 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
     const isDebito = form.watch('tipo') === 'desconto';
 
     const onSubmit = (values: FormValues) => {
+        const validEmpresaId = (selectedEmpresaId && selectedEmpresaId.length > 20)
+            ? selectedEmpresaId
+            : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+
         addEvento({
             trabalhador_id: worker.id,
-            empresa_id: selectedEmpresaId || worker.empresa_id || '',
+            empresa_id: validEmpresaId,
             mes_referencia: mesReferencia,
             tipo: values.tipo as EventoTipo,
             categoria: values.categoria as EventoCategoria,
             valor: values.valor,
-            descricao: values.descricao
+            descricao: values.descricao || 'Lançamento Manual'
         }, {
             onSuccess: () => {
                 toast.success('Lançamento inserido com sucesso.');
-                form.reset();
+                form.reset({
+                    tipo: values.tipo,
+                    categoria: '',
+                    valor: 0,
+                    descricao: ''
+                });
             },
-            onError: (err) => {
-                toast.error('Ocorreu um erro ao inserir o lançamento.');
+            onError: (err: any) => {
+                toast.error(err?.message || 'Ocorreu um erro ao inserir o lançamento.');
                 console.error(err);
             }
         });
