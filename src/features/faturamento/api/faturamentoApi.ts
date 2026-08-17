@@ -115,6 +115,7 @@ export interface Fatura {
 export interface ClientBillingSummary {
   clientId: string;
   clientName: string;
+  clientLegalName?: string | null;
   clientCodigo?: string | null;
   empresaNome: string;
   empresaId: string;
@@ -253,7 +254,7 @@ export async function getHorasPendentesFaturamento(
       .schema('core_common')
       .from('clients')
       .select(`
-        id, trade_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+        id, trade_name, legal_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
         address_line, postal_code, city, province,
         countries (
           name
@@ -317,7 +318,7 @@ export async function getHorasPendentesFaturamento(
             legal_name: name,
             vies_applicable: true
           })
-          .select('id, trade_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
+          .select('id, trade_name, legal_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
           .single();
 
         if (insertError) {
@@ -803,7 +804,8 @@ export async function getHorasPendentesFaturamento(
 
       clientSummaries.push({
         clientId: client.id,
-        clientName: client.trade_name || 'Cliente Desconhecido',
+        clientName: client.trade_name || client.legal_name || 'Cliente Desconhecido',
+        clientLegalName: client.legal_name || client.trade_name || 'Cliente Desconhecido',
         clientCodigo: client.codigo || null,
         empresaNome,
         empresaId: empresaId || '',
@@ -1142,7 +1144,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           .schema('core_common')
           .from('clients')
           .select(`
-            id, codigo, trade_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
+            id, codigo, trade_name, legal_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
             address_line, postal_code, city, province,
             client_company_settings (
               empresa_id,
@@ -1270,6 +1272,9 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           ...f,
           client: client ? { 
             nombre_comercial: client.trade_name,
+            legal_name: client.legal_name || client.trade_name || null,
+            razon_social: client.legal_name || client.trade_name || null,
+            trade_name: client.trade_name || null,
             codigo: client.codigo || null,
             paymentTermName: termName,
             paymentTermDays: termDays,

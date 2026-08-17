@@ -253,7 +253,7 @@ export function PortalCliente() {
     container.style.color = '#000000';
     container.style.fontFamily = 'Inter, system-ui, sans-serif';
     
-    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     const periodStr = `${getMonthName(month)} / ${year}`;
     
     const workersMap = new Map();
@@ -648,7 +648,7 @@ export function PortalCliente() {
               </div>
               <h1 className="text-3xl font-extrabold tracking-tight">Revisión de Horas y Facturación</h1>
               <p className="text-sm text-slate-300">
-                Cliente: <span className="font-bold text-white">{fatura.client?.nombre_comercial || 'Cliente'}</span>
+                Cliente: <span className="font-bold text-white">{fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente'}</span>
               </p>
             </div>
             
@@ -692,7 +692,7 @@ export function PortalCliente() {
               <Button
                 variant="outline"
                 className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-250 hover:border-emerald-350 font-bold flex items-center justify-center gap-2 h-11 px-4 rounded-xl shadow-sm text-xs transition-colors"
-                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.nombre_comercial || 'cliente', 'informe')}
+                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'cliente', 'informe')}
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Descargar Pro-forma
@@ -700,7 +700,7 @@ export function PortalCliente() {
               <Button
                 variant="outline"
                 className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-250 hover:border-emerald-350 font-bold flex items-center justify-center gap-2 h-11 px-4 rounded-xl shadow-sm text-xs transition-colors"
-                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.nombre_comercial || 'cliente', 'factura')}
+                onClick={() => handleDownloadA4PDF(fatura.id, fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'cliente', 'factura')}
               >
                 <FileText className="w-4 h-4" />
                 Descargar Factura Única
@@ -821,7 +821,7 @@ export function PortalCliente() {
                 <div className="mb-4 flex justify-between items-center border-b border-slate-100 pb-3">
                   <div>
                     <h4 className="text-base font-bold text-slate-900">Informe de Horas</h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Cliente: <span className="font-semibold text-slate-800">{fatura.client?.nombre_comercial}</span> | Período: <span className="font-semibold text-slate-800">{getMonthName(month)} / {year}</span></p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Cliente: <span className="font-semibold text-slate-800">{fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente'}</span> | Período: <span className="font-semibold text-slate-800">{getMonthName(month)} / {year}</span></p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-slate-500">Total de Horas: <span className="text-slate-900 font-bold">{totalHorasCalculadas.toFixed(2)}h</span></p>
@@ -992,7 +992,7 @@ export function PortalCliente() {
                     </div>
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                       <p className="font-bold text-slate-400 uppercase text-[8px] mb-0.5">Cliente</p>
-                      <p className="font-bold text-slate-955">{fatura.client?.nombre_comercial}</p>
+                      <p className="font-bold text-slate-955">{fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente'}</p>
                       <p className="text-slate-600">NIF: {fatura.client?.tax_id || 'N/A'}</p>
                       <p className="text-slate-600">{fatura.client?.address_line || 'N/A'}</p>
                       <p className="text-slate-600">
@@ -1160,7 +1160,7 @@ export function PortalCliente() {
                       {/* Coluna 3: Para */}
                       <div>
                         <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                        <p className="font-bold text-slate-900">{fatura.client?.nombre_comercial}</p>
+                        <p className="font-bold text-slate-900">{fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente'}</p>
                         <p className="text-slate-600">{fatura.client?.address_line || 'N/A'}</p>
                         <p className="text-slate-600">
                           {[fatura.client?.postal_code, fatura.client?.city].filter(Boolean).join(' ')}

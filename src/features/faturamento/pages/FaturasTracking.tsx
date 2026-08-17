@@ -110,7 +110,7 @@ export function FaturasTracking() {
     if (!pdfRenderData) return;
     
     const timer = setTimeout(async () => {
-      const clientName = pdfRenderData.fatura.client?.nombre_comercial || 'cliente';
+      const clientName = pdfRenderData.fatura.client?.legal_name || pdfRenderData.fatura.client?.razon_social || pdfRenderData.fatura.client?.nombre_comercial || 'cliente';
       const toastId = toast.loading(`Gerando PDF do ${pdfRenderData.type === 'informe' ? 'Informe de Facturación' : 'Fatura Pró-forma'}...`);
       
       try {
@@ -475,7 +475,7 @@ export function FaturasTracking() {
             </div>
             <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
               <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Cliente</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${clientName}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName}</p>
               <p style="color: #64748b; margin: 0;">NIF: ${fat.client?.taxId || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${fat.client?.address_line || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${[fat.client?.postal_code, fat.client?.city, fat.client?.province].filter(Boolean).join(', ')}</p>
@@ -532,7 +532,7 @@ export function FaturasTracking() {
         const periodMonth = new Date(fat.created_at || fat.data_emissao).getMonth() + 1;
         pageHtml = `
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px;">
-            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${clientName} (${docNumber})</span>
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName} (${docNumber})</span>
             <span style="font-size: 10px; color: #64748b;">Período: ${String(periodMonth).padStart(2, '0')} / ${periodYear}</span>
           </div>
         `;
@@ -689,7 +689,7 @@ export function FaturasTracking() {
           const { data: clData } = await supabase
             .schema('core_common')
             .from('clients')
-            .select('id, trade_name, tax_id, address_line, postal_code, city, province')
+            .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province')
             .eq('id', targetFatura.client_id)
             .single();
           if (clData) {
@@ -697,6 +697,8 @@ export function FaturasTracking() {
               ...targetFatura,
               client: {
                 nombre_comercial: clData.trade_name,
+                legal_name: clData.legal_name || clData.trade_name,
+                razon_social: clData.legal_name || clData.trade_name,
                 taxId: clData.tax_id,
                 address_line: clData.address_line,
                 postal_code: clData.postal_code,
@@ -801,7 +803,7 @@ export function FaturasTracking() {
         const { data: clData } = await supabase
           .schema('core_common')
           .from('clients')
-          .select('id, trade_name, tax_id, address_line, postal_code, city, province')
+          .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province')
           .eq('id', targetFatura.client_id)
           .single();
         if (clData) {
@@ -809,6 +811,8 @@ export function FaturasTracking() {
             ...targetFatura,
             client: {
               nombre_comercial: clData.trade_name,
+              legal_name: clData.legal_name || clData.trade_name,
+              razon_social: clData.legal_name || clData.trade_name,
               taxId: clData.tax_id,
               address_line: clData.address_line,
               postal_code: clData.postal_code,
@@ -869,7 +873,7 @@ export function FaturasTracking() {
     container.style.color = '#000000';
     container.style.fontFamily = 'Inter, system-ui, sans-serif';
     
-    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     
     const activeEdits = deepMergeDisputedHours(
       fatura.ajustes_json?.disputed_hours || {},
@@ -1258,7 +1262,7 @@ export function FaturasTracking() {
     container.style.color = '#000000';
     container.style.fontFamily = 'Inter, system-ui, sans-serif';
     
-    const clientName = fatura.client?.nombre_comercial || 'Cliente';
+    const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     
     const getTranslatedMonth = (mIndex: number, l: string) => {
       const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -1852,7 +1856,7 @@ export function FaturasTracking() {
     
     const finalTotal = Number(fatura.total_valor || 0);
 
-    const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || fatura.client?.legal_name || 'Cliente';
+    const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
     const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
     const link = `${window.location.origin}/aprovacao-cliente/${fatura.magic_link_token}`;
 
@@ -2003,7 +2007,7 @@ MCS - Gestão Comercial`;
       setIsEmailAcceptance(!!isAcceptance);
 
       // 3. Determine default language
-      const clientName = fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
+      const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
       const isSpainClient = clientName.toLowerCase().includes('norcal') || 
                             clientName.toLowerCase().includes('reverter') || 
                             clientName.toLowerCase().includes('sinfines') || 
@@ -3490,7 +3494,7 @@ MCS - Gestão Comercial`;
                                 {/* Coluna 3: Para */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                                  <p className="font-bold text-slate-900">{selectedDispute.client?.nombre_comercial}</p>
+                                  <p className="font-bold text-slate-900">{selectedDispute.client?.legal_name || selectedDispute.client?.razon_social || selectedDispute.client?.nombre_comercial || 'Cliente'}</p>
                                   <p className="text-slate-600">{selectedDispute.client?.address_line || 'N/A'}</p>
                                   <p className="text-slate-600">{[selectedDispute.client?.postal_code, selectedDispute.client?.city].filter(Boolean).join(' ')}</p>
                                   <p className="text-slate-600">{selectedDispute.client?.province || 'Espanha'}</p>
@@ -4009,7 +4013,7 @@ MCS - Gestão Comercial`;
                       </div>
                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                         <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Cliente</p>
-                        <p className="font-bold text-slate-900">{emailData.clientName}</p>
+                        <p className="font-bold text-slate-900">{emailData.fatura.client?.legal_name || emailData.fatura.client?.razon_social || emailData.fatura.client?.nombre_comercial || emailData.clientName}</p>
                         <p className="text-muted-foreground">NIF: {emailData.fatura.client?.taxId || 'N/A'}</p>
                         <p className="text-muted-foreground">{emailData.fatura.client?.address_line || 'N/A'}</p>
                         <p className="text-muted-foreground">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(', ')}</p>
@@ -4201,7 +4205,7 @@ MCS - Gestão Comercial`;
                         {/* Coluna 3: Para */}
                         <div>
                           <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                          <p className="font-bold text-slate-900">{emailData.clientName}</p>
+                          <p className="font-bold text-slate-900">{emailData.fatura.client?.legal_name || emailData.fatura.client?.razon_social || emailData.fatura.client?.nombre_comercial || emailData.clientName}</p>
                           <p className="text-slate-600">{emailData.fatura.client?.address_line || 'N/A'}</p>
                           <p className="text-slate-600">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(' ')}</p>
                           <p className="text-slate-600">{emailData.fatura.client?.province || 'Espanha'}</p>
@@ -4819,7 +4823,7 @@ MCS - Gestão Comercial`;
                     {/* Coluna 3: Para */}
                     <div>
                       <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                      <p className="font-bold text-slate-900">{fat.client?.nombre_comercial}</p>
+                      <p className="font-bold text-slate-900">{fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || 'Cliente'}</p>
                       <p className="text-slate-600">{fat.client?.address_line || 'N/A'}</p>
                       <p className="text-slate-600">{[fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ')}</p>
                       <p className="text-slate-600">{fat.client?.province || 'Espanha'}</p>

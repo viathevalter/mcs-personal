@@ -24,7 +24,7 @@ BEGIN
     END IF;
 
     -- B. Buscar cliente
-    SELECT id, trade_name, codigo, payment_terms, address_line, postal_code, city, province, tax_id 
+    SELECT id, trade_name, legal_name, codigo, payment_terms, address_line, postal_code, city, province, tax_id 
     INTO v_client 
     FROM core_common.clients 
     WHERE id = v_fatura.client_id;
@@ -82,6 +82,9 @@ BEGIN
             'atcud', v_fatura.atcud,
             'client', jsonb_build_object(
                 'nombre_comercial', v_client.trade_name,
+                'legal_name', COALESCE(v_client.legal_name, v_client.trade_name),
+                'razon_social', COALESCE(v_client.legal_name, v_client.trade_name),
+                'trade_name', v_client.trade_name,
                 'codigo', v_client.codigo,
                 'paymentTermName', COALESCE(v_client.payment_terms, 'N/A'),
                 'paymentTermDays', 0,

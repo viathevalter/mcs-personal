@@ -1123,7 +1123,7 @@ MCS - Gestão Comercial`;
             </div>
             <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
               <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Cliente</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientName}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientLegalName || f.clientName}</p>
               <p style="color: #64748b; margin: 0;">NIF: ${f.taxId || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${f.clientAddressLine || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
@@ -1178,7 +1178,7 @@ MCS - Gestão Comercial`;
       } else {
         pageHtml = `
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px;">
-            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientName} (${docNumber})</span>
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientLegalName || f.clientName} (${docNumber})</span>
             <span style="font-size: 10px; color: #64748b;">Período: ${getMonthName(f.month)} / ${f.year}</span>
           </div>
         `;
@@ -1397,7 +1397,7 @@ MCS - Gestão Comercial`;
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px;">
               <div>
                 <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">${labels.title}</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">${labels.client}: <strong>${f.clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">${labels.client}: <strong>${f.clientLegalName || f.clientName}</strong> | ${labels.period}: <strong>${periodStr}</strong></p>
               </div>
               <div style="text-align: right;">
                 <p style="font-size: 13px; color: #64748b; margin: 0;">${labels.totalHours}: <strong style="color: #1e293b; font-size: 16px;">${displayTotalHoras.toFixed(2)}h</strong></p>
@@ -1411,7 +1411,7 @@ MCS - Gestão Comercial`;
         } else {
           headerHtml = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
-              <span style="font-size: 12px; font-weight: 700; color: #475569;">${labels.title} — ${f.clientName} (${table.title})</span>
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">${labels.title} — ${f.clientLegalName || f.clientName} (${table.title})</span>
               <span style="font-size: 11px; color: #64748b;">${labels.period}: ${periodStr}</span>
             </div>
           `;
@@ -1872,7 +1872,7 @@ MCS - Gestão Comercial`;
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px;">
               <div>
                 <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Relatório de Horas</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Cliente: <strong>${f.clientName}</strong> | Período: <strong>${periodStr}</strong></p>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Cliente: <strong>${f.clientLegalName || f.clientName}</strong> | Período: <strong>${periodStr}</strong></p>
               </div>
               <div style="text-align: right;">
                 <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${f.totalHoras.toFixed(2)}h</strong></p>
@@ -1886,7 +1886,7 @@ MCS - Gestão Comercial`;
         } else {
           headerHtml = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
-              <span style="font-size: 12px; font-weight: 700; color: #475569;">Relatório de Horas — ${f.clientName} (${table.title})</span>
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">Relatório de Horas — ${f.clientLegalName || f.clientName} (${table.title})</span>
               <span style="font-size: 11px; color: #64748b;">Período: ${periodStr}</span>
             </div>
           `;
@@ -2190,7 +2190,7 @@ MCS - Gestão Comercial`;
             </div>
             <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
               <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Cliente</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientName}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientLegalName || f.clientName}</p>
               <p style="color: #64748b; margin: 0;">NIF: ${f.taxId || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${f.clientAddressLine || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
@@ -2245,7 +2245,7 @@ MCS - Gestão Comercial`;
       } else {
         pageHtml = `
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px;">
-            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientName} (${docNumber})</span>
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">INFORME DE FACTURACIÓN — ${f.clientLegalName || f.clientName} (${docNumber})</span>
             <span style="font-size: 10px; color: #64748b;">Período: ${getMonthName(f.month)} / ${f.year}</span>
           </div>
         `;
@@ -3834,7 +3834,7 @@ MCS - Gestão Comercial`;
                               </div>
                               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-900 space-y-1">
                                 <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Cliente</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.clientName}</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.clientLegalName || f.clientName}</p>
                                 <p className="text-muted-foreground">NIF: {f.taxId || 'N/A'}</p>
                                 <p className="text-muted-foreground">{f.clientAddressLine || 'N/A'}</p>
                                 <p className="text-muted-foreground">{[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
@@ -4026,7 +4026,7 @@ MCS - Gestão Comercial`;
                                 {/* Coluna 3: Para */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                                  <p className="font-bold text-slate-900">{f.clientName}</p>
+                                  <p className="font-bold text-slate-900">{f.clientLegalName || f.clientName}</p>
                                   <p className="text-slate-600">{f.clientAddressLine || 'N/A'}</p>
                                   <p className="text-slate-600">{[f.clientPostalCode, f.clientCity].filter(Boolean).join(' ')}</p>
                                   <p className="text-slate-600">{f.clientCountryName || 'Espanha'}</p>
@@ -4742,7 +4742,7 @@ MCS - Gestão Comercial`;
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
                             <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Cliente</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientName}</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.clientLegalName || selectedFatura.clientName}</p>
                             <p className="text-muted-foreground">NIF: {selectedFatura.taxId || 'N/A'}</p>
                             <p className="text-muted-foreground">{selectedFatura.clientAddressLine || 'N/A'}</p>
                             <p className="text-muted-foreground">{[selectedFatura.clientPostalCode, selectedFatura.clientCity, selectedFatura.clientCountryName].filter(Boolean).join(', ')}</p>
@@ -4917,7 +4917,7 @@ MCS - Gestão Comercial`;
                               {/* Coluna 3: Para */}
                               <div>
                                 <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">Para</p>
-                                <p className="font-bold text-slate-900">{selectedFatura.clientName}</p>
+                                <p className="font-bold text-slate-900">{selectedFatura.clientLegalName || selectedFatura.clientName}</p>
                                 <p className="text-slate-600">{selectedFatura.clientAddressLine || 'N/A'}</p>
                                 <p className="text-slate-600">{[selectedFatura.clientPostalCode, selectedFatura.clientCity].filter(Boolean).join(' ')}</p>
                                 <p className="text-slate-600">{selectedFatura.clientCountryName || 'Espanha'}</p>
