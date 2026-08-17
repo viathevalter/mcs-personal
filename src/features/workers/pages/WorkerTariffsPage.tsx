@@ -242,6 +242,18 @@ export function WorkerTariffsPage() {
         return list;
     }, []);
 
+    const isNewWorkerInTargetMonth = (worker: any, targetMonth: string) => {
+        if (!targetMonth || targetMonth === 'all' || !worker) return false;
+        const primaryDate = worker.data_ingresso || worker.data_inicio || worker.start_date;
+        if (primaryDate) {
+            return isDateInCompetence(primaryDate, targetMonth);
+        }
+        if (worker.data_alta_seguridad) {
+            return isDateInCompetence(worker.data_alta_seguridad, targetMonth);
+        }
+        return false;
+    };
+
     const rawWorkersList = listData?.data || [];
 
     const filteredWorkersList = React.useMemo(() => {
@@ -249,26 +261,14 @@ export function WorkerTariffsPage() {
         return rawWorkersList.filter(worker => {
             // Filter by admission month if selected
             if (mesContratacao !== 'all') {
-                const candidates = [
-                    worker.data_ingresso,
-                    worker.data_alta_seguridad,
-                    worker.data_inicio,
-                    worker.created_at
-                ];
-                const isMatch = candidates.some(d => isDateInCompetence(d, mesContratacao));
+                const isMatch = isNewWorkerInTargetMonth(worker, mesContratacao);
                 if (!isMatch) return false;
             }
 
             // Filter by worker type
             if (workerFilterType === 'new_workers') {
                 const targetMonth = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
-                const candidates = [
-                    worker.data_ingresso,
-                    worker.data_alta_seguridad,
-                    worker.data_inicio,
-                    worker.created_at
-                ];
-                const isMatch = candidates.some(d => isDateInCompetence(d, targetMonth));
+                const isMatch = isNewWorkerInTargetMonth(worker, targetMonth);
                 if (!isMatch) return false;
             } else if (workerFilterType === 'zero_tariffs') {
                 const tariff = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
@@ -725,14 +725,9 @@ export function WorkerTariffsPage() {
                                     const clientStyle = getClientStyle(worker.cliente_nombre);
                                     const ibanInfo = workerIbansMap?.get(worker.id);
                                     const isSelected = selectedWorkerIds.has(worker.id);
-
-                                    const currentMonthTarget = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
-                                    const isNewWorker = [
-                                        worker.data_ingresso, 
-                                        worker.data_alta_seguridad, 
-                                        worker.data_inicio, 
-                                        worker.created_at
-                                    ].some(d => isDateInCompetence(d, currentMonthTarget));
+                                    const isNewWorker = mesContratacao !== 'all'
+                                        ? isNewWorkerInTargetMonth(worker, mesContratacao)
+                                        : isNewWorkerInTargetMonth(worker, format(new Date(), 'yyyy-MM'));
 
                                     return (
                                         <React.Fragment key={worker.id}>
@@ -802,23 +797,31 @@ export function WorkerTariffsPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                                    € {Number(tariff).toFixed(2)}
+                                                    {tariff > 0 ? (
+                                                        <span className="text-emerald-600 dark:text-emerald-400">
+                                                            € {tariff.toFixed(2)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-500 font-normal">
+                                                            € 0.00
+                                                        </span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="h-8 w-8 p-0 text-slate-600 hover:text-indigo-600"
+                                                        className="h-7 w-7 p-0"
                                                         onClick={() => openEditDialog(worker)}
                                                     >
-                                                        <Edit2 className="h-3.5 w-3.5" />
+                                                        <Edit2 className="h-3.5 w-3.5 text-muted-foreground hover:text-indigo-600" />
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
 
-                                            {/* Expanded details row */}
+                                            {/* Expanded row with detailed worker information */}
                                             {isExpanded && (
-                                                <TableRow className="bg-slate-50/80 dark:bg-slate-900/60 border-b">
+                                                <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
                                                     <TableCell colSpan={9} className="p-4 pl-12">
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
@@ -950,7 +953,7 @@ export function WorkerTariffsPage() {
                 <div className="h-12 border-t px-4 flex justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-900/30 text-xs">
                     <div className="flex items-center gap-3">
                         <span className="text-muted-foreground">
-                            Exibindo <strong>{workersList.length}</strong> de <strong>{totalCount}</strong> Trabalhador(es)
+                            Exibindo <strong>{sortedWorkers.length}</strong> de <strong>{totalCount}</strong> Trabalhador(es)
                         </span>
 
                         <div className="flex items-center gap-1.5 ml-2">

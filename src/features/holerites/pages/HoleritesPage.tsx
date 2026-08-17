@@ -188,18 +188,18 @@ export function isDateInCompetence(dateVal: any, mesCompetencia: string): boolea
 
 function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
     if (!mesCompetencia || !worker) return false;
-    const candidates = [
-        worker.data_ingresso,
-        worker.data_alta_seguridad,
-        worker.data_inicio,
-        worker.start_date,
-        worker.created_at
-    ];
-    for (const d of candidates) {
-        if (isDateInCompetence(d, mesCompetencia)) {
-            return true;
-        }
+    
+    // Priority 1: Official Admission Date (data_ingresso / data_inicio / start_date)
+    const primaryDate = worker.data_ingresso || worker.data_inicio || worker.start_date;
+    if (primaryDate) {
+        return isDateInCompetence(primaryDate, mesCompetencia);
     }
+
+    // Priority 2: Security Alta Date (data_alta_seguridad)
+    if (worker.data_alta_seguridad) {
+        return isDateInCompetence(worker.data_alta_seguridad, mesCompetencia);
+    }
+
     return false;
 }
 
