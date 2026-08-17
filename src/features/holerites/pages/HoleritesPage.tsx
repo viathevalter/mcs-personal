@@ -155,11 +155,52 @@ function getWorkerStatusBadge(worker: any, mesReferencia: string) {
     return null;
 }
 
+export function isDateInCompetence(dateVal: any, mesCompetencia: string): boolean {
+    if (!dateVal || !mesCompetencia) return false;
+    const str = String(dateVal).trim();
+    if (!str) return false;
+
+    // mesCompetencia is formatted as "YYYY-MM" (e.g. "2026-08")
+    const [year, month] = mesCompetencia.split('-');
+    if (!year || !month) return false;
+
+    // 1. ISO style: 2026-08-xx or 2026-08
+    if (str.startsWith(`${year}-${month}`)) return true;
+
+    // 2. Slash style: DD/MM/YYYY or D/M/YYYY
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        const dMonth = slashParts[1].padStart(2, '0');
+        const dYear = slashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    // 3. Dash style: DD-MM-YYYY
+    const dashParts = str.split('-');
+    if (dashParts.length === 3 && dashParts[0].length <= 2) {
+        const dMonth = dashParts[1].padStart(2, '0');
+        const dYear = dashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    return false;
+}
+
 function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
-    if (!mesCompetencia) return false;
-    const dIngresso = worker.data_ingresso || worker.data_alta_seguridad || worker.created_at;
-    if (!dIngresso) return false;
-    return String(dIngresso).startsWith(mesCompetencia);
+    if (!mesCompetencia || !worker) return false;
+    const candidates = [
+        worker.data_ingresso,
+        worker.data_alta_seguridad,
+        worker.data_inicio,
+        worker.start_date,
+        worker.created_at
+    ];
+    for (const d of candidates) {
+        if (isDateInCompetence(d, mesCompetencia)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 export function HoleritesPage() {

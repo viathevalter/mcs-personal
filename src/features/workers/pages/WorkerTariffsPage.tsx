@@ -66,6 +66,10 @@ const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border-orange-200/70' },
 ];
 
+import { format, subMonths } from 'date-fns';
+import { pt } from 'date-fns/locale';
+import { isDateInCompetence } from '@/features/holerites/pages/HoleritesPage';
+
 function getClientStyle(clientName: string | null) {
     if (!clientName || clientName === '-') return PASTEL_CLIENT_STYLES[0];
     let hash = 0;
@@ -82,6 +86,22 @@ function formatIban(iban: string) {
     return clean.replace(/(.{4})/g, '$1 ').trim();
 }
 
+function formatDateClean(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const str = String(dateStr).trim();
+    if (str.includes('/')) return str;
+    if (str.includes('-')) {
+        const parts = str.split('T')[0].split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return `${parts[0]}/${parts[1]}/${parts[2]}`;
+        }
+    }
+    return str;
+}
+
 export function WorkerTariffsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { selectedEmpresaId, setSelectedEmpresaId, empresas } = useEmpresa();
@@ -93,6 +113,8 @@ export function WorkerTariffsPage() {
     const contratante = searchParams.get('contratante') || null;
     const funcion = searchParams.get('funcion') || null;
     const statusSeguridad = searchParams.get('statusSeguridad') || null;
+    const mesContratacao = searchParams.get('mesContratacao') || 'all';
+    const workerFilterType = searchParams.get('workerFilterType') || 'all';
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
     const sortColumn = searchParams.get('sortColumn') || 'nome';
@@ -208,27 +230,78 @@ export function WorkerTariffsPage() {
         }
     }, [selectedEmpresaId, empresas, contratantes]);
 
-    const totalCount = listData?.count || 0;
+    const monthOptions = React.useMemo(() => {
+        const list: { value: string; label: string }[] = [{ value: 'all', label: 'Todos os Meses de Admissão' }];
+        const base = new Date();
+        for (let i = 0; i < 24; i++) {
+            const d = subMonths(base, i);
+            const val = format(d, 'yyyy-MM');
+            const lbl = format(d, 'MMMM yyyy', { locale: pt }).toUpperCase();
+            list.push({ value: val, label: lbl });
+        }
+        return list;
+    }, []);
+
+    const rawWorkersList = listData?.data || [];
+
+    const filteredWorkersList = React.useMemo(() => {
+        if (!rawWorkersList || rawWorkersList.length === 0) return [];
+        return rawWorkersList.filter(worker => {
+            // Filter by admission month if selected
+            if (mesContratacao !== 'all') {
+                const candidates = [
+                    worker.data_ingresso,
+                    worker.data_alta_seguridad,
+                    worker.data_inicio,
+                    worker.created_at
+                ];
+                const isMatch = candidates.some(d => isDateInCompetence(d, mesContratacao));
+                if (!isMatch) return false;
+            }
+
+            // Filter by worker type
+            if (workerFilterType === 'new_workers') {
+                const targetMonth = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
+                const candidates = [
+                    worker.data_ingresso,
+                    worker.data_alta_seguridad,
+                    worker.data_inicio,
+                    worker.created_at
+                ];
+                const isMatch = candidates.some(d => isDateInCompetence(d, targetMonth));
+                if (!isMatch) return false;
+            } else if (workerFilterType === 'zero_tariffs') {
+                const tariff = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+                if (tariff > 0) return false;
+            } else if (workerFilterType === 'with_tariffs') {
+                const tariff = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+                if (tariff <= 0) return false;
+            }
+
+            return true;
+        });
+    }, [rawWorkersList, mesContratacao, workerFilterType]);
+
+    const totalCount = filteredWorkersList.length;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const workersList = listData?.data || [];
 
     const altaCount = React.useMemo(() => {
-        return workersList.filter(w => w.status_seguridad === 'Alta').length;
-    }, [workersList]);
+        return filteredWorkersList.filter(w => w.status_seguridad === 'Alta').length;
+    }, [filteredWorkersList]);
 
     const regCount = React.useMemo(() => {
-        return workersList.filter(w => w.status_seguridad !== 'Alta').length;
-    }, [workersList]);
+        return filteredWorkersList.filter(w => w.status_seguridad !== 'Alta').length;
+    }, [filteredWorkersList]);
 
     const { avgTariff, withTariffCount, zeroTariffCount } = React.useMemo(() => {
-        if (!workersList || workersList.length === 0) {
+        if (!filteredWorkersList || filteredWorkersList.length === 0) {
             return { avgTariff: 0, withTariffCount: 0, zeroTariffCount: 0 };
         }
         let total = 0;
         let withTariff = 0;
         let zeroTariff = 0;
 
-        workersList.forEach(w => {
+        filteredWorkersList.forEach(w => {
             const t = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
             if (t > 0) {
                 total += t;
@@ -243,11 +316,11 @@ export function WorkerTariffsPage() {
             withTariffCount: withTariff,
             zeroTariffCount: zeroTariff
         };
-    }, [workersList]);
+    }, [filteredWorkersList]);
 
     const sortedWorkers = React.useMemo(() => {
-        if (!listData?.data) return [];
-        const copy = [...listData.data];
+        if (!filteredWorkersList) return [];
+        const copy = [...filteredWorkersList];
 
         return copy.sort((a, b) => {
             let valA: string | number = '';
@@ -295,7 +368,7 @@ export function WorkerTariffsPage() {
 
             return 0;
         });
-    }, [listData?.data, sortColumn, sortDirection]);
+    }, [filteredWorkersList, sortColumn, sortDirection]);
 
     const handleSort = (column: string) => {
         if (sortColumn === column) {
@@ -454,7 +527,46 @@ export function WorkerTariffsPage() {
             {/* Filters section */}
             <Card className="shrink-0 shadow-sm">
                 <CardContent className="p-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+                        {/* Mes de Admissao / Contratacao */}
+                        <div className="space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Mês de Admissão</span>
+                            <Select
+                                value={mesContratacao}
+                                onValueChange={(v) => updateSearchParams({ mesContratacao: v === 'all' ? null : v, page: '1' })}
+                            >
+                                <SelectTrigger className="w-full h-9 text-xs bg-background font-medium">
+                                    <SelectValue placeholder="Todos os meses" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {monthOptions.map(m => (
+                                        <SelectItem key={m.value} value={m.value} className="text-xs">
+                                            {m.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Exibir Trabalhadores */}
+                        <div className="space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Exibir Trabalhadores</span>
+                            <Select
+                                value={workerFilterType}
+                                onValueChange={(v) => updateSearchParams({ workerFilterType: v === 'all' ? null : v, page: '1' })}
+                            >
+                                <SelectTrigger className="w-full h-9 text-xs bg-background font-medium">
+                                    <SelectValue placeholder="Todos os colaboradores" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all" className="text-xs">Todos os Trabalhadores</SelectItem>
+                                    <SelectItem value="new_workers" className="text-xs">Novos Contratados no Mês</SelectItem>
+                                    <SelectItem value="zero_tariffs" className="text-xs">Tarifas Zeradas (€0.00)</SelectItem>
+                                    <SelectItem value="with_tariffs" className="text-xs">Com Tarifa Atribuída</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Search */}
                         <div className="space-y-1">
                             <span className="text-xs font-semibold text-muted-foreground">Buscar Trabalhador</span>
@@ -614,6 +726,14 @@ export function WorkerTariffsPage() {
                                     const ibanInfo = workerIbansMap?.get(worker.id);
                                     const isSelected = selectedWorkerIds.has(worker.id);
 
+                                    const currentMonthTarget = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
+                                    const isNewWorker = [
+                                        worker.data_ingresso, 
+                                        worker.data_alta_seguridad, 
+                                        worker.data_inicio, 
+                                        worker.created_at
+                                    ].some(d => isDateInCompetence(d, currentMonthTarget));
+
                                     return (
                                         <React.Fragment key={worker.id}>
                                             <TableRow 
@@ -643,7 +763,19 @@ export function WorkerTariffsPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="font-medium text-slate-900 dark:text-slate-100">
-                                                    {worker.nome}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold">{worker.nome}</span>
+                                                        {isNewWorker && (
+                                                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] py-0 px-1.5 font-semibold">
+                                                                Novo no Mês
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {worker.data_ingresso && (
+                                                        <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                                                            Início: {formatDateClean(worker.data_ingresso)}
+                                                        </div>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground text-xs">
                                                     {worker.funcion || '-'}
