@@ -85,7 +85,7 @@ serve(async (req) => {
       `)
       .eq("status", "pending")
       .in("campaign_id", activeCampaignIds)
-      .limit(100);
+      .limit(50);
 
     if (errQueue) throw errQueue;
 
@@ -209,8 +209,8 @@ serve(async (req) => {
             .replace(/\.+$|\s+/g, "")
             .replace(/(\.(com|es|eu|org|net|pt|co|info))[a-z0-9_-]+$/gi, "$1");
 
-          // Envio real via API do Resend
-          const res = await fetch("https://api.resend.com/emails", {
+          // Envio real via API do Resend com retry e delay
+          let res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -228,9 +228,38 @@ serve(async (req) => {
             }),
           });
 
+          // Se bater rate limit (429), pausa 1.5s e tenta novamente
+          if (res.status === 429) {
+            console.warn(`[429 Rate Limit] Pausando 1.5s para ${lead.email}...`);
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            res = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${resendApiKey}`,
+              },
+              body: JSON.stringify({
+                from: fromHeader,
+                to: [cleanLeadEmail],
+                subject: emailSubject,
+                html: htmlBody,
+                tags: [
+                  { name: "campaign_id", value: campaign.id },
+                  { name: "lead_id", value: lead.id },
+                ],
+              }),
+            });
+          }
+
           const resData = await res.json();
 
           if (!res.ok) {
+            // Se ainda for 429 após retry, não marca como falha definitiva: mantém pending para o próximo ciclo
+            if (res.status === 429) {
+              console.warn(`Item ${item.id} retido em pending devido a rate limit do Resend.`);
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              continue;
+            }
             throw new Error(`Erro na API do Resend: ${JSON.stringify(resData)}`);
           }
 
@@ -246,9 +275,19 @@ serve(async (req) => {
             .eq("id", item.id);
 
           await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
+
+          // Delay de cadência controlado (~150ms) entre cada disparo
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
       } catch (err: any) {
         console.error(`Falha ao processar item da fila ${item.id}:`, err.message);
+        // Se for erro de rate limit na exceção, mantém pending
+        if (err.message && err.message.includes("429")) {
+          console.warn(`Item ${item.id} mantido em pending.`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+
         await supabase
           .from("marketing_campaign_queue")
           .update({

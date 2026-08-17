@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS core_logistics.provedores (
     municipio TEXT,
     provincia TEXT,
     pais TEXT DEFAULT 'España',
+    contatos JSONB DEFAULT '[]',
     observacoes TEXT,
     status TEXT DEFAULT 'Activo',
     created_at TIMESTAMPTZ DEFAULT NOW(),

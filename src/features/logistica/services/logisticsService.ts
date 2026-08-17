@@ -1,5 +1,13 @@
 import { supabase } from '@/shared/supabase/client';
 
+export interface ContatoProvedor {
+  id?: string;
+  nome: string;
+  cargo_tipo?: string;
+  telefone?: string;
+  email?: string;
+}
+
 export interface Provedor {
   id: string;
   codigo?: string;
@@ -8,9 +16,11 @@ export interface Provedor {
   cif_nif?: string;
   classificacao?: string;
   tipo_provedor?: string;
+  tipo_pessoa?: 'Persona Física' | 'Persona Jurídica';
   contato_nome?: string;
   telefone?: string;
   email?: string;
+  contatos?: ContatoProvedor[];
   iban?: string;
   banco?: string;
   swift?: string;
@@ -103,13 +113,36 @@ export const logisticsService = {
   },
 
   async createProvedor(provedor: Partial<Provedor>): Promise<Provedor> {
-    const { data, error } = await getClient()
-      .from('provedores')
-      .insert([provedor])
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    const client = getClient();
+    let payload: any = {
+      tipo: 'alojamento',
+      tipo_provedor: 'Proveedor Alojamiento',
+      status: 'Activo',
+      ...provedor
+    };
+    let attempts = 0;
+
+    while (attempts < 10) {
+      attempts++;
+      const { data, error } = await client
+        .from('provedores')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (!error) return data;
+
+      if (error.message && error.message.includes('Could not find the')) {
+        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+        if (missingMatch && missingMatch[1]) {
+          delete (payload as any)[missingMatch[1]];
+          continue;
+        }
+      }
+
+      throw error;
+    }
+    throw new Error('Falha ao inserir provedor após sanitização de colunas.');
   },
 
   async updateProvedor(id: string, provedor: Partial<Provedor>): Promise<Provedor> {

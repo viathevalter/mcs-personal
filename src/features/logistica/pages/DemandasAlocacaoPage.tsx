@@ -112,7 +112,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const camasFiltradas = camasDisponiveis.filter(c => c.alojamento_id === selectedAlojamentoId);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="w-full px-8 py-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">

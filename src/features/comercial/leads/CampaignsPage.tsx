@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { cn } from '@/lib/utils';
 import { useMarketingTemplates, useMarketingCampaigns, useMutateMarketing } from './hooks/useMarketing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -263,36 +264,31 @@ export function CampaignsPage() {
   const [activeTab, setActiveTab] = useState('campaigns');
   const queryClient = useQueryClient();
 
-  // Query: Fila de disparos/leads associados a cada campanha
-  const { data: queueCounts = {}, refetch: refetchQueueCounts } = useQuery({
-    queryKey: ['campaign_queue_counts', campaigns],
+  // Query: Estatísticas agregadas da fila para cada campanha (total, sent, pending, failed)
+  const { data: campaignStats = {}, refetch: refetchCampaignStats } = useQuery<Record<string, { total: number; sent: number; pending: number; failed: number }>>({
+    queryKey: ['campaign_queue_stats', selectedEmpresaId, campaigns],
     queryFn: async () => {
-      const counts: Record<string, number> = {};
-      let from = 0;
-      const step = 1000;
-      let hasMore = true;
+      const { data, error } = await supabase.rpc('fn_get_campaigns_stats', {
+        p_empresa_id: selectedEmpresaId || null,
+      });
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .schema('core_comercial')
-          .from('marketing_campaign_queue')
-          .select('campaign_id')
-          .range(from, from + step - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          data.forEach((item: any) => {
-            counts[item.campaign_id] = (counts[item.campaign_id] || 0) + 1;
-          });
-          from += step;
-          if (data.length < step) hasMore = false;
-        } else {
-          hasMore = false;
-        }
+      if (error) {
+        console.error('Error fetching campaign stats:', error);
+        return {};
       }
 
-      return counts;
+      const statsMap: Record<string, { total: number; sent: number; pending: number; failed: number }> = {};
+      if (data && Array.isArray(data)) {
+        data.forEach((row: any) => {
+          statsMap[row.campaign_id] = {
+            total: Number(row.total || 0),
+            sent: Number(row.sent || 0),
+            pending: Number(row.pending || 0),
+            failed: Number(row.failed || 0),
+          };
+        });
+      }
+      return statsMap;
     },
     enabled: campaigns.length > 0,
   });
@@ -304,20 +300,20 @@ export function CampaignsPage() {
 
     // Immediately trigger processing on load
     supabase.functions.invoke('process-marketing-queue').then(() => {
-      refetchQueueCounts();
+      refetchCampaignStats();
     }).catch(() => {});
 
     const interval = setInterval(async () => {
       try {
         await supabase.functions.invoke('process-marketing-queue');
-        refetchQueueCounts();
+        refetchCampaignStats();
       } catch (e) {
         console.warn('Auto queue invoke:', e);
       }
-    }, 12000);
+    }, 15000);
 
     return () => clearInterval(interval);
-  }, [campaigns, refetchQueueCounts]);
+  }, [campaigns, refetchCampaignStats]);
 
   // Query: Estágios do Kanban da empresa (para filtro)
   const { data: kanbanStages = [] } = useQuery({
@@ -610,10 +606,15 @@ export function CampaignsPage() {
   const [selectedCampaignForTracking, setSelectedCampaignForTracking] = useState<any | null>(null);
   const [trackingQueueItems, setTrackingQueueItems] = useState<any[]>([]);
   const [loadingTrackingQueue, setLoadingTrackingQueue] = useState(false);
+  const [isRefreshingTracking, setIsRefreshingTracking] = useState(false);
   const [isTriggeringQueue, setIsTriggeringQueue] = useState(false);
 
-  const fetchTrackingQueue = async (campaignId: string) => {
-    setLoadingTrackingQueue(true);
+  const fetchTrackingQueue = async (campaignId: string, isSilent = false) => {
+    if (!isSilent) {
+      setLoadingTrackingQueue(true);
+    } else {
+      setIsRefreshingTracking(true);
+    }
     try {
       let allItems: any[] = [];
       let from = 0;
@@ -652,30 +653,21 @@ export function CampaignsPage() {
       }
 
       setTrackingQueueItems(allItems);
+      refetchCampaignStats();
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao carregar o relatório de envios.');
     } finally {
       setLoadingTrackingQueue(false);
+      setIsRefreshingTracking(false);
     }
   };
 
   const handleOpenTrackingModal = (camp: any) => {
     setSelectedCampaignForTracking(camp);
     setIsTrackModalOpen(true);
-    fetchTrackingQueue(camp.id);
+    fetchTrackingQueue(camp.id, false);
   };
-
-  // Auto refresh tracking modal details every 6 seconds when open
-  useEffect(() => {
-    if (!isTrackModalOpen || !selectedCampaignForTracking) return;
-
-    const interval = setInterval(() => {
-      fetchTrackingQueue(selectedCampaignForTracking.id);
-    }, 6000);
-
-    return () => clearInterval(interval);
-  }, [isTrackModalOpen, selectedCampaignForTracking]);
 
   const handleTriggerQueueManually = async () => {
     setIsTriggeringQueue(true);
@@ -684,7 +676,7 @@ export function CampaignsPage() {
       if (error) throw error;
       toast.success(data?.message || 'Fila de e-mails processada com sucesso!');
       if (selectedCampaignForTracking) {
-        await fetchTrackingQueue(selectedCampaignForTracking.id);
+        await fetchTrackingQueue(selectedCampaignForTracking.id, true);
         queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
       }
     } catch (err: any) {
@@ -988,7 +980,7 @@ export function CampaignsPage() {
       setIsAudienceModalOpen(false);
       setShouldSaveAsPreset(false);
       setAudienceSaveName('');
-      refetchQueueCounts();
+      refetchCampaignStats();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao definir público-alvo');
     } finally {
@@ -1162,24 +1154,75 @@ export function CampaignsPage() {
                       </p>
                     )}
                     
-                    {/* Target Audience status info */}
-                    <div className="mt-3 flex items-center justify-between border-t pt-2.5">
-                      <span className="text-xs text-muted-foreground">Destinatários:</span>
-                      {camp.status === 'draft' ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenAudienceModal(camp.id)}
-                          className="text-xs py-1 h-7 border-dashed border-slate-300 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
-                        >
-                          {queueCounts[camp.id] ? `${queueCounts[camp.id]} leads` : 'Configurar público...'}
-                        </Button>
-                      ) : (
-                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {queueCounts[camp.id] || 0} leads
-                        </span>
-                      )}
-                    </div>
+                    {/* Target Audience & Metrics status info */}
+                    {(() => {
+                      const stats = campaignStats[camp.id] || { total: 0, sent: 0, pending: 0, failed: 0 };
+                      const percent = stats.total > 0 ? Math.min(100, Math.round((stats.sent / stats.total) * 100)) : 0;
+
+                      return (
+                        <div className="mt-3 border-t pt-2.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium">Público / Destinatários:</span>
+                            {camp.status === 'draft' && stats.total === 0 ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenAudienceModal(camp.id)}
+                                className="text-xs py-1 h-7 border-dashed border-slate-300 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                              >
+                                Configurar público...
+                              </Button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => camp.status === 'draft' ? handleOpenAudienceModal(camp.id) : handleOpenTrackingModal(camp)}
+                                className="text-xs font-bold text-slate-800 dark:text-slate-200 hover:underline flex items-center gap-1"
+                              >
+                                {stats.total} leads
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Stats Chips */}
+                          {stats.total > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-medium">
+                                  <CheckCircle2 size={11} className="text-emerald-500" />
+                                  {stats.sent} enviados
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-medium">
+                                  <Clock size={11} className="text-amber-500" />
+                                  {stats.pending} na fila
+                                </span>
+                                {stats.failed > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800/60 font-medium">
+                                    <XCircle size={11} className="text-red-500" />
+                                    {stats.failed} erros
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Progress bar */}
+                              {(stats.sent > 0 || camp.status === 'sending' || camp.status === 'completed') && (
+                                <div>
+                                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                      className={`h-1.5 rounded-full transition-all duration-500 ${percent === 100 ? 'bg-emerald-500' : 'bg-yellow-500'}`} 
+                                      style={{ width: `${percent}%` }} 
+                                    />
+                                  </div>
+                                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                                    <span>Progresso do Envio</span>
+                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{percent}% ({stats.sent}/{stats.total})</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {/* Campaign Actions */}
@@ -1188,7 +1231,7 @@ export function CampaignsPage() {
                       <Button 
                         size="sm" 
                         onClick={() => handleStartCampaignImmediate(camp.id)}
-                        disabled={!queueCounts[camp.id]}
+                        disabled={!campaignStats[camp.id]?.total}
                         className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
                       >
                         <Play size={12} className="mr-1.5" />
@@ -1198,7 +1241,7 @@ export function CampaignsPage() {
                         size="sm" 
                         variant="outline"
                         onClick={() => handleOpenScheduleCampaign(camp.id)}
-                        disabled={!queueCounts[camp.id]}
+                        disabled={!campaignStats[camp.id]?.total}
                         className="flex-1 border-slate-300 dark:border-slate-800"
                       >
                         <Clock size={12} className="mr-1.5" />
@@ -2442,12 +2485,23 @@ export function CampaignsPage() {
       <Dialog open={isTrackModalOpen} onOpenChange={setIsTrackModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center justify-between">
-              <span className="flex items-center gap-2">
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
                 <Send className="h-5 w-5 text-yellow-500" />
                 Relatório da Campanha: {selectedCampaignForTracking?.title}
-              </span>
-            </DialogTitle>
+              </DialogTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => selectedCampaignForTracking && fetchTrackingQueue(selectedCampaignForTracking.id, true)}
+                disabled={loadingTrackingQueue || isRefreshingTracking}
+                className="h-8 text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", isRefreshingTracking && "animate-spin text-yellow-500")} />
+                {isRefreshingTracking ? "Atualizando..." : "Atualizar Relatório"}
+              </Button>
+            </div>
             <DialogDescription className="text-xs">
               Acompanhe em tempo real quais e-mails foram enviados, quais estão na fila e quais apresentaram erros no servidor.
             </DialogDescription>
