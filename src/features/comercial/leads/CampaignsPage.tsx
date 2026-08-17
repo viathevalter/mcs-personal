@@ -268,8 +268,9 @@ export function CampaignsPage() {
   const { data: campaignStats = {}, refetch: refetchCampaignStats } = useQuery<Record<string, { total: number; sent: number; pending: number; failed: number }>>({
     queryKey: ['campaign_queue_stats', selectedEmpresaId, campaigns],
     queryFn: async () => {
+      const validEmpresaId = (selectedEmpresaId && selectedEmpresaId !== 'all' && selectedEmpresaId.length === 36) ? selectedEmpresaId : null;
       const { data, error } = await supabase.rpc('fn_get_campaigns_stats', {
-        p_empresa_id: selectedEmpresaId || null,
+        p_empresa_id: validEmpresaId,
       });
 
       if (error) {
