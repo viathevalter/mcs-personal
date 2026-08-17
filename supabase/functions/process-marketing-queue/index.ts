@@ -25,42 +25,74 @@ serve(async (req) => {
 
     console.log("Iniciando processamento da fila de e-mail marketing...");
 
-    // 1. Ativar campanhas agendadas que já deveriam estar enviando
-    const { data: scheduledCampaigns, error: errScheduled } = await supabase
+    // 1. Verificar campanhas com status 'sending' em ordem de agendamento/criação
+    const { data: currentSendingCampaigns, error: errSending } = await supabase
       .from("marketing_campaigns")
-      .select("id")
-      .eq("status", "scheduled")
-      .lte("scheduled_at", new Date().toISOString());
+      .select("id, title, scheduled_at, created_at")
+      .eq("status", "sending")
+      .order("scheduled_at", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: true });
 
-    if (errScheduled) throw errScheduled;
+    if (errSending) throw errSending;
 
-    if (scheduledCampaigns && scheduledCampaigns.length > 0) {
-      const ids = scheduledCampaigns.map((c) => c.id);
-      await supabase
-        .from("marketing_campaigns")
-        .update({ status: "sending", updated_at: new Date().toISOString() })
-        .in("id", ids);
-      console.log(`Ativadas ${ids.length} campanhas agendadas.`);
+    let targetCampaignId: string | null = null;
+
+    // Priorizar a primeira campanha 'sending' que ainda possua e-mails pendentes
+    if (currentSendingCampaigns && currentSendingCampaigns.length > 0) {
+      for (const camp of currentSendingCampaigns) {
+        const { count, error: errCount } = await supabase
+          .from("marketing_campaign_queue")
+          .select("*", { count: "exact", head: true })
+          .eq("campaign_id", camp.id)
+          .eq("status", "pending");
+
+        if (!errCount && count && count > 0) {
+          targetCampaignId = camp.id;
+          console.log(`Campanha prioritária em andamento: ${camp.title} (${count} pendentes).`);
+          break;
+        } else {
+          // Campanha sem pendências: marca como concluída
+          await supabase
+            .from("marketing_campaigns")
+            .update({ status: "completed", updated_at: new Date().toISOString() })
+            .eq("id", camp.id);
+          console.log(`Campanha ${camp.title} finalizada como 'completed'.`);
+        }
+      }
     }
 
-    // 2. Buscar campanhas que estão ativas ('sending')
-    const { data: activeCampaigns, error: errActive } = await supabase
-      .from("marketing_campaigns")
-      .select("id")
-      .eq("status", "sending");
+    // Se NÃO houver nenhuma campanha enviando ativa, ativa a próxima agendada da fila (1 por vez)
+    if (!targetCampaignId) {
+      const { data: nextScheduled, error: errNext } = await supabase
+        .from("marketing_campaigns")
+        .select("id, title")
+        .eq("status", "scheduled")
+        .lte("scheduled_at", new Date().toISOString())
+        .order("scheduled_at", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-    if (errActive) throw errActive;
+      if (errNext) throw errNext;
 
-    if (!activeCampaigns || activeCampaigns.length === 0) {
+      if (nextScheduled) {
+        targetCampaignId = nextScheduled.id;
+        await supabase
+          .from("marketing_campaigns")
+          .update({ status: "sending", updated_at: new Date().toISOString() })
+          .eq("id", nextScheduled.id);
+        console.log(`Iniciando próxima campanha agendada: ${nextScheduled.title}`);
+      }
+    }
+
+    if (!targetCampaignId) {
       return new Response(
-        JSON.stringify({ success: true, message: "Nenhuma campanha ativa no momento." }),
+        JSON.stringify({ success: true, message: "Nenhuma campanha ativa ou agendada para envio no momento." }),
         { headers: corsHeaders(), status: 200 }
       );
     }
 
-    const activeCampaignIds = activeCampaigns.map((c) => c.id);
-
-    // 3. Buscar até 50 e-mails pendentes na fila dessas campanhas
+    // 2. Buscar até 50 e-mails pendentes estritamente da campanha prioritária da vez
     const { data: queueItems, error: errQueue } = await supabase
       .from("marketing_campaign_queue")
       .select(`
@@ -84,32 +116,20 @@ serve(async (req) => {
         )
       `)
       .eq("status", "pending")
-      .in("campaign_id", activeCampaignIds)
+      .eq("campaign_id", targetCampaignId)
       .limit(50);
 
     if (errQueue) throw errQueue;
 
     if (!queueItems || queueItems.length === 0) {
-      // Se não houver itens pendentes para campanhas marcadas como 'sending',
-      // podemos finalizá-las mudando o status para 'completed'
-      for (const campaignId of activeCampaignIds) {
-        const { count, error: errCount } = await supabase
-          .from("marketing_campaign_queue")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campaignId)
-          .eq("status", "pending");
-
-        if (!errCount && count === 0) {
-          await supabase
-            .from("marketing_campaigns")
-            .update({ status: "completed", updated_at: new Date().toISOString() })
-            .eq("id", campaignId);
-          console.log(`Campanha ${campaignId} marcada como concluída.`);
-        }
-      }
+      // Se não restou nenhum item para a campanha ativa, marca como completed
+      await supabase
+        .from("marketing_campaigns")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", targetCampaignId);
 
       return new Response(
-        JSON.stringify({ success: true, message: "Nenhum e-mail pendente na fila." }),
+        JSON.stringify({ success: true, message: `Campanha ${targetCampaignId} concluída.` }),
         { headers: corsHeaders(), status: 200 }
       );
     }
