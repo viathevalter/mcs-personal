@@ -777,10 +777,16 @@ export function LeadsPage() {
       if (tagStr.includes('portugal') || tagStr.includes('🇵🇹')) return 'PT';
       if (tagStr.includes('frança') || tagStr.includes('france') || tagStr.includes('🇫🇷')) return 'FR';
       if (tagStr.includes('alemanha') || tagStr.includes('germany') || tagStr.includes('🇩🇪')) return 'DE';
-      if (tagStr.includes('itália') || tagStr.includes('italy') || tagStr.includes('🇮🇹')) return 'IT';
+      if (tagStr.includes('itália') || tagStr.includes('italia') || tagStr.includes('italy') || tagStr.includes('🇮🇹')) return 'IT';
       if (tagStr.includes('holanda') || tagStr.includes('netherlands') || tagStr.includes('🇳🇱')) return 'NL';
       if (tagStr.includes('bélgica') || tagStr.includes('belgium') || tagStr.includes('🇧🇪')) return 'BE';
-      if (tagStr.includes('reino unido') || tagStr.includes('uk') || tagStr.includes('🇬🇧')) return 'GB';
+      if (tagStr.includes('reino unido') || tagStr.includes('uk') || tagStr.includes('gb') || tagStr.includes('🇬🇧')) return 'GB';
+    }
+    if (lead.province && typeof lead.province === 'string') {
+      const provStr = lead.province.toLowerCase();
+      if (provStr.includes('(mi)') || provStr.includes('(bs)') || provStr.includes('(bg)') || provStr.includes('(va)') || provStr.includes('(to)') || provStr.includes('(vi)') || provStr.includes('(vr)') || provStr.includes('(tv)') || provStr.includes('(bo)') || provStr.includes('(ra)') || provStr.includes('(lu)') || provStr.includes('(ge)') || provStr.includes('(ts)') || provStr.includes('(li)')) {
+        return 'IT';
+      }
     }
     return 'ES';
   };
