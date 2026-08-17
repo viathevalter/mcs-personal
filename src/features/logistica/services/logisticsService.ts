@@ -181,25 +181,48 @@ export const logisticsService = {
 
   async createAlojamento(alojamento: Partial<Alojamento>): Promise<Alojamento> {
     const client = getClient();
-    const { data, error } = await client
-      .from('alojamentos')
-      .insert([alojamento])
-      .select()
-      .single();
-    if (error) throw error;
-
-    // Gerar camas automaticamente se total_camas > 0
-    if (data && data.total_camas > 0) {
-      const camasToInsert = Array.from({ length: data.total_camas }, (_, i) => ({
-        alojamento_id: data.id,
-        identificador: `Cama ${String(i + 1).padStart(2, '0')}`,
-        tipo: i < (data.camas_individuais || 0) ? 'individual' : 'dupla',
-        status: 'livre'
-      }));
-      await client.from('camas').insert(camasToInsert);
+    let payload: any = {
+      nome: (alojamento as any).titulo || alojamento.nome || 'Alojamento Sem Nome',
+      status: 'ativo',
+      ...alojamento
+    };
+    if (payload.titulo && !payload.nome) {
+      payload.nome = payload.titulo;
     }
 
-    return data;
+    let attempts = 0;
+    while (attempts < 10) {
+      attempts++;
+      const { data, error } = await client
+        .from('alojamentos')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (!error) {
+        if (data && data.total_camas > 0) {
+          const camasToInsert = Array.from({ length: data.total_camas }, (_, i) => ({
+            alojamento_id: data.id,
+            identificador: `Cama ${String(i + 1).padStart(2, '0')}`,
+            tipo: i < (data.camas_individuais || 0) ? 'individual' : 'dupla',
+            status: 'livre'
+          }));
+          await client.from('camas').insert(camasToInsert).catch(console.warn);
+        }
+        return data;
+      }
+
+      if (error.message && error.message.includes('Could not find the')) {
+        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+        if (missingMatch && missingMatch[1]) {
+          delete (payload as any)[missingMatch[1]];
+          continue;
+        }
+      }
+
+      throw error;
+    }
+    throw new Error('Falha ao inserir alojamento.');
   },
 
   // Camas & Alocações

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText, Euro, Building } from 'lucide-react';
+import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText, Euro } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
+import { logisticsService } from '../../services/logisticsService';
 import type { Provedor } from '../../services/registrosService';
+import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
+import { useCountries, useRegions } from '@/features/master-data/locations/hooks/useLocations';
 
 const alojamentoSchema = z.object({
   titulo: z.string().min(1, 'Título é obrigatório'),
@@ -19,10 +22,16 @@ const alojamentoSchema = z.object({
   camas_duplas: z.coerce.number().default(0),
   banheiros: z.coerce.number().default(0),
   endereco: z.string().optional(),
+  country_id: z.string().optional().nullable(),
+  region_id: z.string().optional().nullable(),
   municipio: z.string().optional(),
-  pais: z.string().optional(),
   provincia: z.string().optional(),
-  valor_mensal: z.coerce.number().optional(),
+  codigo_postal: z.string().optional(),
+  pais: z.string().optional(),
+  valor_mensal: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || isNaN(Number(val)) ? undefined : Number(val)),
+    z.number().optional()
+  ),
   ativo: z.boolean().default(true),
   comodidades: z.record(z.boolean()).default({}),
   suministros: z.record(z.boolean()).default({}),
@@ -32,15 +41,30 @@ type AlojamentoFormValues = z.infer<typeof alojamentoSchema>;
 
 const comodidadesList = ['Wi-Fi', 'Aire acondicionado', 'Parking', 'Cocina'];
 const suministrosList = ['Internet', 'Luz', 'Gas', 'Agua', 'Limpieza', 'Otros gastos'];
+const clasificacaoList = [
+  'Privado',
+  'Inmobiliaria',
+  'Hotel',
+  'Airbnb',
+  'Booking',
+  'Hostal',
+  'Habitación',
+  'Pensión'
+];
 
 export const AlojamentoForm: React.FC = () => {
   const navigate = useNavigate();
   const [provedores, setProvedores] = useState<Provedor[]>([]);
+  const [nextSeq, setNextSeq] = useState<string>('0001');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: countries = [] } = useCountries();
 
   const {
     register,
     handleSubmit,
+    setValue,
+    control,
     formState: { errors },
   } = useForm<AlojamentoFormValues>({
     resolver: zodResolver(alojamentoSchema),
@@ -60,29 +84,86 @@ export const AlojamentoForm: React.FC = () => {
     },
   });
 
+  const selectedProvedorId = useWatch({ control, name: 'provedor_id' });
+  const selectedCountryId = useWatch({ control, name: 'country_id' });
+  const selectedRegionId = useWatch({ control, name: 'region_id' });
+
+  const { data: regions = [] } = useRegions(selectedCountryId || undefined);
+
   useEffect(() => {
-    const loadProvedores = async () => {
+    const loadInitialData = async () => {
       try {
-        const data = await registrosService.fetchProvedores();
-        setProvedores(data.filter(p => p.tipo === 'alojamento'));
+        const [allProvedores, allAlojamentos] = await Promise.all([
+          registrosService.fetchProvedores(),
+          logisticsService.fetchAlojamentos()
+        ]);
+        
+        setProvedores(allProvedores);
+
+        const count = allAlojamentos.length + 1;
+        const seqStr = String(count).padStart(4, '0');
+        setNextSeq(seqStr);
       } catch (error) {
-        console.error('Failed to load provedores', error);
+        console.error('Failed to load initial data', error);
       }
     };
-    loadProvedores();
+    loadInitialData();
   }, []);
+
+  // Preencher título automaticamente quando o provedor é selecionado
+  useEffect(() => {
+    if (selectedProvedorId && provedores.length > 0) {
+      const prov = provedores.find(p => p.id === selectedProvedorId);
+      if (prov) {
+        const autoTitle = `${prov.nome_razao_social} - AL-${nextSeq}`;
+        setValue('titulo', autoTitle);
+      }
+    }
+  }, [selectedProvedorId, provedores, nextSeq, setValue]);
+
+  // Atualizar nomes de país e província em texto quando os seletores mudarem
+  useEffect(() => {
+    if (selectedCountryId && countries.length > 0) {
+      const countryObj = countries.find(c => c.id === selectedCountryId);
+      if (countryObj) {
+        setValue('pais', countryObj.name);
+      }
+    }
+  }, [selectedCountryId, countries, setValue]);
+
+  useEffect(() => {
+    if (selectedRegionId && regions.length > 0) {
+      const regionObj = regions.find(r => r.id === selectedRegionId);
+      if (regionObj) {
+        setValue('provincia', regionObj.name);
+      }
+    }
+  }, [selectedRegionId, regions, setValue]);
 
   const onSubmit = async (data: AlojamentoFormValues) => {
     try {
       setIsSubmitting(true);
-      await registrosService.createAlojamento(data as any);
+
+      const payload = {
+        ...data,
+        nome: data.titulo,
+        codigo: `AL-${nextSeq}`,
+      };
+
+      await registrosService.createAlojamento(payload as any);
       navigate('/logistica/registros/alojamentos');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating alojamento:', error);
-      alert('Erro ao criar alojamento. Verifique o console.');
+      alert(`Erro ao criar alojamento: ${error.message || 'Verifique o console.'}`);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const onError = (errs: any) => {
+    console.error('Form Validation Errors:', errs);
+    const firstKey = Object.keys(errs)[0];
+    alert(`Atenção: O campo "${firstKey}" necessita ajuste: ${errs[firstKey]?.message || 'Verifique o preenchimento.'}`);
   };
 
   return (
@@ -114,7 +195,8 @@ export const AlojamentoForm: React.FC = () => {
             Cancelar
           </button>
           <button
-            onClick={handleSubmit(onSubmit)}
+            type="button"
+            onClick={handleSubmit(onSubmit, onError)}
             disabled={isSubmitting}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
           >
@@ -155,7 +237,7 @@ export const AlojamentoForm: React.FC = () => {
                   type="text"
                   {...register('titulo')}
                   className={`w-full px-3.5 py-2 bg-white dark:bg-slate-900 border ${errors.titulo ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-lg text-sm focus:ring-2 focus:ring-blue-500`}
-                  placeholder="Ex: Mario Rossi - AL-0001"
+                  placeholder="Ex: ALBERT PEGUERA - AL-0001"
                 />
                 {errors.titulo && <span className="text-xs text-red-500 mt-1 block">{errors.titulo.message}</span>}
               </div>
@@ -172,8 +254,9 @@ export const AlojamentoForm: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Clasificación</label>
                 <select {...register('classificacao')} className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                  <option value="Privado">Privado</option>
-                  <option value="Publico">Publico</option>
+                  {clasificacaoList.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
                 </select>
               </div>
 
@@ -202,33 +285,76 @@ export const AlojamentoForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Localização */}
+          {/* Localização / Endereço Principal (Padrão Master Data / Clientes) */}
           <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <MapPin className="h-4.5 w-4.5 text-blue-600" />
-              Localización
+              Endereço Principal & Localização
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Ubicación / Dirección Completa</label>
-                <input type="text" {...register('endereco')} className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm" placeholder="Ex: Carrer de Mallorca, 401, 3º 2ª" />
-              </div>
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Municipio / Ciudad</label>
-                <input type="text" {...register('municipio')} className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm" placeholder="Ex: Barcelona" />
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Logradouro / Ubicación</label>
+                <input
+                  type="text"
+                  {...register('endereco')}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Carrer de Collsaerola, 3. 3º 08207 Sabadell, Barcelona"
+                />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Provincia</label>
-                <input type="text" {...register('provincia')} className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm" placeholder="Ex: Catalunya" />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">País</label>
+                  <CountrySelector
+                    value={selectedCountryId || null}
+                    onChange={(val) => {
+                      setValue('country_id', val);
+                      setValue('region_id', null);
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Região / Província</label>
+                  <RegionSelector
+                    countryId={selectedCountryId || null}
+                    value={selectedRegionId || null}
+                    onChange={(val) => setValue('region_id', val)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Província / Estado</label>
+                  <input
+                    type="text"
+                    {...register('provincia')}
+                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Barcelona"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">País</label>
-                <select {...register('pais')} className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
-                  <option value="España">España</option>
-                  <option value="Portugal">Portugal</option>
-                  <option value="Italia">Italia</option>
-                </select>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Cidade</label>
+                  <input
+                    type="text"
+                    {...register('municipio')}
+                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Sabadell"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Código Postal</label>
+                  <input
+                    type="text"
+                    {...register('codigo_postal')}
+                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 08207"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -273,27 +399,6 @@ export const AlojamentoForm: React.FC = () => {
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{item}</span>
                 </label>
               ))}
-            </div>
-          </div>
-
-          {/* Financiero */}
-          <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Euro className="h-4.5 w-4.5 text-emerald-600" />
-              Financiero
-            </h3>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Monto de Alquiler Mensual Estimado</label>
-              <div className="relative">
-                <Euro className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('valor_mensal')}
-                  className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
-                  placeholder="Ex: 1850.00"
-                />
-              </div>
             </div>
           </div>
         </div>

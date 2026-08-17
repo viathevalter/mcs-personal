@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
+import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
+import { useCountries, useRegions } from '@/features/master-data/locations/hooks/useLocations';
 
 const contatoItemSchema = z.object({
   nome: z.string().optional(),
@@ -30,8 +32,11 @@ const provedorSchema = z.object({
   swift: z.string().optional(),
   titular_conta: z.string().optional(),
   endereco: z.string().optional(),
+  country_id: z.string().optional().nullable(),
+  region_id: z.string().optional().nullable(),
   municipio: z.string().optional(),
   provincia: z.string().optional(),
+  codigo_postal: z.string().optional(),
   pais: z.string().default('España'),
   ativo: z.boolean().default(true),
 });
@@ -42,10 +47,13 @@ export const ProvedorForm: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: countries = [] } = useCountries();
+
   const {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<ProvedorFormValues>({
     resolver: zodResolver(provedorSchema),
@@ -61,6 +69,29 @@ export const ProvedorForm: React.FC = () => {
       ]
     },
   });
+
+  const selectedCountryId = useWatch({ control, name: 'country_id' });
+  const selectedRegionId = useWatch({ control, name: 'region_id' });
+
+  const { data: regions = [] } = useRegions(selectedCountryId || undefined);
+
+  useEffect(() => {
+    if (selectedCountryId && countries.length > 0) {
+      const countryObj = countries.find(c => c.id === selectedCountryId);
+      if (countryObj) {
+        setValue('pais', countryObj.name);
+      }
+    }
+  }, [selectedCountryId, countries, setValue]);
+
+  useEffect(() => {
+    if (selectedRegionId && regions.length > 0) {
+      const regionObj = regions.find(r => r.id === selectedRegionId);
+      if (regionObj) {
+        setValue('provincia', regionObj.name);
+      }
+    }
+  }, [selectedRegionId, regions, setValue]);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -131,7 +162,7 @@ export const ProvedorForm: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* BLOCO 1: Identificação do Proveedor (Fundo cinza claro estilo Clientes, inputs brancos) */}
+        {/* BLOCO 1: Identificação do Proveedor */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <Building className="h-4.5 w-4.5 text-blue-600" />
@@ -331,51 +362,76 @@ export const ProvedorForm: React.FC = () => {
           </div>
         </div>
 
-        {/* BLOCO 4: Endereço & Localização Fiscal */}
+        {/* BLOCO 4: Endereço Principal & Localização Fiscal (Padrão Master Data / Clientes) */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <MapPin className="h-4.5 w-4.5 text-blue-600" />
             Endereço Principal & Localização Fiscal
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Logradouro / Dirección Fiscal</label>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Logradouro / Dirección Fiscal</label>
               <input
                 type="text"
                 {...register('endereco')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Calle Estrecha, 2, Santa Marta de Tormes"
+                className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: Av. da Liberdade, 123 - 4º Andar"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Município / Cidade</label>
-              <input
-                type="text"
-                {...register('municipio')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Barcelona, Milano, Sabadell"
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">País</label>
+                <CountrySelector
+                  value={selectedCountryId || null}
+                  onChange={(val) => {
+                    setValue('country_id', val);
+                    setValue('region_id', null);
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Região / Província</label>
+                <RegionSelector
+                  countryId={selectedCountryId || null}
+                  value={selectedRegionId || null}
+                  onChange={(val) => setValue('region_id', val)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Província / Estado</label>
+                <input
+                  type="text"
+                  {...register('provincia')}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Catalunha / Minho"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Província / Estado</label>
-              <input
-                type="text"
-                {...register('provincia')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Castilla y León, Catalunya"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">País</label>
-              <select
-                {...register('pais')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="España">España</option>
-                <option value="Portugal">Portugal</option>
-                <option value="Italia">Italia</option>
-              </select>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Cidade</label>
+                <input
+                  type="text"
+                  {...register('municipio')}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Barcelona / Braga"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Código Postal</label>
+                <input
+                  type="text"
+                  {...register('codigo_postal')}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: 08001 / 4700-001"
+                />
+              </div>
             </div>
           </div>
         </div>
