@@ -41,6 +41,19 @@ export const useAllocateWorker = () => {
         throw error;
       }
 
+      // Automatically sync the agreed hourly rate to the worker's official remuneration settings
+      const effectiveWorkerId = payload.worker_id || (data as any)?.worker_id || (data as any)?.id;
+      if (effectiveWorkerId && payload.tarifa_acordada && payload.tarifa_acordada > 0) {
+        try {
+          await supabase
+            .schema('core_personal')
+            .from('worker_beneficios_settings')
+            .upsert({ worker_id: effectiveWorkerId, tarifa_hora: payload.tarifa_acordada }, { onConflict: 'worker_id' });
+        } catch (tariffSyncErr) {
+          console.warn('Could not auto-sync tariff to worker_beneficios_settings:', tariffSyncErr);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -52,6 +65,9 @@ export const useAllocateWorker = () => {
       queryClient.invalidateQueries({ queryKey: ['inactive_workers'] });
       queryClient.invalidateQueries({ queryKey: ['active_pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['pedido_allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['workers-tariffs'] });
+      queryClient.invalidateQueries({ queryKey: ['workers'] });
+      queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
     },
     onError: (error: any) => {
       toast.error(`Erro ao alocar: ${error.message || 'Erro desconhecido'}`);
