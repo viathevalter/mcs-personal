@@ -1033,7 +1033,7 @@ export function HoleritesPage() {
             map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras });
         });
         return map;
-    }, [workers, eventos, allDiscounts, dbHoursSummary, workerHousingBenefits]);
+    }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
 
     return (
         <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
