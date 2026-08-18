@@ -242,26 +242,28 @@ async function runMassiveSpainMiner(totalCycles = 5) {
         if (validBatch.length > 0) {
           for (const item of validBatch) {
             try {
-              const ins = await client.query(`
-                INSERT INTO core_comercial.leads (
-                  empresa_id, stage_id, name, company_name, email, phone, website,
-                  address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
-                ) VALUES (
-                  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
-                )
-                ON CONFLICT (LOWER(TRIM(email))) DO NOTHING
-                RETURNING id;
-              `, [
-                item.empresa_id, item.stage_id, item.name, item.company_name, item.email,
-                item.phone, item.website, item.address_line, item.city, item.province,
-                item.sector, item.origen_lead, item.notes, item.tags
-              ]);
+              const check = await client.query('SELECT id FROM core_comercial.leads WHERE LOWER(TRIM(email)) = $1 LIMIT 1;', [item.email]);
+              if (check.rows.length === 0) {
+                const ins = await client.query(`
+                  INSERT INTO core_comercial.leads (
+                    empresa_id, stage_id, name, company_name, email, phone, website,
+                    address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
+                  ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
+                  )
+                  RETURNING id;
+                `, [
+                  item.empresa_id, item.stage_id, item.name, item.company_name, item.email,
+                  item.phone, item.website, item.address_line, item.city, item.province,
+                  item.sector, item.origen_lead, item.notes, item.tags
+                ]);
 
-              if (ins.rows.length > 0) {
-                totalInserted++;
+                if (ins.rows.length > 0) {
+                  totalInserted++;
+                }
               }
             } catch (err) {
-              // Ignore conflicts
+              console.error("Insert err:", err.message);
             }
           }
           console.log(`[${hub.hub}] +${validBatch.length} novas indústrias validadas com MX ativo! (Total inserido no CRM: ${totalInserted})`);
