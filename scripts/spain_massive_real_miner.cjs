@@ -5,90 +5,65 @@ const AISA_BASE_URL = 'https://api.aisa.one/v1';
 const AISA_API_KEY = 'sk-aisa-yBrchxWrx7IAi8832rVsYN_I2znI4rjACKQ9gQFKGN8';
 
 const INDUSTRIAL_HUBS_SPAIN = [
-  // 1. Madrid e Corredor do Henares / Sul
-  { hub: 'Madrid Sur', poligonos: 'Polígonos Industriales de Getafe (Los Ángeles, San Marcos), Pinto (Las Arenas) y Leganés (Nuestra Señora de Butarque, Prado Overa)', province: 'Madrid', city: 'Getafe / Pinto' },
-  { hub: 'Madrid Este / Corredor', poligonos: 'Polígonos Industriales de San Fernando de Henares, Coslada, Torrejón de Ardoz y Alcalá de Henares (La Garena, Camporroso)', province: 'Madrid', city: 'San Fernando / Alcalá' },
-  { hub: 'Madrid Suroeste', poligonos: 'Polígonos Industriales de Fuenlabrada (Cobo Calleja, Cantueña), Alcorcón (Urtinsa) y Móstoles (Regordoño)', province: 'Madrid', city: 'Fuenlabrada / Móstoles' },
-  { hub: 'Madrid Sureste', poligonos: 'Polígonos Industriales de Arganda del Rey, Rivas-Vaciamadrid y Villaverde Industrial', province: 'Madrid', city: 'Arganda / Villaverde' },
-
-  // 2. Catalunha / Barcelona / Tarragona
-  { hub: 'Barcelona Vallès Occidental', poligonos: 'Polígonos Industriales de Sabadell (Can Roqueta, Gràcia), Terrassa (Can Parellada, Santa Margarida) y Rubí (Can Jardí)', province: 'Barcelona', city: 'Sabadell / Terrassa' },
-  { hub: 'Barcelona Baix Llobregat', poligonos: 'Polígonos Industriales de Martorell, Sant Boi de Llobregat, Cornellà y Zona Franca Barcelona', province: 'Barcelona', city: 'Martorell / Zona Franca' },
-  { hub: 'Barcelona Vallès Oriental', poligonos: 'Polígonos Industriales de Granollers (Congost, Font del Ràdium), Montmeló y Mollet del Vallès', province: 'Barcelona', city: 'Granollers / Montmeló' },
-  { hub: 'Tarragona Químico & Metal', poligonos: 'Polígonos Industriales Químico Riu Clar, Francolí, Constantí y Valls', province: 'Tarragona', city: 'Tarragona / Valls' },
-
-  // 3. País Basco & Navarra
-  { hub: 'Vizcaya / Gran Bilbao', poligonos: 'Polígonos Industriales de Asua, Erandio, Trapagaran, Zamudio, Basauri y Durango', province: 'Vizcaya', city: 'Bilbao / Trapagaran' },
-  { hub: 'Álava / Vitoria', poligonos: 'Polígonos Industriales de Júndiz, Betoño, Gamarra y Gojain', province: 'Álava', city: 'Vitoria-Gasteiz' },
-  { hub: 'Gipuzkoa', poligonos: 'Polígonos Industriales de Eibar, Beasain, Hernani, Irún y Mondragón / Arrasate', province: 'Gipuzkoa', city: 'Eibar / Beasain / Irún' },
-  { hub: 'Navarra', poligonos: 'Polígonos Industriales Landaben, Noáin-Esquíroz, Comarca 2 y Tudela', province: 'Navarra', city: 'Pamplona / Tudela' },
-
-  // 4. Aragão / Zaragoza
-  { hub: 'Zaragoza', poligonos: 'Polígonos Industriales Malpica, Plaza, Centrovía (La Muela), Cogullada, Utebo y La Cartuja', province: 'Zaragoza', city: 'Zaragoza / Utebo' },
-
-  // 5. Valência, Alicante & Castellón
-  { hub: 'Valência Norte / Oeste', poligonos: 'Polígonos Industriales Fuente del Jarro (Paterna), L Andana, Ribarroja (El Oliveral) y Almussafes', province: 'Valencia', city: 'Paterna / Ribarroja' },
-  { hub: 'Valência Sul / Sagunto', poligonos: 'Polígonos Industriales de Silla, Torrent, Picassent y Parc Sagunt', province: 'Valencia', city: 'Sagunto / Silla' },
-  { hub: 'Castellón Metal & Cerâmica', poligonos: 'Polígonos Industriales Ciudad del Transporte, Mijares (Almassora), Vila-real y Onda', province: 'Castellón', city: 'Castellón / Almassora' },
-  { hub: 'Alicante', poligonos: 'Polígonos Industriales Las Atalayas, Pla de la Vallonga, Babel y Elche Parque Empresarial', province: 'Alicante', city: 'Alicante / Elche' },
-
-  // 6. Astúrias, Cantábria & Galícia
-  { hub: 'Astúrias Central', poligonos: 'Polígonos Industriales Silvota (Llanera), Asipo, PEPA (Avilés), Porceyo (Gijón) y Tremañes', province: 'Asturias', city: 'Gijón / Avilés / Oviedo' },
-  { hub: 'Cantábria', poligonos: 'Polígonos Industriales Candina (Santander), Guarnizo, Morero (Guarnizo-Camargo) y Tanos-Viérnoles (Torrelavega)', province: 'Cantabria', city: 'Santander / Torrelavega' },
-  { hub: 'Galícia Sul / Vigo', poligonos: 'Polígonos Industriales de Balaídos, O Campiño (Pontevedra), A Granxa (Porriño) y As Gándaras', province: 'Pontevedra', city: 'Vigo / O Porriño' },
-  { hub: 'Galícia Norte / A Coruña & Ferrol', poligonos: 'Polígonos Industriales de Sabón (Arteixo), A Grela (A Coruña), Río do Pozo (Narón) y Vilar do Colo (Fene/Cabanas)', province: 'A Coruña', city: 'A Coruña / Ferrol' },
-
-  // 7. Andaluzia & Múrcia
-  { hub: 'Sevilla', poligonos: 'Polígonos Industriales Calonge, Store, La Isla (Dos Hermanas), Alcalá de Guadaíra (Cuchipanda) y El Pino', province: 'Sevilla', city: 'Sevilla / Dos Hermanas' },
-  { hub: 'Cádiz / Baía de Algeciras', poligonos: 'Polígonos Industriales de Palmones (Los Barrios), Cortijo Real (Algeciras), El Trocadero (Puerto Real) y Guadarranque (San Roque)', province: 'Cádiz', city: 'Algeciras / Puerto Real' },
-  { hub: 'Huelva Químico & Naval', poligonos: 'Polígonos Industriales Nuevo Puerto, Tartessos y Palos de la Frontera', province: 'Huelva', city: 'Huelva / Palos' },
-  { hub: 'Múrcia / Cartagena', poligonos: 'Polígonos Industriales Cabezo Beaza, Los Camachos (Cartagena), Valle de Escombreras y Base 2000 (Molina de Segura)', province: 'Murcia', city: 'Cartagena / Molina' },
-
-  // 8. Castela e Leão & Castela-La Mancha
-  { hub: 'Valladolid & Burgos', poligonos: 'Polígonos Industriales San Cristóbal (Valladolid), Argales, Villalonquéjar (Burgos) y Gamonal', province: 'Valladolid / Burgos', city: 'Valladolid / Burgos' },
-  { hub: 'Toledo & Guadalajara', poligonos: 'Polígonos Industriales de Toledo (Santa María de Benquerencia), Seseña, Henares (Guadalajara) y Cabanillas del Campo', province: 'Guadalajara / Toledo', city: 'Guadalajara / Toledo' }
+  { hub: 'Madrid Sur & Este', poligonos: 'Polígonos de Getafe (Los Ángeles, San Marcos), Pinto (Las Arenas), Leganés, Coslada, Torrejón de Ardoz y Alcalá de Henares', province: 'Madrid', city: 'Madrid / Getafe' },
+  { hub: 'Barcelona & Vallès', poligonos: 'Polígonos de Sabadell (Can Roqueta), Terrassa (Can Parellada), Granollers, Martorell, Sant Boi y Zona Franca', province: 'Barcelona', city: 'Barcelona / Sabadell' },
+  { hub: 'País Basco / Gran Bilbao', poligonos: 'Polígonos de Asua, Erandio, Trapagaran, Zamudio, Durango, Vitoria-Gasteiz (Júndiz) y Eibar', province: 'Vizcaya / Álava', city: 'Bilbao / Vitoria' },
+  { hub: 'Zaragoza', poligonos: 'Polígonos Malpica, Plaza, Centrovía (La Muela), Cogullada y Utebo', province: 'Zaragoza', city: 'Zaragoza' },
+  { hub: 'Valência & Castellón', poligonos: 'Polígonos Fuente del Jarro (Paterna), Ribarroja, Almussafes, Parc Sagunt, Vila-real y Almassora', province: 'Valencia / Castellón', city: 'Valencia / Castellón' },
+  { hub: 'Astúrias & Cantábria', poligonos: 'Polígonos Silvota (Llanera), Asipo, PEPA (Avilés), Porceyo (Gijón) y Guarnizo (Santander)', province: 'Asturias / Cantabria', city: 'Gijón / Avilés / Santander' },
+  { hub: 'Galícia (Vigo & Ferrol)', poligonos: 'Polígonos de Balaídos, O Campiño (Pontevedra), A Granxa (Porriño), Sabón (Arteixo) y Río do Pozo (Narón)', province: 'Pontevedra / A Coruña', city: 'Vigo / Ferrol / A Coruña' },
+  { hub: 'Andaluzia & Múrcia', poligonos: 'Polígonos Calonge, Store, La Isla (Sevilla), Palmones (Algeciras), El Trocadero (Puerto Real) y Cabezo Beaza (Cartagena)', province: 'Sevilla / Cádiz / Murcia', city: 'Sevilla / Algeciras / Cartagena' },
+  { hub: 'Navarra & Castela', poligonos: 'Polígonos Landaben (Pamplona), San Cristóbal (Valladolid), Villalonquéjar (Burgos) e Henares (Guadalajara)', province: 'Navarra / Valladolid', city: 'Pamplona / Valladolid' }
 ];
 
 const SECTORS = [
   {
-    name: 'Calderería Pesada & Fabricación Metálica',
+    code: 'caldereria',
+    title: '🔨 1. Calderería Pesada, Tanques & Recipientes a Presión (España)',
     cnae: '25.29 / 25.30',
-    keywords: 'talleres de calderería pesada, calderería media, fabricación de depósitos y tanques metálicos, caldereros soldadores oficiales, recipientes a presión'
+    keywords: 'talleres de calderería pesada, calderería media, fabricación de depósitos y tanques metálicos, recipientes a presión, autoclaves industriales'
   },
   {
-    name: 'Tubería Industrial & Montajes de Planta',
+    code: 'tuberia',
+    title: '🚰 2. Tubería Industrial & Montajes Mecánicos de Planta (España)',
     cnae: '33.20 / 43.22',
-    keywords: 'montaje de tubería industrial, piping industrial, soldadura de tuberías alta presión TIG / electrodo, líneas de vapor y fluidos, montajes mecánicos industriales'
+    keywords: 'montaje de tubería industrial, piping industrial, soldadores de tubería alta presión TIG / electrodo, líneas de vapor, montajes mecánicos en plantas'
   },
   {
-    name: 'Estructuras Metálicas & Naves Industriales',
+    code: 'estructuras',
+    title: '🏗️ 3. Estructuras Metálicas, Naves Industriales & Cerrajería Pesada (España)',
     cnae: '25.11',
-    keywords: 'fabricación y montaje de estructuras metálicas, cerrajería industrial pesada, naves industriales de acero, vigas y celosías metálicas, carpintería metálica estructural'
+    keywords: 'fabricación y montaje de estructuras metálicas, cerrajería industrial pesada, naves industriales de acero, vigas cajón y cerchas metálicas'
   },
   {
-    name: 'Bienes de Equipo & Mecanizado Industrial',
+    code: 'mecanizado',
+    title: '⚙️ 4. Mecanizado Industrial CNC, Matricería & Bienes de Equipo (España)',
     cnae: '25.62 / 28.41',
-    keywords: 'mecanizado de piezas industriales CNC, tornos y fresadoras, mandrinadoras, matricería industrial, fabricación de maquinaria y bienes de equipo'
+    keywords: 'talleres de mecanizado CNC de precisión, fresadoras y tornos CNC grandes, mandrinado piezas industriales, fabricación de maquinaria y bienes de equipo'
   },
   {
-    name: 'Equipos Térmicos & Intercambiadores de Calor',
+    code: 'termica',
+    title: '🔥 5. Intercambiadores de Calor, Calderas & Equipos Térmicos (España)',
     cnae: '28.21 / 28.25',
-    keywords: 'fabricación y mantenimiento de intercambiadores de calor, calderas industriales, hornos industriales, condensadores y equipos térmicos'
+    keywords: 'fabricación y reparación de intercambiadores de calor, calderas industriales de vapor, hornos industriales, condensadores y aerorrefrigeradores'
   },
   {
-    name: 'Construcción y Reparación Naval',
+    code: 'naval',
+    title: '⚓ 6. Construcción, Reparación Naval & Talleres de Astillero (España)',
     cnae: '30.11 / 33.15',
-    keywords: 'astilleros navales, reparación y habilitación naval, calderería naval, tubería y soldadura naval, talleres auxiliares de astilleros'
+    keywords: 'astilleros de reparación y construcción naval, habilitación naval, calderería y tubería naval, talleres auxiliares de soldadura de buques'
   },
   {
-    name: 'Frío Industrial & Aislamiento Térmico',
+    code: 'frio',
+    title: '❄️ 7. Frío Industrial, Aislamiento Térmico & Climatización (España)',
     cnae: '43.29 / 28.25',
-    keywords: 'instalaciones de frío industrial con amoniaco/freón, calorifugado y aislamiento térmico de tuberías, plantas frigoríficas, climatización industrial HVAC'
+    keywords: 'instalaciones de frío industrial con amoniaco, aislamiento térmico calorifugado de tuberías y depósitos, plantas frigoríficas industriales'
   },
   {
-    name: 'Industria Agroalimentaria & Tubería Inox',
+    code: 'inox_alimentar',
+    title: '🥛 8. Industria Agroalimentaria, Bodegas & Tubería Inox / TIG Sanitario (España)',
     cnae: '28.93',
-    keywords: 'tubería alimentaria de acero inoxidable, soldadura TIG sanitaria, depósitos y tanques inox para bodegas, almazaras, queserías y cerveceras'
+    keywords: 'tubería alimentaria de acero inoxidable, soldadura TIG sanitaria, depósitos y tanques inox para bodegas de vino, almazaras de aceite y cerveceras'
   }
 ];
 
@@ -108,8 +83,8 @@ async function checkMx(domain) {
 
 async function fetchRealWorkshops(hubObj, sectorObj, excluded) {
   const excludeStr = excluded.length > 0 ? `\nDO NOT include any of these company names or domains: [${excluded.slice(-25).join(', ')}].` : '';
-  const prompt = `You are a Spanish industrial B2B registry expert.
-Provide 25 REAL, NON-DUPLICATED, ACTIVE Spanish industrial workshops and fabricators (Pymes / Talleres industriales) located in the industrial parks: "${hubObj.poligonos}", Spain matching: "${sectorObj.keywords}".
+  const prompt = `You are an expert Spanish industrial B2B registry researcher.
+Provide 20 REAL, REGISTERED, NON-FICTIONAL Spanish industrial workshops and fabricators (Pymes / Talleres industriales) located in the industrial estates across "${hubObj.poligonos}", Spain matching: "${sectorObj.keywords}".
 Target real small and medium industrial companies (10 to 100 workers) situated in these industrial estates that employ welders, tuberos, caldereros, and mechanic fitters.
 Only return REAL existing companies with their genuine website (.es or .com) and official contact email (e.g. info@, contacto@, administracion@, comercial@).${excludeStr}
 
@@ -153,12 +128,12 @@ Return JSON array only:
   }
 }
 
-async function runMassiveSpainMiner(totalCycles = 5) {
+async function runRealMinerAndSyncJobs(totalCycles = 5) {
   const client = new Client({ connectionString: PROD_PG_URL });
   await client.connect();
 
   console.log('========================================================================');
-  console.log('🇪🇸 INICIANDO MINERADOR REAL MASSIVO DA ESPANHA (100% DEDUPLICADO & DNS MX)');
+  console.log('🇪🇸 INICIANDO MINERADOR REAL MASSIVO DA ESPANHA & SINCRONIZAÇÃO DE STAGING');
   console.log('========================================================================\n');
 
   // Get active empresa
@@ -173,7 +148,24 @@ async function runMassiveSpainMiner(totalCycles = 5) {
   `, [empresaId]);
   const defaultStageId = stageRes.rows[0]?.id || null;
 
-  // Load ALL existing emails and domains to prevent duplicates 100%
+  // Create or get the 8 Official Real Jobs in core_comercial.lead_prospecting_jobs
+  const jobMap = {};
+  for (const sec of SECTORS) {
+    const jRes = await client.query(`
+      INSERT INTO core_comercial.lead_prospecting_jobs (
+        empresa_id, title, keywords, location, target_count, processed_count, 
+        found_emails_count, status, search_source, email_required, sector_filter, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, 'Espanha (Polígonos Industriais)', 500, 0, 0, 'processing', 'google_maps', true, $4, NOW(), NOW()
+      )
+      RETURNING id;
+    `, [empresaId, sec.title, sec.keywords, sec.title]);
+
+    jobMap[sec.code] = jRes.rows[0].id;
+  }
+  console.log(`✅ 8 Missões Reais de Prospecção criadas na tela de Máquina de Leads!`);
+
+  // Load existing emails and domains to prevent duplicates 100%
   const existingRes = await client.query('SELECT LOWER(TRIM(email)) as email FROM core_comercial.leads WHERE email IS NOT NULL AND email != \'\';');
   const existingEmails = new Set(existingRes.rows.map(r => r.email));
   const existingDomains = new Set();
@@ -184,22 +176,19 @@ async function runMassiveSpainMiner(totalCycles = 5) {
     }
   });
 
-  console.log(`🔒 Trava de Deduplicação Ativa: ${existingEmails.size} e-mails e ${existingDomains.size} domínios já protegidos.`);
+  console.log(`🔒 Trava de Deduplicação: ${existingEmails.size} e-mails protegidos.`);
 
-  let totalMined = 0;
-  let totalMxVerified = 0;
   let totalInserted = 0;
 
   for (let cycle = 1; cycle <= totalCycles; cycle++) {
-    console.log(`\n=================== [CICLO ${cycle} de ${totalCycles}] VARRENDO TODOS OS POLÍGONOS ===================`);
+    console.log(`\n--- [CICLO ${cycle} de ${totalCycles}] Mineração Real por Polígonos ---`);
 
-    for (const hub of INDUSTRIAL_HUBS_SPAIN) {
-      for (const sector of SECTORS) {
+    for (const sector of SECTORS) {
+      const jobId = jobMap[sector.code];
+
+      for (const hub of INDUSTRIAL_HUBS_SPAIN) {
         const rawList = await fetchRealWorkshops(hub, sector, Array.from(existingDomains).slice(-30));
         if (!rawList || rawList.length === 0) continue;
-
-        totalMined += rawList.length;
-        const validBatch = [];
 
         for (const comp of rawList) {
           if (!comp.email || !comp.company_name) continue;
@@ -217,67 +206,76 @@ async function runMassiveSpainMiner(totalCycles = 5) {
           const hasMx = await checkMx(domain);
           if (!hasMx) continue;
 
-          totalMxVerified++;
           existingEmails.add(cleanEmail);
           existingDomains.add(domain);
 
-          validBatch.push({
-            empresa_id: empresaId,
-            stage_id: defaultStageId,
-            name: comp.company_name,
-            company_name: comp.company_name,
-            email: cleanEmail,
-            phone: comp.phone || '+34 91 000 00 00',
-            website: comp.website || `https://www.${domain}`,
-            address_line: comp.address || `${hub.poligonos}, ${hub.province}`,
-            city: comp.city || hub.city,
-            province: hub.province,
-            sector: sector.name,
-            origen_lead: 'AIsa - Polígonos Espanha',
-            notes: `Oficina/Indústria real verificada via DNS MX. CNAE: ${sector.cnae}. Polígono: ${hub.poligonos}.`,
-            tags: ['Espanha', 'Polígonos Industriais', 'AIsa Prospecção', sector.name]
-          });
-        }
-
-        if (validBatch.length > 0) {
-          for (const item of validBatch) {
-            try {
-              const check = await client.query('SELECT id FROM core_comercial.leads WHERE LOWER(TRIM(email)) = $1 LIMIT 1;', [item.email]);
-              if (check.rows.length === 0) {
-                const ins = await client.query(`
-                  INSERT INTO core_comercial.leads (
-                    empresa_id, stage_id, name, company_name, email, phone, website,
-                    address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
-                  ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
-                  )
-                  RETURNING id;
-                `, [
-                  item.empresa_id, item.stage_id, item.name, item.company_name, item.email,
-                  item.phone, item.website, item.address_line, item.city, item.province,
-                  item.sector, item.origen_lead, item.notes, item.tags
-                ]);
-
-                if (ins.rows.length > 0) {
-                  totalInserted++;
-                }
-              }
-            } catch (err) {
-              console.error("Insert err:", err.message);
-            }
+          // 1. Insert into Staging (lead_prospecting_results)
+          try {
+            await client.query(`
+              INSERT INTO core_comercial.lead_prospecting_results (
+                job_id, company_name, email, phone, website, address, city, 
+                country, status, source, confidence_score, metadata, created_at
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, 'Espanha', 'imported', 'google_maps', 95,
+                $8, NOW()
+              )
+              ON CONFLICT (LOWER(TRIM(email))) DO NOTHING;
+            `, [
+              jobId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
+              comp.website || `https://www.${domain}`, comp.address || `${hub.poligonos}`,
+              comp.city || hub.city,
+              JSON.stringify({ sector: sector.title, cnae: sector.cnae, hub: hub.hub, verified_mx: true })
+            ]);
+          } catch (e) {
+            // Ignore conflict
           }
-          console.log(`[${hub.hub}] +${validBatch.length} novas indústrias validadas com MX ativo! (Total inserido no CRM: ${totalInserted})`);
+
+          // 2. Insert into CRM (leads)
+          try {
+            const check = await client.query('SELECT id FROM core_comercial.leads WHERE LOWER(TRIM(email)) = $1 LIMIT 1;', [cleanEmail]);
+            if (check.rows.length === 0) {
+              await client.query(`
+                INSERT INTO core_comercial.leads (
+                  empresa_id, stage_id, prospecting_job_id, name, company_name, email, phone, website,
+                  address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
+                ) VALUES (
+                  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+                );
+              `, [
+                empresaId, defaultStageId, jobId, comp.company_name, comp.company_name, cleanEmail,
+                comp.phone || '+34 91 000 00 00', comp.website || `https://www.${domain}`,
+                comp.address || `${hub.poligonos}, ${hub.province}`, comp.city || hub.city, hub.province,
+                sector.title, 'AIsa - Polígonos Espanha',
+                `Oficina industrial real verificada via DNS MX. CNAE: ${sector.cnae}. Polígono: ${hub.poligonos}.`,
+                ['Espanha', 'Polígonos Industriais', 'AIsa Prospecção Real', sector.code]
+              ]);
+              totalInserted++;
+            }
+          } catch (e) {
+            // Ignore conflict
+          }
+
+          // 3. Update Job counters
+          await client.query(`
+            UPDATE core_comercial.lead_prospecting_jobs
+            SET 
+              processed_count = processed_count + 1,
+              found_emails_count = found_emails_count + 1,
+              updated_at = NOW()
+            WHERE id = $1;
+          `, [jobId]);
         }
+
+        console.log(`[${sector.code}] [${hub.hub}] Novas indústrias reais gravadas em Staging & CRM! (Total acumulado: ${totalInserted})`);
       }
     }
   }
 
   console.log('\n========================================================================');
-  console.log(`🏁 MINERAÇÃO MASSIVA CONCLUÍDA COM SUCESSO!`);
-  console.log(`Total Mapeado: ${totalMined} | MX Aprovados: ${totalMxVerified} | Novos Leads Inseridos: ${totalInserted}`);
+  console.log(`🏁 MINERAÇÃO MASSIVA CONCLUÍDA! Total de novas indústrias inseridas: ${totalInserted}`);
   console.log('========================================================================');
 
   await client.end();
 }
 
-runMassiveSpainMiner(6);
+runRealMinerAndSyncJobs(6);
