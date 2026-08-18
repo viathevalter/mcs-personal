@@ -22,6 +22,7 @@ interface ExportHoleritesDialogProps {
     dbHoursSummary?: any;
     workerIbansMap?: Map<string, { iban: string; banco: string }>;
     eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
+    workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
 }
 
 interface ColumnOption {
@@ -32,6 +33,7 @@ interface ColumnOption {
         dbHoursSummary?: any;
         workerIbansMap?: Map<string, { iban: string; banco: string }>;
         eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
+        workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
     }) => string | number;
 }
 
@@ -58,13 +60,13 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'contratante',
         label: 'Empresa (Contratante)',
         category: 'cadastro',
-        getValue: (w) => w.contratante || '-'
+        getValue: (w, { workerMonthlyActivityMap }) => workerMonthlyActivityMap?.get(w.id)?.contratante || w.contratante || '-'
     },
     {
         id: 'cliente_nombre',
         label: 'Cliente Alocado',
         category: 'cadastro',
-        getValue: (w) => w.cliente_nombre || '-'
+        getValue: (w, { workerMonthlyActivityMap }) => workerMonthlyActivityMap?.get(w.id)?.cliente_nombre || w.cliente_nombre || (w as any).cliente || '-'
     },
     {
         id: 'funcion',
@@ -148,7 +150,8 @@ export function ExportHoleritesDialog({
     mesReferencia,
     dbHoursSummary,
     workerIbansMap,
-    eventosMap
+    eventosMap,
+    workerMonthlyActivityMap
 }: ExportHoleritesDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedColumnIds, setSelectedColumnIds] = useState<Set<string>>(
@@ -184,7 +187,7 @@ export function ExportHoleritesDialog({
             const exportRows = workers.map(worker => {
                 const rowObj: Record<string, any> = {};
                 activeCols.forEach(col => {
-                    rowObj[col.label] = col.getValue(worker, { dbHoursSummary, workerIbansMap, eventosMap });
+                    rowObj[col.label] = col.getValue(worker, { dbHoursSummary, workerIbansMap, eventosMap, workerMonthlyActivityMap });
                 });
                 return rowObj;
             });

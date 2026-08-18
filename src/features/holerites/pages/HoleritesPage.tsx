@@ -361,24 +361,65 @@ export function HoleritesPage() {
                 }
             }
 
-            // Fetch faturas to overlay pro-forma adjustments & map client names
+            // Fetch companies & clients to map fatura company & client
+            const { data: allEmpresas } = await supabase
+                .schema('core_common')
+                .from('empresas')
+                .select('id, trade_name, nome, legal_name');
+
+            const empresaNameMap = new Map<string, string>();
+            (allEmpresas || []).forEach((e: any) => {
+                const name = (e.trade_name || e.nome || e.legal_name || '').trim();
+                empresaNameMap.set(e.id, name);
+            });
+
+            const { data: allClients } = await supabase
+                .schema('core_common')
+                .from('clients')
+                .select('id, trade_name, legal_name');
+
+            const clientNameMap = new Map<string, string>();
+            (allClients || []).forEach((c: any) => {
+                const name = (c.trade_name || c.legal_name || '').trim();
+                clientNameMap.set(c.id, name);
+            });
+
+            // Fetch faturas to overlay pro-forma adjustments & map client/company names
             const { data: faturas, error: faturasErr } = await supabase
                 .schema('core_finance')
                 .from('faturas')
-                .select('id, status, cliente_nombre, client_id, ajustes_json');
+                .select('id, status, client_id, empresa_id, ajustes_json');
 
             if (faturasErr) {
                 console.error("Error fetching faturas for holerites adjustments:", faturasErr);
             }
 
-            const faturaClientMap = new Map<string, string>();
+            const faturaInfoMap = new Map<string, { cliente_nombre: string; contratante: string }>();
             if (faturas) {
                 faturas.forEach((f: any) => {
-                    if (f.cliente_nombre) {
-                        faturaClientMap.set(f.id, f.cliente_nombre);
-                    }
+                    const cName = clientNameMap.get(f.client_id) || '';
+                    const empName = empresaNameMap.get(f.empresa_id) || '';
+                    faturaInfoMap.set(f.id, { cliente_nombre: cName, contratante: empName });
                 });
             }
+
+            // Fetch allocations active during mesReferencia as secondary source
+            const monthEndIso = `${endDateStr}T23:59:59.999Z`;
+            const monthStartIso = `${startDateStr}T00:00:00.000Z`;
+            const { data: allocsData } = await supabase
+                .schema('core_personal')
+                .from('vw_worker_allocations')
+                .select('cod_colab, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador')
+                .lte('fechainiciopedido', monthEndIso)
+                .order('fechainiciopedido', { ascending: false });
+
+            const allocsActiveInMonthByCod = new Map<string, any>();
+            (allocsData || []).forEach((a: any) => {
+                if (a.fechasalidatrabajador && a.fechasalidatrabajador < monthStartIso) return;
+                if (a.cod_colab && !allocsActiveInMonthByCod.has(a.cod_colab)) {
+                    allocsActiveInMonthByCod.set(a.cod_colab, a);
+                }
+            });
 
             // Global map of disputed/adjusted hours: key = `${worker_id}_${dateStr}` -> adjusted hours value
             const globalDisputedHours = new Map<string, number>();
@@ -403,6 +444,10 @@ export function HoleritesPage() {
             const dailyEffectiveMap = new Map<string, number>();
             const adjustedWorkerIds = new Set<string>();
             const workerClientsMap = new Map<string, Set<string>>();
+            const workerCompanyHoursMap = new Map<string, Map<string, number>>();
+            const workerClientHoursMap = new Map<string, Map<string, number>>();
+            const workerAllContratantes = new Map<string, Set<string>>();
+            const workerAllClients = new Map<string, Set<string>>();
 
             allRows.forEach((row: any) => {
                 if (row.worker_id && row.data_trabalho) {
@@ -415,11 +460,28 @@ export function HoleritesPage() {
                     const prevRaw = dailyRawMap.get(key) || 0;
                     dailyRawMap.set(key, prevRaw + rawH);
 
-                    // Track client for worker
-                    const cName = faturaClientMap.get(row.fatura_id) || null;
-                    if (cName) {
-                        if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
-                        workerClientsMap.get(row.worker_id)!.add(cName);
+                    // Track company and client for worker from fatura
+                    const fInfo = faturaInfoMap.get(row.fatura_id);
+                    if (fInfo) {
+                        if (fInfo.contratante) {
+                            if (!workerAllContratantes.has(row.worker_id)) workerAllContratantes.set(row.worker_id, new Set());
+                            workerAllContratantes.get(row.worker_id)!.add(fInfo.contratante);
+
+                            if (!workerCompanyHoursMap.has(row.worker_id)) workerCompanyHoursMap.set(row.worker_id, new Map());
+                            const compMap = workerCompanyHoursMap.get(row.worker_id)!;
+                            compMap.set(fInfo.contratante, (compMap.get(fInfo.contratante) || 0) + rawH);
+                        }
+                        if (fInfo.cliente_nombre) {
+                            if (!workerAllClients.has(row.worker_id)) workerAllClients.set(row.worker_id, new Set());
+                            workerAllClients.get(row.worker_id)!.add(fInfo.cliente_nombre);
+
+                            if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
+                            workerClientsMap.get(row.worker_id)!.add(fInfo.cliente_nombre);
+
+                            if (!workerClientHoursMap.has(row.worker_id)) workerClientHoursMap.set(row.worker_id, new Map());
+                            const clMap = workerClientHoursMap.get(row.worker_id)!;
+                            clMap.set(fInfo.cliente_nombre, (clMap.get(fInfo.cliente_nombre) || 0) + rawH);
+                        }
                     }
                 }
             });
@@ -449,7 +511,52 @@ export function HoleritesPage() {
                 sumMap.set(wId, (sumMap.get(wId) || 0) + effVal);
             });
 
-            return { sumMap, rawSumMap, adjustedWorkerIds, workerClientsMap };
+            // Calculate dominant month activity (top company and client by hours)
+            const workerMonthlyActivityMap = new Map<string, { 
+                contratante: string; 
+                cliente_nombre: string; 
+                allContratantes: Set<string>; 
+                allClients: Set<string>; 
+            }>();
+
+            workerCompanyHoursMap.forEach((compMap, wId) => {
+                let topComp = '';
+                let maxCompH = -1;
+                compMap.forEach((h, comp) => {
+                    if (h > maxCompH) {
+                        maxCompH = h;
+                        topComp = comp;
+                    }
+                });
+
+                let topClient = '';
+                let maxClientH = -1;
+                const clientMap = workerClientHoursMap.get(wId);
+                if (clientMap) {
+                    clientMap.forEach((h, cl) => {
+                        if (h > maxClientH) {
+                            maxClientH = h;
+                            topClient = cl;
+                        }
+                    });
+                }
+
+                workerMonthlyActivityMap.set(wId, {
+                    contratante: topComp,
+                    cliente_nombre: topClient,
+                    allContratantes: workerAllContratantes.get(wId) || new Set(),
+                    allClients: workerAllClients.get(wId) || new Set(),
+                });
+            });
+
+            return { 
+                sumMap, 
+                rawSumMap, 
+                adjustedWorkerIds, 
+                workerClientsMap, 
+                workerMonthlyActivityMap,
+                allocsActiveInMonthByCod
+            };
         },
         enabled: Boolean(mesReferencia),
         refetchOnWindowFocus: false,
@@ -538,10 +645,45 @@ export function HoleritesPage() {
         return format(d, 'yyyy-MM');
     });
 
-    // Derive and sort options
-    const clientesUnicos = (Array.from(new Set(workers?.map(w => w.cliente_nombre).filter(Boolean))) as string[])
-        .sort((a, b) => a.localeCompare(b));
-    const contratantesUnicosSorted = [...contratantesUnicos].sort((a, b) => a.localeCompare(b));
+    // Helper to resolve effective month activity (company and client based on worked hours/allocations in the competence month)
+    const getWorkerEffectiveActivity = React.useCallback((w: any) => {
+        const monthAct = dbHoursSummary?.workerMonthlyActivityMap?.get(w.id);
+        const codColab = w.cod_colab;
+        const allocAct = codColab ? dbHoursSummary?.allocsActiveInMonthByCod?.get(codColab) : null;
+
+        const contratante = monthAct?.contratante || allocAct?.contratante || w.contratante || '-';
+        const cliente_nombre = monthAct?.cliente_nombre || allocAct?.cliente_nombre || w.cliente_nombre || (w as any).cliente || '-';
+        const allContratantes = monthAct?.allContratantes || new Set([contratante].filter(Boolean));
+        const allClients = monthAct?.allClients || new Set([cliente_nombre].filter(Boolean));
+
+        return { contratante, cliente_nombre, allContratantes, allClients };
+    }, [dbHoursSummary]);
+
+    // Derive and sort options based on effective month activity
+    const clientesUnicos = React.useMemo(() => {
+        const set = new Set<string>();
+        workers?.forEach(w => {
+            const act = getWorkerEffectiveActivity(w);
+            if (act.cliente_nombre && act.cliente_nombre !== '-') set.add(act.cliente_nombre);
+            act.allClients.forEach(c => {
+                if (c && c !== '-') set.add(c);
+            });
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [workers, getWorkerEffectiveActivity]);
+
+    const contratantesUnicosSorted = React.useMemo(() => {
+        const set = new Set<string>(contratantesUnicos);
+        workers?.forEach(w => {
+            const act = getWorkerEffectiveActivity(w);
+            if (act.contratante && act.contratante !== '-') set.add(act.contratante);
+            act.allContratantes.forEach(c => {
+                if (c && c !== '-') set.add(c);
+            });
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [workers, contratantesUnicos, getWorkerEffectiveActivity]);
+
     const seguridadUnica = (Array.from(new Set(workers?.map(w => w.status_seguridad).filter(Boolean))) as string[])
         .sort((a, b) => a.localeCompare(b));
 
@@ -676,14 +818,25 @@ export function HoleritesPage() {
     }
 
     const filteredWorkers = workers?.filter(worker => {
+        const act = getWorkerEffectiveActivity(worker);
+
         const matchesSearch = worker.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
                               worker.niss?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               worker.cod_colab?.toLowerCase().includes(searchTerm.toLowerCase());
+
         const matchesCliente = clienteFilter === 'all' || 
+                              act.cliente_nombre === clienteFilter ||
+                              act.allClients.has(clienteFilter) ||
                               worker.cliente_nombre === clienteFilter ||
                               worker.cliente === clienteFilter ||
                               (dbHoursSummary?.workerClientsMap?.get(worker.id)?.has(clienteFilter) ?? false);
-        const matchesContratante = contratanteFilter === 'all' || worker.contratante === contratanteFilter || (worker.contratante && worker.contratante.includes(contratanteFilter));
+
+        const matchesContratante = contratanteFilter === 'all' || 
+                                  act.contratante.toLowerCase().includes(contratanteFilter.toLowerCase()) ||
+                                  contratanteFilter.toLowerCase().includes(act.contratante.toLowerCase()) ||
+                                  Array.from(act.allContratantes).some(c => c.toLowerCase().includes(contratanteFilter.toLowerCase())) ||
+                                  (worker.contratante && worker.contratante.toLowerCase().includes(contratanteFilter.toLowerCase()));
+
         const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
@@ -715,13 +868,13 @@ export function HoleritesPage() {
                 valA = a.nome || '';
                 valB = b.nome || '';
             } else if (sortColumn === 'cliente_nombre') {
-                valA = a.cliente_nombre || '';
-                valB = b.cliente_nombre || '';
+                valA = getWorkerEffectiveActivity(a).cliente_nombre;
+                valB = getWorkerEffectiveActivity(b).cliente_nombre;
             }
             const res = valA.localeCompare(valB, 'pt-BR');
             return sortDirection === 'asc' ? res : -res;
         });
-    }, [filteredWorkers, sortColumn, sortDirection]);
+    }, [filteredWorkers, sortColumn, sortDirection, getWorkerEffectiveActivity]);
 
     const totalLiquidoSum = React.useMemo(() => {
         if (!sortedWorkers) return 0;
@@ -745,9 +898,11 @@ export function HoleritesPage() {
         let countPago = 0;
         let totalPendente = 0;
         let countPendente = 0;
+        let totalHoras = 0;
 
         sortedWorkers.forEach(w => {
-            const { liquido } = calculateWorkerTally(w);
+            const { liquido, totalHoras: wHours } = calculateWorkerTally(w);
+            totalHoras += wHours;
             const isPago = holeritesStatusMap?.get(w.id)?.status === 'pago';
             if (isPago) {
                 totalPago += liquido;
@@ -806,8 +961,13 @@ export function HoleritesPage() {
         const items = targetWorkers.map(w => {
             const { liquido } = calculateWorkerTally(w);
             const bInfo = workerIbansMap?.get(w.id);
+            const act = getWorkerEffectiveActivity(w);
             return {
-                worker: w,
+                worker: {
+                    ...w,
+                    contratante: act.contratante,
+                    cliente_nombre: act.cliente_nombre
+                },
                 valorLiquido: liquido,
                 iban: bInfo?.iban,
                 banco: bInfo?.banco
@@ -1120,6 +1280,7 @@ export function HoleritesPage() {
                                 dbHoursSummary={dbHoursSummary}
                                 workerIbansMap={workerIbansMap}
                                 eventosMap={eventosMap}
+                                workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                             />
                             <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
                                 {isLoadingWorkers ? '...' : totalCount} Trabalhador(es)
@@ -1190,7 +1351,7 @@ export function HoleritesPage() {
                                     <Checkbox
                                         checked={
                                             paginatedWorkers && paginatedWorkers.length > 0 &&
-                                            paginatedWorkers.every(w => selectedWorkerIds.has(w.id))
+                                             paginatedWorkers.every(w => selectedWorkerIds.has(w.id))
                                         }
                                         onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
                                         aria-label="Selecionar todos os visíveis"
@@ -1236,7 +1397,8 @@ export function HoleritesPage() {
                                     const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
                                     const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
                                     const isExpanded = expandedRows.has(worker.id);
-                                    const clientStyle = getClientStyle(worker.cliente_nombre);
+                                    const effectiveAct = getWorkerEffectiveActivity(worker);
+                                    const clientStyle = getClientStyle(effectiveAct.cliente_nombre);
                                     const ibanInfo = workerIbansMap?.get(worker.id);
                                     const isNewWorker = isNewWorkerInMonth(worker, mesReferencia);
 
@@ -1278,17 +1440,17 @@ export function HoleritesPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {worker.cliente_nombre ? (
+                                                    {effectiveAct.cliente_nombre && effectiveAct.cliente_nombre !== '-' ? (
                                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
                                                             <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
-                                                            {worker.cliente_nombre}
+                                                            {effectiveAct.cliente_nombre}
                                                         </span>
                                                     ) : (
                                                         <span className="text-muted-foreground text-xs">-</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                                    {worker.contratante || '-'}
+                                                    {effectiveAct.contratante || '-'}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
