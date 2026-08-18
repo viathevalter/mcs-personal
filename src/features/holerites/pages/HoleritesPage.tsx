@@ -1290,6 +1290,7 @@ export function HoleritesPage() {
                                 dbHoursSummary={dbHoursSummary}
                                 workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                                 housingBenefitsMap={housingBenefitsMap}
+                                allDiscounts={allDiscounts}
                             />
                             <ExportHoleritesDialog
                                 trigger={
@@ -1353,6 +1354,7 @@ export function HoleritesPage() {
                             dbHoursSummary={dbHoursSummary}
                             workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                             housingBenefitsMap={housingBenefitsMap}
+                            allDiscounts={allDiscounts}
                         />
                         <Button
                             size="sm"
@@ -1622,6 +1624,7 @@ export function HoleritesPage() {
                                                             fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
                                                             workerMonthlyActivity={dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)}
                                                             housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
+                                                            extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
                                                             trigger={
                                                                 <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
                                                                     {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}

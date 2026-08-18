@@ -33,6 +33,7 @@ interface PreviewHoleriteDialogProps {
     fallbackHours?: number;
     workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string };
     housingBenefitAmount?: number;
+    extraDiscounts?: any[];
     trigger?: React.ReactNode;
 }
 
@@ -43,6 +44,7 @@ export function PreviewHoleriteDialog({
     fallbackHours = 0,
     workerMonthlyActivity,
     housingBenefitAmount = 0,
+    extraDiscounts = [],
     trigger
 }: PreviewHoleriteDialogProps) {
     const [open, setOpen] = useState(false);
@@ -70,8 +72,11 @@ export function PreviewHoleriteDialog({
         .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
         .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
-    // 4. Descontos
-    const descontosList = eventosMensais.filter(e => e.tipo === 'desconto');
+    // 4. Descontos (combina lançamentos de eventos e descontos cadastrados no mês)
+    const descontosList = [
+        ...(eventosMensais.filter(e => e.tipo === 'desconto') || []),
+        ...(extraDiscounts || [])
+    ];
 
     // Executa os motores de cálculo
     const altaData: HoleriteAltaCalculado | null = isAlta ? calculateHoleriteAlta({

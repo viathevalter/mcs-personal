@@ -36,6 +36,7 @@ interface BatchHoleritesExportDialogProps {
     dbHoursSummary?: any;
     workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
     housingBenefitsMap?: Map<string, number>;
+    allDiscounts?: any[];
 }
 
 export function BatchHoleritesExportDialog({
@@ -47,6 +48,7 @@ export function BatchHoleritesExportDialog({
     dbHoursSummary,
     workerMonthlyActivityMap,
     housingBenefitsMap,
+    allDiscounts = [],
 }: BatchHoleritesExportDialogProps) {
     const [open, setOpen] = useState(false);
     const [exportScope, setExportScope] = useState<'all_filtered' | 'selected'>(
@@ -106,7 +108,11 @@ export function BatchHoleritesExportDialog({
                     .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
                     .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
-                const descontosList = workerEventos.filter(e => e.tipo === 'desconto');
+                const workerExtraDiscounts = (allDiscounts || []).filter((d: any) => d.worker_id === w.id && d.reference_date?.startsWith(mesReferencia));
+                const descontosList = [
+                    ...workerEventos.filter(e => e.tipo === 'desconto'),
+                    ...workerExtraDiscounts
+                ];
                 const housingBenefitAmount = housingBenefitsMap?.get(w.id) || 0;
                 const activity = workerMonthlyActivityMap?.get(w.id);
 
