@@ -25,7 +25,8 @@ import {
     RefreshCw,
     CheckCircle2,
     RotateCcw,
-    FileSpreadsheet
+    FileSpreadsheet,
+    FileArchive
 } from 'lucide-react';
 import {
     Card,
@@ -66,6 +67,7 @@ import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
 import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
 import { calculateProratedBenefitAmount } from '@/shared/utils/importUtils';
 import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
+import { BatchHoleritesExportDialog } from '../components/BatchHoleritesExportDialog';
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
@@ -1035,6 +1037,18 @@ export function HoleritesPage() {
         return map;
     }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
 
+    const housingBenefitsMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        if (!workers) return map;
+
+        workers.forEach(w => {
+            const { beneficiosFixos } = calculateWorkerTally(w);
+            const sumBeneficios = (beneficiosFixos || []).reduce((s: number, b: any) => s + Number(b.val || 0), 0);
+            map.set(w.id, sumBeneficios);
+        });
+        return map;
+    }, [workers, allHousingBenefits, mesReferencia]);
+
     return (
         <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
             {/* Header section */}
@@ -1268,9 +1282,18 @@ export function HoleritesPage() {
                                 <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
                                 Planilha Banco
                             </Button>
+                            <BatchHoleritesExportDialog
+                                workers={filteredWorkers || []}
+                                selectedWorkerIds={selectedWorkerIds}
+                                mesReferencia={mesReferencia}
+                                eventos={eventos || []}
+                                dbHoursSummary={dbHoursSummary}
+                                workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
+                                housingBenefitsMap={housingBenefitsMap}
+                            />
                             <ExportHoleritesDialog
                                 trigger={
-                                    <Button size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-xs font-medium">
+                                    <Button size="sm" variant="outline" className="h-9 border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 text-xs font-medium">
                                         <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
                                         Exportar Dados (Excel)
                                     </Button>
@@ -1312,6 +1335,25 @@ export function HoleritesPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                        <BatchHoleritesExportDialog
+                            trigger={
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-8 text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-700 shadow-xs"
+                                >
+                                    <FileArchive className="mr-1.5 h-3.5 w-3.5 text-indigo-400" />
+                                    Gerar Holerites ({selectedWorkerIds.size})
+                                </Button>
+                            }
+                            workers={filteredWorkers || []}
+                            selectedWorkerIds={selectedWorkerIds}
+                            mesReferencia={mesReferencia}
+                            eventos={eventos || []}
+                            dbHoursSummary={dbHoursSummary}
+                            workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
+                            housingBenefitsMap={housingBenefitsMap}
+                        />
                         <Button
                             size="sm"
                             variant="secondary"
@@ -1578,6 +1620,8 @@ export function HoleritesPage() {
                                                             mesReferencia={mesReferencia}
                                                             eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
                                                             fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
+                                                            workerMonthlyActivity={dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)}
+                                                            housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
                                                             trigger={
                                                                 <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
                                                                     {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
