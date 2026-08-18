@@ -38,6 +38,8 @@ import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento, EventoTipo, EventoCategoria } from '@/shared/types/holerites';
 import { useAddHoleriteEvento } from '../hooks/useAddHoleriteEvento';
 import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
+import { DEFAULT_BENEFIT_CATEGORIES } from '@/features/settings/api/categoriesApi';
+import React from 'react';
 import { useDiscountCategories, useBenefitCategories } from '@/features/settings/hooks/useCategories';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
@@ -77,6 +79,11 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
             descricao: ''
         }
     });
+
+    const activeBenefitOptions = React.useMemo(() => {
+        const dbNames = benefitCategories.map(c => c.name);
+        return Array.from(new Set([...DEFAULT_BENEFIT_CATEGORIES, ...dbNames]));
+    }, [benefitCategories]);
 
     const isDebito = form.watch('tipo') === 'desconto';
 
@@ -180,8 +187,8 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                                                     <SelectContent>
                                                         {isDebito ? discountCategories.map(opt => (
                                                             <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
-                                                        )) : benefitCategories.map(opt => (
-                                                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                                                        )) : activeBenefitOptions.map(catName => (
+                                                            <SelectItem key={catName} value={catName}>{catName}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>

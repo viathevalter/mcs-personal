@@ -72,13 +72,16 @@ export function BenefitsPage() {
 
     const availableCategories = useMemo(() => {
         const defaultCats = [
-            'Auxílio Moradia',
-            'Auxílio Alimentação',
-            'Auxílio Transporte',
-            'Prêmios',
-            'Bônus',
-            'Horas Extra / Adicionais',
-            'Outros Proventos'
+            'AUXILIO MORADIA',
+            'HORAS EXTRAS',
+            'TRABALHO NOTURNO',
+            'SUBSÍDIO ALIMENTAÇÃO',
+            'REEMBOLSO DE DESPESAS',
+            'HORAS PENDENTES',
+            'SUBSÍDIO TRANSPORTE',
+            'AJUDA DE CUSTO',
+            'FÉRIAS',
+            'OUTROS'
         ];
         if (benefitCategoriesData && benefitCategoriesData.length > 0) {
             const customNames = benefitCategoriesData.map(c => c.name);

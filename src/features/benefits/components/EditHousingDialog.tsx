@@ -57,18 +57,22 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
     }, [open, existingBenefit]);
 
     const defaultCategoryOptions = [
-        'Auxílio Moradia',
-        'Auxílio Alimentação',
-        'Auxílio Transporte',
-        'Prêmios',
-        'Bônus',
-        'Horas Extra / Adicionais',
-        'Outros Proventos'
+        'AUXILIO MORADIA',
+        'HORAS EXTRAS',
+        'TRABALHO NOTURNO',
+        'SUBSÍDIO ALIMENTAÇÃO',
+        'REEMBOLSO DE DESPESAS',
+        'HORAS PENDENTES',
+        'SUBSÍDIO TRANSPORTE',
+        'AJUDA DE CUSTO',
+        'FÉRIAS',
+        'OUTROS'
     ];
 
-    const categoryList = benefitCategories.length > 0
-        ? benefitCategories.map(c => c.name)
-        : defaultCategoryOptions;
+    const categoryList = Array.from(new Set([
+        ...defaultCategoryOptions,
+        ...benefitCategories.map(c => c.name)
+    ]));
 
     // Calculate estimate for current month
     const estimatedValue = useMemo(() => {

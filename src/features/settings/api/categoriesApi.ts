@@ -14,6 +14,19 @@ export interface BenefitCategory {
     created_at: string;
 }
 
+export const DEFAULT_BENEFIT_CATEGORIES: string[] = [
+    'AUXILIO MORADIA',
+    'HORAS EXTRAS',
+    'TRABALHO NOTURNO',
+    'SUBSÍDIO ALIMENTAÇÃO',
+    'REEMBOLSO DE DESPESAS',
+    'HORAS PENDENTES',
+    'SUBSÍDIO TRANSPORTE',
+    'AJUDA DE CUSTO',
+    'FÉRIAS',
+    'OUTROS'
+];
+
 export const getDiscountCategories = async (empresaId: string): Promise<DiscountCategory[]> => {
     const { data, error } = await supabase
         .schema('core_personal')
