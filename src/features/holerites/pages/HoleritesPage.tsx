@@ -22,7 +22,10 @@ import {
     Check,
     CreditCard,
     Building2,
-    RefreshCw
+    RefreshCw,
+    CheckCircle2,
+    RotateCcw,
+    FileSpreadsheet
 } from 'lucide-react';
 import {
     Card,
@@ -32,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Select,
     SelectContent,
@@ -49,6 +53,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from '@/components/ui/combobox';
+import { toast } from 'sonner';
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
@@ -65,6 +70,10 @@ import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContrat
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
 import { isHolding, isHoldingId } from '@/shared/utils/empresaUtils';
+import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
+import { usePaymentMutations } from '../hooks/usePaymentMutations';
+import { PaymentConfirmModal } from '../components/PaymentConfirmModal';
+import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
 
 const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
@@ -215,7 +224,10 @@ export function HoleritesPage() {
     const [contratanteFilter, setContratanteFilter] = useState<string>('all');
     const [onlyWithHours, setOnlyWithHours] = useState<boolean>(true);
     const [workerTypeFilter, setWorkerTypeFilter] = useState<'only_hours' | 'new_workers' | 'all'>('only_hours');
+    const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pago' | 'pendente'>('all');
     const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
+    const [selectedWorkerIds, setSelectedWorkerIds] = useState<Set<string>>(new Set());
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [page, setPage] = useState<number>(1);
     const [pageSize, setPageSize] = useState<number | 'all'>(25);
     const [sortColumn, setSortColumn] = useState<'nome' | 'cliente_nombre'>('nome');
@@ -239,6 +251,8 @@ export function HoleritesPage() {
 
     const { data: workers, isLoading: isLoadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined);
     const { data: eventos, isLoading: isLoadingEventos } = useHoleriteEventos(mesReferencia);
+    const { data: holeritesStatusMap, isLoading: isLoadingStatus } = useHoleritesStatus(mesReferencia);
+    const { marcarPagos, isMarcarPagosLoading, estornarPagamento, isEstornarLoading } = usePaymentMutations();
     const { data: contratantesUnicos = [] } = useUniqueContratantes();
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHorasBatch();
     const { data: allDiscounts = [] } = useAllDiscounts();
@@ -674,6 +688,12 @@ export function HoleritesPage() {
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
+        if (paymentStatusFilter !== 'all') {
+            const isPago = holeritesStatusMap?.get(worker.id)?.status === 'pago';
+            if (paymentStatusFilter === 'pago' && !isPago) return false;
+            if (paymentStatusFilter === 'pendente' && isPago) return false;
+        }
+
         if (workerTypeFilter === 'only_hours') {
             const { totalHoras, proventos, descontos } = calculateWorkerTally(worker);
             return totalHoras > 0 || proventos > 0 || descontos > 0;
@@ -718,6 +738,111 @@ export function HoleritesPage() {
             return acc + totalHoras;
         }, 0);
     }, [sortedWorkers, eventos, dbHoursSummary]);
+
+    const paymentMetrics = React.useMemo(() => {
+        if (!sortedWorkers) return { totalPago: 0, countPago: 0, totalPendente: 0, countPendente: 0 };
+        let totalPago = 0;
+        let countPago = 0;
+        let totalPendente = 0;
+        let countPendente = 0;
+
+        sortedWorkers.forEach(w => {
+            const { liquido } = calculateWorkerTally(w);
+            const isPago = holeritesStatusMap?.get(w.id)?.status === 'pago';
+            if (isPago) {
+                totalPago += liquido;
+                countPago += 1;
+            } else {
+                totalPendente += liquido;
+                countPendente += 1;
+            }
+        });
+
+        return { totalPago, countPago, totalPendente, countPendente };
+    }, [sortedWorkers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, holeritesStatusMap]);
+
+    const selectedWorkersList = React.useMemo(() => {
+        if (!sortedWorkers || selectedWorkerIds.size === 0) return [];
+        return sortedWorkers.filter(w => selectedWorkerIds.has(w.id));
+    }, [sortedWorkers, selectedWorkerIds]);
+
+    const selectedTotalLiquido = React.useMemo(() => {
+        return selectedWorkersList.reduce((sum, w) => {
+            const { liquido } = calculateWorkerTally(w);
+            return sum + liquido;
+        }, 0);
+    }, [selectedWorkersList, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedWorkerIds(new Set(paginatedWorkers.map(w => w.id)));
+        } else {
+            setSelectedWorkerIds(new Set());
+        }
+    };
+
+    const handleSelectAllGlobal = () => {
+        if (!sortedWorkers) return;
+        setSelectedWorkerIds(new Set(sortedWorkers.map(w => w.id)));
+    };
+
+    const handleToggleWorkerSelect = (workerId: string) => {
+        const next = new Set(selectedWorkerIds);
+        if (next.has(workerId)) {
+            next.delete(workerId);
+        } else {
+            next.add(workerId);
+        }
+        setSelectedWorkerIds(next);
+    };
+
+    const handleExportBankTransfer = (customWorkers?: any[]) => {
+        const targetWorkers = customWorkers || (selectedWorkersList.length > 0 ? selectedWorkersList : sortedWorkers);
+        if (!targetWorkers || targetWorkers.length === 0) {
+            toast.error('Nenhum trabalhador para exportar.');
+            return;
+        }
+
+        const items = targetWorkers.map(w => {
+            const { liquido } = calculateWorkerTally(w);
+            const bInfo = workerIbansMap?.get(w.id);
+            return {
+                worker: w,
+                valorLiquido: liquido,
+                iban: bInfo?.iban,
+                banco: bInfo?.banco
+            };
+        });
+
+        exportBankTransferSpreadsheet({
+            items,
+            mesReferencia,
+            empresaNome: contratanteFilter !== 'all' ? contratanteFilter : 'Todas as Empresas'
+        });
+
+        toast.success(`Planilha bancária exportada com ${items.length} colaboradores.`);
+    };
+
+    const handleMarcarPagosConfirm = (data: { dataPagamento: string; metodoPagamento: string }) => {
+        const targetWorkerIds = Array.from(selectedWorkerIds);
+        if (targetWorkerIds.length === 0) {
+            toast.error('Nenhum trabalhador selecionado.');
+            return;
+        }
+
+        marcarPagos({
+            workerIds: targetWorkerIds,
+            mesReferencia,
+            dataPagamento: data.dataPagamento,
+            metodoPagamento: data.metodoPagamento,
+            empresaId: selectedEmpresaId || undefined
+        }, {
+            onSuccess: () => {
+                setIsPaymentModalOpen(false);
+                setSelectedWorkerIds(new Set());
+            }
+        });
+    };
 
     const altaCount = React.useMemo(() => {
         if (!sortedWorkers) return 0;
@@ -837,14 +962,23 @@ export function HoleritesPage() {
 
                     <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                         <CardContent className="p-3.5 flex items-center justify-between">
-                            <div className="space-y-0.5">
+                            <div className="space-y-1">
                                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Folha Total (Líquido)</span>
                                 <div className="text-xl font-bold text-indigo-700 dark:text-indigo-400">
                                     € {totalLiquidoSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
-                                <span className="text-[10px] text-muted-foreground">Previsão líquida a pagar</span>
+                                <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                                        € {paymentMetrics.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentMetrics.countPago} Pagos)
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                                        € {paymentMetrics.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentMetrics.countPendente} Pendentes)
+                                    </span>
+                                </div>
                             </div>
-                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 shrink-0">
                                 <Banknote className="h-5 w-5" />
                             </div>
                         </CardContent>
@@ -856,7 +990,7 @@ export function HoleritesPage() {
             <Card className="shrink-0 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                 <CardContent className="p-3">
                     <div className="flex flex-col md:flex-row gap-3 items-end justify-between">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2.5 flex-1">
                             <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-muted-foreground">Mês de Competência</Label>
                                 <Select value={mesReferencia} onValueChange={setMesReferencia}>
@@ -866,7 +1000,7 @@ export function HoleritesPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {monthOptions.map(month => (
-                                            <SelectItem key={month} value={month}>
+                                             <SelectItem key={month} value={month}>
                                                 {format(new Date(month + '-02'), 'MMMM yyyy', { locale: currentLocale }).toUpperCase()}
                                             </SelectItem>
                                         ))}
@@ -925,6 +1059,20 @@ export function HoleritesPage() {
                             </div>
 
                             <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-muted-foreground">Status Pagamento</Label>
+                                <Select value={paymentStatusFilter} onValueChange={(v: any) => setPaymentStatusFilter(v)}>
+                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900 font-medium">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os Status</SelectItem>
+                                        <SelectItem value="pendente">⏳ Pendentes ({paymentMetrics.countPendente})</SelectItem>
+                                        <SelectItem value="pago">🟢 Pagos ({paymentMetrics.countPago})</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-muted-foreground">Buscar Trabalhador</Label>
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -938,7 +1086,7 @@ export function HoleritesPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
                             <Button 
                                 size="sm" 
                                 variant="outline" 
@@ -949,6 +1097,16 @@ export function HoleritesPage() {
                             >
                                 <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetchingHours ? 'animate-spin' : ''}`} />
                                 Sincronizar c/ Faturamento
+                            </Button>
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-9 border-emerald-300 text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 text-xs font-semibold"
+                                onClick={() => handleExportBankTransfer()}
+                                title="Exportar planilha formatada com IBAN e Valor Líquido para o Banco"
+                            >
+                                <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+                                Planilha Banco
                             </Button>
                             <ExportHoleritesDialog
                                 trigger={
@@ -971,13 +1129,74 @@ export function HoleritesPage() {
                 </CardContent>
             </Card>
 
+            {/* Batch Selection Action Bar */}
+            {selectedWorkerIds.size > 0 && (
+                <div className="shrink-0 bg-slate-900 text-white dark:bg-slate-800 px-4 py-3 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 px-2.5 py-1 text-xs font-bold shadow-xs">
+                            {selectedWorkerIds.size} selecionado(s)
+                        </Badge>
+                        <span className="text-xs font-medium text-slate-300">
+                            Total Líquido Selecionado: <strong className="text-emerald-400 font-mono text-sm font-bold">€ {selectedTotalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </span>
+                        {selectedWorkerIds.size < (sortedWorkers?.length || 0) && (
+                            <Button
+                                size="sm"
+                                variant="link"
+                                onClick={handleSelectAllGlobal}
+                                className="text-xs text-indigo-400 hover:text-indigo-300 p-0 h-auto font-medium underline"
+                            >
+                                Selecionar todos os {sortedWorkers?.length} da lista
+                            </Button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleExportBankTransfer(selectedWorkersList)}
+                            className="h-8 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600"
+                        >
+                            <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
+                            Gerar Planilha Banco ({selectedWorkerIds.size})
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => setIsPaymentModalOpen(true)}
+                            className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                        >
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            Marcar como Pagos ({selectedWorkerIds.size})
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedWorkerIds(new Set())}
+                            className="h-8 text-xs text-slate-400 hover:text-white"
+                        >
+                            Limpar Seleção
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Table & Pagination Container */}
             <div className="flex-1 min-h-0 bg-card rounded-md border shadow-sm overflow-hidden flex flex-col justify-between">
                 <div className="flex-1 overflow-y-auto">
                     <Table>
                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
                             <TableRow>
-                                <TableHead className="pl-6 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
+                                <TableHead className="w-10 pl-4 pr-1">
+                                    <Checkbox
+                                        checked={
+                                            paginatedWorkers && paginatedWorkers.length > 0 &&
+                                            paginatedWorkers.every(w => selectedWorkerIds.has(w.id))
+                                        }
+                                        onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
+                                        aria-label="Selecionar todos os visíveis"
+                                    />
+                                </TableHead>
+                                <TableHead className="pl-2 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
                                     <div className="flex items-center">Trabalhador {renderSortIcon('nome')}</div>
                                 </TableHead>
                                 <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
@@ -995,19 +1214,19 @@ export function HoleritesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoadingWorkers || isLoadingEventos ? (
+                            {isLoadingWorkers || isLoadingEventos || isLoadingStatus ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
+                                    <TableCell colSpan={12} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
                                 </TableRow>
                             ) : (!workers || workers.length === 0) ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
                                         Nenhum trabalhador ativo ou pendente encontrado.
                                     </TableCell>
                                 </TableRow>
                             ) : paginatedWorkers?.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
                                         Nenhum trabalhador correspondente na busca.
                                     </TableCell>
                                 </TableRow>
@@ -1024,10 +1243,17 @@ export function HoleritesPage() {
                                     return (
                                         <React.Fragment key={worker.id}>
                                             <TableRow 
-                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}
+                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''} ${selectedWorkerIds.has(worker.id) ? 'bg-indigo-50/40 dark:bg-indigo-950/40' : ''}`}
                                                 onClick={() => toggleRow(worker.id)}
                                             >
-                                                <TableCell className="pl-6 font-medium">
+                                                <TableCell className="pl-4 pr-1" onClick={(e) => e.stopPropagation()}>
+                                                    <Checkbox
+                                                        checked={selectedWorkerIds.has(worker.id)}
+                                                        onCheckedChange={() => handleToggleWorkerSelect(worker.id)}
+                                                        aria-label={`Selecionar ${worker.nome}`}
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="pl-2 font-medium">
                                                     <div className="flex items-center gap-2">
                                                         {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                                                         <div>
@@ -1073,9 +1299,30 @@ export function HoleritesPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-500 bg-indigo-50/50' : 'text-muted-foreground'}>
-                                                        {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
-                                                    </Badge>
+                                                    {(() => {
+                                                        const hStatus = holeritesStatusMap?.get(worker.id);
+                                                        const isPago = hStatus?.status === 'pago';
+
+                                                        if (isPago) {
+                                                            return (
+                                                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 w-fit shadow-xs">
+                                                                    <CheckCircle2 className="h-3 w-3" />
+                                                                    Pago
+                                                                    {hStatus?.data_pagamento && (
+                                                                        <span className="text-[9px] opacity-90 font-normal">
+                                                                            ({formatDateClean(hStatus.data_pagamento)})
+                                                                        </span>
+                                                                    )}
+                                                                </Badge>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 dark:text-indigo-300 font-semibold' : 'text-muted-foreground'}>
+                                                                {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
+                                                            </Badge>
+                                                        );
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
@@ -1115,14 +1362,51 @@ export function HoleritesPage() {
                                                     € {liquido.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex justify-end gap-2">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {(() => {
+                                                            const hStatus = holeritesStatusMap?.get(worker.id);
+                                                            const isPago = hStatus?.status === 'pago';
+
+                                                            if (isPago) {
+                                                                return (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        onClick={() => estornarPagamento({ workerId: worker.id, holeriteId: hStatus?.id, mesReferencia })}
+                                                                        disabled={isEstornarLoading}
+                                                                        className="h-8 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                                                        title="Estornar status de pago para rascunho / lançado"
+                                                                    >
+                                                                        <RotateCcw className="h-3 w-3 mr-1" />
+                                                                        Estornar
+                                                                    </Button>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setSelectedWorkerIds(new Set([worker.id]));
+                                                                        setIsPaymentModalOpen(true);
+                                                                    }}
+                                                                    className="h-8 px-2.5 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-emerald-50/60 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                                                                    title="Liquidar / Marcar como Pago individualmente"
+                                                                >
+                                                                    <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-600" />
+                                                                    Pagar
+                                                                </Button>
+                                                            );
+                                                        })()}
+
                                                         <HoleriteLancamentosSheet
                                                             worker={worker}
                                                             mesReferencia={mesReferencia}
                                                             eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
                                                             trigger={
-                                                                <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                                                                    <Plus className="mr-1 h-4 w-4" />
+                                                                <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 h-8 text-xs font-semibold">
+                                                                    <Plus className="mr-1 h-3.5 w-3.5" />
                                                                     Lançamentos
                                                                 </Button>
                                                             }
@@ -1133,7 +1417,7 @@ export function HoleritesPage() {
                                                             eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
                                                             fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
                                                             trigger={
-                                                                <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                                                                <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
                                                                     {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
                                                                 </Button>
                                                             }
@@ -1144,7 +1428,7 @@ export function HoleritesPage() {
 
                                             {isExpanded && (
                                                 <TableRow className="bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
-                                                    <TableCell colSpan={10} className="p-4 border-b">
+                                                    <TableCell colSpan={12} className="p-4 border-b">
                                                         <div className="space-y-4 pl-4 sm:pl-8 pr-4">
                                                             {/* Premium Worker Summary Cards */}
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1363,6 +1647,17 @@ export function HoleritesPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Payment Confirmation Modal */}
+            <PaymentConfirmModal
+                open={isPaymentModalOpen}
+                onOpenChange={setIsPaymentModalOpen}
+                workerCount={selectedWorkerIds.size}
+                totalAmount={selectedTotalLiquido}
+                mesReferencia={mesReferencia}
+                onConfirm={handleMarcarPagosConfirm}
+                isLoading={isMarcarPagosLoading}
+            />
         </div>
     );
 }
