@@ -19,9 +19,9 @@ interface ExportHoleritesDialogProps {
     trigger: React.ReactNode;
     workers: (Worker & { worker_beneficios_settings?: any })[];
     mesReferencia: string;
-    dbHoursSummary?: Map<string, number>;
+    dbHoursSummary?: any;
     workerIbansMap?: Map<string, { iban: string; banco: string }>;
-    eventosMap?: Map<string, { totalProventos: number; totalDescontos: number }>;
+    eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
 }
 
 interface ColumnOption {
@@ -29,9 +29,9 @@ interface ColumnOption {
     label: string;
     category: 'cadastro' | 'remuneracao' | 'bancario';
     getValue: (worker: Worker & { worker_beneficios_settings?: any }, extra: {
-        dbHoursSummary?: Map<string, number>;
+        dbHoursSummary?: any;
         workerIbansMap?: Map<string, { iban: string; banco: string }>;
-        eventosMap?: Map<string, { totalProventos: number; totalDescontos: number }>;
+        eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
     }) => string | number;
 }
 
@@ -94,7 +94,10 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'horas_totais',
         label: 'Total Horas Apuradas',
         category: 'remuneracao',
-        getValue: (w, { dbHoursSummary }) => {
+        getValue: (w, { eventosMap, dbHoursSummary }) => {
+            if (eventosMap?.has(w.id)) {
+                return Number(eventosMap.get(w.id)?.totalHoras || 0);
+            }
             if (!dbHoursSummary) return 0;
             if (typeof dbHoursSummary.get === 'function') return Number(dbHoursSummary.get(w.id) || 0);
             if ((dbHoursSummary as any).sumMap) return Number((dbHoursSummary as any).sumMap.get(w.id) || 0);
@@ -105,28 +108,24 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'proventos',
         label: 'Total Proventos (€)',
         category: 'remuneracao',
-        getValue: (w, { eventosMap }) => Number(eventosMap?.get(w.id)?.totalProventos || 0)
+        getValue: (w, { eventosMap }) => Number((eventosMap?.get(w.id)?.totalProventos || 0).toFixed(2))
     },
     {
         id: 'descontos',
         label: 'Total Descontos (€)',
         category: 'remuneracao',
-        getValue: (w, { eventosMap }) => Number(eventosMap?.get(w.id)?.totalDescontos || 0)
+        getValue: (w, { eventosMap }) => Number((eventosMap?.get(w.id)?.totalDescontos || 0).toFixed(2))
     },
     {
         id: 'valor_liquido',
         label: 'Valor Líquido (€)',
         category: 'remuneracao',
-        getValue: (w, { dbHoursSummary, eventosMap }) => {
-            const tariff = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
-            let hours = 0;
-            if (dbHoursSummary) {
-                if (typeof dbHoursSummary.get === 'function') hours = Number(dbHoursSummary.get(w.id) || 0);
-                else if ((dbHoursSummary as any).sumMap) hours = Number((dbHoursSummary as any).sumMap.get(w.id) || 0);
+        getValue: (w, { eventosMap }) => {
+            const data = eventosMap?.get(w.id);
+            if (data) {
+                return Number(data.valorLiquido.toFixed(2));
             }
-            const prov = Number(eventosMap?.get(w.id)?.totalProventos || 0);
-            const desc = Number(eventosMap?.get(w.id)?.totalDescontos || 0);
-            return (tariff * hours) + prov - desc;
+            return 0;
         }
     },
     {

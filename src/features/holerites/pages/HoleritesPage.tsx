@@ -865,15 +865,15 @@ export function HoleritesPage() {
     }, [sortedWorkers, page, effectivePageSize, pageSize]);
 
     const eventosMap = React.useMemo(() => {
-        const map = new Map<string, { totalProventos: number; totalDescontos: number }>();
+        const map = new Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>();
         if (!workers) return map;
 
         workers.forEach(w => {
-            const { proventos, descontos } = calculateWorkerTally(w);
-            map.set(w.id, { totalProventos: proventos, totalDescontos: descontos });
+            const { proventos, descontos, liquido, totalHoras } = calculateWorkerTally(w);
+            map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras });
         });
         return map;
-    }, [workers, eventos, allDiscounts, dbHoursSummary]);
+    }, [workers, eventos, allDiscounts, dbHoursSummary, workerHousingBenefits]);
 
     return (
         <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
