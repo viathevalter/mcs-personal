@@ -470,7 +470,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     } else {
       pedido.pedido_items?.forEach((item: any) => {
         reqQty += item.quantity_requested || 0;
-        const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id).length;
+        const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress')).length;
         if (repCount > 0) hasReplacement = true;
         fulQty += Math.max(0, (item.quantity_fulfilled || 0) - repCount);
       });
@@ -980,7 +980,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedPedido.pedido_items?.map((item: any) => {
-                    const itemReplacements = replacementTargets.filter(t => t.source_pedido_item_id === item.id);
+                    const itemReplacements = replacementTargets.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'));
                     const repCount = itemReplacements.length;
                     const firstRep = itemReplacements[0];
                     const effectiveFulfilled = Math.max(0, (item.quantity_fulfilled || 0) - repCount);
