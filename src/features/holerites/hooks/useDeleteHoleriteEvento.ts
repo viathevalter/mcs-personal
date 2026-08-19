@@ -19,10 +19,14 @@ export function useDeleteHoleriteEvento() {
             }
         },
         onSuccess: () => {
-            // Invalidate the generic key, as we don't necessarily have the mes_referencia here
-            // It will refetch whatever the current active month is.
             queryClient.invalidateQueries({
                 queryKey: [HOLERITE_EVENTOS_QUERY_KEY],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ['all-worker-discounts'],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ['workers-for-holerites'],
             });
         },
     });

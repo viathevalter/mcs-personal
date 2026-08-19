@@ -71,6 +71,8 @@ import { BatchHoleritesExportDialog } from '../components/BatchHoleritesExportDi
 import { useUniqueContratantes } from '@/features/workers/hooks/useUniqueContratantes';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDeleteHorasBatch } from '../hooks/useDeleteHorasBatch';
+import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
+import { useDeleteDiscount } from '../../discounts/hooks/useDiscountMutations';
 import { isHolding, isHoldingId } from '@/shared/utils/empresaUtils';
 import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
 import { usePaymentMutations } from '../hooks/usePaymentMutations';
@@ -235,6 +237,9 @@ export function HoleritesPage() {
     const [pageSize, setPageSize] = useState<number | 'all'>(25);
     const [sortColumn, setSortColumn] = useState<'nome' | 'cliente_nombre'>('nome');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const { mutate: deleteEvento } = useDeleteHoleriteEvento();
+    const { mutate: deleteDiscount } = useDeleteDiscount();
 
     const handleSort = (col: 'nome' | 'cliente_nombre') => {
         if (sortColumn === col) {
@@ -1746,6 +1751,7 @@ export function HoleritesPage() {
                                                                                 <TableHead className="text-right">Horas/Dias Ref.</TableHead>
                                                                                 <TableHead className="text-right font-medium text-emerald-600 dark:text-emerald-500">Provento</TableHead>
                                                                                 <TableHead className="text-right font-medium text-red-600 dark:text-red-500">Desconto</TableHead>
+                                                                                <TableHead className="text-right w-16">Ação</TableHead>
                                                                             </TableRow>
                                                                         </TableHeader>
                                                                         <TableBody>
@@ -1770,6 +1776,25 @@ export function HoleritesPage() {
                                                                                     <TableCell className="text-right font-medium text-red-600 dark:text-red-500">
                                                                                         {evento.tipo === 'desconto' ? `€ ${Number(evento.valor).toFixed(2)}` : '-'}
                                                                                     </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {evento.categoria !== 'total_horas' && (
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="icon"
+                                                                                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                                                                onClick={() => {
+                                                                                                    if (confirm(`Deseja remover o lançamento "${evento.categoria}" no valor de € ${Number(evento.valor).toFixed(2)} da folha deste colaborador?`)) {
+                                                                                                        deleteEvento(evento.id, {
+                                                                                                            onSuccess: () => toast.success('Lançamento removido da folha com sucesso!')
+                                                                                                        });
+                                                                                                    }
+                                                                                                }}
+                                                                                                title="Excluir lançamento da folha"
+                                                                                            >
+                                                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                                            </Button>
+                                                                                        )}
+                                                                                    </TableCell>
                                                                                 </TableRow>
                                                                             ))}
                                                                             {beneficiosFixos.map((b: any, idx: number) => (
@@ -1780,6 +1805,7 @@ export function HoleritesPage() {
                                                                                     <TableCell className="text-right">-</TableCell>
                                                                                     <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
                                                                                     <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
+                                                                                    <TableCell className="text-right text-muted-foreground text-[10px]">-</TableCell>
                                                                                 </TableRow>
                                                                             ))}
                                                                             {descontosExtras.map((d: any, idx: number) => (
@@ -1790,6 +1816,23 @@ export function HoleritesPage() {
                                                                                     <TableCell className="text-right">-</TableCell>
                                                                                     <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
                                                                                     <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                                                            onClick={() => {
+                                                                                                if (confirm(`Deseja remover o desconto "${d.category}" no valor de € ${Number(d.amount).toFixed(2)} deste colaborador?`)) {
+                                                                                                    deleteDiscount(d.id, {
+                                                                                                        onSuccess: () => toast.success('Desconto removido com sucesso!')
+                                                                                                    });
+                                                                                                }
+                                                                                            }}
+                                                                                            title="Excluir desconto"
+                                                                                        >
+                                                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                                                        </Button>
+                                                                                    </TableCell>
                                                                                 </TableRow>
                                                                             ))}
                                                                         </TableBody>

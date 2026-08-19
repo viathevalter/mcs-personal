@@ -20,6 +20,7 @@ export function useCreateDiscount() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
             queryClient.invalidateQueries({ queryKey: ['worker-discounts'] });
+            queryClient.invalidateQueries({ queryKey: ['holerite_eventos'] });
             toast.success('Desconto cadastrado com sucesso.');
         },
         onError: (error: Error) => {
@@ -46,6 +47,7 @@ export function useUpdateDiscount() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
             queryClient.invalidateQueries({ queryKey: ['worker-discounts'] });
+            queryClient.invalidateQueries({ queryKey: ['holerite_eventos'] });
             toast.success('Desconto atualizado com sucesso.');
         },
         onError: (error: Error) => {
@@ -54,7 +56,7 @@ export function useUpdateDiscount() {
     });
 }
 
-export function useDeleteDiscount() {
+export function useDeleteDiscount(workerId?: string) {
     const queryClient = useQueryClient();
 
     return useMutation({
@@ -69,6 +71,10 @@ export function useDeleteDiscount() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
             queryClient.invalidateQueries({ queryKey: ['worker-discounts'] });
+            if (workerId) {
+                queryClient.invalidateQueries({ queryKey: ['worker-discounts', workerId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['holerite_eventos'] });
             toast.success('Desconto excluído com sucesso.');
         },
         onError: (error: Error) => {
@@ -94,6 +100,7 @@ export function useDeleteDiscountBatch() {
         onSuccess: (count) => {
             queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
             queryClient.invalidateQueries({ queryKey: ['worker-discounts'] });
+            queryClient.invalidateQueries({ queryKey: ['holerite_eventos'] });
             toast.success(`${count || 'Os'} descontos do lote foram revertidos com sucesso.`);
         },
         onError: (error: Error) => {
