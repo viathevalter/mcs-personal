@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { documentGeneratorService, type GeneratedDocument } from '../services/documentGeneratorService';
+import { pdfExportService } from '../services/pdfExportService';
 import { FileText, CheckCircle2, Loader2, Download, PenTool, RotateCcw, Lock } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ export const PublicDocumentSignaturePage: React.FC = () => {
     const { token } = useParams<{ token: string }>();
     const [doc, setDoc] = useState<GeneratedDocument | null>(null);
     const [loading, setLoading] = useState(true);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [signerName, setSignerName] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -170,14 +172,26 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                     </div>
                 </div>
                 <div>
-                    <a
-                        href={doc.document_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 text-slate-200 transition-all"
+                    <button
+                        onClick={async () => {
+                            if (!doc) return;
+                            setDownloadingPdf(true);
+                            try {
+                                toast.info('Gerando PDF...');
+                                await pdfExportService.downloadDocumentAsPdf(doc);
+                                toast.success('Download do PDF concluído!');
+                            } catch (err: any) {
+                                toast.error('Erro ao gerar PDF: ' + err?.message);
+                            } finally {
+                                setDownloadingPdf(false);
+                            }
+                        }}
+                        disabled={downloadingPdf}
+                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 text-slate-200 transition-all disabled:opacity-50"
                     >
-                        <Download size={14} /> Baixar Original
-                    </a>
+                        {downloadingPdf ? <Loader2 size={14} className="animate-spin text-emerald-400" /> : <Download size={14} className="text-red-400" />}
+                        {doc.signature_status === 'signed' ? 'Baixar PDF Assinado' : 'Baixar PDF'}
+                    </button>
                 </div>
             </header>
 

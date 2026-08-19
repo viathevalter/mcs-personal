@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { documentGeneratorService, type GeneratedDocument } from '../services/documentGeneratorService';
 import { documentTemplateService } from '../services/documentTemplateService';
+import { pdfExportService } from '../services/pdfExportService';
 import { DocumentVariablesCheatSheetModal } from '../components/DocumentVariablesCheatSheetModal';
 import { DocumentTemplateManagerModal } from '../components/DocumentTemplateManagerModal';
 import { GenerateDocumentWizardModal } from '../components/GenerateDocumentWizardModal';
@@ -12,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     Sparkles, Upload, FileText, Plus, Search, RefreshCw, Copy, ExternalLink,
-    CheckCircle2, Clock, Trash2, Loader2, User, Building
+    CheckCircle2, Clock, Trash2, Loader2, User, Building, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,6 +21,7 @@ export const DocumentGeneratorPage: React.FC = () => {
     const [docs, setDocs] = useState<GeneratedDocument[]>([]);
     const [templateCount, setTemplateCount] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [targetFilter, setTargetFilter] = useState<'all' | 'worker' | 'client'>('all');
     const [statusFilter, setStatusFilter] = useState<'all' | 'signed' | 'pending'>('all');
@@ -47,6 +49,20 @@ export const DocumentGeneratorPage: React.FC = () => {
             toast.error('Erro ao carregar documentos: ' + (err?.message || err));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDownloadPdf = async (doc: GeneratedDocument) => {
+        setDownloadingId(doc.id);
+        try {
+            toast.info('Gerando PDF do documento...');
+            await pdfExportService.downloadDocumentAsPdf(doc);
+            toast.success('Download do PDF concluído!');
+        } catch (err: any) {
+            console.error('Error downloading PDF:', err);
+            toast.error('Erro ao gerar PDF: ' + (err?.message || err));
+        } finally {
+            setDownloadingId(null);
         }
     };
 
@@ -298,14 +314,18 @@ export const DocumentGeneratorPage: React.FC = () => {
                                                         >
                                                             <ExternalLink className="h-3.5 w-3.5 mr-1" /> Assinar
                                                         </a>
-                                                        <a
-                                                            href={doc.document_url}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            className="inline-flex items-center justify-center h-8 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200"
+                                                        <button
+                                                            onClick={() => handleDownloadPdf(doc)}
+                                                            disabled={downloadingId === doc.id}
+                                                            className="inline-flex items-center justify-center h-8 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-all disabled:opacity-50"
                                                         >
-                                                            .docx
-                                                        </a>
+                                                            {downloadingId === doc.id ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1 text-emerald-500" />
+                                                            ) : (
+                                                                <Download className="h-3.5 w-3.5 mr-1 text-red-500" />
+                                                            )}
+                                                            {doc.signature_status === 'signed' ? 'Baixar PDF Assinado' : 'Baixar PDF'}
+                                                        </button>
                                                         <button
                                                             onClick={() => handleDeleteDoc(doc.id)}
                                                             className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors inline-block align-middle"

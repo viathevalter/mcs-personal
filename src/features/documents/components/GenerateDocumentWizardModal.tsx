@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { documentTemplateService, type DocumentTemplate } from '../services/documentTemplateService';
 import { documentGeneratorService, type GeneratedDocument } from '../services/documentGeneratorService';
+import { pdfExportService } from '../services/pdfExportService';
 import { buildWorkerDataMap, buildClientDataMap } from '../services/documentVariablesDictionary';
 import { supabase } from '@/shared/supabase/client';
 import {
     X, FileText, User, Building, Search, ArrowRight, CheckCircle2,
-    Copy, ExternalLink, Send, Loader2, Sparkles
+    Copy, ExternalLink, Send, Loader2, Sparkles, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,6 +22,7 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
     onDocumentGenerated
 }) => {
     const [step, setStep] = useState<1 | 2 | 3>(1);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
 
     // Step 1 State
     const [targetType, setTargetType] = useState<'client' | 'worker'>('worker');
@@ -454,14 +456,26 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
                             </div>
 
                             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                                <a
-                                    href={generatedDoc.document_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl flex items-center gap-1.5"
+                                <button
+                                    onClick={async () => {
+                                        if (!generatedDoc) return;
+                                        setDownloadingPdf(true);
+                                        try {
+                                            toast.info('Gerando PDF do documento...');
+                                            await pdfExportService.downloadDocumentAsPdf(generatedDoc);
+                                            toast.success('Download do PDF concluído!');
+                                        } catch (err: any) {
+                                            toast.error('Erro ao gerar PDF: ' + err?.message);
+                                        } finally {
+                                            setDownloadingPdf(false);
+                                        }
+                                    }}
+                                    disabled={downloadingPdf}
+                                    className="px-4 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl flex items-center gap-1.5 transition-all disabled:opacity-50"
                                 >
-                                    <FileText size={16} /> Baixar Word (.docx)
-                                </a>
+                                    {downloadingPdf ? <Loader2 size={16} className="animate-spin text-emerald-500" /> : <Download size={16} className="text-red-500" />}
+                                    Baixar PDF
+                                </button>
                                 <a
                                     href={publicSignatureLink}
                                     target="_blank"
