@@ -19,6 +19,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { ContractSigningPage } from '../features/documents/pages/ContractSigningPage';
 import { WorkerDocCapturePage } from '../features/documents/pages/WorkerDocCapturePage';
 import { ProposalSigningPage } from '../features/documents/pages/ProposalSigningPage';
+import { PublicDocumentSignaturePage } from '../features/documents/pages/PublicDocumentSignaturePage';
 import { TariffSigningPage } from '../features/workers/pages/TariffSigningPage';
 import UsersPage from '../features/admin/UsersPage';
 import { CategoriesSettingsPage } from '../features/settings/pages/CategoriesSettingsPage';
@@ -155,6 +156,11 @@ export const router = createBrowserRouter([
     {
         path: '/assinar-proposta/:token',
         element: <ProposalSigningPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/assinar/doc/:token',
+        element: <PublicDocumentSignaturePage />,
         errorElement: <RootErrorBoundary />,
     },
     {

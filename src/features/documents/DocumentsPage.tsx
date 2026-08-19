@@ -15,8 +15,12 @@ import { toast } from 'sonner';
 import {
     ShieldCheck, AlertCircle, CheckCircle2, Clock, Plus, Search, Building2, User,
     Mail, MessageSquare, Calendar, ChevronRight, Loader2, UploadCloud, X, RefreshCw,
-    FileText, Check, ExternalLink, Eye, Edit2, ShieldAlert
+    FileText, Check, ExternalLink, Eye, Edit2, ShieldAlert, Sparkles, Upload, Copy, Trash2
 } from 'lucide-react';
+import { DocumentVariablesCheatSheetModal } from './components/DocumentVariablesCheatSheetModal';
+import { DocumentTemplateManagerModal } from './components/DocumentTemplateManagerModal';
+import { GenerateDocumentWizardModal } from './components/GenerateDocumentWizardModal';
+import { documentGeneratorService, type GeneratedDocument } from './services/documentGeneratorService';
 
 interface ComplianceConfig {
     id: string;
@@ -114,6 +118,29 @@ export function DocumentsPage() {
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [selectedFileDoc, setSelectedFileDoc] = useState<{ docType: string; file: File | null }>({ docType: '', file: null });
     const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+
+    // Document Generator Modals & List
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+    const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
+    const [generatedDocsList, setGeneratedDocsList] = useState<GeneratedDocument[]>([]);
+    const [loadingGeneratedDocs, setLoadingGeneratedDocs] = useState(false);
+
+    const fetchGeneratedDocs = async () => {
+        setLoadingGeneratedDocs(true);
+        try {
+            const list = await documentGeneratorService.listGeneratedDocuments();
+            setGeneratedDocsList(list);
+        } catch (err) {
+            console.error('Error loading generated docs:', err);
+        } finally {
+            setLoadingGeneratedDocs(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchGeneratedDocs();
+    }, []);
 
     // Reset selected project on tab change
     useEffect(() => {
@@ -690,7 +717,30 @@ Equipo de Conformidad y CAE.`;
                         </p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            onClick={() => setIsWizardOpen(true)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 shadow-sm"
+                        >
+                            <Sparkles className="h-4 w-4" />
+                            Gerar Documento (.docx)
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsTemplateManagerOpen(true)}
+                            className="text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5"
+                        >
+                            <Upload className="h-4 w-4 text-blue-500" />
+                            Modelos Word
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCheatSheetOpen(true)}
+                            className="text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5"
+                        >
+                            <FileText className="h-4 w-4 text-amber-500" />
+                            Gabarito de Variáveis
+                        </Button>
                         {activeTab === 'configs' && (
                             <Button 
                                 onClick={() => {
@@ -707,6 +757,7 @@ Equipo de Conformidad y CAE.`;
                         <Button 
                             variant="outline" 
                             onClick={() => {
+                                fetchGeneratedDocs();
                                 if (activeTab === 'gallery' || activeTab === 'validation') fetchStatuses();
                                 if (activeTab === 'configs') fetchConfigs();
                                 if (activeTab === 'alerts') fetchAlerts();
@@ -763,13 +814,129 @@ Equipo de Conformidad y CAE.`;
 
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="w-full">
-                    <TabsList className="grid w-full md:w-[900px] grid-cols-5 bg-slate-100 dark:bg-slate-800">
+                    <TabsList className="grid w-full md:w-[1050px] grid-cols-6 bg-slate-100 dark:bg-slate-800">
+                        <TabsTrigger value="generator">⚡ Gerador & Assinaturas</TabsTrigger>
                         <TabsTrigger value="gallery">Galeria de Projetos</TabsTrigger>
                         <TabsTrigger value="validation">Fila de Validação</TabsTrigger>
                         <TabsTrigger value="changes">Feed de Alterações</TabsTrigger>
                         <TabsTrigger value="configs">Plataformas & Requisitos</TabsTrigger>
                         <TabsTrigger value="alerts">Alertas de Vencimento</TabsTrigger>
                     </TabsList>
+
+                    {/* Tab 0: Document Generator & Signatures Table */}
+                    <TabsContent value="generator" className="pt-4 space-y-4">
+                        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <Sparkles className="h-5 w-5 text-emerald-500" />
+                                        Documentos Gerados & Controle de Assinaturas (OCT)
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-slate-500">
+                                        Histórico de documentos criados via modelos Word, links públicos de assinatura e status de coleta.
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    onClick={() => setIsWizardOpen(true)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                                >
+                                    <Plus className="h-4 w-4 mr-1" /> Novo Documento (.docx)
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="p-4">
+                                {loadingGeneratedDocs ? (
+                                    <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+                                        <Loader2 className="h-5 w-5 animate-spin text-blue-500" /> Carregando documentos gerados...
+                                    </div>
+                                ) : generatedDocsList.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs">
+                                        Nenhum documento foi gerado ainda. Clique em "Novo Documento (.docx)" para criar o primeiro a partir de um modelo Word!
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+                                                <TableRow>
+                                                    <TableHead className="text-xs font-bold uppercase">Documento</TableHead>
+                                                    <TableHead className="text-xs font-bold uppercase">Entidade</TableHead>
+                                                    <TableHead className="text-xs font-bold uppercase">Status da Assinatura</TableHead>
+                                                    <TableHead className="text-xs font-bold uppercase">Data de Criação</TableHead>
+                                                    <TableHead className="text-xs font-bold uppercase text-right">Ações & Links</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {generatedDocsList.map(doc => {
+                                                    const publicLink = `${window.location.origin}/assinar/doc/${doc.public_token}`;
+                                                    return (
+                                                        <TableRow key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                                                            <TableCell className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                                                                <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                                                {doc.title}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {doc.target_type === 'worker' ? (
+                                                                    <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200">
+                                                                        Trabalhador
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200">
+                                                                        Cliente
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {doc.signature_status === 'signed' ? (
+                                                                    <Badge className="bg-emerald-500 text-white flex items-center gap-1 w-fit">
+                                                                        <CheckCircle2 className="h-3 w-3" /> Assinado por {doc.signed_by_name || 'Usuário'}
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1 w-fit">
+                                                                        <Clock className="h-3 w-3" /> Pendente de Assinatura
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-slate-500">
+                                                                {doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '-'}
+                                                            </TableCell>
+                                                            <TableCell className="text-right space-x-2">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(publicLink);
+                                                                        toast.success('Link de assinatura copiado!');
+                                                                    }}
+                                                                    className="h-8 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                                >
+                                                                    <Copy className="h-3.5 w-3.5 mr-1" /> Copiar Link
+                                                                </Button>
+                                                                <a
+                                                                    href={publicLink}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center justify-center h-8 px-3 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm"
+                                                                >
+                                                                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> Assinar
+                                                                </a>
+                                                                <a
+                                                                    href={doc.document_url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center justify-center h-8 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200"
+                                                                >
+                                                                    .docx
+                                                                </a>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
                     {/* Tab 1: Project Gallery */}
                     <TabsContent value="gallery" className="pt-4">
@@ -1634,6 +1801,25 @@ Equipo de Conformidad y CAE.`;
                         )}
                     </DialogContent>
                 </Dialog>
+
+                {/* Document Generator Modals */}
+                <DocumentVariablesCheatSheetModal
+                    isOpen={isCheatSheetOpen}
+                    onClose={() => setIsCheatSheetOpen(false)}
+                />
+                <DocumentTemplateManagerModal
+                    isOpen={isTemplateManagerOpen}
+                    onClose={() => setIsTemplateManagerOpen(false)}
+                    onOpenCheatSheet={() => {
+                        setIsTemplateManagerOpen(false);
+                        setIsCheatSheetOpen(true);
+                    }}
+                />
+                <GenerateDocumentWizardModal
+                    isOpen={isWizardOpen}
+                    onClose={() => setIsWizardOpen(false)}
+                    onDocumentGenerated={() => fetchGeneratedDocs()}
+                />
             </div>
         </Layout>
     );
