@@ -164,7 +164,7 @@ export function GlobalHubPage() {
 
         if (module.id === 'chat') {
             const { data: { session } } = await supabase.auth.getSession();
-            const baseUrl = import.meta.env.VITE_CHAT_URL || 'http://localhost:3001';
+            const baseUrl = import.meta.env.VITE_CHAT_URL || 'https://mcs-chat.vercel.app';
             
             if (session) {
                 const ssoUrl = `${baseUrl}/api/auth/sso?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;

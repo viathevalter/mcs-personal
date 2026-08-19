@@ -370,7 +370,7 @@ export async function getHorasPendentesFaturamento(
         const { data: whData, error: whError } = await supabase
           .schema('core_personal')
           .from('worker_hours')
-          .select('worker_id, status, observacoes')
+          .select('worker_id, status, observacoes, cliente_nombre')
           .in('worker_id', chunk)
           .eq('period_year', periodYear)
           .eq('period_month', periodMonth);
@@ -378,7 +378,10 @@ export async function getHorasPendentesFaturamento(
         return whData || [];
       });
     }
-    const workerHoursMap = new Map(workerHoursList.map(wh => [wh.worker_id, { status: wh.status, observacoes: wh.observacoes }]));
+    const workerHoursMap = new Map(workerHoursList.map(wh => {
+      const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
+      return [key, { status: wh.status, observacoes: wh.observacoes }];
+    }));
 
     // Helper to get exact dynamic date range for a given client billing cycle start day
     const getClientDateRange = (startDay: number, year: number, month: number) => {
@@ -628,7 +631,8 @@ export async function getHorasPendentesFaturamento(
       
       for (const w of clientWorkers) {
         resolvedWorkerIds.add(w.id);
-        const whObj = workerHoursMap.get(w.id);
+        const clientNameLower = client.trade_name?.trim().toLowerCase();
+        const whObj = workerHoursMap.get(`${w.id}-${clientNameLower}`) || workerHoursMap.get(w.id);
         const whStatus = whObj?.status;
         const isValidated = whStatus === 'validado';
         const observacoes = whObj?.observacoes || null;

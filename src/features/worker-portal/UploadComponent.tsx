@@ -45,7 +45,7 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
             // Nomenclatura V1.0: Apenas NOME_DO_TRABALHADOR.extensao
             // (A pasta do SharePoint já organiza por Empresa/Mês/Cliente)
             const extension = file.name.split('.').pop() || 'pdf';
-            const clientFolder = worker.cliente_nombre || 'SEM_CLIENTE';
+            const clientFolder = period.cliente_nombre || worker.cliente_nombre || 'SEM_CLIENTE';
             const safeCliente = clientFolder.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
             const safeNome = worker.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
 

@@ -88,36 +88,96 @@ export function WorkerDashboardPage() {
 
                 if (isEligibleCurrent || isEligiblePrev) {
                     const profileRecords = allRecords.filter(r => r.worker_id === profile.id && r.empresa_id === profile.empresa_id);
-                    const hasCurrentMonth = profileRecords.some(r => r.period_year === currentYear && r.period_month === currentMonth);
-                    const hasPrevMonth = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth);
+
+                    // Fetch allocations for this worker to generate cards by client
+                    const { data: allocations } = await supabase
+                        .schema('core_personal')
+                        .from('vw_worker_allocations')
+                        .select('cliente_nombre, fechainiciopedido, fechafinpedido, fechasalidatrabajador')
+                        .eq('cod_colab', profile.cod_colab);
+
+                    const getClientsForPeriod = (yr: number, mo: number) => {
+                        const start = new Date(yr, mo - 1, 1);
+                        const end = new Date(yr, mo, 0);
+                        
+                        const activeAllocations = (allocations || []).filter(alloc => {
+                            const allocStart = alloc.fechainiciopedido ? new Date(alloc.fechainiciopedido) : null;
+                            const allocEnd = alloc.fechafinpedido ? new Date(alloc.fechafinpedido) : null;
+                            const exitDate = alloc.fechasalidatrabajador ? new Date(alloc.fechasalidatrabajador) : null;
+                            
+                            const actualEnd = exitDate || allocEnd;
+                            
+                            const isAfterStart = !allocStart || allocStart <= end;
+                            const isBeforeEnd = !actualEnd || actualEnd >= start;
+                            
+                            return isAfterStart && isBeforeEnd;
+                        });
+                        
+                        if (activeAllocations.length === 0) {
+                            return [profile.cliente_nombre || 'NÃO DEFINIDO'];
+                        }
+                        
+                        return Array.from(new Set(activeAllocations.map(a => a.cliente_nombre).filter(Boolean)));
+                    };
 
                     const toInsert = [];
-                    
-                    let shouldHaveCurrentMonth = isEligibleCurrent;
-                    let shouldHavePrevMonth = isEligiblePrev;
 
-                    if (dataIngresso) {
-                        const admissionDate = new Date(dataIngresso);
-                        const admissionYear = admissionDate.getFullYear();
-                        const admissionMonth = admissionDate.getMonth() + 1;
+                    if (isEligibleCurrent) {
+                        const currentClients = getClientsForPeriod(currentYear, currentMonth);
+                        for (const client of currentClients) {
+                            const hasRecord = profileRecords.some(r => r.period_year === currentYear && r.period_month === currentMonth && r.cliente_nombre === client);
+                            
+                            let shouldHave = true;
+                            if (dataIngresso) {
+                                const admissionDate = new Date(dataIngresso);
+                                const admissionYear = admissionDate.getFullYear();
+                                const admissionMonth = admissionDate.getMonth() + 1;
+                                shouldHave = admissionYear < currentYear || (admissionYear === currentYear && admissionMonth <= currentMonth);
+                            }
+                            if (currentYear === 2026 && (currentMonth === 3 || currentMonth === 4)) {
+                                shouldHave = false;
+                            }
 
-                        shouldHaveCurrentMonth = shouldHaveCurrentMonth && (admissionYear < currentYear || (admissionYear === currentYear && admissionMonth <= currentMonth));
-                        shouldHavePrevMonth = shouldHavePrevMonth && (admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth));
+                            if (!hasRecord && shouldHave) {
+                                toInsert.push({ 
+                                    empresa_id: profile.empresa_id, 
+                                    worker_id: profile.id, 
+                                    period_year: currentYear, 
+                                    period_month: currentMonth, 
+                                    status: 'pendente',
+                                    cliente_nombre: client 
+                                });
+                            }
+                        }
                     }
 
-                    // Regra específica: bloquear geração de mês de março e abril de 2026
-                    if (prevYear === 2026 && (prevMonth === 3 || prevMonth === 4)) {
-                        shouldHavePrevMonth = false;
-                    }
-                    if (currentYear === 2026 && (currentMonth === 3 || currentMonth === 4)) {
-                        shouldHaveCurrentMonth = false;
-                    }
+                    if (isEligiblePrev) {
+                        const prevClients = getClientsForPeriod(prevYear, prevMonth);
+                        for (const client of prevClients) {
+                            const hasRecord = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth && r.cliente_nombre === client);
+                            
+                            let shouldHave = true;
+                            if (dataIngresso) {
+                                const admissionDate = new Date(dataIngresso);
+                                const admissionYear = admissionDate.getFullYear();
+                                const admissionMonth = admissionDate.getMonth() + 1;
+                                shouldHave = admissionYear < prevYear || (admissionYear === prevYear && admissionMonth <= prevMonth);
+                            }
+                            if (prevYear === 2026 && (prevMonth === 3 || prevMonth === 4)) {
+                                shouldHave = false;
+                            }
 
-                    if (!hasCurrentMonth && shouldHaveCurrentMonth) {
-                        toInsert.push({ empresa_id: profile.empresa_id, worker_id: profile.id, period_year: currentYear, period_month: currentMonth, status: 'pendente' });
-                    }
-                    if (!hasPrevMonth && shouldHavePrevMonth) {
-                        toInsert.push({ empresa_id: profile.empresa_id, worker_id: profile.id, period_year: prevYear, period_month: prevMonth, status: 'pendente' });
+                            if (!hasRecord && shouldHave) {
+                                toInsert.push({ 
+                                    empresa_id: profile.empresa_id, 
+                                    worker_id: profile.id, 
+                                    period_year: prevYear, 
+                                    period_month: prevMonth, 
+                                    status: 'pendente',
+                                    cliente_nombre: client 
+                                });
+                            }
+                        }
                     }
 
                     if (toInsert.length > 0) {
@@ -224,7 +284,7 @@ export function WorkerDashboardPage() {
                                             {getMonthName(period.period_month)} {period.period_year}
                                         </CardTitle>
                                         <CardDescription>
-                                            {t('workerPortal.dashboard.clientLabel')} {profiles.find((p: any) => p.id === period.worker_id)?.cliente_nombre || 'N/A'}
+                                            {t('workerPortal.dashboard.clientLabel')} {period.cliente_nombre || 'N/A'}
                                         </CardDescription>
                                     </div>
                                     <StatusBadge status={period.status} />

@@ -149,7 +149,11 @@ export function ClientHoursDetail() {
 
             // Merge details
             const merged: WorkerDetail[] = workersData?.map((w: any) => {
-                const hr = hoursData.find(h => h.worker_id === w.id && (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()));
+                const hr = hoursData.find(h => 
+                    h.worker_id === w.id && 
+                    (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) &&
+                    (!h.cliente_nombre || !w.cliente_nombre || h.cliente_nombre.trim().toLowerCase() === w.cliente_nombre.trim().toLowerCase())
+                );
                 return {
                     worker_id: w.id,
                     worker_name: w.nome,
@@ -282,17 +286,38 @@ export function ClientHoursDetail() {
                 // Proceed anyway to fix the database state if storage fails
             }
 
-            // Delete daily hours from core_finance.horas_trabalhadas
+            // Get client ID from database using clientName
+            let targetClientId: string | null = null;
+            if (clientName) {
+                const { data: clientData } = await supabase
+                    .schema('core_common')
+                    .from('clients')
+                    .select('id')
+                    .ilike('trade_name', clientName.trim())
+                    .limit(1)
+                    .maybeSingle();
+                if (clientData) {
+                    targetClientId = clientData.id;
+                }
+            }
+
+            // Delete daily hours from core_finance.horas_trabalhadas (specifically for this client)
             const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
             
-            const { error: deleteHoursError } = await supabase
+            let deleteQuery = supabase
                 .schema('core_finance')
                 .from('horas_trabalhadas')
                 .delete()
                 .eq('worker_id', workerId)
                 .gte('data_trabalho', startDateStr)
                 .lte('data_trabalho', endDateStr);
+                
+            if (targetClientId) {
+                deleteQuery = deleteQuery.eq('client_id', targetClientId);
+            }
+            
+            const { error: deleteHoursError } = await deleteQuery;
 
             if (deleteHoursError) {
                 console.error('Error deleting daily hours on reject:', deleteHoursError);
