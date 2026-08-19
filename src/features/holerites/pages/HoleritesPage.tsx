@@ -27,7 +27,8 @@ import {
     RotateCcw,
     FileSpreadsheet,
     FileArchive,
-    Trash2
+    Trash2,
+    Pencil
 } from 'lucide-react';
 import {
     Card,
@@ -64,6 +65,8 @@ import { useWorkersForHolerites } from '../hooks/useWorkersForHolerites';
 import { useHoleriteEventos } from '../hooks/useHoleriteEventos';
 import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
 import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
+import { EditHoleriteEventoDialog } from '../components/EditHoleriteEventoDialog';
+import { EditDiscountDialog } from '../../discounts/components/EditDiscountDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
 import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
 import { calculateProratedBenefitAmount } from '@/shared/utils/importUtils';
@@ -1779,21 +1782,36 @@ export function HoleritesPage() {
                                                                                     </TableCell>
                                                                                     <TableCell className="text-right">
                                                                                         {evento.categoria !== 'total_horas' && (
-                                                                                            <Button
-                                                                                                variant="ghost"
-                                                                                                size="icon"
-                                                                                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
-                                                                                                onClick={() => {
-                                                                                                    if (confirm(`Deseja remover o lançamento "${evento.categoria}" no valor de € ${Number(evento.valor).toFixed(2)} da folha deste colaborador?`)) {
-                                                                                                        deleteEvento(evento.id, {
-                                                                                                            onSuccess: () => toast.success('Lançamento removido da folha com sucesso!')
-                                                                                                        });
+                                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                                <EditHoleriteEventoDialog
+                                                                                                    evento={evento}
+                                                                                                    trigger={
+                                                                                                        <Button
+                                                                                                            variant="ghost"
+                                                                                                            size="icon"
+                                                                                                            className="h-7 w-7 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                                                                                                            title="Editar lançamento"
+                                                                                                        >
+                                                                                                            <Pencil className="h-3.5 w-3.5" />
+                                                                                                        </Button>
                                                                                                     }
-                                                                                                }}
-                                                                                                title="Excluir lançamento da folha"
-                                                                                            >
-                                                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                                                            </Button>
+                                                                                                />
+                                                                                                <Button
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                                                                    onClick={() => {
+                                                                                                        if (confirm(`Deseja remover o lançamento "${evento.categoria}" no valor de € ${Number(evento.valor).toFixed(2)} da folha deste colaborador?`)) {
+                                                                                                            deleteEvento(evento.id, {
+                                                                                                                onSuccess: () => toast.success('Lançamento removido da folha com sucesso!')
+                                                                                                            });
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    title="Excluir lançamento da folha"
+                                                                                                >
+                                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                                </Button>
+                                                                                            </div>
                                                                                         )}
                                                                                     </TableCell>
                                                                                 </TableRow>
@@ -1818,21 +1836,36 @@ export function HoleritesPage() {
                                                                                     <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">-</TableCell>
                                                                                     <TableCell className="text-right font-medium text-red-600 dark:text-red-500">€ {Number(d.amount).toFixed(2)}</TableCell>
                                                                                     <TableCell className="text-right">
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
-                                                                                            onClick={() => {
-                                                                                                if (confirm(`Deseja remover o desconto "${d.category}" no valor de € ${Number(d.amount).toFixed(2)} deste colaborador?`)) {
-                                                                                                    deleteDiscount(d.id, {
-                                                                                                        onSuccess: () => toast.success('Desconto removido com sucesso!')
-                                                                                                    });
+                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                            <EditDiscountDialog
+                                                                                                discount={d}
+                                                                                                trigger={
+                                                                                                    <Button
+                                                                                                        variant="ghost"
+                                                                                                        size="icon"
+                                                                                                        className="h-7 w-7 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                                                                                                        title="Editar desconto"
+                                                                                                    >
+                                                                                                        <Pencil className="h-3.5 w-3.5" />
+                                                                                                    </Button>
                                                                                                 }
-                                                                                            }}
-                                                                                            title="Excluir desconto"
-                                                                                        >
-                                                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                                                        </Button>
+                                                                                            />
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="icon"
+                                                                                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                                                                onClick={() => {
+                                                                                                    if (confirm(`Deseja remover o desconto "${d.category}" no valor de € ${Number(d.amount).toFixed(2)} deste colaborador?`)) {
+                                                                                                        deleteDiscount(d.id, {
+                                                                                                            onSuccess: () => toast.success('Desconto removido com sucesso!')
+                                                                                                        });
+                                                                                                    }
+                                                                                                }}
+                                                                                                title="Excluir desconto"
+                                                                                            >
+                                                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                                            </Button>
+                                                                                        </div>
                                                                                     </TableCell>
                                                                                 </TableRow>
                                                                             ))}
