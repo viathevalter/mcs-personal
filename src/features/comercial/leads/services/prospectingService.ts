@@ -2,7 +2,7 @@ import { supabase } from '@/shared/supabase/client';
 import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from '../types/prospectingTypes';
 import { REAL_SPANISH_INDUSTRIAL_DATABASE } from './spanishIndustrialDirectory';
 
-export const DEFAULT_AISA_API_KEY = 'sk-aisa-yBrchxWrx7IAi8832rVsYN_I2znI4rjACKQ9gQFKGN8';
+export const DEFAULT_AISA_API_KEY = import.meta.env.VITE_AISA_API_KEY || 'sk-aisa-rHasSfH7Ke5hXtc1lyKlXYOkP6DPOW_GiNxo6O6HOO0';
 export const AISA_BASE_URL = 'https://api.aisa.one/v1';
 
 export interface ScrapedCompanyRaw {

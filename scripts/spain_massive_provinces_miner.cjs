@@ -1,8 +1,8 @@
 const { Client } = require('pg');
 
-const PROD_PG_URL = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 const AISA_BASE_URL = 'https://api.aisa.one/v1';
-const AISA_API_KEY = 'sk-aisa-yBrchxWrx7IAi8832rVsYN_I2znI4rjACKQ9gQFKGN8';
+const AISA_API_KEY = process.env.AISA_API_KEY || 'sk-aisa-rHasSfH7Ke5hXtc1lyKlXYOkP6DPOW_GiNxo6O6HOO0';
 
 // Todas as 50 Províncias Oficiais da Espanha
 const ALL_50_SPANISH_PROVINCES = [
