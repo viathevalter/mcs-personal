@@ -478,6 +478,10 @@ export const router = createBrowserRouter([
                         element: <HiringReportPage />
                     },
                     {
+                        path: 'documentos',
+                        element: <DocumentsPage />
+                    },
+                    {
                         path: 'solicitudes/:id',
                         element: <SolicitudDetailPage />
                     },
