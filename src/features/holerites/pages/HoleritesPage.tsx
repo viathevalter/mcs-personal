@@ -76,6 +76,7 @@ import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
 import { usePaymentMutations } from '../hooks/usePaymentMutations';
 import { PaymentConfirmModal } from '../components/PaymentConfirmModal';
 import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
+import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
 
 const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
@@ -265,8 +266,9 @@ export function HoleritesPage() {
         setContratanteFilter(nextVal);
         if (nextVal && nextVal !== 'all' && empresas) {
             const matched = empresas.find(e => {
-                const empName = (e.nome_pbi || e.nombre_comercial || e.razon_social || '').toLowerCase();
-                return empName.includes(nextVal.toLowerCase()) || nextVal.toLowerCase().includes(empName);
+                return matchesEmpresaFilter(e.trade_name, nextVal) ||
+                       matchesEmpresaFilter(e.nome, nextVal) ||
+                       matchesEmpresaFilter(e.legal_name, nextVal);
             });
             if (matched && String(matched.id) !== String(selectedEmpresaId)) {
                 setSelectedEmpresaId(String(matched.id));
@@ -287,19 +289,16 @@ export function HoleritesPage() {
             return;
         }
 
-        if (selectedEmpresaId && empresas && contratantesUnicos.length > 0) {
+        if (selectedEmpresaId && empresas) {
             const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
             if (currentEmpresa) {
-                const empName = (currentEmpresa.nome_pbi || currentEmpresa.nombre_comercial || currentEmpresa.razon_social || '').toLowerCase();
-                const matchedOption = contratantesUnicos.find(c => 
-                    c.toLowerCase().includes(empName) || empName.includes(c.toLowerCase())
-                );
-                if (matchedOption && matchedOption !== contratanteFilter) {
-                    setContratanteFilter(matchedOption);
+                const normCurrent = normalizeEmpresaName(currentEmpresa.trade_name || currentEmpresa.nome);
+                if (normCurrent && normCurrent !== contratanteFilter) {
+                    setContratanteFilter(normCurrent);
                 }
             }
         }
-    }, [selectedEmpresaId, empresas, contratantesUnicos, contratanteFilter]);
+    }, [selectedEmpresaId, empresas, contratanteFilter]);
 
     // Reset pagination to page 1 whenever filters change
     useEffect(() => {
@@ -653,9 +652,17 @@ export function HoleritesPage() {
         const codColab = w.cod_colab;
         const allocAct = codColab ? dbHoursSummary?.allocsActiveInMonthByCod?.get(codColab) : null;
 
-        const contratante = monthAct?.contratante || allocAct?.contratante || w.contratante || '-';
+        const rawContratante = monthAct?.contratante || allocAct?.contratante || w.contratante || '';
+        const contratante = normalizeEmpresaName(rawContratante) || '-';
         const cliente_nombre = monthAct?.cliente_nombre || allocAct?.cliente_nombre || w.cliente_nombre || (w as any).cliente || '-';
-        const allContratantes = monthAct?.allContratantes || new Set([contratante].filter(Boolean));
+        
+        const allContratantes = new Set<string>();
+        if (contratante !== '-') allContratantes.add(contratante);
+        monthAct?.allContratantes?.forEach((c: string) => {
+            const norm = normalizeEmpresaName(c);
+            if (norm) allContratantes.add(norm);
+        });
+
         const allClients = monthAct?.allClients || new Set([cliente_nombre].filter(Boolean));
 
         return { contratante, cliente_nombre, allContratantes, allClients };
@@ -675,16 +682,18 @@ export function HoleritesPage() {
     }, [workers, getWorkerEffectiveActivity]);
 
     const contratantesUnicosSorted = React.useMemo(() => {
-        const set = new Set<string>(contratantesUnicos);
+        const set = new Set<string>();
+        CANONICAL_EMPRESAS.forEach(c => set.add(c));
         workers?.forEach(w => {
             const act = getWorkerEffectiveActivity(w);
-            if (act.contratante && act.contratante !== '-') set.add(act.contratante);
+            if (act.contratante && act.contratante !== '-') set.add(normalizeEmpresaName(act.contratante));
             act.allContratantes.forEach(c => {
-                if (c && c !== '-') set.add(c);
+                const norm = normalizeEmpresaName(c);
+                if (norm && norm !== '-') set.add(norm);
             });
         });
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    }, [workers, contratantesUnicos, getWorkerEffectiveActivity]);
+    }, [workers, getWorkerEffectiveActivity]);
 
     const seguridadUnica = (Array.from(new Set(workers?.map(w => w.status_seguridad).filter(Boolean))) as string[])
         .sort((a, b) => a.localeCompare(b));
@@ -833,11 +842,9 @@ export function HoleritesPage() {
                               worker.cliente === clienteFilter ||
                               (dbHoursSummary?.workerClientsMap?.get(worker.id)?.has(clienteFilter) ?? false);
 
-        const matchesContratante = contratanteFilter === 'all' || 
-                                  act.contratante.toLowerCase().includes(contratanteFilter.toLowerCase()) ||
-                                  contratanteFilter.toLowerCase().includes(act.contratante.toLowerCase()) ||
-                                  Array.from(act.allContratantes).some(c => c.toLowerCase().includes(contratanteFilter.toLowerCase())) ||
-                                  (worker.contratante && worker.contratante.toLowerCase().includes(contratanteFilter.toLowerCase()));
+        const matchesContratante = matchesEmpresaFilter(act.contratante, contratanteFilter) ||
+                                  Array.from(act.allContratantes).some(c => matchesEmpresaFilter(c, contratanteFilter)) ||
+                                  matchesEmpresaFilter(worker.contratante, contratanteFilter);
 
         const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 

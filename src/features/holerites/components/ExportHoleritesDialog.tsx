@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Worker } from '@/shared/types/corePersonal';
 import { format } from 'date-fns';
+import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
 
 interface ExportHoleritesDialogProps {
     trigger: React.ReactNode;
@@ -60,7 +61,7 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'contratante',
         label: 'Empresa (Contratante)',
         category: 'cadastro',
-        getValue: (w, { workerMonthlyActivityMap }) => workerMonthlyActivityMap?.get(w.id)?.contratante || w.contratante || '-'
+        getValue: (w, { workerMonthlyActivityMap }) => normalizeEmpresaName(workerMonthlyActivityMap?.get(w.id)?.contratante || w.contratante) || '-'
     },
     {
         id: 'cliente_nombre',

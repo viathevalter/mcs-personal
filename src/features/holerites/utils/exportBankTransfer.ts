@@ -9,6 +9,8 @@ export interface BankExportWorkerItem {
     banco?: string;
 }
 
+import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+
 export function exportBankTransferSpreadsheet({
     items,
     mesReferencia,
@@ -34,7 +36,7 @@ export function exportBankTransferSpreadsheet({
             'Valor a Pagar (€)': Number(item.valorLiquido.toFixed(2)),
             'Conceito / Referência': `Folha ${mesReferencia} - ${w.nome} (${w.cod_colab || ''})`,
             'NISS': w.niss || '-',
-            'Empresa Contratante': w.contratante || '-',
+            'Empresa Contratante': normalizeEmpresaName(w.contratante) || '-',
             'Cliente': w.cliente_nombre || '-',
             'Data de Emissão': format(new Date(), 'dd/MM/yyyy')
         };

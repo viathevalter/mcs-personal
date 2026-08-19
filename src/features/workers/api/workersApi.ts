@@ -91,14 +91,26 @@ export async function getHoursControlWorkers({ empresaId, periodYear, periodMont
     return (data || []) as Worker[];
 }
 
+import { normalizeEmpresaName, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
+
 export async function getUniqueContratantes(): Promise<string[]> {
     const { data, error } = await supabase.schema('public').rpc('get_unique_contratantes');
 
     if (error) {
-        throw mapSupabaseError(error);
+        console.error("Error calling get_unique_contratantes RPC:", error);
     }
 
-    return data ? data.map((row: any) => row.contratante) : [];
+    const set = new Set<string>();
+    CANONICAL_EMPRESAS.forEach(c => set.add(c));
+
+    if (data) {
+        data.forEach((row: any) => {
+            const norm = normalizeEmpresaName(row.contratante || row);
+            if (norm && norm !== 'LOGIN PRO') set.add(norm);
+        });
+    }
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 
 export async function updateWorker(id: string, updates: Partial<Worker>): Promise<void> {
