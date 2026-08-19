@@ -378,10 +378,15 @@ export async function getHorasPendentesFaturamento(
         return whData || [];
       });
     }
-    const workerHoursMap = new Map(workerHoursList.map(wh => {
+    const workerHoursMap = new Map<string, { status: string; observacoes: string | null }>();
+    workerHoursList.forEach(wh => {
       const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
-      return [key, { status: wh.status, observacoes: wh.observacoes }];
-    }));
+      const val = { status: wh.status, observacoes: wh.observacoes };
+      workerHoursMap.set(key, val);
+      if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
+        workerHoursMap.set(wh.worker_id, val);
+      }
+    });
 
     // Helper to get exact dynamic date range for a given client billing cycle start day
     const getClientDateRange = (startDay: number, year: number, month: number) => {

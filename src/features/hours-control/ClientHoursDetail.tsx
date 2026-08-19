@@ -149,11 +149,18 @@ export function ClientHoursDetail() {
 
             // Merge details
             const merged: WorkerDetail[] = workersData?.map((w: any) => {
-                const hr = hoursData.find(h => 
+                let hr = hoursData.find(h => 
                     h.worker_id === w.id && 
                     (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) &&
-                    (!h.cliente_nombre || !w.cliente_nombre || h.cliente_nombre.trim().toLowerCase() === w.cliente_nombre.trim().toLowerCase())
+                    h.cliente_nombre?.trim().toLowerCase() === w.cliente_nombre?.trim().toLowerCase()
                 );
+                if (!hr) {
+                    hr = hoursData.find(h => 
+                        h.worker_id === w.id && 
+                        (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) &&
+                        (!h.cliente_nombre || h.cliente_nombre === 'NÃO DEFINIDO')
+                    );
+                }
                 return {
                     worker_id: w.id,
                     worker_name: w.nome,

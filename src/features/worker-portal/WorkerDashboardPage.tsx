@@ -125,7 +125,11 @@ export function WorkerDashboardPage() {
                     if (isEligibleCurrent) {
                         const currentClients = getClientsForPeriod(currentYear, currentMonth);
                         for (const client of currentClients) {
-                            const hasRecord = profileRecords.some(r => r.period_year === currentYear && r.period_month === currentMonth && r.cliente_nombre === client);
+                            const hasRecord = profileRecords.some(r => 
+                                r.period_year === currentYear && 
+                                r.period_month === currentMonth && 
+                                (r.cliente_nombre === client || r.cliente_nombre === 'NÃO DEFINIDO')
+                            );
                             
                             let shouldHave = true;
                             if (dataIngresso) {
@@ -154,7 +158,11 @@ export function WorkerDashboardPage() {
                     if (isEligiblePrev) {
                         const prevClients = getClientsForPeriod(prevYear, prevMonth);
                         for (const client of prevClients) {
-                            const hasRecord = profileRecords.some(r => r.period_year === prevYear && r.period_month === prevMonth && r.cliente_nombre === client);
+                            const hasRecord = profileRecords.some(r => 
+                                r.period_year === prevYear && 
+                                r.period_month === prevMonth && 
+                                (r.cliente_nombre === client || r.cliente_nombre === 'NÃO DEFINIDO')
+                            );
                             
                             let shouldHave = true;
                             if (dataIngresso) {
