@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
+import { Check, ShieldAlert, UserCheck, Calendar, FileText } from 'lucide-react';
 
 import {
     Dialog,
@@ -10,6 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogDescription,
 } from '@/components/ui/dialog';
 import {
     Form,
@@ -19,38 +21,33 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useChangeWorkerStatus } from '../hooks/useWorkerStatus';
+import { useUpdateWorkerStatusUnified } from '../hooks/useWorkerStatus';
 
+// Opções de Status do Trabalhador com estilos visuais
 const STATUS_TRABALHO_OPTIONS = [
-    'ATIVO',
-    'INATIVO',
-    'DESLIGADO',
-    'AFASTADO',
-    'PENDENTE INGRESSO',
-    'DESISTIU'
+    { value: 'ATIVO', label: 'Ativo', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' },
+    { value: 'INATIVO', label: 'Inativo', badgeBg: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800' },
+    { value: 'PENDENTE INGRESSO', label: 'Pendente Ingresso', badgeBg: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' },
+    { value: 'AFASTADO', label: 'Afastado / Licença', badgeBg: 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800' },
+    { value: 'DESLIGADO', label: 'Desligado', badgeBg: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+    { value: 'DESISTIU', label: 'Desistiu', badgeBg: 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800' }
 ];
 
+// Opções de Status de Seguridade Social com estilos visuais
 const STATUS_SEGURIDADE_OPTIONS = [
-    'Alta',
-    'Baixa',
-    'Pendente Alta',
-    'Pendente Baixa',
-    'Em Regularização'
+    { value: 'Alta', label: 'Alta', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' },
+    { value: 'Em Regularização', label: 'Em Regularização', badgeBg: 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800' },
+    { value: 'Pendente Alta', label: 'Pendente Alta', badgeBg: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' },
+    { value: 'Pendente Baixa', label: 'Pendente Baixa', badgeBg: 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800' },
+    { value: 'Baixa', label: 'Baixa', badgeBg: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800' }
 ];
 
 const formSchema = z.object({
-    changeType: z.enum(['TRABALHADOR', 'SEGURIDADE']),
-    newValue: z.string().min(1, 'Selecione o novo status'),
+    statusTrabalhador: z.string().min(1, 'Selecione o status do trabalhador'),
+    statusSeguridad: z.string().min(1, 'Selecione o status da seguridade social'),
     effectiveDate: z.string().min(1, 'A data efetiva é obrigatória'),
     comments: z.string().optional(),
 });
@@ -69,31 +66,32 @@ export function WorkerStatusManagerDialog({
     currentSeguridadeStatus
 }: WorkerStatusManagerDialogProps) {
     const [open, setOpen] = useState(false);
-    const { mutate: changeStatus, isPending } = useChangeWorkerStatus();
+    const { mutate: updateStatusUnified, isPending } = useUpdateWorkerStatusUnified();
+
+    // Normaliza o status de trabalho inicial para bater com as chaves maiúsculas se necessário
+    const initialTrab = (currentTrabalhoStatus || 'ATIVO').toUpperCase();
+    const matchTrab = STATUS_TRABALHO_OPTIONS.find(o => o.value === initialTrab || o.label.toUpperCase() === initialTrab)?.value || 'ATIVO';
+
+    // Normaliza o status de seguridade inicial
+    const initialSeg = currentSeguridadeStatus || 'Em Regularização';
+    const matchSeg = STATUS_SEGURIDADE_OPTIONS.find(o => o.value.toLowerCase() === initialSeg.toLowerCase())?.value || initialSeg;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            changeType: 'TRABALHADOR',
-            newValue: currentTrabalhoStatus || 'ATIVO',
+            statusTrabalhador: matchTrab,
+            statusSeguridad: matchSeg,
             effectiveDate: format(new Date(), 'yyyy-MM-dd'),
             comments: ''
         }
     });
 
-    const watchChangeType = form.watch('changeType');
-    
-    // Dynamically set options based on type
-    const isSeguridade = watchChangeType === 'SEGURIDADE';
-    const isAtivo = !isSeguridade && form.watch('newValue') === 'ATIVO';
-    const options = isSeguridade ? STATUS_SEGURIDADE_OPTIONS : STATUS_TRABALHO_OPTIONS;
-
     const handleOpenChange = (newOpen: boolean) => {
         setOpen(newOpen);
         if (newOpen) {
             form.reset({
-                changeType: 'TRABALHADOR',
-                newValue: currentTrabalhoStatus || 'ATIVO',
+                statusTrabalhador: matchTrab,
+                statusSeguridad: matchSeg,
                 effectiveDate: format(new Date(), 'yyyy-MM-dd'),
                 comments: ''
             });
@@ -101,10 +99,10 @@ export function WorkerStatusManagerDialog({
     };
 
     const onSubmit = (values: FormValues) => {
-        changeStatus({
+        updateStatusUnified({
             workerId,
-            changeType: values.changeType,
-            newValue: values.newValue,
+            statusTrabalhador: values.statusTrabalhador,
+            statusSeguridad: values.statusSeguridad,
             effectiveDate: values.effectiveDate,
             comments: values.comments
         }, {
@@ -117,126 +115,183 @@ export function WorkerStatusManagerDialog({
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="text-primary hover:text-primary/80 border-primary shadow-sm hover:shadow-md transition-all">
+                <Button variant="outline" className="text-primary hover:text-primary/80 border-primary shadow-sm hover:shadow-md transition-all gap-2">
+                    <UserCheck className="w-4 h-4" />
                     Mudar Status
                 </Button>
             </DialogTrigger>
             
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Mudar Status do Trabalhador</DialogTitle>
+            <DialogContent className="sm:max-w-[780px] w-full max-h-[90vh] overflow-y-auto p-6">
+                <DialogHeader className="pb-2 border-b">
+                    <DialogTitle className="text-xl flex items-center gap-2">
+                        <UserCheck className="w-5 h-5 text-primary" />
+                        Alteração Unificada de Status do Trabalhador
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground">
+                        Selecione as novas opções para o Trabalhador e para a Seguridade Social simultaneamente em uma única ação.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="bg-muted p-3 my-2 rounded-md border text-sm flex gap-4">
-                    <div>
-                        <span className="text-muted-foreground block text-xs">Status Atual (Trabalhador)</span>
-                        <span className="font-semibold">{currentTrabalhoStatus || 'N/A'}</span>
-                    </div>
-                    <div>
-                        <span className="text-muted-foreground block text-xs">Status Atual (Seguridade)</span>
-                        <span className="font-semibold">{currentSeguridadeStatus || 'N/A'}</span>
-                    </div>
-                </div>
-
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="changeType"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>O que deseja alterar?</FormLabel>
-                                    <Select 
-                                        onValueChange={(val) => {
-                                            field.onChange(val);
-                                            // Reset the value when changing types
-                                            form.setValue('newValue', val === 'SEGURIDADE' ? (currentSeguridadeStatus || 'Alta') : (currentTrabalhoStatus || 'ATIVO'));
-                                        }} 
-                                        defaultValue={field.value}
-                                    >
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-2">
+                        
+                        {/* SEÇÃO PRINCIPAL LADO A LADO */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* COLUNA 1: STATUS DO TRABALHADOR */}
+                            <div className="flex flex-col gap-3 p-4 rounded-xl border bg-card shadow-sm">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                        <h3 className="font-semibold text-sm">Status do Trabalhador</h3>
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                        Atual: {currentTrabalhoStatus || 'N/A'}
+                                    </span>
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="statusTrabalhador"
+                                    render={({ field }) => (
+                                        <FormItem className="space-y-2">
+                                            <FormLabel className="text-xs text-muted-foreground font-normal">
+                                                Escolha uma alternativa abaixo:
+                                            </FormLabel>
+                                            <FormControl>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {STATUS_TRABALHO_OPTIONS.map((opt) => {
+                                                        const isSelected = field.value === opt.value;
+                                                        return (
+                                                            <button
+                                                                key={opt.value}
+                                                                type="button"
+                                                                onClick={() => field.onChange(opt.value)}
+                                                                className={`flex items-center justify-between p-3 rounded-lg border-2 text-left transition-all text-sm font-medium ${
+                                                                    isSelected
+                                                                        ? `${opt.badgeBg} border-primary shadow-sm font-bold scale-[1.01]`
+                                                                        : 'border-transparent bg-muted/40 hover:bg-muted/70 text-foreground'
+                                                                }`}
+                                                            >
+                                                                <span>{opt.label}</span>
+                                                                {isSelected && (
+                                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                                                                        <Check className="w-3.5 h-3.5" />
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* COLUNA 2: STATUS DA SEGURIDADE SOCIAL */}
+                            <div className="flex flex-col gap-3 p-4 rounded-xl border bg-card shadow-sm">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldAlert className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                        <h3 className="font-semibold text-sm">Segurança Social</h3>
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                        Atual: {currentSeguridadeStatus || 'N/A'}
+                                    </span>
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="statusSeguridad"
+                                    render={({ field }) => (
+                                        <FormItem className="space-y-2">
+                                            <FormLabel className="text-xs text-muted-foreground font-normal">
+                                                Escolha uma alternativa abaixo:
+                                            </FormLabel>
+                                            <FormControl>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {STATUS_SEGURIDADE_OPTIONS.map((opt) => {
+                                                        const isSelected = field.value === opt.value;
+                                                        return (
+                                                            <button
+                                                                key={opt.value}
+                                                                type="button"
+                                                                onClick={() => field.onChange(opt.value)}
+                                                                className={`flex items-center justify-between p-3 rounded-lg border-2 text-left transition-all text-sm font-medium ${
+                                                                    isSelected
+                                                                        ? `${opt.badgeBg} border-primary shadow-sm font-bold scale-[1.01]`
+                                                                        : 'border-transparent bg-muted/40 hover:bg-muted/70 text-foreground'
+                                                                }`}
+                                                            >
+                                                                <span>{opt.label}</span>
+                                                                {isSelected && (
+                                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                                                                        <Check className="w-3.5 h-3.5" />
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                        </div>
+
+                        {/* CAMPOS COMPARTILHADOS: DATA E OBSERVAÇÕES */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t">
+                            <FormField
+                                control={form.control}
+                                name="effectiveDate"
+                                render={({ field }) => (
+                                    <FormItem className="md:col-span-1">
+                                        <FormLabel className="flex items-center gap-1.5 text-xs font-semibold">
+                                            <Calendar className="w-3.5 h-3.5 text-primary" />
+                                            Data Efetiva
+                                        </FormLabel>
                                         <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
+                                            <Input type="date" className="h-10" {...field} />
                                         </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="TRABALHADOR">Status do Trabalhador</SelectItem>
-                                            <SelectItem value="SEGURIDADE">Status da Seguridade Social</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
 
-                        <FormField
-                            control={form.control}
-                            name="newValue"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Novo Status</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                            <FormField
+                                control={form.control}
+                                name="comments"
+                                render={({ field }) => (
+                                    <FormItem className="md:col-span-2">
+                                        <FormLabel className="flex items-center gap-1.5 text-xs font-semibold">
+                                            <FileText className="w-3.5 h-3.5 text-primary" />
+                                            Observações / Motivo (Opcional)
+                                        </FormLabel>
                                         <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione um status" />
-                                            </SelectTrigger>
+                                            <Textarea 
+                                                className="h-10 min-h-[40px] resize-none"
+                                                placeholder="Ex: Atualização solicitada pela contabilidade, Fim de obra, etc." 
+                                                {...field} 
+                                            />
                                         </FormControl>
-                                        <SelectContent>
-                                            {options.map((opt) => (
-                                                <SelectItem key={opt} value={opt}>
-                                                    {opt}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
-                        <FormField
-                            control={form.control}
-                            name="effectiveDate"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>
-                                        Data Efetiva {
-                                            isSeguridade ? '(Ex: Data da Baixa Médica)' : 
-                                            isAtivo ? '(Ex: Primeiro dia de trabalho / Data de Entrada)' : 
-                                            '(Ex: Último dia de trabalho / Data de Saída)'
-                                        }
-                                    </FormLabel>
-                                    <FormControl>
-                                        <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        <FormField
-                            control={form.control}
-                            name="comments"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Observações / Motivo</FormLabel>
-                                    <FormControl>
-                                        <Textarea 
-                                            placeholder="Ex: Fim do contrato, Rescisão por justa causa, Licença Médica, etc." 
-                                            {...field} 
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        <div className="flex justify-end gap-2 pt-4">
+                        {/* BOTÕES DE AÇÃO */}
+                        <div className="flex items-center justify-end gap-3 pt-4 border-t">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={isPending}>
-                                {isPending ? 'Salvando...' : 'Salvar Novo Status'}
+                            <Button type="submit" disabled={isPending} className="px-6 font-semibold shadow-md">
+                                {isPending ? 'Salvando...' : 'Salvar Ambos os Status'}
                             </Button>
                         </div>
                     </form>
