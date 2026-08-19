@@ -116,31 +116,67 @@ export function BatchHoleritesExportDialog({
                 const housingBenefitAmount = housingBenefitsMap?.get(w.id) || 0;
                 const activity = workerMonthlyActivityMap?.get(w.id);
 
-                if (isAlta) {
-                    const calc = calculateHoleriteAlta({
-                        worker: w,
-                        horasTrabalhadas,
-                        tarifaHora,
-                        proventosAdicionais: proventosAvulsos,
-                        housingBenefitAmount,
-                        eventosDescontos: descontosList,
-                        mesReferencia,
-                        empresas,
-                        workerMonthlyActivity: activity,
-                    });
-                    calculatedList.push(calc);
+                if (activity?.companyHoursBreakdown && activity.companyHoursBreakdown.length > 1) {
+                    for (const comp of activity.companyHoursBreakdown) {
+                        const compActivity = {
+                            contratante: comp.companyName,
+                            cliente_nombre: activity.cliente_nombre,
+                            clientHoursBreakdown: activity.clientHoursBreakdown
+                        };
+                        if (isAlta) {
+                            const calc = calculateHoleriteAlta({
+                                worker: w,
+                                horasTrabalhadas: comp.hours,
+                                tarifaHora,
+                                proventosAdicionais: proventosAvulsos,
+                                housingBenefitAmount,
+                                eventosDescontos: descontosList,
+                                mesReferencia,
+                                empresas,
+                                workerMonthlyActivity: compActivity,
+                            });
+                            calculatedList.push(calc);
+                        } else {
+                            const calc = calculateHoleriteRegularizacao({
+                                worker: w,
+                                horasTrabalhadas: comp.hours,
+                                tarifaHora,
+                                housingBenefitAmount,
+                                eventosDescontos: descontosList,
+                                mesReferencia,
+                                empresas,
+                                workerMonthlyActivity: compActivity,
+                            });
+                            calculatedList.push(calc);
+                        }
+                    }
                 } else {
-                    const calc = calculateHoleriteRegularizacao({
-                        worker: w,
-                        horasTrabalhadas,
-                        tarifaHora,
-                        housingBenefitAmount,
-                        eventosDescontos: descontosList,
-                        mesReferencia,
-                        empresas,
-                        workerMonthlyActivity: activity,
-                    });
-                    calculatedList.push(calc);
+                    if (isAlta) {
+                        const calc = calculateHoleriteAlta({
+                            worker: w,
+                            horasTrabalhadas,
+                            tarifaHora,
+                            proventosAdicionais: proventosAvulsos,
+                            housingBenefitAmount,
+                            eventosDescontos: descontosList,
+                            mesReferencia,
+                            empresas,
+                            workerMonthlyActivity: activity,
+                        });
+                        calculatedList.push(calc);
+                    } else {
+                        const calc = calculateHoleriteRegularizacao({
+                            worker: w,
+                            horasTrabalhadas,
+                            tarifaHora,
+                            housingBenefitAmount,
+                            eventosDescontos: descontosList,
+                            mesReferencia,
+                            empresas,
+                            workerMonthlyActivity: activity,
+                        });
+                        calculatedList.push(calc);
+                    }
                 }
             }
 

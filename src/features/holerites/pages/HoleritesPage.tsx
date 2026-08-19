@@ -349,7 +349,7 @@ export function HoleritesPage() {
                 const { data, error } = await supabase
                     .schema('core_finance')
                     .from('horas_trabalhadas')
-                    .select('id, worker_id, data_trabalho, horas_totais, fatura_id')
+                    .select('id, worker_id, data_trabalho, horas_totais, fatura_id, client_id')
                     .gte('data_trabalho', startDateStr)
                     .lte('data_trabalho', endDateStr)
                     .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
@@ -394,6 +394,20 @@ export function HoleritesPage() {
                 clientNameMap.set(c.id, name);
             });
 
+            // Fetch client company settings to link client directly to empresa
+            const { data: allCcs } = await supabase
+                .schema('core_common')
+                .from('client_company_settings')
+                .select('client_id, empresa_id');
+
+            const clientEmpresaMap = new Map<string, string>();
+            (allCcs || []).forEach((ccs: any) => {
+                const empName = empresaNameMap.get(ccs.empresa_id);
+                if (empName && !clientEmpresaMap.has(ccs.client_id)) {
+                    clientEmpresaMap.set(ccs.client_id, empName);
+                }
+            });
+
             // Fetch faturas to overlay pro-forma adjustments & map client/company names
             const { data: faturas, error: faturasErr } = await supabase
                 .schema('core_finance')
@@ -424,10 +438,17 @@ export function HoleritesPage() {
                 .order('fechainiciopedido', { ascending: false });
 
             const allocsActiveInMonthByCod = new Map<string, any>();
+            const allocsByCodAndClient = new Map<string, string>();
             (allocsData || []).forEach((a: any) => {
                 if (a.fechasalidatrabajador && a.fechasalidatrabajador < monthStartIso) return;
                 if (a.cod_colab && !allocsActiveInMonthByCod.has(a.cod_colab)) {
                     allocsActiveInMonthByCod.set(a.cod_colab, a);
+                }
+                if (a.cod_colab && a.cliente_nombre && a.contratante) {
+                    const k = `${a.cod_colab.toUpperCase()}_${a.cliente_nombre.trim().toUpperCase()}`;
+                    if (!allocsByCodAndClient.has(k)) {
+                        allocsByCodAndClient.set(k, a.contratante);
+                    }
                 }
             });
 
@@ -459,6 +480,15 @@ export function HoleritesPage() {
             const workerAllContratantes = new Map<string, Set<string>>();
             const workerAllClients = new Map<string, Set<string>>();
 
+            const workerCodMap = new Map<string, string>();
+            const workerContratanteMap = new Map<string, string>();
+            (workers || []).forEach(w => {
+                if (w.id) {
+                    if (w.cod_colab) workerCodMap.set(w.id, w.cod_colab);
+                    if (w.contratante) workerContratanteMap.set(w.id, w.contratante);
+                }
+            });
+
             allRows.forEach((row: any) => {
                 if (row.worker_id && row.data_trabalho) {
                     const dateKey = row.data_trabalho.includes('T') ? row.data_trabalho.split('T')[0] : row.data_trabalho;
@@ -470,28 +500,36 @@ export function HoleritesPage() {
                     const prevRaw = dailyRawMap.get(key) || 0;
                     dailyRawMap.set(key, prevRaw + rawH);
 
-                    // Track company and client for worker from fatura
+                    // Track company and client for worker
                     const fInfo = faturaInfoMap.get(row.fatura_id);
-                    if (fInfo) {
-                        if (fInfo.contratante) {
-                            if (!workerAllContratantes.has(row.worker_id)) workerAllContratantes.set(row.worker_id, new Set());
-                            workerAllContratantes.get(row.worker_id)!.add(fInfo.contratante);
+                    const clientName = (fInfo?.cliente_nombre || clientNameMap.get(row.client_id) || '').trim();
 
-                            if (!workerCompanyHoursMap.has(row.worker_id)) workerCompanyHoursMap.set(row.worker_id, new Map());
-                            const compMap = workerCompanyHoursMap.get(row.worker_id)!;
-                            compMap.set(fInfo.contratante, (compMap.get(fInfo.contratante) || 0) + rawH);
-                        }
-                        if (fInfo.cliente_nombre) {
-                            if (!workerAllClients.has(row.worker_id)) workerAllClients.set(row.worker_id, new Set());
-                            workerAllClients.get(row.worker_id)!.add(fInfo.cliente_nombre);
+                    const cod = workerCodMap.get(row.worker_id) || '';
+                    const allocEmp = (cod && clientName) ? allocsByCodAndClient.get(`${cod.toUpperCase()}_${clientName.toUpperCase()}`) : null;
+                    const defWorkerEmp = workerContratanteMap.get(row.worker_id) || '';
 
-                            if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
-                            workerClientsMap.get(row.worker_id)!.add(fInfo.cliente_nombre);
+                    const rawContratante = fInfo?.contratante || allocEmp || clientEmpresaMap.get(row.client_id) || defWorkerEmp;
+                    const normContratante = normalizeEmpresaName(rawContratante);
 
-                            if (!workerClientHoursMap.has(row.worker_id)) workerClientHoursMap.set(row.worker_id, new Map());
-                            const clMap = workerClientHoursMap.get(row.worker_id)!;
-                            clMap.set(fInfo.cliente_nombre, (clMap.get(fInfo.cliente_nombre) || 0) + rawH);
-                        }
+                    if (clientName) {
+                        if (!workerAllClients.has(row.worker_id)) workerAllClients.set(row.worker_id, new Set());
+                        workerAllClients.get(row.worker_id)!.add(clientName);
+
+                        if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
+                        workerClientsMap.get(row.worker_id)!.add(clientName);
+
+                        if (!workerClientHoursMap.has(row.worker_id)) workerClientHoursMap.set(row.worker_id, new Map());
+                        const clMap = workerClientHoursMap.get(row.worker_id)!;
+                        clMap.set(clientName, (clMap.get(clientName) || 0) + rawH);
+                    }
+
+                    if (normContratante) {
+                        if (!workerAllContratantes.has(row.worker_id)) workerAllContratantes.set(row.worker_id, new Set());
+                        workerAllContratantes.get(row.worker_id)!.add(normContratante);
+
+                        if (!workerCompanyHoursMap.has(row.worker_id)) workerCompanyHoursMap.set(row.worker_id, new Map());
+                        const compMap = workerCompanyHoursMap.get(row.worker_id)!;
+                        compMap.set(normContratante, (compMap.get(normContratante) || 0) + rawH);
                     }
                 }
             });
@@ -537,27 +575,38 @@ export function HoleritesPage() {
                 sumMap.set(wId, (sumMap.get(wId) || 0) + effVal);
             });
 
-            // Calculate dominant month activity (top company and client by hours)
+            // Calculate dominant month activity and multi-client / multi-company breakdowns
             const workerMonthlyActivityMap = new Map<string, { 
                 contratante: string; 
                 cliente_nombre: string; 
                 allContratantes: Set<string>; 
-                allClients: Set<string>; 
+                allClients: Set<string>;
+                clientHoursBreakdown: Array<{ clientName: string; hours: number }>;
+                companyHoursBreakdown: Array<{ companyName: string; hours: number }>;
             }>();
 
-            workerCompanyHoursMap.forEach((compMap, wId) => {
+            const allActiveWorkerIds = new Set<string>([
+                ...Array.from(dailyRawMap.keys()).map(k => k.split('_')[0]),
+                ...Array.from(globalDisputedHours.keys()).map(k => k.split('_')[0]),
+                ...(workers || []).map(w => w.id)
+            ]);
+
+            allActiveWorkerIds.forEach(wId => {
+                const compMap = workerCompanyHoursMap.get(wId);
                 let topComp = '';
                 let maxCompH = -1;
-                compMap.forEach((h, comp) => {
-                    if (h > maxCompH) {
-                        maxCompH = h;
-                        topComp = comp;
-                    }
-                });
+                if (compMap) {
+                    compMap.forEach((h, comp) => {
+                        if (h > maxCompH) {
+                            maxCompH = h;
+                            topComp = comp;
+                        }
+                    });
+                }
 
+                const clientMap = workerClientHoursMap.get(wId);
                 let topClient = '';
                 let maxClientH = -1;
-                const clientMap = workerClientHoursMap.get(wId);
                 if (clientMap) {
                     clientMap.forEach((h, cl) => {
                         if (h > maxClientH) {
@@ -567,11 +616,29 @@ export function HoleritesPage() {
                     });
                 }
 
+                const clientBreakdown: Array<{ clientName: string; hours: number }> = [];
+                if (clientMap) {
+                    clientMap.forEach((hours, clientName) => {
+                        if (hours > 0) clientBreakdown.push({ clientName, hours });
+                    });
+                    clientBreakdown.sort((a, b) => b.hours - a.hours);
+                }
+
+                const companyBreakdown: Array<{ companyName: string; hours: number }> = [];
+                if (compMap) {
+                    compMap.forEach((hours, companyName) => {
+                        if (hours > 0) companyBreakdown.push({ companyName, hours });
+                    });
+                    companyBreakdown.sort((a, b) => b.hours - a.hours);
+                }
+
                 workerMonthlyActivityMap.set(wId, {
-                    contratante: topComp,
-                    cliente_nombre: topClient,
+                    contratante: topComp || workerContratanteMap.get(wId) || '-',
+                    cliente_nombre: topClient || '-',
                     allContratantes: workerAllContratantes.get(wId) || new Set(),
                     allClients: workerAllClients.get(wId) || new Set(),
+                    clientHoursBreakdown: clientBreakdown,
+                    companyHoursBreakdown: companyBreakdown
                 });
             });
 
@@ -581,6 +648,8 @@ export function HoleritesPage() {
                 adjustedWorkerIds, 
                 workerClientsMap, 
                 workerMonthlyActivityMap,
+                workerCompanyHoursMap,
+                workerClientHoursMap,
                 allocsActiveInMonthByCod
             };
         },
@@ -689,8 +758,10 @@ export function HoleritesPage() {
         });
 
         const allClients = monthAct?.allClients || new Set([cliente_nombre].filter(Boolean));
+        const clientHoursBreakdown = monthAct?.clientHoursBreakdown || [];
+        const companyHoursBreakdown = monthAct?.companyHoursBreakdown || [];
 
-        return { contratante, cliente_nombre, allContratantes, allClients };
+        return { contratante, cliente_nombre, allContratantes, allClients, clientHoursBreakdown, companyHoursBreakdown };
     }, [dbHoursSummary]);
 
     // Derive and sort options based on effective month activity
@@ -739,13 +810,31 @@ export function HoleritesPage() {
     ];
 
     // Helper to calc net
-    function calculateWorkerTally(worker: any) {
+    function calculateWorkerTally(worker: any, targetEmpresa?: string) {
         if (!eventos) return { proventos: 0, descontos: 0, liquido: 0, totalHoras: 0, beneficiosFixos: [], descontosExtras: [] };
 
         const workerEvents = eventos.filter(e => e.trabalhador_id === worker.id);
 
         let totalHoras = 0;
-        if (dbHoursSummary?.sumMap && dbHoursSummary.sumMap.has(worker.id)) {
+        const compHoursMap = dbHoursSummary?.workerCompanyHoursMap?.get(worker.id);
+
+        if (targetEmpresa && compHoursMap) {
+            let matchedHours = 0;
+            compHoursMap.forEach((hrs, comp) => {
+                if (matchesEmpresaFilter(comp, targetEmpresa)) {
+                    matchedHours += hrs;
+                }
+            });
+            totalHoras = matchedHours;
+        } else if (contratanteFilter !== 'all' && compHoursMap && compHoursMap.size > 0) {
+            let matchedHours = 0;
+            compHoursMap.forEach((hrs, comp) => {
+                if (matchesEmpresaFilter(comp, contratanteFilter)) {
+                    matchedHours += hrs;
+                }
+            });
+            totalHoras = matchedHours > 0 ? matchedHours : (dbHoursSummary?.sumMap?.get(worker.id) || 0);
+        } else if (dbHoursSummary?.sumMap && dbHoursSummary.sumMap.has(worker.id)) {
             totalHoras = dbHoursSummary.sumMap.get(worker.id) || 0;
         } else {
             totalHoras = workerEvents
@@ -1519,7 +1608,16 @@ export function HoleritesPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {effectiveAct.cliente_nombre && effectiveAct.cliente_nombre !== '-' ? (
+                                                    {effectiveAct.clientHoursBreakdown && effectiveAct.clientHoursBreakdown.length > 1 ? (
+                                                        <div className="flex flex-col gap-1">
+                                                            {effectiveAct.clientHoursBreakdown.map((cb, idx) => (
+                                                                <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${getClientStyle(cb.clientName).badge}`}>
+                                                                    <Building2 className="h-2.5 w-2.5 mr-1 shrink-0 opacity-70" />
+                                                                    {cb.clientName} ({formatHoursClean(cb.hours)}h)
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : effectiveAct.cliente_nombre && effectiveAct.cliente_nombre !== '-' ? (
                                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
                                                             <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
                                                             {effectiveAct.cliente_nombre}
@@ -1529,7 +1627,17 @@ export function HoleritesPage() {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                                    {effectiveAct.contratante || '-'}
+                                                    {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 ? (
+                                                        <div className="flex flex-col gap-1">
+                                                            {effectiveAct.companyHoursBreakdown.map((cb, idx) => (
+                                                                <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1.5 font-bold border-indigo-200 bg-indigo-50/70 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                                                                    {cb.companyName} ({formatHoursClean(cb.hours)}h)
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        effectiveAct.contratante || '-'
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
@@ -1603,7 +1711,7 @@ export function HoleritesPage() {
                                                     € {liquido.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-end gap-1.5">
+                                                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                                         {(() => {
                                                             const hStatus = holeritesStatusMap?.get(worker.id);
                                                             const isPago = hStatus?.status === 'pago';
@@ -1652,20 +1760,46 @@ export function HoleritesPage() {
                                                                 </Button>
                                                             }
                                                         />
-                                                        <PreviewHoleriteDialog
-                                                            worker={worker}
-                                                            mesReferencia={mesReferencia}
-                                                            eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                            fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
-                                                            workerMonthlyActivity={dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)}
-                                                            housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
-                                                            extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
-                                                            trigger={
-                                                                <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
-                                                                    {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
-                                                                </Button>
-                                                            }
-                                                        />
+
+                                                        {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 ? (
+                                                            <div className="flex items-center gap-1">
+                                                                {effectiveAct.companyHoursBreakdown.map((cb, idx) => (
+                                                                    <PreviewHoleriteDialog
+                                                                        key={idx}
+                                                                        worker={worker}
+                                                                        mesReferencia={mesReferencia}
+                                                                        eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
+                                                                        fallbackHours={cb.hours}
+                                                                        workerMonthlyActivity={{
+                                                                            contratante: cb.companyName,
+                                                                            cliente_nombre: effectiveAct.cliente_nombre
+                                                                        }}
+                                                                        housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
+                                                                        extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
+                                                                        trigger={
+                                                                            <Button size="sm" variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 px-2 text-xs font-bold shadow-xs">
+                                                                                {i18n.language.startsWith('es') ? 'Nómina' : 'Holerite'} ({cb.companyName})
+                                                                            </Button>
+                                                                        }
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <PreviewHoleriteDialog
+                                                                worker={worker}
+                                                                mesReferencia={mesReferencia}
+                                                                eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
+                                                                fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
+                                                                workerMonthlyActivity={dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)}
+                                                                housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
+                                                                extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
+                                                                trigger={
+                                                                    <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
+                                                                        {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
+                                                                    </Button>
+                                                                }
+                                                            />
+                                                        )}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
@@ -1754,6 +1888,59 @@ export function HoleritesPage() {
                                                                             <span className="font-bold text-red-600">- € {descontos.toFixed(2)}</span>
                                                                         </div>
                                                                     </div>
+
+                                                                    {/* Detalhamento de Horas por Cliente quando multi-cliente */}
+                                                                    {effectiveAct.clientHoursBreakdown && effectiveAct.clientHoursBreakdown.length > 1 && (
+                                                                        <div className="mt-2.5 pt-2.5 border-t text-xs space-y-1.5">
+                                                                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide block">
+                                                                                Detalhamento das Horas por Cliente:
+                                                                            </span>
+                                                                            <div className="space-y-1">
+                                                                                {effectiveAct.clientHoursBreakdown.map((cb, idx) => (
+                                                                                    <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
+                                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{cb.clientName}</span>
+                                                                                        <span className="font-bold text-indigo-700 dark:text-indigo-400">{formatHoursClean(cb.hours)} h</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Detalhamento de Horas por Empresa quando multi-empresa */}
+                                                                    {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 && (
+                                                                        <div className="mt-2.5 pt-2.5 border-t text-xs space-y-1.5">
+                                                                            <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide block">
+                                                                                Holerites por Empresa Contratante:
+                                                                            </span>
+                                                                            <div className="space-y-1.5">
+                                                                                {effectiveAct.companyHoursBreakdown.map((comp, idx) => (
+                                                                                    <div key={idx} className="flex justify-between items-center bg-indigo-50/70 dark:bg-indigo-950/40 p-2 rounded-lg border border-indigo-200/80 dark:border-indigo-900/60">
+                                                                                        <div>
+                                                                                            <span className="font-bold text-indigo-900 dark:text-indigo-200 block">{comp.companyName}</span>
+                                                                                            <span className="text-[11px] text-muted-foreground font-medium">{formatHoursClean(comp.hours)} h trabalhadas</span>
+                                                                                        </div>
+                                                                                        <PreviewHoleriteDialog
+                                                                                            worker={worker}
+                                                                                            mesReferencia={mesReferencia}
+                                                                                            eventosMensais={workerEvents}
+                                                                                            fallbackHours={comp.hours}
+                                                                                            workerMonthlyActivity={{
+                                                                                                contratante: comp.companyName,
+                                                                                                cliente_nombre: effectiveAct.cliente_nombre
+                                                                                            }}
+                                                                                            housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
+                                                                                            extraDiscounts={descontosExtras}
+                                                                                            trigger={
+                                                                                                <Button size="sm" variant="outline" className="h-7 text-xs border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700 font-bold shadow-xs">
+                                                                                                    Gerar Holerite ({comp.companyName})
+                                                                                                </Button>
+                                                                                            }
+                                                                                        />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
 

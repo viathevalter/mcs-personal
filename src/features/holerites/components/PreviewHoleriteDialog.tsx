@@ -337,6 +337,21 @@ export function PreviewHoleriteDialog({
                                                     <span className="w-16 text-right font-semibold">{altaData.detalhamento.valorHoras.toFixed(2)}€</span>
                                                 </div>
                                             </div>
+                                            {altaData.detalhamento.clientHoursBreakdown && altaData.detalhamento.clientHoursBreakdown.length > 1 && (
+                                                <div className="bg-indigo-50/40 px-3 py-2 space-y-1 border-t border-b border-indigo-100">
+                                                    <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider block">Por Cliente / Obra:</span>
+                                                    {altaData.detalhamento.clientHoursBreakdown.map((cb, idx) => (
+                                                        <div key={idx} className="flex justify-between items-center text-[11px] pl-2 border-l-2 border-indigo-300">
+                                                            <span className="font-medium text-slate-700">{cb.clientName}</span>
+                                                            <div className="flex gap-4 font-mono text-slate-600">
+                                                                <span className="w-12 text-right"></span>
+                                                                <span className="w-12 text-right">{cb.hours.toFixed(2)}h</span>
+                                                                <span className="w-16 text-right font-medium">{(cb.hours * altaData.detalhamento.tarifaHora).toFixed(2)}€</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <div className="px-3 py-2 flex justify-between items-center">
                                                 <span>Alojamento / Moradia</span>
                                                 <span className="font-mono">{altaData.detalhamento.alojamento > 0 ? `${altaData.detalhamento.alojamento.toFixed(2)}€` : '-'}</span>
@@ -442,6 +457,15 @@ export function PreviewHoleriteDialog({
                                                     <td className="py-2 px-3 text-right font-mono">{regularizacaoData.horas.quantidadeHoras.toFixed(2)}</td>
                                                     <td className="py-2 px-3 text-right font-mono font-semibold">{regularizacaoData.horas.valorTotalHoras.toFixed(2)}€</td>
                                                 </tr>
+                                                {regularizacaoData.horas.clientHoursBreakdown && regularizacaoData.horas.clientHoursBreakdown.length > 1 && (
+                                                    regularizacaoData.horas.clientHoursBreakdown.map((cb, i) => (
+                                                        <tr key={`cl-${i}`} className="bg-indigo-50/30 text-[11px]">
+                                                            <td className="py-1 px-3 pl-6 font-normal text-slate-600">↳ {cb.clientName}</td>
+                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{cb.hours.toFixed(2)}</td>
+                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{(cb.hours * regularizacaoData.horas.tarifaHora).toFixed(2)}€</td>
+                                                        </tr>
+                                                    ))
+                                                )}
                                                 {regularizacaoData.horas.ajudaAlojamento > 0 && (
                                                     <tr>
                                                         <td className="py-2 px-3">Ajuda Alojamento</td>

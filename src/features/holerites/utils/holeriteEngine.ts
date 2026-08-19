@@ -90,6 +90,7 @@ export interface HoleriteAltaCalculado {
             totalDescontosDetalhados: number;
         };
         liquidoReal: number;
+        clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
     };
 }
 
@@ -115,6 +116,7 @@ export interface HoleriteRegularizacaoCalculado {
         valorTotalHoras: number;
         ajudaAlojamento: number;
         totalBruto: number;
+        clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
     };
     descontos: {
         adiantamento: number;
@@ -124,7 +126,7 @@ export interface HoleriteRegularizacaoCalculado {
         descontosAdicionais: number;
         totalDescontos: number;
     };
-    totalLiquido: number;
+    liquidoFinal: number;
     formaPagamento: string;
     moeda: string;
 }
@@ -508,6 +510,7 @@ export function calculateHoleriteAlta(options: {
             totalRemuneracoes,
             descontos: descontosParsed,
             liquidoReal: totalAReceberEfetivo,
+            clientHoursBreakdown: workerMonthlyActivity?.clientHoursBreakdown,
         }
     };
 }
@@ -524,7 +527,7 @@ export function calculateHoleriteRegularizacao(options: {
     eventosDescontos?: any[];
     mesReferencia: string;
     empresas?: Empresa[];
-    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string };
+    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number }> };
 }): HoleriteRegularizacaoCalculado {
     const {
         worker,
@@ -564,6 +567,7 @@ export function calculateHoleriteRegularizacao(options: {
             valorTotalHoras,
             ajudaAlojamento: totalAlojamento,
             totalBruto,
+            clientHoursBreakdown: workerMonthlyActivity?.clientHoursBreakdown,
         },
         descontos: {
             adiantamento: descontosParsed.adiantamento,

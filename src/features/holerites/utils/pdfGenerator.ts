@@ -428,15 +428,46 @@ export function generateHoleriteAltaPdf(
             ry += 5.5;
         });
 
-        // Total Descontos Detalhados
-        doc.setFillColor(254, 242, 242);
-        doc.rect(rightTableX, ry, colTableW, 6.5, 'FD');
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(153, 27, 27);
-        doc.text('Total Descontos', rightTableX + 3, ry + 4.4);
-        doc.text(formatCurrency(data.detalhamento.descontos.totalDescontosDetalhados), rightTableX + colTableW - 3, ry + 4.4, { align: 'right' });
+        // Detalhamento de Horas por Cliente / Obra (quando multi-cliente)
+        if (data.detalhamento.clientHoursBreakdown && data.detalhamento.clientHoursBreakdown.length > 1) {
+            y = Math.max(ly, ry) + 8;
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text('Detalhamento das Horas por Cliente / Obra:', margin, y);
+            y += 4;
 
-        y = Math.max(ly, ry) + 16;
+            doc.setFillColor(15, 23, 42);
+            doc.rect(margin, y, contentWidth, 5.5, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text('Cliente', margin + 3, y + 3.8);
+            doc.text('Qte (Horas)', margin + contentWidth - 45, y + 3.8, { align: 'right' });
+            doc.text('Tarifa', margin + contentWidth - 25, y + 3.8, { align: 'right' });
+            doc.text('Valor Total', margin + contentWidth - 3, y + 3.8, { align: 'right' });
+            y += 5.5;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(20, 24, 33);
+            doc.setDrawColor(226, 232, 240);
+
+            data.detalhamento.clientHoursBreakdown.forEach(cb => {
+                doc.rect(margin, y, contentWidth, 5, 'S');
+                doc.text(cb.clientName, margin + 3, y + 3.5);
+                doc.text(formatNumber(cb.hours), margin + contentWidth - 45, y + 3.5, { align: 'right' });
+                doc.text(formatCurrency(data.detalhamento.tarifaHora), margin + contentWidth - 25, y + 3.5, { align: 'right' });
+                doc.text(formatCurrency(cb.hours * data.detalhamento.tarifaHora), margin + contentWidth - 3, y + 3.5, { align: 'right' });
+                y += 5;
+            });
+            y += 6;
+        } else {
+            y = Math.max(ly, ry) + 14;
+        }
 
         // Card Destaque Líquido Efetivo
         doc.setFillColor(240, 253, 244);
@@ -570,6 +601,21 @@ export function generateHoleriteRegularizacaoPdf(data: HoleriteRegularizacaoCalc
 
     y += 6;
 
+    // Sub-linhas de Detalhamento por Cliente (quando multi-cliente)
+    if (data.horas.clientHoursBreakdown && data.horas.clientHoursBreakdown.length > 1) {
+        data.horas.clientHoursBreakdown.forEach(cb => {
+            doc.rect(margin, y, tableW, 5, 'S');
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(7.5);
+            doc.text(`  ↳ ${cb.clientName}`, margin + 5, y + 3.5);
+            doc.text(formatNumber(cb.hours), margin + col1W + col2W - 4, y + 3.5, { align: 'right' });
+            doc.text(formatNumber(cb.hours * data.horas.tarifaHora), margin + tableW - 4, y + 3.5, { align: 'right' });
+            y += 5;
+        });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+    }
+
     // Linha Ajuda Alojamento (se existir)
     if (data.horas.ajudaAlojamento > 0) {
         doc.rect(margin, y, tableW, 6, 'S');
@@ -698,7 +744,10 @@ export async function generateHoleritesBatchZip(
         const pdfBlob = doc.output('blob');
         const cod = item.worker.cod_colab || item.worker.id.substring(0, 5);
         const safeName = sanitizeFilename(item.worker.nome || 'trabalhador');
-        const filename = `Holerite_${cod}_${safeName}_${mesReferencia}.pdf`;
+        const safeEmpresa = sanitizeFilename(item.empresa?.nome || '');
+        const filename = safeEmpresa
+            ? `Holerite_${cod}_${safeName}_${safeEmpresa}_${mesReferencia}.pdf`
+            : `Holerite_${cod}_${safeName}_${mesReferencia}.pdf`;
 
         zip.file(filename, pdfBlob);
 
