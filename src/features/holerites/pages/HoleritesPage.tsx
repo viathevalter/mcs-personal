@@ -26,7 +26,8 @@ import {
     CheckCircle2,
     RotateCcw,
     FileSpreadsheet,
-    FileArchive
+    FileArchive,
+    Trash2
 } from 'lucide-react';
 import {
     Card,
