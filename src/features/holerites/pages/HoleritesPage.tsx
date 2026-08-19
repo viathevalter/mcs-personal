@@ -1171,14 +1171,16 @@ export function HoleritesPage() {
     }, [workers, allHousingBenefits, mesReferencia]);
 
     return (
-        <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
+        <div className="w-full flex flex-col space-y-3 p-0 pb-6">
             {/* Header section */}
-            <div className="shrink-0 space-y-3">
+            <div className="shrink-0 space-y-2.5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                        <Calculator className="h-6 w-6 text-indigo-500" />
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+                            <Calculator className="h-5 w-5" />
+                        </div>
                         <div>
-                            <h2 className="text-xl font-bold tracking-tight">Gestão de Folhas</h2>
+                            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Gestão de Folhas</h2>
                             <p className="text-xs text-muted-foreground">
                                 Controle mensal de descontos e proventos. Selecione o mês de competência para visualizar os trabalhadores.
                             </p>
@@ -1186,17 +1188,17 @@ export function HoleritesPage() {
                     </div>
 
                     {recentBatches.length > 0 && (
-                        <div className="flex items-center gap-2 bg-amber-50/50 rounded-lg p-2 border border-amber-100/60">
-                            <span className="text-xs font-medium text-amber-900 flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-2 bg-amber-50/70 dark:bg-amber-950/40 rounded-lg px-3 py-1.5 border border-amber-200/60">
+                            <span className="text-xs font-semibold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 shrink-0">
                                 <Undo2 className="h-3.5 w-3.5" /> Reverter Lotes:
                             </span>
-                            <div className="flex gap-2 flex-wrap">
+                            <div className="flex gap-1.5 flex-wrap">
                                 {recentBatches.map(b => (
                                     <Button
                                         key={b.id}
                                         variant="outline"
                                         size="sm"
-                                        className="bg-white h-7 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 py-0"
+                                        className="bg-white dark:bg-slate-900 h-6 px-2 text-[11px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 py-0"
                                         onClick={() => handleUndoBatch(b.id)}
                                         disabled={isDeletingBatch}
                                     >
@@ -1210,12 +1212,12 @@ export function HoleritesPage() {
 
                 {/* Top KPI Cards Section */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-xs hover:shadow-sm transition-all">
                         <CardContent className="p-3.5 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Trabalhadores</span>
-                                <div className="text-xl font-bold text-slate-900 dark:text-white">{totalCount}</div>
-                                <span className="text-[10px] text-muted-foreground">Listados na competência</span>
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Trabalhadores</span>
+                                <div className="text-xl font-black text-slate-900 dark:text-white">{totalCount}</div>
+                                <span className="text-[10px] text-muted-foreground font-medium">Listados na competência</span>
                             </div>
                             <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
                                 <Users className="h-5 w-5" />
@@ -1223,16 +1225,16 @@ export function HoleritesPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+                    <Card className="bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-900/50 shadow-xs hover:shadow-sm transition-all">
                         <CardContent className="p-3.5 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Segurança Social</span>
-                                <div className="flex items-center gap-1.5 text-lg font-bold">
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Segurança Social</span>
+                                <div className="flex items-center gap-1.5 text-lg font-black">
                                     <span className="text-emerald-600 dark:text-emerald-400">{altaCount} Alta</span>
                                     <span className="text-slate-300">/</span>
-                                    <span className="text-slate-600 dark:text-slate-400 text-sm font-semibold">{regCount} Reg.</span>
+                                    <span className="text-slate-600 dark:text-slate-400 text-sm font-bold">{regCount} Reg.</span>
                                 </div>
-                                <span className="text-[10px] text-muted-foreground">Status contratual atual</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">Status contratual atual</span>
                             </div>
                             <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40">
                                 <ShieldAlert className="h-5 w-5" />
@@ -1240,14 +1242,14 @@ export function HoleritesPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-900/50 shadow-sm">
+                    <Card className="bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-900/50 shadow-xs hover:shadow-sm transition-all">
                         <CardContent className="p-3.5 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total de Horas</span>
-                                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total de Horas</span>
+                                <div className="text-xl font-black text-amber-600 dark:text-amber-400">
                                     {formatHoursClean(totalHorasSum)} h
                                 </div>
-                                <span className="text-[10px] text-muted-foreground">Apuradas no período</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">Apuradas no período</span>
                             </div>
                             <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-xl text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40">
                                 <Clock className="h-5 w-5" />
@@ -1255,19 +1257,19 @@ export function HoleritesPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                    <Card className="bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 shadow-xs hover:shadow-sm transition-all">
                         <CardContent className="p-3.5 flex items-center justify-between">
                             <div className="space-y-1">
-                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Folha Total (Líquido)</span>
-                                <div className="text-xl font-bold text-indigo-700 dark:text-indigo-400">
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Folha Total (Líquido)</span>
+                                <div className="text-xl font-black text-indigo-700 dark:text-indigo-400">
                                     € {totalLiquidoSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                                 <div className="flex items-center gap-2 pt-0.5 flex-wrap">
-                                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
                                         € {paymentMetrics.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentMetrics.countPago} Pagos)
                                     </span>
-                                    <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
                                         € {paymentMetrics.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentMetrics.countPendente} Pendentes)
                                     </span>
@@ -1281,111 +1283,120 @@ export function HoleritesPage() {
                 </div>
             </div>
 
-            {/* Filter Section */}
-            <Card className="shrink-0 border-indigo-100 dark:border-indigo-900/50 shadow-sm">
-                <CardContent className="p-3">
-                    <div className="flex flex-col md:flex-row gap-3 items-end justify-between">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2.5 flex-1">
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Mês de Competência</Label>
-                                <Select value={mesReferencia} onValueChange={setMesReferencia}>
-                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900">
-                                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                                        <SelectValue placeholder="Selecione o mês" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {monthOptions.map(month => (
-                                             <SelectItem key={month} value={month}>
-                                                {format(new Date(month + '-02'), 'MMMM yyyy', { locale: currentLocale }).toUpperCase()}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Cliente</Label>
-                                <Combobox
-                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
-                                    options={clienteOptions}
-                                    value={clienteFilter}
-                                    onChange={(v) => setClienteFilter(v || 'all')}
-                                    placeholder="Buscar cliente..."
-                                    emptyText="Nenhum cliente encontrado."
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Empresa</Label>
-                                <Combobox
-                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
-                                    options={contratanteOptions}
-                                    value={contratanteFilter}
-                                    onChange={handleContratanteChange}
-                                    placeholder="Buscar empresa..."
-                                    emptyText="Nenhuma empresa encontrada."
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Segurança</Label>
-                                <Combobox
-                                    className="bg-white dark:bg-slate-900 h-9 text-xs"
-                                    options={seguridadOptions}
-                                    value={seguridadFilter}
-                                    onChange={(v) => setSeguridadFilter(v || 'all')}
-                                    placeholder="Buscar segurança..."
-                                    emptyText="Nenhum status encontrado."
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Exibir Colaboradores</Label>
-                                <Select value={workerTypeFilter} onValueChange={(v: any) => setWorkerTypeFilter(v)}>
-                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900 font-medium">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="only_hours">Apenas com Horas / Lançamentos</SelectItem>
-                                        <SelectItem value="new_workers">Apenas Novos (Admitidos no Mês)</SelectItem>
-                                        <SelectItem value="all">Todos os Colaboradores</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Status Pagamento</Label>
-                                <Select value={paymentStatusFilter} onValueChange={(v: any) => setPaymentStatusFilter(v)}>
-                                    <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-900 font-medium">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos os Status</SelectItem>
-                                        <SelectItem value="pendente">⏳ Pendentes ({paymentMetrics.countPendente})</SelectItem>
-                                        <SelectItem value="pago">🟢 Pagos ({paymentMetrics.countPago})</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-muted-foreground">Buscar Trabalhador</Label>
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Nome ou NISS..."
-                                        className="pl-8 h-9 text-xs bg-white dark:bg-slate-900"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
-                                </div>
-                            </div>
+            {/* Filter & Action Toolbar Section (2 Spacious, Organized Rows) */}
+            <Card className="shrink-0 border-indigo-100 dark:border-indigo-900/50 shadow-sm bg-white dark:bg-slate-900">
+                <CardContent className="p-3.5 space-y-3">
+                    {/* LINHA 1: TODOS OS FILTROS & BUSCA DO TRABALHADOR */}
+                    <div className="flex flex-wrap items-end gap-3 w-full">
+                        {/* Mês de Competência */}
+                        <div className="w-[170px] shrink-0 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Mês de Competência</Label>
+                            <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                                <SelectTrigger className="w-full h-9 text-xs bg-slate-50/80 dark:bg-slate-800 font-semibold border-slate-200 dark:border-slate-700">
+                                    <CalendarIcon className="mr-1.5 h-3.5 w-3.5 text-indigo-500" />
+                                    <SelectValue placeholder="Selecione o mês" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {monthOptions.map(month => (
+                                         <SelectItem key={month} value={month}>
+                                            {format(new Date(month + '-02'), 'MMMM yyyy', { locale: currentLocale }).toUpperCase()}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {/* Cliente (Largo e Espaçoso!) */}
+                        <div className="min-w-[220px] flex-1 max-w-[320px] space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cliente</Label>
+                            <Combobox
+                                className="bg-slate-50/80 dark:bg-slate-800 h-9 text-xs font-medium border-slate-200 dark:border-slate-700"
+                                options={clienteOptions}
+                                value={clienteFilter}
+                                onChange={(v) => setClienteFilter(v || 'all')}
+                                placeholder="Todos os clientes"
+                                emptyText="Nenhum cliente encontrado."
+                            />
+                        </div>
+
+                        {/* Empresa / Contratante */}
+                        <div className="w-[180px] shrink-0 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Empresa</Label>
+                            <Combobox
+                                className="bg-slate-50/80 dark:bg-slate-800 h-9 text-xs font-medium border-slate-200 dark:border-slate-700"
+                                options={contratanteOptions}
+                                value={contratanteFilter}
+                                onChange={handleContratanteChange}
+                                placeholder="Todas as empresas"
+                                emptyText="Nenhuma empresa encontrada."
+                            />
+                        </div>
+
+                        {/* Segurança Social */}
+                        <div className="w-[160px] shrink-0 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Segurança</Label>
+                            <Combobox
+                                className="bg-slate-50/80 dark:bg-slate-800 h-9 text-xs font-medium border-slate-200 dark:border-slate-700"
+                                options={seguridadOptions}
+                                value={seguridadFilter}
+                                onChange={(v) => setSeguridadFilter(v || 'all')}
+                                placeholder="Todas as seguranças"
+                                emptyText="Nenhum status encontrado."
+                            />
+                        </div>
+
+                        {/* Exibir Colaboradores */}
+                        <div className="w-[200px] shrink-0 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Exibir Colaboradores</Label>
+                            <Select value={workerTypeFilter} onValueChange={(v: any) => setWorkerTypeFilter(v)}>
+                                <SelectTrigger className="w-full h-9 text-xs bg-slate-50/80 dark:bg-slate-800 font-medium border-slate-200 dark:border-slate-700">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="only_hours">Apenas com Horas / Lançamentos</SelectItem>
+                                    <SelectItem value="new_workers">Apenas Novos (Admitidos no Mês)</SelectItem>
+                                    <SelectItem value="all">Todos os Colaboradores</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Status Pagamento */}
+                        <div className="w-[160px] shrink-0 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Status Pagamento</Label>
+                            <Select value={paymentStatusFilter} onValueChange={(v: any) => setPaymentStatusFilter(v)}>
+                                <SelectTrigger className="w-full h-9 text-xs bg-slate-50/80 dark:bg-slate-800 font-medium border-slate-200 dark:border-slate-700">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os Status</SelectItem>
+                                    <SelectItem value="pendente">⏳ Pendentes ({paymentMetrics.countPendente})</SelectItem>
+                                    <SelectItem value="pago">🟢 Pagos ({paymentMetrics.countPago})</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Buscar Trabalhador (Campo Largo e Espaçoso!) */}
+                        <div className="min-w-[240px] flex-1 space-y-1">
+                            <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Buscar Trabalhador</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Buscar por Nome, Código ou NISS..."
+                                    className="pl-9 h-9 text-xs bg-slate-50/80 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-indigo-500 font-medium placeholder:text-muted-foreground/70"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* LINHA 2: BOTÕES DE AÇÃO E EXPORTAÇÃO EM DESTAQUE */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="h-9 border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 text-xs font-semibold"
+                                className="h-9 px-3.5 border-amber-300 text-amber-900 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-950 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 text-xs font-bold shadow-2xs transition-all"
                                 onClick={async () => {
                                     await refetchDbHours();
                                     toast.success('Horas e ajustes de faturamento sincronizados com sucesso!');
@@ -1393,19 +1404,21 @@ export function HoleritesPage() {
                                 disabled={isFetchingHours}
                                 title="Recarregar ajustes de horas efetuados no módulo de Faturamento"
                             >
-                                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetchingHours ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 text-amber-600 ${isFetchingHours ? 'animate-spin' : ''}`} />
                                 Sincronizar c/ Faturamento
                             </Button>
+
                             <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="h-9 border-emerald-300 text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 text-xs font-semibold"
+                                className="h-9 px-3.5 border-emerald-300 text-emerald-900 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 text-xs font-bold shadow-2xs transition-all"
                                 onClick={() => handleExportBankTransfer()}
                                 title="Exportar planilha formatada com IBAN e Valor Líquido para o Banco"
                             >
                                 <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
                                 Planilha Banco
                             </Button>
+
                             <BatchHoleritesExportDialog
                                 workers={filteredWorkers || []}
                                 selectedWorkerIds={selectedWorkerIds}
@@ -1416,10 +1429,11 @@ export function HoleritesPage() {
                                 housingBenefitsMap={housingBenefitsMap}
                                 allDiscounts={allDiscounts}
                             />
+
                             <ExportHoleritesDialog
                                 trigger={
-                                    <Button size="sm" variant="outline" className="h-9 border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 text-xs font-medium">
-                                        <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
+                                    <Button size="sm" variant="outline" className="h-9 px-3.5 border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 hover:text-indigo-800 text-xs font-semibold shadow-2xs transition-all">
+                                        <DownloadCloud className="mr-1.5 h-3.5 w-3.5 text-indigo-600" />
                                         Exportar Dados (Excel)
                                     </Button>
                                 }
@@ -1430,8 +1444,11 @@ export function HoleritesPage() {
                                 eventosMap={eventosMap}
                                 workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                             />
-                            <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
-                                {isLoadingWorkers ? '...' : totalCount} Trabalhador(es)
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="px-3.5 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-900/60 shadow-2xs">
+                                {isLoadingWorkers ? '...' : sortedWorkers?.length || 0} de {totalCount} Trabalhador(es)
                             </Badge>
                         </div>
                     </div>
