@@ -86,6 +86,7 @@ import { AssignmentsPage } from '../features/personal/assignments/AssignmentsPag
 import { RhTasksPage } from '../features/workers/pages/RhTasksPage';
 import { LogisticaTasksPage } from '../features/logistica/pages/LogisticaTasksPage';
 import { DocumentacionTasksPage } from '../features/documents/pages/DocumentacionTasksPage';
+import { DocumentGeneratorPage } from '../features/documents/pages/DocumentGeneratorPage';
 import { FinanceiroTasksPage } from '../features/financeiro/pages/FinanceiroTasksPage';
 import { OperacoesTasksPage } from '../features/operacoes/solicitudes/OperacoesTasksPage';
 import { EstimacionesPage } from '../features/comercial/estimaciones/EstimacionesPage';
@@ -479,7 +480,7 @@ export const router = createBrowserRouter([
                     },
                     {
                         path: 'documentos',
-                        element: <DocumentsPage />
+                        element: <DocumentGeneratorPage />
                     },
                     {
                         path: 'solicitudes/:id',
