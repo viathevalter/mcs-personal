@@ -257,17 +257,17 @@ export function PreviewHoleriteDialog({
 
                                 {/* Summary Box */}
                                 <div className="flex justify-end pt-4">
-                                    <div className="border border-slate-300 rounded overflow-hidden grid grid-cols-3 text-center w-80">
-                                        <div className="p-2 border-r border-slate-200">
-                                            <p className="text-[10px] font-bold text-slate-600 uppercase">Total Abonos</p>
+                                    <div className="border border-slate-300 rounded overflow-hidden grid grid-cols-3 text-center w-auto min-w-[380px]">
+                                        <div className="p-2.5 border-r border-slate-200">
+                                            <p className="text-[10px] font-bold text-slate-600 uppercase whitespace-nowrap px-1">Total Abonos</p>
                                             <p className="font-bold text-sm mt-0.5">{altaData.totais.totalAbonos.toFixed(2)}€</p>
                                         </div>
-                                        <div className="p-2 border-r border-slate-200">
-                                            <p className="text-[10px] font-bold text-slate-600 uppercase">Total Descontos</p>
+                                        <div className="p-2.5 border-r border-slate-200">
+                                            <p className="text-[10px] font-bold text-slate-600 uppercase whitespace-nowrap px-1">Total Descontos</p>
                                             <p className="font-bold text-sm mt-0.5 text-slate-700">{altaData.totais.totalDescontos.toFixed(2)}€</p>
                                         </div>
-                                        <div className="p-2 bg-slate-50">
-                                            <p className="text-[10px] font-bold text-slate-900 uppercase">Total a Receber</p>
+                                        <div className="p-2.5 bg-slate-50">
+                                            <p className="text-[10px] font-bold text-slate-900 uppercase whitespace-nowrap px-1">Total a Receber</p>
                                             <p className="font-black text-sm mt-0.5 text-indigo-700">{altaData.totais.totalAReceber.toFixed(2)}€</p>
                                         </div>
                                     </div>

@@ -291,7 +291,7 @@ export function parseDescontosCategorias(descontosList: any[]) {
             aluguelCarros += val;
         } else if (desc.includes('banc') || desc.includes('taxa') || desc.includes('tarifa') || desc.includes('transferencia')) {
             taxasBancarias += val;
-        } else if (desc.includes('imposto') || desc.includes('irpf') || desc.includes('irs') || desc.includes('retencao') || desc.includes('seguridad')) {
+        } else if (desc.includes('imposto') || desc.includes('irpf') || desc.includes('irs') || desc.includes('retenc') || desc.includes('seguridad') || desc.includes('seguridade') || desc.includes('social')) {
             imposto += val;
         } else {
             descontosAdicionais += val;
@@ -375,7 +375,10 @@ export function calculateHoleriteAlta(options: {
 
     // Base de incidência de Segurança Social = Vencimento Base + Férias + Natal
     const baseIncidenciaSS = Math.round((vencimentoBase + subsFerias + subsNatal + Number.EPSILON) * 100) / 100;
-    const descontoSS = Math.round((baseIncidenciaSS * params.ssTaxaTrabalhador + Number.EPSILON) * 100) / 100;
+    const descontoSSCalculado = Math.round((baseIncidenciaSS * params.ssTaxaTrabalhador + Number.EPSILON) * 100) / 100;
+
+    // Se o imposto foi importado na planilha (ex: 218.80 €), utiliza o valor importado; senão, usa a taxa de 11%
+    const descontoSS = descontosParsed.imposto > 0 ? descontosParsed.imposto : descontoSSCalculado;
 
     // Total de Abonos necessários para que: Total Abonos - Desconto SS === liquidoRealAlvo
     const totalAbonosAlvo = Math.round((liquidoRealAlvo + descontoSS + Number.EPSILON) * 100) / 100;
@@ -461,7 +464,7 @@ export function calculateHoleriteAlta(options: {
             abonos: valorAjudaCusto,
         }] : []),
         {
-            descricao: `Segurança Social (${(params.ssTaxaTrabalhador * 100).toFixed(0)}%)`,
+            descricao: 'Segurança Social',
             descontos: totalDescontosEfetivo,
         },
         {
