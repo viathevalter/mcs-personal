@@ -496,16 +496,32 @@ export function HoleritesPage() {
                 }
             });
 
+            // 1. Map raw hours and overlay tracking disputed hours where raw hours existed
             dailyRawMap.forEach((rawDayVal, key) => {
                 const [wId] = key.split('_');
                 let effectiveDayVal = rawDayVal;
 
                 if (globalDisputedHours.has(key)) {
                     effectiveDayVal = globalDisputedHours.get(key)!;
-                    adjustedWorkerIds.add(wId);
+                    if (effectiveDayVal !== rawDayVal) {
+                        adjustedWorkerIds.add(wId);
+                    }
                 }
 
                 dailyEffectiveMap.set(key, effectiveDayVal);
+            });
+
+            // 2. ALSO include newly added tracking hours where raw rows did not exist in horas_trabalhadas
+            globalDisputedHours.forEach((dispVal, key) => {
+                const [wId, dateKey] = key.split('_');
+                if (dateKey && dateKey.startsWith(mesReferencia)) {
+                    if (!dailyEffectiveMap.has(key)) {
+                        dailyEffectiveMap.set(key, dispVal);
+                        if (dispVal > 0) {
+                            adjustedWorkerIds.add(wId);
+                        }
+                    }
+                }
             });
 
             const sumMap = new Map<string, number>();
@@ -1281,7 +1297,10 @@ export function HoleritesPage() {
                                 size="sm" 
                                 variant="outline" 
                                 className="h-9 border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 text-xs font-semibold"
-                                onClick={() => refetchDbHours()}
+                                onClick={async () => {
+                                    await refetchDbHours();
+                                    toast.success('Horas e ajustes de faturamento sincronizados com sucesso!');
+                                }}
                                 disabled={isFetchingHours}
                                 title="Recarregar ajustes de horas efetuados no módulo de Faturamento"
                             >
