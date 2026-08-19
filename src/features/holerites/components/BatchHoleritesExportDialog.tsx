@@ -153,7 +153,7 @@ export function BatchHoleritesExportDialog({
             const url = URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Holerites_Kotrik_${mesReferencia}.zip`;
+            a.download = `Holerites_MCS_${mesReferencia}.zip`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

@@ -290,7 +290,7 @@ export function PreviewHoleriteDialog({
                                 {/* Footer */}
                                 <div className="pt-8 flex justify-between text-[10px] text-slate-400">
                                     <span>Página 1 / 2</span>
-                                    <span>Emitido por Kotrik MCS Platform • {altaData.empresa.nome}</span>
+                                    <span>Emitido por MCS System • {altaData.empresa.nome}</span>
                                 </div>
                             </div>
                         )}

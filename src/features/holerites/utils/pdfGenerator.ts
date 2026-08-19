@@ -291,7 +291,7 @@ export function generateHoleriteAltaPdf(
     doc.setFontSize(8);
     doc.setTextColor(120, 125, 135);
     doc.text('Página   1  /  ' + (options.includeDetails ? '2' : '1'), margin, 285);
-    doc.text(`Emitido por Kotrik MCS Platform • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
+    doc.text(`Emitido por MCS System • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
 
     // ==========================================
     // PÁGINA 2: DEMONSTRATIVO DETALHADO (ANEXO)
@@ -463,7 +463,7 @@ export function generateHoleriteAltaPdf(
         doc.setFontSize(8);
         doc.setTextColor(120, 125, 135);
         doc.text('Página   2  /  2', margin, 285);
-        doc.text(`Emitido por Kotrik MCS Platform • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
+        doc.text(`Emitido por MCS System • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
     }
 
     return doc;
@@ -669,7 +669,7 @@ export function generateHoleriteRegularizacaoPdf(data: HoleriteRegularizacaoCalc
     doc.setFontSize(8);
     doc.setTextColor(120, 125, 135);
     doc.text('Página   1  /  1', margin, 285);
-    doc.text(`Emitido por Kotrik MCS Platform • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
+    doc.text(`Emitido por MCS System • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
 
     return doc;
 }
