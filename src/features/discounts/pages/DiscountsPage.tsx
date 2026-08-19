@@ -21,6 +21,7 @@ import { EditDiscountDialog } from '../components/EditDiscountDialog';
 import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountMutations';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 
 import { useSearchParams } from 'react-router-dom';
 
@@ -64,7 +65,11 @@ export function DiscountsPage() {
             if (searchTerm && !matchesSearch) return false;
 
             // 2. Category
-            if (selectedCategory !== 'ALL' && discount.category !== selectedCategory) return false;
+            if (selectedCategory !== 'ALL') {
+                const itemCat = normalizeDiscountCategoryName(discount.category, discountCategories);
+                const filterCat = normalizeDiscountCategoryName(selectedCategory, discountCategories);
+                if (itemCat !== filterCat && discount.category !== selectedCategory) return false;
+            }
 
             // 3. Status
             if (selectedStatus !== 'ALL' && discount.status !== selectedStatus) return false;
@@ -77,7 +82,7 @@ export function DiscountsPage() {
 
             return true;
         });
-    }, [allDiscounts, searchTerm, selectedCategory, selectedStatus, monthFilter]);
+    }, [allDiscounts, searchTerm, selectedCategory, selectedStatus, monthFilter, discountCategories]);
 
     const { mutate: deleteDiscount } = useDeleteDiscount();
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteDiscountBatch();
@@ -98,10 +103,11 @@ export function DiscountsPage() {
         if (!allDiscounts) return [];
         const stats: Record<string, number> = {};
         filteredDiscounts.forEach(d => {
-            stats[d.category] = (stats[d.category] || 0) + Number(d.amount);
+            const normalized = normalizeDiscountCategoryName(d.category, discountCategories) || d.category;
+            stats[normalized] = (stats[normalized] || 0) + Number(d.amount);
         });
         return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    }, [filteredDiscounts, allDiscounts]);
+    }, [filteredDiscounts, allDiscounts, discountCategories]);
 
     const recentBatches = useMemo(() => {
         if (!allDiscounts) return [];
@@ -254,7 +260,9 @@ export function DiscountsPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ALL">Todas as categorias</SelectItem>
-                                {discountCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                                {(discountCategories.length > 0 ? discountCategories.map(c => c.name) : STANDARD_DISCOUNT_CATEGORIES).map(catName => (
+                                    <SelectItem key={catName} value={catName}>{catName}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -298,7 +306,7 @@ export function DiscountsPage() {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <Badge variant="secondary" className="font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                                                    {discount.category}
+                                                    {normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category}
                                                 </Badge>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">

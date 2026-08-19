@@ -26,6 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { Plus, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 
 interface CreateDiscountDialogProps {
     trigger?: React.ReactNode;
@@ -115,20 +116,9 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
         );
     };
 
-    const defaultCategoryOptions = [
-        'Adiantamento',
-        'Seguro',
-        'Faltas',
-        'Telefone',
-        'Multa',
-        'Uniforme',
-        'Empréstimo',
-        'Outros'
-    ];
-
     const categoryList = discountCategories.length > 0 
         ? discountCategories.map(c => c.name)
-        : defaultCategoryOptions;
+        : STANDARD_DISCOUNT_CATEGORIES;
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => {

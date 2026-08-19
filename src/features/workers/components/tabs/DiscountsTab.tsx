@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useRole } from '@/app/providers/RoleProvider';
 
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '@/features/discounts/utils/categoryUtils';
 
 interface DiscountsTabProps {
     workerId: string;
@@ -42,7 +43,8 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
     const [status, setStatus] = useState<DiscountStatus>('Ativo');
 
     const handleEdit = (discount: WorkerDiscount) => {
-        setCategory(discount.category);
+        const resolvedCat = normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category;
+        setCategory(resolvedCat);
         setAmount(discount.amount.toString());
         setDescription(discount.description || '');
         setReferenceDate(new Date(discount.reference_date));
@@ -138,9 +140,12 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
                                 onChange={(e) => setCategory(e.target.value as DiscountCategory)}
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                             >
-                                {discountCategories.map(c => (
-                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                {(discountCategories.length > 0 ? discountCategories.map(c => c.name) : STANDARD_DISCOUNT_CATEGORIES).map(catName => (
+                                    <option key={catName} value={catName}>{catName}</option>
                                 ))}
+                                {category && !discountCategories.some(c => c.name === category) && !STANDARD_DISCOUNT_CATEGORIES.includes(category) && (
+                                    <option value={category}>{category}</option>
+                                )}
                             </select>
                         </div>
 
@@ -250,7 +255,7 @@ export function DiscountsTab({ workerId, empresaId, isEmbedded = false }: Discou
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {discount.category}
+                                            {normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">

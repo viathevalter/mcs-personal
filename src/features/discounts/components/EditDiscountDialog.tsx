@@ -20,6 +20,7 @@ import {
 import { useUpdateDiscount } from '../hooks/useDiscountMutations';
 import type { WorkerDiscount, DiscountCategory, DiscountStatus } from '../types';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
+import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 
 interface EditDiscountDialogProps {
     discount: WorkerDiscount;
@@ -31,7 +32,9 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
     const { data: discountCategories = [] } = useDiscountCategories(discount.empresa_id);
 
     const [amount, setAmount] = useState<string>(discount.amount.toString());
-    const [category, setCategory] = useState<DiscountCategory>(discount.category);
+    const [category, setCategory] = useState<DiscountCategory>(() => 
+        normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category
+    );
     const [date, setDate] = useState<string>(discount.reference_date.split('T')[0] || '');
     const [description, setDescription] = useState<string>(discount.description || '');
     const [status, setStatus] = useState<DiscountStatus>(discount.status);
@@ -41,12 +44,13 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
     useEffect(() => {
         if (isOpen) {
             setAmount(discount.amount.toString());
-            setCategory(discount.category);
+            const resolved = normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category;
+            setCategory(resolved);
             setDate(discount.reference_date.split('T')[0] || '');
             setDescription(discount.description || '');
             setStatus(discount.status);
         }
-    }, [isOpen, discount]);
+    }, [isOpen, discount, discountCategories]);
 
     const handleSave = () => {
         updateDiscount(
@@ -63,6 +67,11 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
             }
         );
     };
+
+    // Lista consolidada de categorias disponíveis
+    const availableCategoryList = discountCategories.length > 0
+        ? discountCategories.map(c => c.name)
+        : STANDARD_DISCOUNT_CATEGORIES;
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -83,7 +92,12 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
                                 <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                             <SelectContent>
-                                {discountCategories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                                {availableCategoryList.map(name => (
+                                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                                ))}
+                                {category && !availableCategoryList.includes(category) && (
+                                    <SelectItem value={category}>{category}</SelectItem>
+                                )}
                             </SelectContent>
                         </Select>
                     </div>
