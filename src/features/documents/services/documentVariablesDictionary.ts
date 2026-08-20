@@ -8,21 +8,21 @@ export interface VariableDefinition {
 export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     // --- TRABALHADOR ---
     { key: '{{trabalhador.nome}}', label: 'Nome Completo do Trabalhador', category: 'trabalhador', example: 'João Silva Oliveira' },
-    { key: '{{trabalhador.nif}}', label: 'NIF / Documento Fiscal', category: 'trabalhador', example: '123456789' },
-    { key: '{{trabalhador.nss}}', label: 'Número de Segurança Social (NSS)', category: 'trabalhador', example: '98765432100' },
+    { key: '{{trabalhador.nif}}', label: 'NIF / Documento Fiscal / NIE', category: 'trabalhador', example: 'X1234567Y' },
+    { key: '{{trabalhador.nss}}', label: 'Número de Segurança Social (NSS/NISS)', category: 'trabalhador', example: '98765432100' },
     { key: '{{trabalhador.documento_tipo}}', label: 'Tipo de Documento (NIE/DNI/Passaporte)', category: 'trabalhador', example: 'NIE' },
     { key: '{{trabalhador.documento_numero}}', label: 'Número do Documento de Identidade', category: 'trabalhador', example: 'X1234567Y' },
     { key: '{{trabalhador.data_nascimento}}', label: 'Data de Nascimento', category: 'trabalhador', example: '15/04/1990' },
     { key: '{{trabalhador.nacionalidade}}', label: 'Nacionalidade', category: 'trabalhador', example: 'Espanhola' },
     { key: '{{trabalhador.cargo}}', label: 'Cargo / Função', category: 'trabalhador', example: 'Encanador / Tubista' },
     { key: '{{trabalhador.email}}', label: 'E-mail do Trabalhador', category: 'trabalhador', example: 'joao.silva@email.com' },
-    { key: '{{trabalhador.telefone}}', label: 'Telefone do Trabalhador', category: 'trabalhador', example: '+34 600 123 456' },
+    { key: '{{trabalhador.telefone}}', label: 'Telefone / Móvel', category: 'trabalhador', example: '+34 600 123 456' },
     { key: '{{trabalhador.endereco}}', label: 'Endereço Completo', category: 'trabalhador', example: 'Calle Mayor, 45, 2B' },
     { key: '{{trabalhador.codigo_postal}}', label: 'Código Postal', category: 'trabalhador', example: '28001' },
-    { key: '{{trabalhador.cidade}}', label: 'Cidade / Município', category: 'trabalhador', example: 'Madrid' },
+    { key: '{{trabalhador.cidade}}', label: 'Cidade / Localidade', category: 'trabalhador', example: 'Madrid' },
     { key: '{{trabalhador.iban}}', label: 'Conta Bancária / IBAN', category: 'trabalhador', example: 'ES91 2100 0418 4502 0005 1234' },
     { key: '{{trabalhador.salario_base}}', label: 'Salário Base', category: 'trabalhador', example: '1800.00 €' },
-    { key: '{{trabalhador.data_admissao}}', label: 'Data de Admissão / Início', category: 'trabalhador', example: '01/09/2026' },
+    { key: '{{trabalhador.data_admissao}}', label: 'Data de Admissão / Ingresso', category: 'trabalhador', example: '01/09/2026' },
 
     // --- CLIENTE ---
     { key: '{{cliente.nome_legal}}', label: 'Razão Social / Nome Legal', category: 'cliente', example: 'Construcciones e Obras Madrid S.L.' },
@@ -41,8 +41,8 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{empresa.nome}}', label: 'Nome da Sua Empresa', category: 'empresa', example: 'Mastercorp' },
     { key: '{{empresa.nif}}', label: 'NIF da Sua Empresa', category: 'empresa', example: 'B98765432' },
     { key: '{{empresa.endereco}}', label: 'Endereço da Sua Empresa', category: 'empresa', example: 'Plaza de España, 1' },
-    { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '19 de Agosto de 2026' },
-    { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '19/08/2026' },
+    { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '20 de Agosto de 2026' },
+    { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '20/08/2026' },
     { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' }
 ];
 
@@ -51,23 +51,45 @@ export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Rec
     const formattedDateExtenso = today.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
     const formattedDateCurta = today.toLocaleDateString('pt-BR');
 
+    const birthDate = worker?.fecha_nacimiento
+        ? new Date(worker.fecha_nacimiento).toLocaleDateString('pt-BR')
+        : worker?.birth_date
+            ? new Date(worker.birth_date).toLocaleDateString('pt-BR')
+            : '';
+
+    const hireDate = worker?.data_ingresso
+        ? new Date(worker.data_ingresso).toLocaleDateString('pt-BR')
+        : worker?.hire_date
+            ? new Date(worker.hire_date).toLocaleDateString('pt-BR')
+            : formattedDateCurta;
+
+    const docType = worker?.nie
+        ? 'NIE'
+        : worker?.dni
+            ? 'DNI'
+            : worker?.pasaporte
+                ? 'Passaporte'
+                : 'NIF/NIE';
+
+    const docNum = worker?.nif || worker?.nie || worker?.dni || worker?.pasaporte || worker?.document_number || '';
+
     return {
         'trabalhador.nome': worker?.nome || worker?.display_name || worker?.full_name || '',
-        'trabalhador.nif': worker?.nif || worker?.dni || worker?.tax_id || '',
-        'trabalhador.nss': worker?.nss || worker?.social_security || '',
-        'trabalhador.documento_tipo': worker?.document_type || worker?.doc_type || 'NIF/NIE',
-        'trabalhador.documento_numero': worker?.document_number || worker?.nif || '',
-        'trabalhador.data_nascimento': worker?.birth_date ? new Date(worker.birth_date).toLocaleDateString('pt-BR') : '',
-        'trabalhador.nacionalidade': worker?.nationality || worker?.pais || '',
-        'trabalhador.cargo': worker?.job_function || worker?.cargo || worker?.category || '',
+        'trabalhador.nif': docNum,
+        'trabalhador.nss': worker?.niss || worker?.nuss || worker?.nss || worker?.social_security || '',
+        'trabalhador.documento_tipo': docType,
+        'trabalhador.documento_numero': docNum,
+        'trabalhador.data_nascimento': birthDate,
+        'trabalhador.nacionalidade': worker?.nacionalidade || worker?.nationality || worker?.pais || '',
+        'trabalhador.cargo': worker?.funcion || worker?.cod_funcion || worker?.job_function || worker?.cargo || worker?.category || '',
         'trabalhador.email': worker?.email || worker?.correo || '',
-        'trabalhador.telefone': worker?.phone || worker?.telefone || '',
-        'trabalhador.endereco': worker?.address || worker?.endereco || '',
+        'trabalhador.telefone': worker?.movil || worker?.phone || worker?.telefone || '',
+        'trabalhador.endereco': worker?.address_line || worker?.morada_contrato || worker?.address || '',
         'trabalhador.codigo_postal': worker?.postal_code || worker?.cp || '',
-        'trabalhador.cidade': worker?.city || worker?.cidade || '',
+        'trabalhador.cidade': worker?.location || worker?.city || worker?.cidade || '',
         'trabalhador.iban': worker?.iban || '',
         'trabalhador.salario_base': worker?.base_salary ? `${worker.base_salary} €` : '',
-        'trabalhador.data_admissao': worker?.hire_date ? new Date(worker.hire_date).toLocaleDateString('pt-BR') : formattedDateCurta,
+        'trabalhador.data_admissao': hireDate,
         
         'empresa.nome': empresaName,
         'empresa.nif': '',
@@ -85,15 +107,15 @@ export function buildClientDataMap(client: any, empresaName = 'Mastercorp'): Rec
 
     return {
         'cliente.nome_legal': client?.legal_name || client?.name || '',
-        'cliente.nome_comercial': client?.trade_name || client?.name || '',
-        'cliente.nif': client?.vat_number || client?.cif || client?.nif || '',
-        'cliente.email': client?.email || '',
-        'cliente.telefone': client?.phone || '',
-        'cliente.endereco': client?.address || client?.address_line || '',
+        'cliente.nome_comercial': client?.trade_name || client?.legal_name || client?.name || '',
+        'cliente.nif': client?.tax_id || client?.vat_number || client?.cif || client?.nif || '',
+        'cliente.email': client?.email || client?.billing_email || '',
+        'cliente.telefone': client?.phone || client?.mobile || client?.contact_phone || '',
+        'cliente.endereco': client?.address_line || client?.address || '',
         'cliente.cidade': client?.city || '',
         'cliente.codigo_postal': client?.postal_code || '',
         'cliente.pais': client?.country || 'Espanha',
-        'cliente.contato_responsavel': client?.contact_person || client?.contact_name || '',
+        'cliente.contato_responsavel': client?.contact_name || client?.billing_contact_name || client?.collections_contact_name || '',
         'cliente.prazo_pagamento': client?.payment_terms || '30 dias',
 
         'empresa.nome': empresaName,

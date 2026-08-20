@@ -84,22 +84,53 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
         setLoadingTargets(true);
         try {
             if (targetType === 'worker') {
-                let q = supabase.from('mcs_users').select('*').order('display_name', { ascending: true }).limit(20);
+                const { data, error } = await supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('*')
+                    .order('nome', { ascending: true })
+                    .limit(1000);
+
+                if (error) throw error;
+                let filtered = data || [];
                 if (query.trim()) {
-                    q = q.ilike('display_name', `%${query.trim()}%`);
+                    const term = query.trim().toLowerCase();
+                    filtered = filtered.filter((w: any) =>
+                        (w.nome || '').toLowerCase().includes(term) ||
+                        (w.cod_colab || '').toLowerCase().includes(term) ||
+                        (w.nif || '').toLowerCase().includes(term) ||
+                        (w.nie || '').toLowerCase().includes(term) ||
+                        (w.funcion || '').toLowerCase().includes(term) ||
+                        (w.email || '').toLowerCase().includes(term)
+                    );
                 }
-                const { data } = await q;
-                setTargetOptions(data || []);
+                setTargetOptions(filtered);
             } else {
-                let q = supabase.schema('core_common').from('clients').select('*').order('legal_name', { ascending: true }).limit(20);
+                const { data, error } = await supabase
+                    .schema('core_common')
+                    .from('clients')
+                    .select('*')
+                    .order('legal_name', { ascending: true })
+                    .limit(1000);
+
+                if (error) throw error;
+                let filtered = data || [];
                 if (query.trim()) {
-                    q = q.ilike('legal_name', `%${query.trim()}%`);
+                    const term = query.trim().toLowerCase();
+                    filtered = filtered.filter((c: any) =>
+                        (c.legal_name || '').toLowerCase().includes(term) ||
+                        (c.trade_name || '').toLowerCase().includes(term) ||
+                        (c.codigo || '').toLowerCase().includes(term) ||
+                        (c.tax_id || '').toLowerCase().includes(term) ||
+                        (c.city || '').toLowerCase().includes(term) ||
+                        (c.email || '').toLowerCase().includes(term)
+                    );
                 }
-                const { data } = await q;
-                setTargetOptions(data || []);
+                setTargetOptions(filtered);
             }
         } catch (e: any) {
             console.error('Error fetching targets:', e);
+            toast.error('Erro ao buscar lista de entidades: ' + e?.message);
         } finally {
             setLoadingTargets(false);
         }
@@ -330,26 +361,54 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
                                     Nenhum registro encontrado com este filtro.
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
                                     {targetOptions.map(item => {
-                                        const nameLabel = targetType === 'worker'
-                                            ? (item.display_name || item.nome || 'Trabalhador')
+                                        const isWorker = targetType === 'worker';
+                                        const title = isWorker
+                                            ? (item.nome || item.display_name || 'Trabalhador')
                                             : (item.legal_name || item.trade_name || 'Cliente');
-                                        const subLabel = targetType === 'worker'
-                                            ? (item.email || item.nif || '')
-                                            : (item.vat_number || item.cif || item.email || '');
+
+                                        const code = isWorker ? item.cod_colab : item.codigo;
+                                        const taxId = isWorker ? (item.nif || item.nie || item.dni) : item.tax_id;
+                                        const subtitle = isWorker
+                                            ? (item.funcion || item.email || '')
+                                            : (item.trade_name && item.trade_name !== item.legal_name ? `Fantasia: ${item.trade_name}` : item.email || '');
+
+                                        const location = isWorker ? item.location : (item.city ? `${item.city}${item.province ? `, ${item.province}` : ''}` : '');
 
                                         return (
                                             <div
                                                 key={item.id}
                                                 onClick={() => handleSelectTargetItem(item)}
-                                                className="p-3 bg-white dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-slate-200 dark:border-slate-800 hover:border-blue-300 rounded-xl cursor-pointer flex items-center justify-between transition-all"
+                                                className="group p-3 bg-white dark:bg-slate-950 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-xl cursor-pointer flex items-center justify-between transition-all"
                                             >
-                                                <div>
-                                                    <h5 className="font-bold text-xs text-slate-900 dark:text-white">{nameLabel}</h5>
-                                                    <p className="text-[11px] text-slate-500">{subLabel}</p>
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className={`p-2.5 rounded-xl flex-shrink-0 ${isWorker ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' : 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'}`}>
+                                                        {isWorker ? <User size={18} /> : <Building size={18} />}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {code && (
+                                                                <span className="px-1.5 py-0.5 text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700">
+                                                                    {code}
+                                                                </span>
+                                                            )}
+                                                            <h5 className="font-bold text-xs text-slate-900 dark:text-white truncate max-w-[200px]">
+                                                                {title}
+                                                            </h5>
+                                                        </div>
+                                                        {subtitle && (
+                                                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                                                {subtitle}
+                                                            </p>
+                                                        )}
+                                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                                            {taxId && <span>NIF/CIF: {taxId}</span>}
+                                                            {location && <span>• {location}</span>}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <ArrowRight size={16} className="text-blue-500 opacity-60 group-hover:opacity-100" />
+                                                <ArrowRight size={16} className="text-blue-500 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                                             </div>
                                         );
                                     })}
