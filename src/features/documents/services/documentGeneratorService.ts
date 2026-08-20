@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import createReport from 'docx-templates';
+import JSZip from 'jszip';
 
 export interface GeneratedDocument {
     id: string;
@@ -38,6 +39,39 @@ export const documentGeneratorService = {
             throw new Error(`Não foi possível baixar o modelo .docx da URL.`);
         }
         const templateBuffer = await response.arrayBuffer();
+
+        // 1b. Direct Zip XML Pre-Processor (Reconstitutes split Word tags and replaces all {{placeholders}})
+        let zipProcessedBuffer: ArrayBuffer = templateBuffer;
+        try {
+            const zip = await JSZip.loadAsync(templateBuffer);
+            const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith('.xml'));
+
+            for (const fileName of xmlFiles) {
+                let xmlStr = await zip.files[fileName].async('string');
+
+                // Reconstitute broken Word XML tags inside {{...}}
+                xmlStr = xmlStr.replace(/\{\{(?:<[^>]+>|[^}])*\}\}/g, (m) => m.replace(/<[^>]+>/g, ''));
+
+                // Perform direct replacement for all variables in dataMap
+                for (const [k, v] of Object.entries(params.dataMap)) {
+                    const cleanK = k.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+                    const valStr = v || '';
+
+                    if (cleanK) {
+                        const escapedK = cleanK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\{\\{\\s*${escapedK}\\s*\\}\\}`, 'gi');
+                        xmlStr = xmlStr.replace(regex, valStr);
+                    }
+                }
+
+                zip.file(fileName, xmlStr);
+            }
+
+            const uint8 = await zip.generateAsync({ type: 'uint8array' });
+            zipProcessedBuffer = uint8.buffer as ArrayBuffer;
+        } catch (zipErr) {
+            console.warn("JSZip preprocessing error, continuing with docx-templates:", zipErr);
+        }
 
         // 2. Prepare nested and flat variables map for docx-templates
         const cmdData: Record<string, any> = {
@@ -82,14 +116,14 @@ export const documentGeneratorService = {
         let outputUint8Array: Uint8Array;
         try {
             outputUint8Array = await createReport({
-                template: new Uint8Array(templateBuffer),
+                template: new Uint8Array(zipProcessedBuffer),
                 data: dataResolver as any,
                 cmdDelimiter: ['{{', '}}'],
                 failFast: false
             });
         } catch (reportErr) {
-            console.warn("docx-templates failed, returning original template as fallback:", reportErr);
-            outputUint8Array = new Uint8Array(templateBuffer);
+            console.warn("docx-templates failed, returning zip-processed template fallback:", reportErr);
+            outputUint8Array = new Uint8Array(zipProcessedBuffer);
         }
 
         // 3. Upload generated document to Supabase storage
