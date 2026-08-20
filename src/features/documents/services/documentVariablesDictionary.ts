@@ -57,6 +57,10 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '20 de Agosto de 2026' },
     { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '20/08/2026' },
     { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' },
+    // ASSINATURAS E IMAGEM DE ASSINATURA
+    { key: '{{IMAGE FIRMA_CLIENTE}}', label: 'Local da Imagem da Assinatura do Cliente', category: 'geral', example: '[Imagem da Assinatura]' },
+    { key: '{{IMAGE_FIRMA_CLIENTE}}', label: 'Local da Imagem da Assinatura (Alias)', category: 'geral', example: '[Imagem da Assinatura]' },
+    { key: '{{assinatura_imagem}}', label: 'Local da Imagem da Assinatura (Alias PT)', category: 'geral', example: '[Imagem da Assinatura]' },
     { key: '{{assinatura.nome}}', label: 'Nome do Signatário Registrado', category: 'geral', example: 'Christian Andrade' },
     { key: '{{assinatura.data}}', label: 'Data da Assinatura', category: 'geral', example: '20/08/2026' }
 ];

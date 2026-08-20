@@ -42,7 +42,7 @@ export const PublicDocumentSignaturePage: React.FC = () => {
             } else {
                 setDoc(found);
                 if (found.document_url) {
-                    renderDocxPreview(found.document_url);
+                    renderDocxPreview(found.document_url, found);
                 }
             }
         } catch (e: any) {
@@ -51,14 +51,58 @@ export const PublicDocumentSignaturePage: React.FC = () => {
             setLoading(false);
         }
     };
+    const replaceSignaturePlaceholdersInHtml = (container: HTMLElement, signatureUrl: string) => {
+        const placeholders = [
+            '{{IMAGE FIRMA_CLIENTE}}_',
+            '{{IMAGE FIRMA_CLIENTE}}',
+            '{{IMAGE_FIRMA_CLIENTE}}',
+            '{{assinatura_imagem}}',
+            '{{imagem_assinatura}}',
+            '{{FIRMA_CLIENTE}}'
+        ];
 
-    const renderDocxPreview = async (url: string) => {
+        const walkTextNodes = (node: Node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                let text = node.nodeValue || '';
+                let matched = false;
+                for (const ph of placeholders) {
+                    if (text.includes(ph)) {
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (matched && node.parentNode) {
+                    const span = document.createElement('span');
+                    let html = text;
+                    for (const ph of placeholders) {
+                        const imgTag = `<img src="${signatureUrl}" style="max-height: 85px; max-width: 250px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
+                        html = html.split(ph).join(imgTag);
+                    }
+                    span.innerHTML = html;
+                    node.parentNode.replaceChild(span, node);
+                }
+            } else {
+                const children = Array.from(node.childNodes);
+                children.forEach(walkTextNodes);
+            }
+        };
+
+        walkTextNodes(container);
+    };
+
+    const renderDocxPreview = async (url: string, currentDoc?: GeneratedDocument | null) => {
         try {
             const res = await fetch(url);
             const blob = await res.blob();
             if (docContainerRef.current) {
                 docContainerRef.current.innerHTML = '';
                 await renderAsync(blob, docContainerRef.current);
+
+                const activeDoc = currentDoc || doc;
+                if (activeDoc?.signature_status === 'signed' && activeDoc?.signature_url) {
+                    replaceSignaturePlaceholdersInHtml(docContainerRef.current, activeDoc.signature_url);
+                }
             }
         } catch (err) {
             console.warn('Docx preview failed to render visually:', err);

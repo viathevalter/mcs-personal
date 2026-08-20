@@ -33,8 +33,48 @@ export const pdfExportService = {
             // 3. Render .docx into HTML
             await renderAsync(blob, container);
 
-            // 4. If signed, append signature block
+            // 4. If signed, replace placeholder inside document and append signature block
             if (document.signature_status === 'signed') {
+                if (document.signature_url) {
+                    const placeholders = [
+                        '{{IMAGE FIRMA_CLIENTE}}_',
+                        '{{IMAGE FIRMA_CLIENTE}}',
+                        '{{IMAGE_FIRMA_CLIENTE}}',
+                        '{{assinatura_imagem}}',
+                        '{{imagem_assinatura}}',
+                        '{{FIRMA_CLIENTE}}'
+                    ];
+
+                    const walkTextNodes = (node: Node) => {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            let text = node.nodeValue || '';
+                            let matched = false;
+                            for (const ph of placeholders) {
+                                if (text.includes(ph)) {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+
+                            if (matched && node.parentNode) {
+                                const span = document.createElement('span');
+                                let html = text;
+                                for (const ph of placeholders) {
+                                    const imgTag = `<img src="${document.signature_url}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
+                                    html = html.split(ph).join(imgTag);
+                                }
+                                span.innerHTML = html;
+                                node.parentNode.replaceChild(span, node);
+                            }
+                        } else {
+                            const children = Array.from(node.childNodes);
+                            children.forEach(walkTextNodes);
+                        }
+                    };
+
+                    walkTextNodes(container);
+                }
+
                 const sigBlock = document.createElement('div');
                 sigBlock.style.marginTop = '40px';
                 sigBlock.style.padding = '20px';
