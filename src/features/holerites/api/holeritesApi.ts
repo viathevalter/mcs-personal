@@ -25,32 +25,35 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
     const { data: existingHolerites, error: fetchErr } = await supabase
         .schema('core_personal')
         .from('holerites')
-        .select('id, worker_id, mes_referencia')
+        .select('id, worker_id, mes_referencia, empresa_id')
         .in('worker_id', workerIds)
         .in('mes_referencia', monthDates);
 
     if (fetchErr) throw mapSupabaseError(fetchErr);
 
     // Filter to only match the requested months (mes_referencia comes back as 2026-02-01)
-    const activeHoleritesMap = new Map<string, string>(); // 'worker_id||month' -> 'holerite_id'
+    const activeHoleritesMap = new Map<string, string>(); // 'worker_id||month||empresa_id' -> 'holerite_id'
 
     if (existingHolerites) {
         for (const h of existingHolerites) {
-            const hMonth = h.mes_referencia.substring(0, 7); // '2026-02'
-            activeHoleritesMap.set(`${h.worker_id}||${hMonth}`, h.id);
+            const hMonth = String(h.mes_referencia).substring(0, 7); // '2026-02'
+            activeHoleritesMap.set(`${h.worker_id}||${hMonth}||${h.empresa_id}`, h.id);
+            if (!activeHoleritesMap.has(`${h.worker_id}||${hMonth}`)) {
+                activeHoleritesMap.set(`${h.worker_id}||${hMonth}`, h.id);
+            }
         }
     }
 
     // 2. Identify missing holerites that need to be created
     const holeritesToCreateMap = new Map<string, any>(); // Ensure unique inserts
     for (const e of events) {
-        const key = `${e.trabalhador_id}||${e.mes_referencia}`;
-        if (!activeHoleritesMap.has(key) && !holeritesToCreateMap.has(key)) {
-            const validEmpresaId = (e.empresa_id && e.empresa_id.length > 20)
-                ? e.empresa_id
-                : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+        const validEmpresaId = (e.empresa_id && e.empresa_id.length > 20)
+            ? e.empresa_id
+            : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
 
-            holeritesToCreateMap.set(key, {
+        const exactKey = `${e.trabalhador_id}||${e.mes_referencia}||${validEmpresaId}`;
+        if (!activeHoleritesMap.has(exactKey) && !holeritesToCreateMap.has(exactKey)) {
+            holeritesToCreateMap.set(exactKey, {
                 empresa_id: validEmpresaId,
                 worker_id: e.trabalhador_id,
                 mes_referencia: `${e.mes_referencia}-01`,
@@ -66,14 +69,17 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
             .schema('core_personal')
             .from('holerites')
             .insert(payloadToCreate)
-            .select('id, worker_id, mes_referencia');
+            .select('id, worker_id, mes_referencia, empresa_id');
 
         if (createErr) throw mapSupabaseError(createErr);
 
         if (newHolerites) {
             for (const h of newHolerites) {
-                const hMonth = h.mes_referencia.substring(0, 7);
-                activeHoleritesMap.set(`${h.worker_id}||${hMonth}`, h.id);
+                const hMonth = String(h.mes_referencia).substring(0, 7);
+                activeHoleritesMap.set(`${h.worker_id}||${hMonth}||${h.empresa_id}`, h.id);
+                if (!activeHoleritesMap.has(`${h.worker_id}||${hMonth}`)) {
+                    activeHoleritesMap.set(`${h.worker_id}||${hMonth}`, h.id);
+                }
             }
         }
     }
@@ -82,8 +88,12 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
     const insertedHoleriteIdsThatNeedCleaning = new Set<string>();
 
     const dbEventsToInsert = events.map(e => {
-        const key = `${e.trabalhador_id}||${e.mes_referencia}`;
-        const holerite_id = activeHoleritesMap.get(key);
+        const validEmpresaId = (e.empresa_id && e.empresa_id.length > 20)
+            ? e.empresa_id
+            : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+
+        const exactKey = `${e.trabalhador_id}||${e.mes_referencia}||${validEmpresaId}`;
+        const holerite_id = activeHoleritesMap.get(exactKey) || activeHoleritesMap.get(`${e.trabalhador_id}||${e.mes_referencia}`);
         if (!holerite_id) throw new Error("Could not map or create parent holerite for worker: " + e.trabalhador_id);
 
         if (e.categoria === 'total_horas') {

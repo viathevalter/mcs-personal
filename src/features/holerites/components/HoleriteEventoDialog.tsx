@@ -38,7 +38,7 @@ import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento, EventoTipo, EventoCategoria } from '@/shared/types/holerites';
 import { useAddHoleriteEvento } from '../hooks/useAddHoleriteEvento';
 import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
-import { DEFAULT_BENEFIT_CATEGORIES } from '@/features/settings/api/categoriesApi';
+import { DEFAULT_BENEFIT_CATEGORIES, DEFAULT_DISCOUNT_CATEGORIES } from '@/features/settings/api/categoriesApi';
 import React from 'react';
 import { useDiscountCategories, useBenefitCategories } from '@/features/settings/hooks/useCategories';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -46,7 +46,7 @@ import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
     tipo: z.enum(['provento', 'desconto']),
-    categoria: z.string().min(1, { message: "Selecione uma categoria" }),
+    categoria: z.string().min(1, { message: "Selecione uma categoria válida." }),
     valor: z.coerce.number().min(0.01, { message: "O valor deve ser maior que zero." }),
     descricao: z.string().optional()
 });
@@ -96,9 +96,14 @@ export function HoleriteLancamentosSheet({
     });
 
     const activeBenefitOptions = React.useMemo(() => {
-        const dbNames = benefitCategories.map(c => c.name);
+        const dbNames = (benefitCategories || []).map(c => c.name);
         return Array.from(new Set([...DEFAULT_BENEFIT_CATEGORIES, ...dbNames]));
     }, [benefitCategories]);
+
+    const activeDiscountOptions = React.useMemo(() => {
+        const dbNames = (discountCategories || []).map(c => c.name);
+        return Array.from(new Set([...DEFAULT_DISCOUNT_CATEGORIES, ...dbNames]));
+    }, [discountCategories]);
 
     const isDebito = form.watch('tipo') === 'desconto';
 
@@ -209,8 +214,8 @@ export function HoleriteLancamentosSheet({
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {isDebito ? discountCategories.map(opt => (
-                                                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                                                        {isDebito ? activeDiscountOptions.map(catName => (
+                                                            <SelectItem key={catName} value={catName}>{catName}</SelectItem>
                                                         )) : activeBenefitOptions.map(catName => (
                                                             <SelectItem key={catName} value={catName}>{catName}</SelectItem>
                                                         ))}

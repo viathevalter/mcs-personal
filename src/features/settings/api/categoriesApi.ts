@@ -14,6 +14,21 @@ export interface BenefitCategory {
     created_at: string;
 }
 
+export const DEFAULT_DISCOUNT_CATEGORIES: string[] = [
+    'IMPOSTO SS',
+    'ADIANTAMENTO',
+    'DESCONTO CARRO',
+    'MULTA TRANSITO',
+    'COMBUSTIBLE',
+    'PEAJES',
+    'SUMINISTROS',
+    'MULTA ALOJAMIENTO',
+    'LIMPIEZA O DAÑOS',
+    'EPIS',
+    'TAXA BANCÁRIA',
+    'OUTROS'
+];
+
 export const DEFAULT_BENEFIT_CATEGORIES: string[] = [
     'AUXILIO MORADIA',
     'HORAS EXTRAS',

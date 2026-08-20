@@ -19,7 +19,7 @@ export function useHoleriteEventos(mes_referencia: string) {
                     descricao, 
                     referencia_dias_horas, 
                     created_at, 
-                    holerites!inner ( worker_id, mes_referencia )
+                    holerites!inner ( worker_id, mes_referencia, empresa_id )
                 `)
                 .eq('holerites.mes_referencia', `${mes_referencia}-01`)
                 .order('created_at', { ascending: false });
@@ -34,6 +34,7 @@ export function useHoleriteEventos(mes_referencia: string) {
             return data.map((row: any) => ({
                 id: row.id,
                 trabalhador_id: row.holerites.worker_id,
+                empresa_id: row.holerites.empresa_id,
                 mes_referencia: String(row.holerites.mes_referencia).substring(0, 7),
                 tipo: row.tipo_evento,
                 categoria: row.categoria,

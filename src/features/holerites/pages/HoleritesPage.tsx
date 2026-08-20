@@ -477,6 +477,7 @@ export function HoleritesPage() {
             const workerClientsMap = new Map<string, Set<string>>();
             const workerCompanyHoursMap = new Map<string, Map<string, number>>();
             const workerClientHoursMap = new Map<string, Map<string, number>>();
+            const workerCompanyClientsMap = new Map<string, Map<string, Map<string, number>>>();
             const workerAllContratantes = new Map<string, Set<string>>();
             const workerAllClients = new Map<string, Set<string>>();
 
@@ -530,6 +531,14 @@ export function HoleritesPage() {
                         if (!workerCompanyHoursMap.has(row.worker_id)) workerCompanyHoursMap.set(row.worker_id, new Map());
                         const compMap = workerCompanyHoursMap.get(row.worker_id)!;
                         compMap.set(normContratante, (compMap.get(normContratante) || 0) + rawH);
+                    }
+
+                    if (normContratante && clientName) {
+                        if (!workerCompanyClientsMap.has(row.worker_id)) workerCompanyClientsMap.set(row.worker_id, new Map());
+                        const compMap = workerCompanyClientsMap.get(row.worker_id)!;
+                        if (!compMap.has(normContratante)) compMap.set(normContratante, new Map());
+                        const clMap = compMap.get(normContratante)!;
+                        clMap.set(clientName, (clMap.get(clientName) || 0) + rawH);
                     }
                 }
             });
@@ -650,6 +659,7 @@ export function HoleritesPage() {
                 workerMonthlyActivityMap,
                 workerCompanyHoursMap,
                 workerClientHoursMap,
+                workerCompanyClientsMap,
                 allocsActiveInMonthByCod
             };
         },
@@ -833,8 +843,20 @@ export function HoleritesPage() {
             });
             totalHoras = matchedHours;
 
-            // Extract clients that correspond to this target company
-            if (clientHoursMap) {
+            // Extract ONLY clients that correspond to this target company!
+            if (dbHoursSummary?.workerCompanyClientsMap) {
+                const compClientsMap = dbHoursSummary.workerCompanyClientsMap.get(worker.id);
+                if (compClientsMap) {
+                    compClientsMap.forEach((clMap, comp) => {
+                        if (matchesEmpresaFilter(comp, targetEmpresa)) {
+                            clMap.forEach((hrs, clName) => {
+                                clientBreakdown.push({ clientName: clName, hours: hrs });
+                            });
+                        }
+                    });
+                }
+            }
+            if (clientBreakdown.length === 0 && clientHoursMap) {
                 clientHoursMap.forEach((hrs, clName) => {
                     clientBreakdown.push({ clientName: clName, hours: hrs });
                 });
@@ -847,8 +869,18 @@ export function HoleritesPage() {
                 }
             });
             totalHoras = matchedHours > 0 ? matchedHours : (dbHoursSummary?.sumMap?.get(worker.id) || 0);
+            if (clientHoursMap) {
+                clientHoursMap.forEach((hrs, clName) => {
+                    clientBreakdown.push({ clientName: clName, hours: hrs });
+                });
+            }
         } else if (dbHoursSummary?.sumMap && dbHoursSummary.sumMap.has(worker.id)) {
             totalHoras = dbHoursSummary.sumMap.get(worker.id) || 0;
+            if (clientHoursMap) {
+                clientHoursMap.forEach((hrs, clName) => {
+                    clientBreakdown.push({ clientName: clName, hours: hrs });
+                });
+            }
         } else {
             totalHoras = (eventos || [])
                 .filter(e => e.trabalhador_id === worker.id && e.categoria === 'total_horas')
@@ -875,7 +907,10 @@ export function HoleritesPage() {
                 const descUpper = e.descricao.toUpperCase();
                 if (descUpper.includes(targetEmpresa.toUpperCase())) return true;
             }
-            return true;
+            if (targetEmpresaId && e.empresa_id && String(e.empresa_id) !== String(targetEmpresaId)) {
+                return false;
+            }
+            return !targetEmpresaId;
         });
 
         const proventosEventos = workerEvents
@@ -958,6 +993,9 @@ export function HoleritesPage() {
             if (targetEmpresaId && d.empresa_id && d.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
                 return String(d.empresa_id) === String(targetEmpresaId);
             }
+            if (targetEmpresaId && d.empresa_id && String(d.empresa_id) !== String(targetEmpresaId)) {
+                return false;
+            }
             return true;
         });
         const sumDescontosExtras = workerExtraDiscounts.reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
@@ -972,6 +1010,7 @@ export function HoleritesPage() {
             totalHoras,
             beneficiosFixos: beneficiosFixosArray,
             descontosExtras: workerExtraDiscounts,
+            workerEvents,
             clientBreakdown
         };
     }
@@ -1725,7 +1764,7 @@ export function HoleritesPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {clientHoursBreakdown && clientHoursBreakdown.length > 1 ? (
+                                                        {clientHoursBreakdown && clientHoursBreakdown.length > 0 ? (
                                                             <div className="flex flex-col gap-1">
                                                                 {clientHoursBreakdown.map((cb: any, idx: number) => (
                                                                     <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${getClientStyle(cb.clientName).badge}`}>
