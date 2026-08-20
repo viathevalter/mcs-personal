@@ -211,9 +211,9 @@ export function PreviewHoleriteDialog({
                                     <div className="flex"><span className="font-bold w-36">Nome:</span> <span className="font-semibold uppercase">{worker.nome}</span></div>
                                     <div className="flex justify-between"><span className="font-bold">Nº Mecanográfico:</span> <span className="font-mono">{altaData.dadosProfissionais.numMecanografico}</span></div>
                                     <div className="flex"><span className="font-bold w-36">Nº Contribuinte:</span> <span className="font-mono">{altaData.dadosProfissionais.nif}</span></div>
-                                    <div className="flex justify-between"><span className="font-bold">Vencimento:</span> <span className="font-semibold">{altaData.dadosProfissionais.vencimentoBaseConfig.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between"><span className="font-bold">Vencimento:</span> <span className="font-semibold">{Number(altaData.dadosProfissionais.vencimentoBaseConfig || 0).toFixed(2)}€</span></div>
                                     <div className="flex"><span className="font-bold w-36">Nº Beneficiário:</span> <span className="font-mono">{altaData.dadosProfissionais.niss}</span></div>
-                                    <div className="flex justify-between"><span className="font-bold">Salário Hora:</span> <span>{altaData.dadosProfissionais.salarioHoraCalculado.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between"><span className="font-bold">Salário Hora:</span> <span>{Number(altaData.dadosProfissionais.salarioHoraCalculado || 0).toFixed(2)}€</span></div>
                                     <div className="flex"><span className="font-bold w-36">Categoria/Profissão:</span> <span>{altaData.dadosProfissionais.categoria}</span></div>
                                     <div className="flex justify-between"><span className="font-bold">Horas Semana:</span> <span>{altaData.dadosProfissionais.horasSemana}</span></div>
                                     <div className="flex"><span className="font-bold w-36">Tipo de Processamento:</span> <span>{altaData.dadosProfissionais.tipoProcessamento}</span></div>
@@ -239,17 +239,17 @@ export function PreviewHoleriteDialog({
                                                 <tr key={idx} className="hover:bg-slate-50/50">
                                                     <td className="py-1.5 px-3 font-medium">{linha.descricao}</td>
                                                     <td className="py-1.5 px-2 text-center text-slate-600">{linha.qtd || ''}</td>
-                                                    <td className="py-1.5 px-2 text-right text-slate-600">{linha.valorUnit ? `${linha.valorUnit.toFixed(2)}€` : ''}</td>
-                                                    <td className="py-1.5 px-3 text-right font-medium">{linha.abonos !== undefined ? `${linha.abonos.toFixed(2)}€` : ''}</td>
-                                                    <td className="py-1.5 px-3 text-right font-medium text-slate-700">{linha.descontos !== undefined ? `${linha.descontos.toFixed(2)}€` : ''}</td>
+                                                    <td className="py-1.5 px-2 text-right text-slate-600">{linha.valorUnit ? `${Number(linha.valorUnit).toFixed(2)}€` : ''}</td>
+                                                    <td className="py-1.5 px-3 text-right font-medium">{linha.abonos !== undefined ? `${Number(linha.abonos).toFixed(2)}€` : ''}</td>
+                                                    <td className="py-1.5 px-3 text-right font-medium text-slate-700">{linha.descontos !== undefined ? `${Number(linha.descontos).toFixed(2)}€` : ''}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                         <tfoot>
                                             <tr className="bg-slate-50 border-t border-slate-300 font-bold">
                                                 <td colSpan={3} className="py-2 px-3 text-right">Total</td>
-                                                <td className="py-2 px-3 text-right">{altaData.totais.totalAbonos.toFixed(2)}€</td>
-                                                <td className="py-2 px-3 text-right">{altaData.totais.totalDescontos.toFixed(2)}€</td>
+                                                <td className="py-2 px-3 text-right">{Number(altaData.totais.totalAbonos || 0).toFixed(2)}€</td>
+                                                <td className="py-2 px-3 text-right">{Number(altaData.totais.totalDescontos || 0).toFixed(2)}€</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -260,22 +260,22 @@ export function PreviewHoleriteDialog({
                                     <div className="border border-slate-300 rounded overflow-hidden grid grid-cols-3 text-center w-auto min-w-[380px]">
                                         <div className="p-2.5 border-r border-slate-200">
                                             <p className="text-[10px] font-bold text-slate-600 uppercase whitespace-nowrap px-1">Total Abonos</p>
-                                            <p className="font-bold text-sm mt-0.5">{altaData.totais.totalAbonos.toFixed(2)}€</p>
+                                            <p className="font-bold text-sm mt-0.5">{Number(altaData.totais.totalAbonos || 0).toFixed(2)}€</p>
                                         </div>
                                         <div className="p-2.5 border-r border-slate-200">
                                             <p className="text-[10px] font-bold text-slate-600 uppercase whitespace-nowrap px-1">Total Descontos</p>
-                                            <p className="font-bold text-sm mt-0.5 text-slate-700">{altaData.totais.totalDescontos.toFixed(2)}€</p>
+                                            <p className="font-bold text-sm mt-0.5 text-slate-700">{Number(altaData.totais.totalDescontos || 0).toFixed(2)}€</p>
                                         </div>
                                         <div className="p-2.5 bg-slate-50">
                                             <p className="text-[10px] font-bold text-slate-900 uppercase whitespace-nowrap px-1">Total a Receber</p>
-                                            <p className="font-black text-sm mt-0.5 text-indigo-700">{altaData.totais.totalAReceber.toFixed(2)}€</p>
+                                            <p className="font-black text-sm mt-0.5 text-indigo-700">{Number(altaData.totais.totalAReceber || 0).toFixed(2)}€</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Declaration Text */}
                                 <div className="pt-4 space-y-2 text-slate-700 text-xs leading-relaxed border-t border-slate-200">
-                                    <p>O Valor de <span className="font-bold">{altaData.totais.totalAReceber.toFixed(2)}€</span> foi pago por Transferência Bancária.</p>
+                                    <p>O Valor de <span className="font-bold">{Number(altaData.totais.totalAReceber || 0).toFixed(2)}€</span> foi pago por Transferência Bancária.</p>
                                     <p>Declaro que recebi a quantia constante neste recibo no valor de: <span className="font-semibold italic">{altaData.totais.valorPorExtenso}</span>.</p>
                                 </div>
 
@@ -332,9 +332,9 @@ export function PreviewHoleriteDialog({
                                             <div className="px-3 py-2 flex justify-between items-center">
                                                 <span className="font-medium">Horas Trabalhadas</span>
                                                 <div className="flex gap-4 font-mono">
-                                                    <span className="w-12 text-right">{altaData.detalhamento.tarifaHora.toFixed(2)}€</span>
-                                                    <span className="w-12 text-right">{altaData.detalhamento.horasTrabalhadas.toFixed(2)}</span>
-                                                    <span className="w-16 text-right font-semibold">{altaData.detalhamento.valorHoras.toFixed(2)}€</span>
+                                                    <span className="w-12 text-right">{Number(altaData.detalhamento.tarifaHora || 0).toFixed(2)}€</span>
+                                                    <span className="w-12 text-right">{Number(altaData.detalhamento.horasTrabalhadas || 0).toFixed(2)}</span>
+                                                    <span className="w-16 text-right font-semibold">{Number(altaData.detalhamento.valorHoras || 0).toFixed(2)}€</span>
                                                 </div>
                                             </div>
                                             {altaData.detalhamento.clientHoursBreakdown && altaData.detalhamento.clientHoursBreakdown.length > 1 && (
@@ -345,8 +345,8 @@ export function PreviewHoleriteDialog({
                                                             <span className="font-medium text-slate-700">{cb.clientName}</span>
                                                             <div className="flex gap-4 font-mono text-slate-600">
                                                                 <span className="w-12 text-right"></span>
-                                                                <span className="w-12 text-right">{cb.hours.toFixed(2)}h</span>
-                                                                <span className="w-16 text-right font-medium">{(cb.hours * altaData.detalhamento.tarifaHora).toFixed(2)}€</span>
+                                                                <span className="w-12 text-right">{Number(cb.hours || 0).toFixed(2)}h</span>
+                                                                <span className="w-16 text-right font-medium">{Number((cb.hours || 0) * (altaData.detalhamento.tarifaHora || 0)).toFixed(2)}€</span>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -354,15 +354,15 @@ export function PreviewHoleriteDialog({
                                             )}
                                             <div className="px-3 py-2 flex justify-between items-center">
                                                 <span>Alojamento / Moradia</span>
-                                                <span className="font-mono">{altaData.detalhamento.alojamento > 0 ? `${altaData.detalhamento.alojamento.toFixed(2)}€` : '-'}</span>
+                                                <span className="font-mono">{Number(altaData.detalhamento.alojamento || 0) > 0 ? `${Number(altaData.detalhamento.alojamento).toFixed(2)}€` : '-'}</span>
                                             </div>
                                             <div className="px-3 py-2 flex justify-between items-center">
                                                 <span>Ajustes de Valor / Bônus</span>
-                                                <span className="font-mono">{altaData.detalhamento.ajustesPositivos > 0 ? `${altaData.detalhamento.ajustesPositivos.toFixed(2)}€` : '-'}</span>
+                                                <span className="font-mono">{Number(altaData.detalhamento.ajustesPositivos || 0) > 0 ? `${Number(altaData.detalhamento.ajustesPositivos).toFixed(2)}€` : '-'}</span>
                                             </div>
                                             <div className="px-3 py-2.5 bg-slate-50 flex justify-between items-center font-bold">
                                                 <span>Total Remunerações</span>
-                                                <span className="font-mono text-emerald-700">{altaData.detalhamento.totalRemuneracoes.toFixed(2)}€</span>
+                                                <span className="font-mono text-emerald-700">{Number(altaData.detalhamento.totalRemuneracoes || 0).toFixed(2)}€</span>
                                             </div>
                                         </div>
                                     </div>
@@ -374,7 +374,7 @@ export function PreviewHoleriteDialog({
                                             <span>Valor</span>
                                         </div>
                                         <div className="divide-y divide-slate-100 text-xs">
-                                            {altaData.detalhamento.descontos.itemizedList && altaData.detalhamento.descontos.itemizedList.length > 0 ? (
+                                            {altaData.detalhamento.descontos?.itemizedList && altaData.detalhamento.descontos.itemizedList.length > 0 ? (
                                                 altaData.detalhamento.descontos.itemizedList.map((item, idx) => (
                                                     <div key={idx} className="px-3 py-2 flex justify-between items-center">
                                                         <div className="flex flex-col">
@@ -383,7 +383,7 @@ export function PreviewHoleriteDialog({
                                                                 <span className="text-[10px] text-slate-500 font-normal">↳ {item.descricao}</span>
                                                             )}
                                                         </div>
-                                                        <span className="font-mono text-slate-900 font-semibold">{item.valor.toFixed(2)}€</span>
+                                                        <span className="font-mono text-slate-900 font-semibold">{Number(item.valor || 0).toFixed(2)}€</span>
                                                     </div>
                                                 ))
                                             ) : (
@@ -393,7 +393,7 @@ export function PreviewHoleriteDialog({
                                             )}
                                             <div className="px-3 py-2.5 bg-rose-50 flex justify-between items-center font-bold text-rose-700">
                                                 <span>Total Descontos</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.totalDescontosDetalhados.toFixed(2)}€</span>
+                                                <span className="font-mono">{Number(altaData.detalhamento.descontos?.totalDescontosDetalhados ?? altaData.detalhamento.descontos?.totalDescontos ?? 0).toFixed(2)}€</span>
                                             </div>
                                         </div>
                                     </div>
@@ -406,7 +406,7 @@ export function PreviewHoleriteDialog({
                                         <p className="text-xs text-emerald-600">Creditado ao colaborador após compensação de todos os descontos e horas</p>
                                     </div>
                                     <div className="text-2xl font-black text-emerald-700 font-mono">
-                                        {altaData.detalhamento.liquidoReal.toFixed(2)}€
+                                        {Number(altaData.detalhamento.liquidoReal || 0).toFixed(2)}€
                                     </div>
                                 </div>
 
@@ -450,16 +450,16 @@ export function PreviewHoleriteDialog({
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 <tr>
-                                                    <td className="py-2 px-3 font-medium">Serviços Prestados (V. Hora: {regularizacaoData.horas.tarifaHora.toFixed(2)}€)</td>
-                                                    <td className="py-2 px-3 text-right font-mono">{regularizacaoData.horas.quantidadeHoras.toFixed(2)}</td>
-                                                    <td className="py-2 px-3 text-right font-mono font-semibold">{regularizacaoData.horas.valorTotalHoras.toFixed(2)}€</td>
+                                                    <td className="py-2 px-3 font-medium">Serviços Prestados (V. Hora: {Number(regularizacaoData.horas.tarifaHora || 0).toFixed(2)}€)</td>
+                                                    <td className="py-2 px-3 text-right font-mono">{Number(regularizacaoData.horas.quantidadeHoras || 0).toFixed(2)}</td>
+                                                    <td className="py-2 px-3 text-right font-mono font-semibold">{Number(regularizacaoData.horas.valorTotalHoras || 0).toFixed(2)}€</td>
                                                 </tr>
                                                 {regularizacaoData.horas.clientHoursBreakdown && regularizacaoData.horas.clientHoursBreakdown.length > 1 && (
                                                     regularizacaoData.horas.clientHoursBreakdown.map((cb, i) => (
                                                         <tr key={`cl-${i}`} className="bg-indigo-50/30 text-[11px]">
                                                             <td className="py-1 px-3 pl-6 font-normal text-slate-600">↳ {cb.clientName}</td>
-                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{cb.hours.toFixed(2)}</td>
-                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{(cb.hours * regularizacaoData.horas.tarifaHora).toFixed(2)}€</td>
+                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{Number(cb.hours || 0).toFixed(2)}</td>
+                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{Number((cb.hours || 0) * (regularizacaoData.horas.tarifaHora || 0)).toFixed(2)}€</td>
                                                         </tr>
                                                     ))
                                                 )}
@@ -467,14 +467,14 @@ export function PreviewHoleriteDialog({
                                                     <tr>
                                                         <td className="py-2 px-3">Ajuda Alojamento</td>
                                                         <td className="py-2 px-3 text-right font-mono">-</td>
-                                                        <td className="py-2 px-3 text-right font-mono font-semibold">{regularizacaoData.horas.ajudaAlojamento.toFixed(2)}€</td>
+                                                        <td className="py-2 px-3 text-right font-mono font-semibold">{Number(regularizacaoData.horas.ajudaAlojamento || 0).toFixed(2)}€</td>
                                                     </tr>
                                                 )}
                                             </tbody>
                                             <tfoot>
                                                 <tr className="bg-slate-50 border-t font-bold">
                                                     <td colSpan={2} className="py-2 px-3 text-right">Total Bruto:</td>
-                                                    <td className="py-2 px-3 text-right font-mono text-indigo-700">{regularizacaoData.horas.totalBruto.toFixed(2)}€</td>
+                                                    <td className="py-2 px-3 text-right font-mono text-indigo-700">{Number(regularizacaoData.horas.totalBruto || 0).toFixed(2)}€</td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -493,7 +493,7 @@ export function PreviewHoleriteDialog({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-xs">
-                                                {regularizacaoData.descontos.itemizedList && regularizacaoData.descontos.itemizedList.length > 0 ? (
+                                                {regularizacaoData.descontos?.itemizedList && regularizacaoData.descontos.itemizedList.length > 0 ? (
                                                     regularizacaoData.descontos.itemizedList.map((item, idx) => (
                                                         <tr key={idx}>
                                                             <td className="py-1.5 px-3">
@@ -502,7 +502,7 @@ export function PreviewHoleriteDialog({
                                                                     <span className="text-[10px] text-slate-500 font-normal block">↳ {item.descricao}</span>
                                                                 )}
                                                             </td>
-                                                            <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-900">{item.valor.toFixed(2)}€</td>
+                                                            <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-900">{Number(item.valor || 0).toFixed(2)}€</td>
                                                         </tr>
                                                     ))
                                                 ) : (
@@ -514,7 +514,7 @@ export function PreviewHoleriteDialog({
                                             <tfoot>
                                                 <tr className="bg-rose-50 border-t font-bold text-rose-700">
                                                     <td className="py-2 px-3">Total Descontos:</td>
-                                                    <td className="py-2 px-3 text-right font-mono">{(regularizacaoData.descontos.totalDescontos || regularizacaoData.descontos.totalDescontosDetalhados).toFixed(2)}€</td>
+                                                    <td className="py-2 px-3 text-right font-mono">{Number(regularizacaoData.descontos?.totalDescontos ?? regularizacaoData.descontos?.totalDescontosDetalhados ?? 0).toFixed(2)}€</td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -528,7 +528,7 @@ export function PreviewHoleriteDialog({
                                         <p className="text-xs text-slate-500 mt-0.5">Forma de Pagamento: {regularizacaoData.formaPagamento} • Moeda: {regularizacaoData.moeda}</p>
                                     </div>
                                     <div className="text-3xl font-black text-emerald-700 font-mono">
-                                        {regularizacaoData.totalLiquido.toFixed(2)}€
+                                        {Number(regularizacaoData.totalLiquido ?? regularizacaoData.liquidoFinal ?? 0).toFixed(2)}€
                                     </div>
                                 </div>
 
