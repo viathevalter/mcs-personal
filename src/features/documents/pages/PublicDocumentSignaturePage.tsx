@@ -56,9 +56,17 @@ export const PublicDocumentSignaturePage: React.FC = () => {
             '{{IMAGE FIRMA_CLIENTE}}_',
             '{{IMAGE FIRMA_CLIENTE}}',
             '{{IMAGE_FIRMA_CLIENTE}}',
+            '{{IMAGE FIRMA_TRABALHADOR}}_',
+            '{{IMAGE FIRMA_TRABALHADOR}}',
+            '{{IMAGE_FIRMA_TRABALHADOR}}',
+            '{{IMAGE FIRMA_EMPLEADO}}',
+            '{{IMAGE_FIRMA_EMPLEADO}}',
             '{{assinatura_imagem}}',
             '{{imagem_assinatura}}',
-            '{{FIRMA_CLIENTE}}'
+            '{{trabalhador_assinatura_imagem}}',
+            '{{FIRMA_CLIENTE}}',
+            '{{FIRMA_TRABALHADOR}}',
+            '{{FIRMA_EMPLEADO}}'
         ];
 
         const walkTextNodes = (node: Node) => {
@@ -301,7 +309,29 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                         </h2>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (!doc) return;
+                                setDownloadingPdf(true);
+                                try {
+                                    toast.info('Gerando arquivo PDF...');
+                                    await pdfExportService.downloadDocumentAsPdf(doc);
+                                    toast.success('Download do PDF concluído!');
+                                } catch (err: any) {
+                                    toast.error('Erro ao gerar PDF: ' + err?.message);
+                                } finally {
+                                    setDownloadingPdf(false);
+                                }
+                            }}
+                            disabled={downloadingPdf}
+                            className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                        >
+                            {downloadingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                            {doc.signature_status === 'signed' ? 'Baixar PDF Assinado' : 'Baixar PDF'}
+                        </button>
+
                         {doc.signature_status === 'signed' ? (
                             <div className="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold text-xs flex items-center gap-2">
                                 <CheckCircle2 size={16} /> Documento Assinado

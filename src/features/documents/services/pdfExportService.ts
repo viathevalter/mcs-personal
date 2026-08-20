@@ -40,9 +40,17 @@ export const pdfExportService = {
                         '{{IMAGE FIRMA_CLIENTE}}_',
                         '{{IMAGE FIRMA_CLIENTE}}',
                         '{{IMAGE_FIRMA_CLIENTE}}',
+                        '{{IMAGE FIRMA_TRABALHADOR}}_',
+                        '{{IMAGE FIRMA_TRABALHADOR}}',
+                        '{{IMAGE_FIRMA_TRABALHADOR}}',
+                        '{{IMAGE FIRMA_EMPLEADO}}',
+                        '{{IMAGE_FIRMA_EMPLEADO}}',
                         '{{assinatura_imagem}}',
                         '{{imagem_assinatura}}',
-                        '{{FIRMA_CLIENTE}}'
+                        '{{trabalhador_assinatura_imagem}}',
+                        '{{FIRMA_CLIENTE}}',
+                        '{{FIRMA_TRABALHADOR}}',
+                        '{{FIRMA_EMPLEADO}}'
                     ];
 
                     const walkTextNodes = (node: Node) => {
