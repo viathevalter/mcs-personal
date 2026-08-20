@@ -3,6 +3,7 @@ import { documentTemplateService, type DocumentTemplate } from '../services/docu
 import { documentGeneratorService, type GeneratedDocument } from '../services/documentGeneratorService';
 import { pdfExportService } from '../services/pdfExportService';
 import { buildWorkerDataMap, buildClientDataMap } from '../services/documentVariablesDictionary';
+import { PremiumRichTextEditor } from './PremiumRichTextEditor';
 import { supabase } from '@/shared/supabase/client';
 import {
     X, FileText, User, Building, Search, ArrowRight, CheckCircle2,
@@ -442,18 +443,15 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
                                 />
                             </div>
 
-                            {/* Rich Free Text / Custom Clause Field ({{contenido}}) */}
+                            {/* Premium Rich Text Editor ({{contenido}}) */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase mb-1 flex items-center justify-between">
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase mb-1.5 flex items-center justify-between">
                                     <span>Conteúdo Livre / Cláusulas Especiais (Variáveis: <code className="font-mono text-blue-600 font-bold">{"{{contenido}}"}</code> ou <code className="font-mono text-blue-600 font-bold">{"{{conteudo}}"}</code>)</span>
-                                    <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
+                                    <span className="text-[10px] text-slate-400 font-normal">Formatação Premium</span>
                                 </label>
-                                <textarea
-                                    rows={4}
-                                    placeholder="Digite aqui o texto livre, cláusulas especiais, notas ou exceções contratuais que devem aparecer na variável {{contenido}} do documento..."
+                                <PremiumRichTextEditor
                                     value={dataMap['contenido'] || ''}
-                                    onChange={e => {
-                                        const txt = e.target.value;
+                                    onChange={txt => {
                                         setDataMap(prev => ({
                                             ...prev,
                                             'contenido': txt,
@@ -462,7 +460,7 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
                                             'observacoes': txt
                                         }));
                                     }}
-                                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans text-slate-900 dark:text-white resize-y"
+                                    placeholder="Digite aqui o texto livre, cláusulas especiais, notas ou exceções contratuais que devem aparecer na variável {{contenido}} do documento..."
                                 />
                             </div>
 
