@@ -147,24 +147,28 @@ export function ValidationScreen({
             };
 
             const normTarget = normalizeName(clienteNome);
-            // 1. Try exact match first
-            let matched = allClients?.find(c => {
-                const normLegal = normalizeName(c.legal_name);
-                const normTrade = normalizeName(c.trade_name);
-                return normLegal === normTarget || normTrade === normTarget;
-            });
+            const targetLower = clienteNome.trim().toLowerCase();
 
-            // 2. If no exact match, try partial match fallback
+            // 1. Try exact trade_name or legal_name match first (case-insensitive)
+            let matched = allClients?.find(c => c.trade_name?.trim().toLowerCase() === targetLower) ||
+                          allClients?.find(c => c.legal_name?.trim().toLowerCase() === targetLower);
+
+            // 2. Try normalized trade_name match, then normalized legal_name match
+            if (!matched) {
+                matched = allClients?.find(c => normalizeName(c.trade_name) === normTarget) ||
+                          allClients?.find(c => normalizeName(c.legal_name) === normTarget);
+            }
+
+            // 3. If no exact/normalized match, try partial match fallback (trade_name first, then legal_name)
             if (!matched) {
                 matched = allClients?.find(c => {
-                    const normLegal = normalizeName(c.legal_name);
                     const normTrade = normalizeName(c.trade_name);
-                    return (
-                        (normLegal.length > 3 && normTarget.includes(normLegal)) ||
-                        (normTarget.length > 3 && normLegal.includes(normTarget)) ||
-                        (normTrade.length > 3 && normTarget.includes(normTrade)) ||
-                        (normTarget.length > 3 && normTrade.includes(normTarget))
-                    );
+                    return (normTrade.length > 3 && normTarget.includes(normTrade)) ||
+                           (normTarget.length > 3 && normTrade.includes(normTarget));
+                }) || allClients?.find(c => {
+                    const normLegal = normalizeName(c.legal_name);
+                    return (normLegal.length > 3 && normTarget.includes(normLegal)) ||
+                           (normTarget.length > 3 && normLegal.includes(normTarget));
                 });
             }
 

@@ -283,17 +283,37 @@ export function parseDescontosCategorias(descontosList: any[]) {
     let imposto = 0;
     let descontosAdicionais = 0;
 
-    for (const d of descontosList) {
-        const val = Number(d.valor || d.amount || 0);
-        const desc = (d.descricao || d.categoria || d.category || d.tipo || '').toLowerCase();
+    const normalizeText = (s: string) => (s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
 
-        if (desc.includes('adiantamento') || desc.includes('anticipo')) {
+    for (const d of (descontosList || [])) {
+        const val = Number(d.valor || d.amount || 0);
+        if (val === 0) continue;
+
+        const cat = normalizeText(d.categoria || d.category || '');
+        const desc = normalizeText(d.descricao || d.description || '');
+
+        // Match category first, then description
+        if (cat.includes('adiant') || cat.includes('anticip') || (desc.includes('adiant') && !desc.includes('manual')) || (desc.includes('anticip') && !desc.includes('manual'))) {
             adiantamento += val;
-        } else if (desc.includes('carro') || desc.includes('veiculo') || desc.includes('auto') || desc.includes('aluguel') || desc.includes('combustivel')) {
+        } else if (
+            cat.includes('carro') || cat.includes('veicul') || cat.includes('auto') || cat.includes('aluguel') || 
+            cat.includes('combust') || cat.includes('peaj') || cat.includes('pedag') || cat.includes('transito') ||
+            (desc.includes('carro') && !desc.includes('manual')) || (desc.includes('veicul') && !desc.includes('manual')) || (desc.includes('aluguel') && !desc.includes('manual'))
+        ) {
             aluguelCarros += val;
-        } else if (desc.includes('banc') || desc.includes('taxa') || desc.includes('tarifa') || desc.includes('transferencia')) {
+        } else if (
+            cat.includes('banc') || cat.includes('taxa') || cat.includes('tarifa') || cat.includes('transfer') ||
+            (desc.includes('banc') && !desc.includes('manual')) || (desc.includes('taxa') && !desc.includes('manual')) || (desc.includes('tarifa') && !desc.includes('manual'))
+        ) {
             taxasBancarias += val;
-        } else if (desc.includes('imposto') || desc.includes('irpf') || desc.includes('irs') || desc.includes('retenc') || desc.includes('seguridad') || desc.includes('seguridade') || desc.includes('social')) {
+        } else if (
+            cat.includes('impost') || cat.includes('irpf') || cat.includes('irs') || cat.includes('retenc') || 
+            cat.includes('segurid') || cat.includes('social') || cat.includes(' ss') || cat === 'ss' ||
+            (desc.includes('impost') && !desc.includes('manual')) || (desc.includes('irpf') && !desc.includes('manual')) || (desc.includes('irs') && !desc.includes('manual')) || (desc.includes('segurid') && !desc.includes('manual'))
+        ) {
             imposto += val;
         } else {
             descontosAdicionais += val;

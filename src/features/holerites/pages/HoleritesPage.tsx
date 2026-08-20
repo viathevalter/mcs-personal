@@ -900,17 +900,20 @@ export function HoleritesPage() {
         // Filter events for this worker and company
         const workerEvents = (eventos || []).filter(e => {
             if (e.trabalhador_id !== worker.id) return false;
-            if (targetEmpresaId && e.empresa_id && e.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+            const isHoldingEvent = !e.empresa_id || isHoldingId(e.empresa_id);
+            if (!isHoldingEvent && targetEmpresaId) {
                 return String(e.empresa_id) === String(targetEmpresaId);
             }
             if (targetEmpresa && e.descricao) {
                 const descUpper = e.descricao.toUpperCase();
                 if (descUpper.includes(targetEmpresa.toUpperCase())) return true;
             }
-            if (targetEmpresaId && e.empresa_id && String(e.empresa_id) !== String(targetEmpresaId)) {
-                return false;
+            if (isHoldingEvent && targetEmpresa) {
+                const dominantComp = dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)?.contratante;
+                const isDominant = !dominantComp || dominantComp === '-' || matchesEmpresaFilter(dominantComp, targetEmpresa);
+                if (!isDominant) return false;
             }
-            return !targetEmpresaId;
+            return true;
         });
 
         const proventosEventos = workerEvents
@@ -990,11 +993,14 @@ export function HoleritesPage() {
         const workerExtraDiscounts = allDiscounts.filter((d: any) => {
             if (d.worker_id !== worker.id) return false;
             if (!d.reference_date?.startsWith(mesReferencia)) return false;
-            if (targetEmpresaId && d.empresa_id && d.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+            const isHoldingDiscount = !d.empresa_id || isHoldingId(d.empresa_id);
+            if (!isHoldingDiscount && targetEmpresaId) {
                 return String(d.empresa_id) === String(targetEmpresaId);
             }
-            if (targetEmpresaId && d.empresa_id && String(d.empresa_id) !== String(targetEmpresaId)) {
-                return false;
+            if (isHoldingDiscount && targetEmpresa) {
+                const dominantComp = dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)?.contratante;
+                const isDominant = !dominantComp || dominantComp === '-' || matchesEmpresaFilter(dominantComp, targetEmpresa);
+                if (!isDominant) return false;
             }
             return true;
         });
@@ -1074,17 +1080,6 @@ export function HoleritesPage() {
                     const empresaId = empObj?.id || worker.empresa_id;
 
                     const tally = calculateWorkerTally(worker, empresaName);
-                    const workerEvents = (eventos || []).filter(e => {
-                        if (e.trabalhador_id !== worker.id) return false;
-                        if (empresaId && e.empresa_id && e.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
-                            return String(e.empresa_id) === String(empresaId);
-                        }
-                        if (e.descricao) {
-                            const descUpper = e.descricao.toUpperCase();
-                            if (descUpper.includes(empresaName.toUpperCase())) return true;
-                        }
-                        return true;
-                    });
 
                     rows.push({
                         rowKey: `${worker.id}_${empresaName}`,
@@ -1099,7 +1094,7 @@ export function HoleritesPage() {
                         liquido: tally.liquido,
                         beneficiosFixos: tally.beneficiosFixos,
                         descontosExtras: tally.descontosExtras,
-                        workerEvents,
+                        workerEvents: tally.workerEvents,
                         clientHoursBreakdown: tally.clientBreakdown && tally.clientBreakdown.length > 0 ? tally.clientBreakdown : effectiveAct.clientHoursBreakdown,
                         cliente_nombre: (tally.clientBreakdown && tally.clientBreakdown[0]?.clientName) || effectiveAct.cliente_nombre,
                         isNewWorker
@@ -1112,7 +1107,6 @@ export function HoleritesPage() {
                 const empresaId = empObj?.id || worker.empresa_id;
 
                 const tally = calculateWorkerTally(worker, empresaName !== '-' ? empresaName : undefined);
-                const workerEvents = (eventos || []).filter(e => e.trabalhador_id === worker.id);
 
                 rows.push({
                     rowKey: worker.id,
@@ -1127,9 +1121,9 @@ export function HoleritesPage() {
                     liquido: tally.liquido,
                     beneficiosFixos: tally.beneficiosFixos,
                     descontosExtras: tally.descontosExtras,
-                    workerEvents,
-                    clientHoursBreakdown: effectiveAct.clientHoursBreakdown,
-                    cliente_nombre: effectiveAct.cliente_nombre,
+                    workerEvents: tally.workerEvents,
+                    clientHoursBreakdown: tally.clientBreakdown && tally.clientBreakdown.length > 0 ? tally.clientBreakdown : effectiveAct.clientHoursBreakdown,
+                    cliente_nombre: (tally.clientBreakdown && tally.clientBreakdown[0]?.clientName) || effectiveAct.cliente_nombre,
                     isNewWorker
                 });
             }

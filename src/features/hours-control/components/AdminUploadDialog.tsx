@@ -139,12 +139,15 @@ export function AdminUploadDialog({
                         .from('clients')
                         .select('id, legal_name, trade_name');
 
-                    const matched = allClients?.find(c => 
-                        c.legal_name?.toLowerCase().includes(clientXName.toLowerCase()) || 
-                        c.trade_name?.toLowerCase().includes(clientXName.toLowerCase()) ||
-                        clientXName.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
-                        clientXName.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
-                    );
+                    const clientTarget = clientXName.trim().toLowerCase();
+                    const matched = allClients?.find(c => c.trade_name?.trim().toLowerCase() === clientTarget) ||
+                                    allClients?.find(c => c.legal_name?.trim().toLowerCase() === clientTarget) ||
+                                    allClients?.find(c => 
+                                        c.trade_name?.toLowerCase().includes(clientTarget) || 
+                                        c.legal_name?.toLowerCase().includes(clientTarget) ||
+                                        clientTarget.includes(c.trade_name?.toLowerCase() || '') ||
+                                        clientTarget.includes(c.legal_name?.toLowerCase() || '')
+                                    );
 
                     if (matched) {
                         const extension = file.name.split('.').pop() || 'pdf';
