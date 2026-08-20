@@ -15,6 +15,11 @@ export const PublicDocumentSignaturePage: React.FC = () => {
     const [signerName, setSignerName] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
+    // Signature Modes State
+    const [sigType, setSigType] = useState<'draw' | 'type' | 'upload'>('draw');
+    const [typedText, setTypedText] = useState('');
+    const [uploadedImgUrl, setUploadedImgUrl] = useState('');
+
     // Canvas Signature State
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const docContainerRef = useRef<HTMLDivElement | null>(null);
