@@ -42,6 +42,7 @@ import { DEFAULT_BENEFIT_CATEGORIES } from '@/features/settings/api/categoriesAp
 import React from 'react';
 import { useDiscountCategories, useBenefitCategories } from '@/features/settings/hooks/useCategories';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
     tipo: z.enum(['provento', 'desconto']),
