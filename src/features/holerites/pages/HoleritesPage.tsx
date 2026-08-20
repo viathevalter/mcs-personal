@@ -811,12 +811,18 @@ export function HoleritesPage() {
 
     // Helper to calc net
     function calculateWorkerTally(worker: any, targetEmpresa?: string) {
-        if (!eventos) return { proventos: 0, descontos: 0, liquido: 0, totalHoras: 0, beneficiosFixos: [], descontosExtras: [] };
+        if (!eventos) return { proventos: 0, descontos: 0, liquido: 0, totalHoras: 0, beneficiosFixos: [], descontosExtras: [], clientBreakdown: [] };
 
-        const workerEvents = eventos.filter(e => e.trabalhador_id === worker.id);
+        const compHoursMap = dbHoursSummary?.workerCompanyHoursMap?.get(worker.id);
+        const clientHoursMap = dbHoursSummary?.workerClientHoursMap?.get(worker.id);
 
         let totalHoras = 0;
-        const compHoursMap = dbHoursSummary?.workerCompanyHoursMap?.get(worker.id);
+        let clientBreakdown: Array<{ clientName: string; hours: number }> = [];
+
+        const targetEmpresaObj = targetEmpresa && targetEmpresa !== 'all' 
+            ? empresas?.find(e => matchesEmpresaFilter(e.trade_name || e.nome || e.legal_name, targetEmpresa))
+            : null;
+        const targetEmpresaId = targetEmpresaObj?.id;
 
         if (targetEmpresa && compHoursMap) {
             let matchedHours = 0;
@@ -826,6 +832,13 @@ export function HoleritesPage() {
                 }
             });
             totalHoras = matchedHours;
+
+            // Extract clients that correspond to this target company
+            if (clientHoursMap) {
+                clientHoursMap.forEach((hrs, clName) => {
+                    clientBreakdown.push({ clientName: clName, hours: hrs });
+                });
+            }
         } else if (contratanteFilter !== 'all' && compHoursMap && compHoursMap.size > 0) {
             let matchedHours = 0;
             compHoursMap.forEach((hrs, comp) => {
@@ -837,8 +850,8 @@ export function HoleritesPage() {
         } else if (dbHoursSummary?.sumMap && dbHoursSummary.sumMap.has(worker.id)) {
             totalHoras = dbHoursSummary.sumMap.get(worker.id) || 0;
         } else {
-            totalHoras = workerEvents
-                .filter(e => e.categoria === 'total_horas')
+            totalHoras = (eventos || [])
+                .filter(e => e.trabalhador_id === worker.id && e.categoria === 'total_horas')
                 .reduce((sum, e) => {
                     let hrs = Number(e.horas_referencia || e.referencia_dias_horas || e.quantidade || 0);
                     if (hrs === 0 && e.descricao) {
@@ -851,6 +864,19 @@ export function HoleritesPage() {
 
         const tarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
         const vencimentoBase = totalHoras * tarifaHora;
+
+        // Filter events for this worker and company
+        const workerEvents = (eventos || []).filter(e => {
+            if (e.trabalhador_id !== worker.id) return false;
+            if (targetEmpresaId && e.empresa_id && e.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+                return String(e.empresa_id) === String(targetEmpresaId);
+            }
+            if (targetEmpresa && e.descricao) {
+                const descUpper = e.descricao.toUpperCase();
+                if (descUpper.includes(targetEmpresa.toUpperCase())) return true;
+            }
+            return true;
+        });
 
         const proventosEventos = workerEvents
             .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
@@ -925,9 +951,16 @@ export function HoleritesPage() {
             }
         }
 
-        // Extra Discounts for this month
-        const descontosExtras = allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia));
-        const sumDescontosExtras = descontosExtras.reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
+        // Extra Discounts for this month, filtered by company if targetEmpresa is specified
+        const workerExtraDiscounts = allDiscounts.filter((d: any) => {
+            if (d.worker_id !== worker.id) return false;
+            if (!d.reference_date?.startsWith(mesReferencia)) return false;
+            if (targetEmpresaId && d.empresa_id && d.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+                return String(d.empresa_id) === String(targetEmpresaId);
+            }
+            return true;
+        });
+        const sumDescontosExtras = workerExtraDiscounts.reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
 
         const totalProventos = vencimentoBase + proventosEventos + totalBeneficios;
         const totalDescontos = descontosEventos + sumDescontosExtras;
@@ -938,7 +971,8 @@ export function HoleritesPage() {
             liquido: totalProventos - totalDescontos,
             totalHoras,
             beneficiosFixos: beneficiosFixosArray,
-            descontosExtras
+            descontosExtras: workerExtraDiscounts,
+            clientBreakdown
         };
     }
 
@@ -982,116 +1016,185 @@ export function HoleritesPage() {
         return true;
     });
 
-    const sortedWorkers = React.useMemo(() => {
+    // Transform filtered workers into distinct Folha rows (split by company if worker worked for multiple companies)
+    const folhaRows = React.useMemo(() => {
         if (!filteredWorkers) return [];
-        return [...filteredWorkers].sort((a, b) => {
+
+        const rows: any[] = [];
+
+        filteredWorkers.forEach(worker => {
+            const effectiveAct = getWorkerEffectiveActivity(worker);
+            const isNewWorker = isNewWorkerInMonth(worker, mesReferencia);
+            const hasMultiCompany = effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1;
+
+            if (hasMultiCompany && contratanteFilter === 'all') {
+                // Yield a separate folha row for each company!
+                effectiveAct.companyHoursBreakdown.forEach(comp => {
+                    const empresaName = comp.companyName;
+                    const empObj = empresas?.find(e => matchesEmpresaFilter(e.trade_name || e.nome || e.legal_name, empresaName));
+                    const empresaId = empObj?.id || worker.empresa_id;
+
+                    const tally = calculateWorkerTally(worker, empresaName);
+                    const workerEvents = (eventos || []).filter(e => {
+                        if (e.trabalhador_id !== worker.id) return false;
+                        if (empresaId && e.empresa_id && e.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+                            return String(e.empresa_id) === String(empresaId);
+                        }
+                        if (e.descricao) {
+                            const descUpper = e.descricao.toUpperCase();
+                            if (descUpper.includes(empresaName.toUpperCase())) return true;
+                        }
+                        return true;
+                    });
+
+                    rows.push({
+                        rowKey: `${worker.id}_${empresaName}`,
+                        workerId: worker.id,
+                        worker,
+                        empresaName,
+                        empresaId,
+                        isMultiCompanySplit: true,
+                        totalHoras: tally.totalHoras,
+                        proventos: tally.proventos,
+                        descontos: tally.descontos,
+                        liquido: tally.liquido,
+                        beneficiosFixos: tally.beneficiosFixos,
+                        descontosExtras: tally.descontosExtras,
+                        workerEvents,
+                        clientHoursBreakdown: tally.clientBreakdown && tally.clientBreakdown.length > 0 ? tally.clientBreakdown : effectiveAct.clientHoursBreakdown,
+                        cliente_nombre: (tally.clientBreakdown && tally.clientBreakdown[0]?.clientName) || effectiveAct.cliente_nombre,
+                        isNewWorker
+                    });
+                });
+            } else {
+                // Single company row
+                const empresaName = contratanteFilter !== 'all' ? contratanteFilter : effectiveAct.contratante;
+                const empObj = empresas?.find(e => matchesEmpresaFilter(e.trade_name || e.nome || e.legal_name, empresaName));
+                const empresaId = empObj?.id || worker.empresa_id;
+
+                const tally = calculateWorkerTally(worker, empresaName !== '-' ? empresaName : undefined);
+                const workerEvents = (eventos || []).filter(e => e.trabalhador_id === worker.id);
+
+                rows.push({
+                    rowKey: worker.id,
+                    workerId: worker.id,
+                    worker,
+                    empresaName: empresaName !== '-' ? empresaName : (worker.contratante || '-'),
+                    empresaId,
+                    isMultiCompanySplit: false,
+                    totalHoras: tally.totalHoras,
+                    proventos: tally.proventos,
+                    descontos: tally.descontos,
+                    liquido: tally.liquido,
+                    beneficiosFixos: tally.beneficiosFixos,
+                    descontosExtras: tally.descontosExtras,
+                    workerEvents,
+                    clientHoursBreakdown: effectiveAct.clientHoursBreakdown,
+                    cliente_nombre: effectiveAct.cliente_nombre,
+                    isNewWorker
+                });
+            }
+        });
+
+        return rows;
+    }, [filteredWorkers, contratanteFilter, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, empresas, mesReferencia, getWorkerEffectiveActivity]);
+
+    const sortedFolhaRows = React.useMemo(() => {
+        if (!folhaRows) return [];
+        return [...folhaRows].sort((a, b) => {
             let valA = '';
             let valB = '';
             if (sortColumn === 'nome') {
-                valA = a.nome || '';
-                valB = b.nome || '';
+                valA = a.worker.nome || '';
+                valB = b.worker.nome || '';
             } else if (sortColumn === 'cliente_nombre') {
-                valA = getWorkerEffectiveActivity(a).cliente_nombre;
-                valB = getWorkerEffectiveActivity(b).cliente_nombre;
+                valA = a.cliente_nombre || '';
+                valB = b.cliente_nombre || '';
             }
             const res = valA.localeCompare(valB, 'pt-BR');
             return sortDirection === 'asc' ? res : -res;
         });
-    }, [filteredWorkers, sortColumn, sortDirection, getWorkerEffectiveActivity]);
+    }, [folhaRows, sortColumn, sortDirection]);
 
     const totalLiquidoSum = React.useMemo(() => {
-        if (!sortedWorkers) return 0;
-        return sortedWorkers.reduce((acc, w) => {
-            const { liquido } = calculateWorkerTally(w);
-            return acc + liquido;
-        }, 0);
-    }, [sortedWorkers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
+        if (!sortedFolhaRows) return 0;
+        return sortedFolhaRows.reduce((acc, r) => acc + r.liquido, 0);
+    }, [sortedFolhaRows]);
 
     const totalHorasSum = React.useMemo(() => {
-        if (!sortedWorkers) return 0;
-        return sortedWorkers.reduce((acc, w) => {
-            const { totalHoras } = calculateWorkerTally(w);
-            return acc + totalHoras;
-        }, 0);
-    }, [sortedWorkers, eventos, dbHoursSummary]);
+        if (!sortedFolhaRows) return 0;
+        return sortedFolhaRows.reduce((acc, r) => acc + r.totalHoras, 0);
+    }, [sortedFolhaRows]);
 
     const paymentMetrics = React.useMemo(() => {
-        if (!sortedWorkers) return { totalPago: 0, countPago: 0, totalPendente: 0, countPendente: 0 };
+        if (!sortedFolhaRows) return { totalPago: 0, countPago: 0, totalPendente: 0, countPendente: 0 };
         let totalPago = 0;
         let countPago = 0;
         let totalPendente = 0;
         let countPendente = 0;
-        let totalHoras = 0;
 
-        sortedWorkers.forEach(w => {
-            const { liquido, totalHoras: wHours } = calculateWorkerTally(w);
-            totalHoras += wHours;
-            const isPago = holeritesStatusMap?.get(w.id)?.status === 'pago';
+        sortedFolhaRows.forEach(r => {
+            const isPago = holeritesStatusMap?.get(r.workerId)?.status === 'pago';
             if (isPago) {
-                totalPago += liquido;
+                totalPago += r.liquido;
                 countPago += 1;
             } else {
-                totalPendente += liquido;
+                totalPendente += r.liquido;
                 countPendente += 1;
             }
         });
 
         return { totalPago, countPago, totalPendente, countPendente };
-    }, [sortedWorkers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, holeritesStatusMap]);
+    }, [sortedFolhaRows, holeritesStatusMap]);
 
-    const selectedWorkersList = React.useMemo(() => {
-        if (!sortedWorkers || selectedWorkerIds.size === 0) return [];
-        return sortedWorkers.filter(w => selectedWorkerIds.has(w.id));
-    }, [sortedWorkers, selectedWorkerIds]);
+    const selectedRowsList = React.useMemo(() => {
+        if (!sortedFolhaRows || selectedWorkerIds.size === 0) return [];
+        return sortedFolhaRows.filter(r => selectedWorkerIds.has(r.rowKey));
+    }, [sortedFolhaRows, selectedWorkerIds]);
 
     const selectedTotalLiquido = React.useMemo(() => {
-        return selectedWorkersList.reduce((sum, w) => {
-            const { liquido } = calculateWorkerTally(w);
-            return sum + liquido;
-        }, 0);
-    }, [selectedWorkersList, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
+        return selectedRowsList.reduce((sum, r) => sum + r.liquido, 0);
+    }, [selectedRowsList]);
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedWorkerIds(new Set(paginatedWorkers.map(w => w.id)));
+            setSelectedWorkerIds(new Set(paginatedFolhaRows.map(r => r.rowKey)));
         } else {
             setSelectedWorkerIds(new Set());
         }
     };
 
     const handleSelectAllGlobal = () => {
-        if (!sortedWorkers) return;
-        setSelectedWorkerIds(new Set(sortedWorkers.map(w => w.id)));
+        if (!sortedFolhaRows) return;
+        setSelectedWorkerIds(new Set(sortedFolhaRows.map(r => r.rowKey)));
     };
 
-    const handleToggleWorkerSelect = (workerId: string) => {
+    const handleToggleWorkerSelect = (rowKey: string) => {
         const next = new Set(selectedWorkerIds);
-        if (next.has(workerId)) {
-            next.delete(workerId);
+        if (next.has(rowKey)) {
+            next.delete(rowKey);
         } else {
-            next.add(workerId);
+            next.add(rowKey);
         }
         setSelectedWorkerIds(next);
     };
 
-    const handleExportBankTransfer = (customWorkers?: any[]) => {
-        const targetWorkers = customWorkers || (selectedWorkersList.length > 0 ? selectedWorkersList : sortedWorkers);
-        if (!targetWorkers || targetWorkers.length === 0) {
+    const handleExportBankTransfer = (customRows?: any[]) => {
+        const targetRows = customRows || (selectedRowsList.length > 0 ? selectedRowsList : sortedFolhaRows);
+        if (!targetRows || targetRows.length === 0) {
             toast.error('Nenhum trabalhador para exportar.');
             return;
         }
 
-        const items = targetWorkers.map(w => {
-            const { liquido } = calculateWorkerTally(w);
-            const bInfo = workerIbansMap?.get(w.id);
-            const act = getWorkerEffectiveActivity(w);
+        const items = targetRows.map(r => {
+            const bInfo = workerIbansMap?.get(r.workerId);
             return {
                 worker: {
-                    ...w,
-                    contratante: act.contratante,
-                    cliente_nombre: act.cliente_nombre
+                    ...r.worker,
+                    contratante: r.empresaName,
+                    cliente_nombre: r.cliente_nombre
                 },
-                valorLiquido: liquido,
+                valorLiquido: r.liquido,
                 iban: bInfo?.iban,
                 banco: bInfo?.banco
             };
@@ -1103,11 +1206,11 @@ export function HoleritesPage() {
             empresaNome: contratanteFilter !== 'all' ? contratanteFilter : 'Todas as Empresas'
         });
 
-        toast.success(`Planilha bancária exportada com ${items.length} colaboradores.`);
+        toast.success(`Planilha bancária exportada com ${items.length} itens de folha.`);
     };
 
     const handleMarcarPagosConfirm = (data: { dataPagamento: string; metodoPagamento: string }) => {
-        const targetWorkerIds = Array.from(selectedWorkerIds);
+        const targetWorkerIds = Array.from(new Set(Array.from(selectedWorkerIds).map(k => k.split('_')[0])));
         if (targetWorkerIds.length === 0) {
             toast.error('Nenhum trabalhador selecionado.');
             return;
@@ -1128,24 +1231,24 @@ export function HoleritesPage() {
     };
 
     const altaCount = React.useMemo(() => {
-        if (!sortedWorkers) return 0;
-        return sortedWorkers.filter(w => w.status_seguridad === 'Alta').length;
-    }, [sortedWorkers]);
+        if (!sortedFolhaRows) return 0;
+        return sortedFolhaRows.filter(r => r.worker.status_seguridad === 'Alta').length;
+    }, [sortedFolhaRows]);
 
     const regCount = React.useMemo(() => {
-        if (!sortedWorkers) return 0;
-        return sortedWorkers.filter(w => w.status_seguridad !== 'Alta').length;
-    }, [sortedWorkers]);
+        if (!sortedFolhaRows) return 0;
+        return sortedFolhaRows.filter(r => r.worker.status_seguridad !== 'Alta').length;
+    }, [sortedFolhaRows]);
 
-    const totalCount = sortedWorkers.length;
+    const totalCount = sortedFolhaRows.length;
     const effectivePageSize = pageSize === 'all' ? (totalCount || 1) : pageSize;
     const totalPages = Math.max(1, Math.ceil(totalCount / effectivePageSize));
 
-    const paginatedWorkers = React.useMemo(() => {
-        if (pageSize === 'all') return sortedWorkers;
+    const paginatedFolhaRows = React.useMemo(() => {
+        if (pageSize === 'all') return sortedFolhaRows;
         const start = (page - 1) * effectivePageSize;
-        return sortedWorkers.slice(start, start + effectivePageSize);
-    }, [sortedWorkers, page, effectivePageSize, pageSize]);
+        return sortedFolhaRows.slice(start, start + effectivePageSize);
+    }, [sortedFolhaRows, page, effectivePageSize, pageSize]);
 
     const eventosMap = React.useMemo(() => {
         const map = new Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>();
@@ -1517,458 +1620,389 @@ export function HoleritesPage() {
                         <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setSelectedWorkerIds(new Set())}
-                            className="h-8 text-xs text-slate-400 hover:text-white"
-                        >
-                            Limpar Seleção
-                        </Button>
+                                variant="ghost"
+                                onClick={() => setSelectedWorkerIds(new Set())}
+                                className="h-8 text-xs text-slate-400 hover:text-white"
+                            >
+                                Limpar Seleção
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Table & Pagination Container */}
-            <div className="flex-1 min-h-0 bg-card rounded-md border shadow-sm overflow-hidden flex flex-col justify-between">
-                <div className="flex-1 overflow-y-auto">
-                    <Table>
-                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
-                            <TableRow>
-                                <TableHead className="w-10 pl-4 pr-1">
-                                    <Checkbox
-                                        checked={
-                                            paginatedWorkers && paginatedWorkers.length > 0 &&
-                                             paginatedWorkers.every(w => selectedWorkerIds.has(w.id))
-                                        }
-                                        onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
-                                        aria-label="Selecionar todos os visíveis"
-                                    />
-                                </TableHead>
-                                <TableHead className="pl-2 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
-                                    <div className="flex items-center">Trabalhador {renderSortIcon('nome')}</div>
-                                </TableHead>
-                                <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
-                                    <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
-                                </TableHead>
-                                <TableHead className="font-semibold select-none">Empresa</TableHead>
-                                <TableHead>Segurança</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Tarifa (H)</TableHead>
-                                <TableHead className="text-right">Total Horas</TableHead>
-                                <TableHead className="text-right">Proventos (Mês)</TableHead>
-                                <TableHead className="text-right">Descontos (Mês)</TableHead>
-                                <TableHead className="text-right text-indigo-700 dark:text-indigo-400 font-bold">Valor Líquido</TableHead>
-                                <TableHead className="text-right pr-6">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoadingWorkers || isLoadingEventos || isLoadingStatus ? (
+                {/* Table & Pagination Container */}
+                <div className="flex-1 min-h-0 bg-card rounded-md border shadow-sm overflow-hidden flex flex-col justify-between">
+                    <div className="flex-1 overflow-y-auto">
+                        <Table>
+                            <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
                                 <TableRow>
-                                    <TableCell colSpan={12} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
+                                    <TableHead className="w-10 pl-4 pr-1">
+                                        <Checkbox
+                                            checked={
+                                                paginatedFolhaRows && paginatedFolhaRows.length > 0 &&
+                                                 paginatedFolhaRows.every(r => selectedWorkerIds.has(r.rowKey))
+                                            }
+                                            onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
+                                            aria-label="Selecionar todos os visíveis"
+                                        />
+                                    </TableHead>
+                                    <TableHead className="pl-2 font-semibold cursor-pointer select-none" onClick={() => handleSort('nome')}>
+                                        <div className="flex items-center">Trabalhador {renderSortIcon('nome')}</div>
+                                    </TableHead>
+                                    <TableHead className="font-semibold cursor-pointer select-none" onClick={() => handleSort('cliente_nombre')}>
+                                        <div className="flex items-center">Cliente {renderSortIcon('cliente_nombre')}</div>
+                                    </TableHead>
+                                    <TableHead className="font-semibold select-none">Empresa</TableHead>
+                                    <TableHead>Segurança</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Tarifa (H)</TableHead>
+                                    <TableHead className="text-right">Total Horas</TableHead>
+                                    <TableHead className="text-right">Proventos (Mês)</TableHead>
+                                    <TableHead className="text-right">Descontos (Mês)</TableHead>
+                                    <TableHead className="text-right text-indigo-700 dark:text-indigo-400 font-bold">Valor Líquido</TableHead>
+                                    <TableHead className="text-right pr-6">Ações</TableHead>
                                 </TableRow>
-                            ) : (!workers || workers.length === 0) ? (
-                                <TableRow>
-                                    <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
-                                        Nenhum trabalhador ativo ou pendente encontrado.
-                                    </TableCell>
-                                </TableRow>
-                            ) : paginatedWorkers?.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
-                                        Nenhum trabalhador correspondente na busca.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                paginatedWorkers?.map((worker) => {
-                                    const workerEvents = eventos?.filter(e => e.trabalhador_id === worker.id) || [];
-                                    const { proventos, descontos, liquido, totalHoras, beneficiosFixos, descontosExtras } = calculateWorkerTally(worker);
-                                    const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
-                                    const isExpanded = expandedRows.has(worker.id);
-                                    const effectiveAct = getWorkerEffectiveActivity(worker);
-                                    const clientStyle = getClientStyle(effectiveAct.cliente_nombre);
-                                    const ibanInfo = workerIbansMap?.get(worker.id);
-                                    const isNewWorker = isNewWorkerInMonth(worker, mesReferencia);
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingWorkers || isLoadingEventos || isLoadingStatus ? (
+                                    <TableRow>
+                                        <TableCell colSpan={12} className="text-center h-24">Carregando trabalhadores e eventos...</TableCell>
+                                    </TableRow>
+                                ) : (!paginatedFolhaRows || paginatedFolhaRows.length === 0) ? (
+                                    <TableRow>
+                                        <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
+                                            Nenhum trabalhador ativo ou pendente encontrado.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    paginatedFolhaRows?.map((row) => {
+                                        const { worker, rowKey, empresaName, empresaId, isMultiCompanySplit, totalHoras, proventos, descontos, liquido, beneficiosFixos, descontosExtras, workerEvents, clientHoursBreakdown, cliente_nombre, isNewWorker } = row;
+                                        const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
+                                        const isExpanded = expandedRows.has(rowKey);
+                                        const clientStyle = getClientStyle(cliente_nombre);
+                                        const ibanInfo = workerIbansMap?.get(row.workerId);
 
-                                    return (
-                                        <React.Fragment key={worker.id}>
-                                            <TableRow 
-                                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''} ${selectedWorkerIds.has(worker.id) ? 'bg-indigo-50/40 dark:bg-indigo-950/40' : ''}`}
-                                                onClick={() => toggleRow(worker.id)}
-                                            >
-                                                <TableCell className="pl-4 pr-1" onClick={(e) => e.stopPropagation()}>
-                                                    <Checkbox
-                                                        checked={selectedWorkerIds.has(worker.id)}
-                                                        onCheckedChange={() => handleToggleWorkerSelect(worker.id)}
-                                                        aria-label={`Selecionar ${worker.nome}`}
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="pl-2 font-medium">
-                                                    <div className="flex items-center gap-2">
-                                                        {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
-                                                        <div>
-                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                                                                <span>{worker.nome}</span>
-                                                                {isNewWorker && (
-                                                                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] py-0 px-1.5 font-semibold">
-                                                                        Novo no Mês
-                                                                    </Badge>
-                                                                )}
-                                                                {getWorkerStatusBadge(worker, mesReferencia)}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
-                                                                {worker.cod_colab && <span>Cód: {worker.cod_colab}</span>}
-                                                                {worker.data_ingresso && (
-                                                                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                                                                        • Início: {formatDateClean(worker.data_ingresso)}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {effectiveAct.clientHoursBreakdown && effectiveAct.clientHoursBreakdown.length > 1 ? (
-                                                        <div className="flex flex-col gap-1">
-                                                            {effectiveAct.clientHoursBreakdown.map((cb, idx) => (
-                                                                <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${getClientStyle(cb.clientName).badge}`}>
-                                                                    <Building2 className="h-2.5 w-2.5 mr-1 shrink-0 opacity-70" />
-                                                                    {cb.clientName} ({formatHoursClean(cb.hours)}h)
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    ) : effectiveAct.cliente_nombre && effectiveAct.cliente_nombre !== '-' ? (
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
-                                                            <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
-                                                            {effectiveAct.cliente_nombre}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-muted-foreground text-xs">-</span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                                    {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 ? (
-                                                        <div className="flex flex-col gap-1">
-                                                            {effectiveAct.companyHoursBreakdown.map((cb, idx) => (
-                                                                <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1.5 font-bold border-indigo-200 bg-indigo-50/70 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
-                                                                    {cb.companyName} ({formatHoursClean(cb.hours)}h)
-                                                                </Badge>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        effectiveAct.contratante || '-'
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge
-                                                        variant={worker.status_seguridad === 'Alta' ? 'default' : 'secondary'}
-                                                        className={worker.status_seguridad === 'Alta' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
-                                                    >
-                                                        {worker.status_seguridad || 'Desconhecido'}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {(() => {
-                                                        const hStatus = holeritesStatusMap?.get(worker.id);
-                                                        const isPago = hStatus?.status === 'pago';
-
-                                                        if (isPago) {
-                                                            return (
-                                                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 w-fit shadow-xs">
-                                                                    <CheckCircle2 className="h-3 w-3" />
-                                                                    Pago
-                                                                    {hStatus?.data_pagamento && (
-                                                                        <span className="text-[9px] opacity-90 font-normal">
-                                                                            ({formatDateClean(hStatus.data_pagamento)})
+                                        return (
+                                            <React.Fragment key={rowKey}>
+                                                <TableRow 
+                                                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''} ${selectedWorkerIds.has(rowKey) ? 'bg-indigo-50/40 dark:bg-indigo-950/40' : ''}`}
+                                                    onClick={() => toggleRow(rowKey)}
+                                                >
+                                                    <TableCell className="pl-4 pr-1" onClick={(e) => e.stopPropagation()}>
+                                                        <Checkbox
+                                                            checked={selectedWorkerIds.has(rowKey)}
+                                                            onCheckedChange={() => handleToggleWorkerSelect(rowKey)}
+                                                            aria-label={`Selecionar ${worker.nome}`}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="pl-2 font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            {isExpanded ? <ChevronUp className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                                            <div>
+                                                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                                                    <span>{worker.nome}</span>
+                                                                    {isNewWorker && (
+                                                                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] py-0 px-1.5 font-semibold">
+                                                                            Novo no Mês
+                                                                        </Badge>
+                                                                    )}
+                                                                    {isMultiCompanySplit && (
+                                                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-bold">
+                                                                            Folha {empresaName}
+                                                                        </Badge>
+                                                                    )}
+                                                                    {getWorkerStatusBadge(worker, mesReferencia)}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+                                                                    {worker.cod_colab && <span>Cód: {worker.cod_colab}</span>}
+                                                                    {worker.data_ingresso && (
+                                                                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                                                                            • Início: {formatDateClean(worker.data_ingresso)}
                                                                         </span>
                                                                     )}
-                                                                </Badge>
-                                                            );
-                                                        }
-
-                                                        return (
-                                                            <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 dark:text-indigo-300 font-semibold' : 'text-muted-foreground'}>
-                                                                {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
-                                                            </Badge>
-                                                        );
-                                                    })()}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
-                                                </TableCell>
-                                                <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
-                                                    {totalHoras > 0 ? (
-                                                        <div className="flex flex-col items-end">
-                                                            <div className="flex items-center gap-1 font-bold">
-                                                                <span>{formatHoursClean(totalHoras)} h</span>
-                                                                {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
-                                                                    <Badge 
-                                                                        variant="outline" 
-                                                                        className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                        title={`Ajustado pelo Faturamento (Original: ${formatHoursClean(dbHoursSummary.rawSumMap.get(worker.id) || 0)}h → Faturado: ${formatHoursClean(totalHoras)}h)`}
-                                                                    >
-                                                                        Faturamento
-                                                                    </Badge>
-                                                                )}
+                                                                </div>
                                                             </div>
-                                                            {dbHoursSummary?.adjustedWorkerIds?.has(worker.id) && (
-                                                                <span className="text-[10px] text-muted-foreground line-through">
-                                                                    {formatHoursClean(dbHoursSummary.rawSumMap.get(worker.id) || 0)} h orig.
-                                                                </span>
-                                                            )}
                                                         </div>
-                                                    ) : (
-                                                        '-'
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
-                                                    {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
-                                                    {descontos > 0 ? `- € ${descontos.toFixed(2)}` : '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right text-indigo-700 dark:text-indigo-400 font-bold text-base">
-                                                    € {liquido.toFixed(2)}
-                                                </TableCell>
-                                                <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {clientHoursBreakdown && clientHoursBreakdown.length > 1 ? (
+                                                            <div className="flex flex-col gap-1">
+                                                                {clientHoursBreakdown.map((cb: any, idx: number) => (
+                                                                    <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${getClientStyle(cb.clientName).badge}`}>
+                                                                        <Building2 className="h-2.5 w-2.5 mr-1 shrink-0 opacity-70" />
+                                                                        {cb.clientName} ({formatHoursClean(cb.hours)}h)
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        ) : cliente_nombre && cliente_nombre !== '-' ? (
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
+                                                                <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
+                                                                {cliente_nombre}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground text-xs">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-bold border-indigo-200 bg-indigo-50/70 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                                                            {empresaName || '-'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge
+                                                            variant={worker.status_seguridad === 'Alta' ? 'default' : 'secondary'}
+                                                            className={worker.status_seguridad === 'Alta' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
+                                                        >
+                                                            {worker.status_seguridad || 'Desconhecido'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell>
                                                         {(() => {
-                                                            const hStatus = holeritesStatusMap?.get(worker.id);
+                                                            const hStatus = holeritesStatusMap?.get(row.workerId);
                                                             const isPago = hStatus?.status === 'pago';
 
                                                             if (isPago) {
                                                                 return (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        onClick={() => estornarPagamento({ workerId: worker.id, holeriteId: hStatus?.id, mesReferencia })}
-                                                                        disabled={isEstornarLoading}
-                                                                        className="h-8 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/40"
-                                                                        title="Estornar status de pago para rascunho / lançado"
-                                                                    >
-                                                                        <RotateCcw className="h-3 w-3 mr-1" />
-                                                                        Estornar
-                                                                    </Button>
+                                                                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 w-fit shadow-xs">
+                                                                        <CheckCircle2 className="h-3 w-3" />
+                                                                        Pago
+                                                                        {hStatus?.data_pagamento && (
+                                                                            <span className="text-[9px] opacity-90 font-normal">
+                                                                                ({formatDateClean(hStatus.data_pagamento)})
+                                                                            </span>
+                                                                        )}
+                                                                    </Badge>
                                                                 );
                                                             }
 
                                                             return (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => {
-                                                                        setSelectedWorkerIds(new Set([worker.id]));
-                                                                        setIsPaymentModalOpen(true);
-                                                                    }}
-                                                                    className="h-8 px-2.5 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-emerald-50/60 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                                                                    title="Liquidar / Marcar como Pago individualmente"
-                                                                >
-                                                                    <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-600" />
-                                                                    Pagar
-                                                                </Button>
+                                                                <Badge variant="outline" className={hasDataForMonth ? 'border-indigo-500 text-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 dark:text-indigo-300 font-semibold' : 'text-muted-foreground'}>
+                                                                    {hasDataForMonth ? 'Valores Lançados' : 'Sem Lançamentos'}
+                                                                </Badge>
                                                             );
                                                         })()}
-
-                                                        <HoleriteLancamentosSheet
-                                                            worker={worker}
-                                                            mesReferencia={mesReferencia}
-                                                            eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                            trigger={
-                                                                <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 h-8 text-xs font-semibold">
-                                                                    <Plus className="mr-1 h-3.5 w-3.5" />
-                                                                    Lançamentos
-                                                                </Button>
-                                                            }
-                                                        />
-
-                                                        {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 ? (
-                                                            <div className="flex items-center gap-1">
-                                                                {effectiveAct.companyHoursBreakdown.map((cb, idx) => (
-                                                                    <PreviewHoleriteDialog
-                                                                        key={idx}
-                                                                        worker={worker}
-                                                                        mesReferencia={mesReferencia}
-                                                                        eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                                        fallbackHours={cb.hours}
-                                                                        workerMonthlyActivity={{
-                                                                            contratante: cb.companyName,
-                                                                            cliente_nombre: effectiveAct.cliente_nombre
-                                                                        }}
-                                                                        housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
-                                                                        extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
-                                                                        trigger={
-                                                                            <Button size="sm" variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 px-2 text-xs font-bold shadow-xs">
-                                                                                {i18n.language.startsWith('es') ? 'Nómina' : 'Holerite'} ({cb.companyName})
-                                                                            </Button>
-                                                                        }
-                                                                    />
-                                                                ))}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
+                                                        {totalHoras > 0 ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <div className="flex items-center gap-1 font-bold">
+                                                                    <span>{formatHoursClean(totalHoras)} h</span>
+                                                                    {dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) && (
+                                                                        <Badge 
+                                                                            variant="outline" 
+                                                                            className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                            title={`Ajustado pelo Faturamento`}
+                                                                        >
+                                                                            Faturamento
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         ) : (
-                                                            <PreviewHoleriteDialog
+                                                            '-'
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
+                                                        {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
+                                                        {descontos > 0 ? `- € ${descontos.toFixed(2)}` : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-indigo-700 dark:text-indigo-400 font-bold text-base">
+                                                        € {liquido.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                                            {(() => {
+                                                                const hStatus = holeritesStatusMap?.get(row.workerId);
+                                                                const isPago = hStatus?.status === 'pago';
+
+                                                                if (isPago) {
+                                                                    return (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            onClick={() => estornarPagamento({ workerId: row.workerId, holeriteId: hStatus?.id, mesReferencia })}
+                                                                            disabled={isEstornarLoading}
+                                                                            className="h-8 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                                                            title="Estornar status de pago para rascunho / lançado"
+                                                                        >
+                                                                            <RotateCcw className="h-3 w-3 mr-1" />
+                                                                            Estornar
+                                                                        </Button>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => {
+                                                                            setSelectedWorkerIds(new Set([rowKey]));
+                                                                            setIsPaymentModalOpen(true);
+                                                                        }}
+                                                                        className="h-8 px-2.5 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-emerald-50/60 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                                                                        title="Liquidar / Marcar como Pago individualmente"
+                                                                    >
+                                                                        <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-600" />
+                                                                        Pagar
+                                                                    </Button>
+                                                                );
+                                                            })()}
+
+                                                            <HoleriteLancamentosSheet
                                                                 worker={worker}
                                                                 mesReferencia={mesReferencia}
-                                                                eventosMensais={eventos?.filter(e => e.trabalhador_id === worker.id) || []}
-                                                                fallbackHours={dbHoursSummary?.sumMap?.get(worker.id) || 0}
-                                                                workerMonthlyActivity={dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)}
-                                                                housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
-                                                                extraDiscounts={allDiscounts.filter((d: any) => d.worker_id === worker.id && d.reference_date?.startsWith(mesReferencia))}
+                                                                targetEmpresaName={empresaName}
+                                                                targetEmpresaId={empresaId}
+                                                                eventosMensais={workerEvents}
+                                                                extraDiscounts={descontosExtras}
+                                                                onDeleteDiscount={deleteDiscount}
                                                                 trigger={
-                                                                    <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-medium">
-                                                                        {i18n.language.startsWith('es') ? 'Nóminas' : 'Holerite'}
+                                                                    <Button size="sm" variant="outline" className="border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 h-8 text-xs font-semibold">
+                                                                        <Plus className="mr-1 h-3.5 w-3.5" />
+                                                                        Lançamentos
                                                                     </Button>
                                                                 }
                                                             />
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
 
-                                            {isExpanded && (
-                                                <TableRow className="bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
-                                                    <TableCell colSpan={12} className="p-4 border-b">
-                                                        <div className="space-y-4 pl-4 sm:pl-8 pr-4">
-                                                            {/* Premium Worker Summary Cards */}
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                {/* Bank Details / IBAN Card */}
-                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-3">
-                                                                    <div className="flex items-center justify-between pb-2 border-b">
-                                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                                                            <CreditCard className="h-4 w-4 text-indigo-500" />
-                                                                            Dados de Transferência Bancária
-                                                                        </span>
-                                                                        {ibanInfo?.iban && (
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="outline"
-                                                                                className="h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-medium"
-                                                                                onClick={(e) => handleCopyIban(worker.id, ibanInfo.iban, e)}
-                                                                            >
-                                                                                {copiedIbanId === worker.id ? (
-                                                                                    <>
-                                                                                        <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copiado!
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        <Copy className="h-3.5 w-3.5 mr-1 text-indigo-500" /> Copiar IBAN
-                                                                                    </>
+                                                            <PreviewHoleriteDialog
+                                                                worker={worker}
+                                                                mesReferencia={mesReferencia}
+                                                                eventosMensais={workerEvents}
+                                                                fallbackHours={totalHoras}
+                                                                workerMonthlyActivity={{
+                                                                    contratante: empresaName,
+                                                                    cliente_nombre: cliente_nombre,
+                                                                    clientHoursBreakdown: clientHoursBreakdown
+                                                                }}
+                                                                housingBenefitAmount={(beneficiosFixos || []).reduce((s: number, b: any) => s + Number(b.val || 0), 0)}
+                                                                extraDiscounts={descontosExtras}
+                                                                trigger={
+                                                                    <Button size="sm" variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 h-8 text-xs font-semibold shadow-xs">
+                                                                        {i18n.language.startsWith('es') ? 'Nómina' : 'Holerite'} {isMultiCompanySplit ? `(${empresaName})` : ''}
+                                                                    </Button>
+                                                                }
+                                                            />
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+
+                                                {isExpanded && (
+                                                    <TableRow className="bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
+                                                        <TableCell colSpan={12} className="p-4 border-b">
+                                                            <div className="space-y-4 pl-4 sm:pl-8 pr-4">
+                                                                {/* Premium Worker Summary Cards */}
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    {/* Bank Details / IBAN Card */}
+                                                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-3">
+                                                                        <div className="flex items-center justify-between pb-2 border-b">
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                                <CreditCard className="h-4 w-4 text-indigo-500" />
+                                                                                Dados de Transferência Bancária
+                                                                            </span>
+                                                                            {ibanInfo?.iban && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="outline"
+                                                                                    className="h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-medium"
+                                                                                    onClick={(e) => handleCopyIban(row.workerId, ibanInfo.iban, e)}
+                                                                                >
+                                                                                    {copiedIbanId === row.workerId ? (
+                                                                                        <>
+                                                                                            <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copiado!
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <Copy className="h-3.5 w-3.5 mr-1 text-indigo-500" /> Copiar IBAN
+                                                                                        </>
+                                                                                    )}
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {ibanInfo?.iban ? (
+                                                                            <div className="space-y-2">
+                                                                                <div>
+                                                                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">IBAN para Pagamento</span>
+                                                                                    <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tracking-wider">
+                                                                                        {formatIban(ibanInfo.iban)}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {ibanInfo.banco && (
+                                                                                    <div className="flex items-center gap-2 pt-1 text-xs">
+                                                                                        <span className="text-muted-foreground font-medium">Banco:</span>
+                                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{ibanInfo.banco}</span>
+                                                                                    </div>
                                                                                 )}
-                                                                            </Button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 p-2.5 rounded-lg border border-amber-200/60 flex items-center justify-between">
+                                                                                <span>Nenhum IBAN ativo cadastrado para este colaborador.</span>
+                                                                            </div>
                                                                         )}
                                                                     </div>
 
-                                                                    {ibanInfo?.iban ? (
-                                                                        <div className="space-y-2">
+                                                                    {/* Financial Breakdown Card */}
+                                                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
+                                                                        <div className="flex items-center justify-between pb-2 border-b">
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                                <Banknote className="h-4 w-4 text-emerald-500" />
+                                                                                Resumo da Folha ({empresaName} - Competência {mesReferencia})
+                                                                            </span>
+                                                                            <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
+                                                                                Líquido: € {liquido.toFixed(2)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                                                                             <div>
-                                                                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">IBAN para Pagamento</span>
-                                                                                <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tracking-wider">
-                                                                                    {formatIban(ibanInfo.iban)}
+                                                                                <span className="text-muted-foreground block">Total Horas</span>
+                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{formatHoursClean(totalHoras)} h</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-muted-foreground block">Tarifa por Hora</span>
+                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">€ {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-muted-foreground block">Proventos + Benefícios</span>
+                                                                                <span className="font-bold text-emerald-600">+ € {proventos.toFixed(2)}</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-muted-foreground block">Descontos Extras</span>
+                                                                                <span className="font-bold text-red-600">- € {descontos.toFixed(2)}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Detalhamento de Horas por Cliente */}
+                                                                        {clientHoursBreakdown && clientHoursBreakdown.length > 0 && (
+                                                                            <div className="mt-2.5 pt-2.5 border-t text-xs space-y-1.5">
+                                                                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide block">
+                                                                                    Detalhamento das Obras / Clientes:
                                                                                 </span>
-                                                                            </div>
-                                                                            {ibanInfo.banco && (
-                                                                                <div className="flex items-center gap-2 pt-1 text-xs">
-                                                                                    <span className="text-muted-foreground font-medium">Banco:</span>
-                                                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{ibanInfo.banco}</span>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 p-2.5 rounded-lg border border-amber-200/60 flex items-center justify-between">
-                                                                            <span>Nenhum IBAN ativo cadastrado para este colaborador.</span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* Financial Breakdown Card */}
-                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
-                                                                    <div className="flex items-center justify-between pb-2 border-b">
-                                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                                                            <Banknote className="h-4 w-4 text-emerald-500" />
-                                                                            Resumo da Folha (Competência {mesReferencia})
-                                                                        </span>
-                                                                        <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
-                                                                            Líquido: € {liquido.toFixed(2)}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Total Horas</span>
-                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{formatHoursClean(totalHoras)} h</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Tarifa por Hora</span>
-                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">€ {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Proventos + Benefícios</span>
-                                                                            <span className="font-bold text-emerald-600">+ € {proventos.toFixed(2)}</span>
-                                                                        </div>
-                                                                        <div>
-                                                                            <span className="text-muted-foreground block">Descontos Extras</span>
-                                                                            <span className="font-bold text-red-600">- € {descontos.toFixed(2)}</span>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Detalhamento de Horas por Cliente quando multi-cliente */}
-                                                                    {effectiveAct.clientHoursBreakdown && effectiveAct.clientHoursBreakdown.length > 1 && (
-                                                                        <div className="mt-2.5 pt-2.5 border-t text-xs space-y-1.5">
-                                                                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide block">
-                                                                                Detalhamento das Horas por Cliente:
-                                                                            </span>
-                                                                            <div className="space-y-1">
-                                                                                {effectiveAct.clientHoursBreakdown.map((cb, idx) => (
-                                                                                    <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
-                                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{cb.clientName}</span>
-                                                                                        <span className="font-bold text-indigo-700 dark:text-indigo-400">{formatHoursClean(cb.hours)} h</span>
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Detalhamento de Horas por Empresa quando multi-empresa */}
-                                                                    {effectiveAct.companyHoursBreakdown && effectiveAct.companyHoursBreakdown.length > 1 && (
-                                                                        <div className="mt-2.5 pt-2.5 border-t text-xs space-y-1.5">
-                                                                            <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide block">
-                                                                                Holerites por Empresa Contratante:
-                                                                            </span>
-                                                                            <div className="space-y-1.5">
-                                                                                {effectiveAct.companyHoursBreakdown.map((comp, idx) => (
-                                                                                    <div key={idx} className="flex justify-between items-center bg-indigo-50/70 dark:bg-indigo-950/40 p-2 rounded-lg border border-indigo-200/80 dark:border-indigo-900/60">
-                                                                                        <div>
-                                                                                            <span className="font-bold text-indigo-900 dark:text-indigo-200 block">{comp.companyName}</span>
-                                                                                            <span className="text-[11px] text-muted-foreground font-medium">{formatHoursClean(comp.hours)} h trabalhadas</span>
+                                                                                <div className="space-y-1">
+                                                                                    {clientHoursBreakdown.map((cb: any, idx: number) => (
+                                                                                        <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
+                                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{cb.clientName}</span>
+                                                                                            <span className="font-bold text-indigo-700 dark:text-indigo-400">{formatHoursClean(cb.hours)} h</span>
                                                                                         </div>
-                                                                                        <PreviewHoleriteDialog
-                                                                                            worker={worker}
-                                                                                            mesReferencia={mesReferencia}
-                                                                                            eventosMensais={workerEvents}
-                                                                                            fallbackHours={comp.hours}
-                                                                                            workerMonthlyActivity={{
-                                                                                                contratante: comp.companyName,
-                                                                                                cliente_nombre: effectiveAct.cliente_nombre
-                                                                                            }}
-                                                                                            housingBenefitAmount={housingBenefitsMap.get(worker.id) || 0}
-                                                                                            extraDiscounts={descontosExtras}
-                                                                                            trigger={
-                                                                                                <Button size="sm" variant="outline" className="h-7 text-xs border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700 font-bold shadow-xs">
-                                                                                                    Gerar Holerite ({comp.companyName})
-                                                                                                </Button>
-                                                                                            }
-                                                                                        />
-                                                                                    </div>
-                                                                                ))}
+                                                                                    ))}
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Detailed Events Table */}
-                                                            {hasDataForMonth ? (
-                                                                <div className="bg-white dark:bg-slate-900 border rounded-xl shadow-sm overflow-hidden">
-                                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b flex items-center justify-between">
-                                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                                                            Detalhamento dos Lançamentos do Mês
-                                                                        </span>
+                                                                        )}
                                                                     </div>
+                                                                </div>
+
+                                                                {/* Detalhamento dos Lançamentos do Mês */}
+                                                                {hasDataForMonth ? (
+                                                                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mt-4">
+                                                                        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b flex items-center justify-between">
+                                                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                                                                Detalhamento dos Lançamentos do Mês
+                                                                            </span>
+                                                                        </div>
                                                                     <Table>
                                                                         <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50">
                                                                             <TableRow>

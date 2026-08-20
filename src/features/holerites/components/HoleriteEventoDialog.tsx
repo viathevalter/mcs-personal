@@ -57,9 +57,22 @@ interface LançamentosSheetProps {
     mesReferencia: string;
     eventosMensais: HoleriteEvento[];
     trigger: React.ReactNode;
+    targetEmpresaName?: string;
+    targetEmpresaId?: string;
+    extraDiscounts?: any[];
+    onDeleteDiscount?: (id: string) => void;
 }
 
-export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais, trigger }: LançamentosSheetProps) {
+export function HoleriteLancamentosSheet({ 
+    worker, 
+    mesReferencia, 
+    eventosMensais, 
+    trigger,
+    targetEmpresaName,
+    targetEmpresaId,
+    extraDiscounts = [],
+    onDeleteDiscount
+}: LançamentosSheetProps) {
     const { i18n } = useTranslation();
     const { selectedEmpresaId } = useEmpresa();
     const currentLocale = i18n.language.startsWith('pt') ? pt : es;
@@ -67,8 +80,9 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
 
     const { mutate: addEvento, isPending: isAdding } = useAddHoleriteEvento();
     const { mutate: deleteEvento, isPending: isDeleting } = useDeleteHoleriteEvento();
-    const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || worker.empresa_id);
-    const { data: benefitCategories = [] } = useBenefitCategories(selectedEmpresaId || worker.empresa_id);
+    const effectiveEmpresaId = targetEmpresaId || selectedEmpresaId || worker.empresa_id;
+    const { data: discountCategories = [] } = useDiscountCategories(effectiveEmpresaId);
+    const { data: benefitCategories = [] } = useBenefitCategories(effectiveEmpresaId);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema) as any,
@@ -88,9 +102,13 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
     const isDebito = form.watch('tipo') === 'desconto';
 
     const onSubmit = (values: FormValues) => {
-        const validEmpresaId = (selectedEmpresaId && selectedEmpresaId.length > 20)
-            ? selectedEmpresaId
-            : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+        const validEmpresaId = (targetEmpresaId && targetEmpresaId.length > 20)
+            ? targetEmpresaId
+            : (selectedEmpresaId && selectedEmpresaId.length > 20)
+                ? selectedEmpresaId
+                : (worker.empresa_id && worker.empresa_id.length > 20)
+                    ? worker.empresa_id
+                    : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
 
         addEvento({
             trabalhador_id: worker.id,
@@ -133,6 +151,11 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                     <SheetTitle className="text-2xl">Lançamentos Eventuais</SheetTitle>
                     <SheetDescription>
                         Trabalhador: <strong>{worker.nome}</strong> <br />
+                        {targetEmpresaName && (
+                            <span className="text-indigo-600 dark:text-indigo-400 font-bold block mt-0.5">
+                                Empresa: {targetEmpresaName}
+                            </span>
+                        )}
                         Competência: <strong>{format(new Date(mesReferencia + '-02'), 'MMMM yyyy', { locale: currentLocale }).toUpperCase()}</strong>
                     </SheetDescription>
                 </SheetHeader>
@@ -237,44 +260,84 @@ export function HoleriteLancamentosSheet({ worker, mesReferencia, eventosMensais
                     <div>
                         <h4 className="font-semibold text-lg mb-4">Lançamentos do Mês</h4>
                         <div className="space-y-3">
-                            {eventosMensais.length === 0 ? (
-                                <p className="text-muted-foreground text-sm italic">Nenhum lançamento avulso neste mês.</p>
+                            {eventosMensais.length === 0 && extraDiscounts.length === 0 ? (
+                                <p className="text-muted-foreground text-sm italic">Nenhum lançamento avulso ou desconto registrado neste mês.</p>
                             ) : (
-                                eventosMensais.map(ev => {
-                                    const isDebit = ev.tipo === 'desconto';
-                                    return (
-                                        <div key={ev.id} className="flex items-center justify-between p-3 border rounded-lg bg-white dark:bg-slate-950">
-                                            <div className="flex items-center space-x-3">
-                                                {isDebit ?
-                                                    <ArrowDownCircle className="text-red-500 h-8 w-8 opacity-80" /> :
-                                                    <ArrowUpCircle className="text-green-500 h-8 w-8 opacity-80" />
-                                                }
-                                                <div>
-                                                    <p className="font-medium text-slate-800 dark:text-slate-200">
-                                                        {ev.categoria}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={ev.descricao || ''}>
-                                                        {ev.descricao || 'Sem descrição'}
-                                                    </p>
+                                <>
+                                    {eventosMensais.map(ev => {
+                                        const isDebit = ev.tipo === 'desconto';
+                                        return (
+                                            <div key={ev.id} className="flex items-center justify-between p-3 border rounded-lg bg-white dark:bg-slate-950">
+                                                <div className="flex items-center space-x-3">
+                                                    {isDebit ?
+                                                        <ArrowDownCircle className="text-red-500 h-8 w-8 opacity-80" /> :
+                                                        <ArrowUpCircle className="text-green-500 h-8 w-8 opacity-80" />
+                                                    }
+                                                    <div>
+                                                        <p className="font-medium text-slate-800 dark:text-slate-200">
+                                                            {ev.categoria}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={ev.descricao || ''}>
+                                                            {ev.descricao || 'Sem descrição'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-4">
+                                                    <span className={`font-bold ${isDebit ? 'text-red-600' : 'text-green-600'}`}>
+                                                        {isDebit ? '-' : '+'} € {Number(ev.valor).toFixed(2)}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                                        onClick={() => handleDelete(ev.id)}
+                                                        disabled={isDeleting}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center space-x-4">
-                                                <span className={`font-bold ${isDebit ? 'text-red-600' : 'text-green-600'}`}>
-                                                    {isDebit ? '-' : '+'} € {ev.valor.toFixed(2)}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-slate-400 hover:text-red-600"
-                                                    onClick={() => handleDelete(ev.id)}
-                                                    disabled={isDeleting}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                        );
+                                    })}
+
+                                    {extraDiscounts.map(d => {
+                                        return (
+                                            <div key={d.id} className="flex items-center justify-between p-3 border border-red-100 rounded-lg bg-red-50/20 dark:bg-red-950/20">
+                                                <div className="flex items-center space-x-3">
+                                                    <ArrowDownCircle className="text-red-500 h-8 w-8 opacity-80" />
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <p className="font-medium text-slate-800 dark:text-slate-200">
+                                                                {d.category || 'Desconto'}
+                                                            </p>
+                                                            <Badge variant="outline" className="text-[9px] py-0 px-1 text-red-700 bg-red-50 dark:bg-red-950 dark:text-red-300 border-red-200">
+                                                                Gestão Descontos
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={d.description || ''}>
+                                                            {d.description || 'Lançado no Módulo de Descontos'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-4">
+                                                    <span className="font-bold text-red-600">
+                                                        - € {Number(d.amount).toFixed(2)}
+                                                    </span>
+                                                    {onDeleteDiscount && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                                            onClick={() => onDeleteDiscount(d.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    )
-                                })
+                                        );
+                                    })}
+                                </>
                             )}
                         </div>
                     </div>
