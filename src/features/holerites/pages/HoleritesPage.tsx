@@ -1551,7 +1551,7 @@ export function HoleritesPage() {
 
                         <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="px-3.5 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-900/60 shadow-2xs">
-                                {isLoadingWorkers ? '...' : sortedWorkers?.length || 0} de {totalCount} Trabalhador(es)
+                                {isLoadingWorkers ? '...' : sortedFolhaRows?.length || 0} de {totalCount} Item(ns) de Folha
                             </Badge>
                         </div>
                     </div>
@@ -1568,14 +1568,14 @@ export function HoleritesPage() {
                         <span className="text-xs font-medium text-slate-300">
                             Total Líquido Selecionado: <strong className="text-emerald-400 font-mono text-sm font-bold">€ {selectedTotalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                         </span>
-                        {selectedWorkerIds.size < (sortedWorkers?.length || 0) && (
+                        {selectedWorkerIds.size < (sortedFolhaRows?.length || 0) && (
                             <Button
                                 size="sm"
                                 variant="link"
                                 onClick={handleSelectAllGlobal}
                                 className="text-xs text-indigo-400 hover:text-indigo-300 p-0 h-auto font-medium underline"
                             >
-                                Selecionar todos os {sortedWorkers?.length} da lista
+                                Selecionar todos os {sortedFolhaRows?.length} da lista
                             </Button>
                         )}
                     </div>
