@@ -504,10 +504,19 @@ export function calculateHoleriteAlta(options: {
     const descontoSSCalculado = Math.round((baseIncidenciaSS * params.ssTaxaTrabalhador + Number.EPSILON) * 100) / 100;
 
     // Se o imposto foi importado na planilha (ex: 218.80 €), utiliza o valor importado; senão, usa a taxa de 11%
-    const descontoSS = descontosParsed.imposto > 0 ? descontosParsed.imposto : descontoSSCalculado;
+    const descontoSS = Number(descontosParsed.imposto > 0 ? descontosParsed.imposto : descontoSSCalculado);
 
-    // Total de Abonos necessários para que: Total Abonos - Desconto SS === liquidoRealAlvo
-    const totalAbonosAlvo = Math.round((liquidoRealAlvo + descontoSS + Number.EPSILON) * 100) / 100;
+    // Descontos não fiscais autorizados (EPIs, Desconto Carro, Multas, Adiantamentos, Limpeza, etc.)
+    const nonTaxDiscounts = (descontosParsed.itemizedList || []).filter(item => {
+        const catNorm = (item.categoria || item.label || '').toLowerCase();
+        const isSS = catNorm.includes('impost') || catNorm.includes('segurid') || catNorm.includes('social') || catNorm.includes('ss');
+        const isBanc = catNorm.includes('banc') || catNorm.includes('taxa') || catNorm.includes('tarifa') || catNorm.includes('transfer');
+        return !isSS && !isBanc;
+    });
+
+    // Taxa bancária (deduzida da composição dos abonos brutos para fechar os centavos de transferência)
+    const taxaBancaria = Number(descontosParsed.taxasBancarias || 0);
+    const totalAbonosAlvo = Math.max(0, Math.round((totalRemuneracoes - taxaBancaria + Number.EPSILON) * 100) / 100);
 
     // Verbas fixas já alocadas
     const abonosFixos = vencimentoBase + subsFerias + subsNatal;
@@ -554,7 +563,12 @@ export function calculateHoleriteAlta(options: {
         Number.EPSILON
     ) * 100) / 100;
 
-    const totalDescontosEfetivo = descontoSS;
+    const totalDescontosEfetivo = Math.round((
+        descontoSS +
+        nonTaxDiscounts.reduce((sum, d) => sum + Number(d.valor || 0), 0) +
+        Number.EPSILON
+    ) * 100) / 100;
+
     const totalAReceberEfetivo = Math.round((totalAbonosEfetivo - totalDescontosEfetivo + Number.EPSILON) * 100) / 100;
 
     // Montagem das Linhas Oficiais do Holerite (TOConline layout)
@@ -591,8 +605,12 @@ export function calculateHoleriteAlta(options: {
         }] : []),
         {
             descricao: 'Segurança Social',
-            descontos: totalDescontosEfetivo,
+            descontos: descontoSS,
         },
+        ...nonTaxDiscounts.map(d => ({
+            descricao: d.descricao ? `${d.label} (${d.descricao})` : d.label,
+            descontos: d.valor,
+        })),
         {
             descricao: 'IRS - Taxa efetiva (Subsídio de Férias): 0%.',
             descontos: 0.00,
