@@ -81,17 +81,37 @@ export interface HoleriteAltaCalculado {
         alojamento: number;
         ajustesPositivos: number;
         totalRemuneracoes: number;
-        descontos: {
-            adiantamento: number;
-            aluguelCarros: number;
-            taxasBancarias: number;
-            imposto: number;
-            descontosAdicionais: number;
-            totalDescontosDetalhados: number;
-        };
+        descontos: HoleriteDescontosDetalhados;
         liquidoReal: number;
         clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
     };
+}
+
+export interface ItemizedDesconto {
+    categoria: string;
+    label: string;
+    valor: number;
+    descricao?: string;
+}
+
+export interface HoleriteDescontosDetalhados {
+    adiantamento: number;
+    aluguelCarros: number;
+    taxasBancarias: number;
+    imposto: number;
+    descontoCarro: number;
+    multaTransito: number;
+    combustible: number;
+    peajes: number;
+    suministros: number;
+    multaAlojamiento: number;
+    limpiezaDanos: number;
+    epis: number;
+    outros: number;
+    descontosAdicionais: number;
+    itemizedList: ItemizedDesconto[];
+    totalDescontosDetalhados: number;
+    totalDescontos?: number;
 }
 
 export interface HoleriteRegularizacaoCalculado {
@@ -118,15 +138,9 @@ export interface HoleriteRegularizacaoCalculado {
         totalBruto: number;
         clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
     };
-    descontos: {
-        adiantamento: number;
-        aluguelCarros: number;
-        taxasBancarias: number;
-        imposto: number;
-        descontosAdicionais: number;
-        totalDescontos: number;
-    };
-    liquidoFinal: number;
+    descontos: HoleriteDescontosDetalhados;
+    totalLiquido: number;
+    liquidoFinal?: number;
     formaPagamento: string;
     moeda: string;
 }
@@ -276,59 +290,149 @@ export function getPeriodoDatas(mesReferencia: string) {
 /**
  * Separa os descontos cadastrados em categorias padronizadas do holerite
  */
-export function parseDescontosCategorias(descontosList: any[]) {
+export function parseDescontosCategorias(descontosList: any[]): HoleriteDescontosDetalhados {
     let adiantamento = 0;
     let aluguelCarros = 0;
     let taxasBancarias = 0;
     let imposto = 0;
+    let descontoCarro = 0;
+    let multaTransito = 0;
+    let combustible = 0;
+    let peajes = 0;
+    let suministros = 0;
+    let multaAlojamiento = 0;
+    let limpiezaDanos = 0;
+    let epis = 0;
+    let outros = 0;
     let descontosAdicionais = 0;
+
+    const itemizedList: ItemizedDesconto[] = [];
 
     const normalizeText = (s: string) => (s || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
+        .toLowerCase()
+        .trim();
 
     for (const d of (descontosList || [])) {
-        const val = Number(d.valor || d.amount || 0);
+        const val = Math.round((Number(d.valor || d.amount || 0) + Number.EPSILON) * 100) / 100;
         if (val === 0) continue;
 
-        const cat = normalizeText(d.categoria || d.category || '');
-        const desc = normalizeText(d.descricao || d.description || '');
+        const rawCat = (d.categoria || d.category || '').trim();
+        const rawDesc = (d.descricao || d.description || '').trim();
+        const cat = normalizeText(rawCat);
+        const desc = normalizeText(rawDesc);
 
-        // Match category first, then description
-        if (cat.includes('adiant') || cat.includes('anticip') || (desc.includes('adiant') && !desc.includes('manual')) || (desc.includes('anticip') && !desc.includes('manual'))) {
-            adiantamento += val;
-        } else if (
-            cat.includes('carro') || cat.includes('veicul') || cat.includes('auto') || cat.includes('aluguel') || 
-            cat.includes('combust') || cat.includes('peaj') || cat.includes('pedag') || cat.includes('transito') ||
-            (desc.includes('carro') && !desc.includes('manual')) || (desc.includes('veicul') && !desc.includes('manual')) || (desc.includes('aluguel') && !desc.includes('manual'))
-        ) {
-            aluguelCarros += val;
-        } else if (
-            cat.includes('banc') || cat.includes('taxa') || cat.includes('tarifa') || cat.includes('transfer') ||
-            (desc.includes('banc') && !desc.includes('manual')) || (desc.includes('taxa') && !desc.includes('manual')) || (desc.includes('tarifa') && !desc.includes('manual'))
-        ) {
+        let label = '';
+
+        if (cat.includes('epi')) {
+            epis += val;
+            label = 'EPIs';
+        } else if (cat.includes('banc') || cat.includes('taxa') || cat.includes('tarifa') || cat.includes('transfer')) {
             taxasBancarias += val;
+            label = 'Taxas Bancárias';
         } else if (
             cat.includes('impost') || cat.includes('irpf') || cat.includes('irs') || cat.includes('retenc') || 
-            cat.includes('segurid') || cat.includes('social') || cat.includes(' ss') || cat === 'ss' ||
-            (desc.includes('impost') && !desc.includes('manual')) || (desc.includes('irpf') && !desc.includes('manual')) || (desc.includes('irs') && !desc.includes('manual')) || (desc.includes('segurid') && !desc.includes('manual'))
+            cat.includes('segurid') || cat.includes('social') || cat.includes(' ss') || cat === 'ss'
         ) {
             imposto += val;
+            label = 'Imposto / Segurança Social';
+        } else if (cat.includes('adiant') || cat.includes('anticip') || cat.includes('vale')) {
+            adiantamento += val;
+            label = 'Adiantamento';
+        } else if (cat.includes('multa') && (cat.includes('trans') || cat.includes('trafic') || cat.includes('veicul') || cat.includes('carro'))) {
+            multaTransito += val;
+            label = 'Multa de Trânsito';
+        } else if (cat.includes('combust') || cat.includes('gasolina') || cat.includes('diesel')) {
+            combustible += val;
+            label = 'Combustível';
+        } else if (cat.includes('peaj') || cat.includes('pedag') || cat.includes('portag')) {
+            peajes += val;
+            label = 'Pedágios (Peajes)';
+        } else if (cat.includes('suminist') || cat.includes('suprim') || cat.includes('material')) {
+            suministros += val;
+            label = 'Suprimentos (Suministros)';
+        } else if (cat.includes('multa') && (cat.includes('aloj') || cat.includes('morad') || cat.includes('vivienda') || cat.includes('casa'))) {
+            multaAlojamiento += val;
+            label = 'Multa de Alojamento';
+        } else if (cat.includes('limp') || cat.includes('dan') || cat.includes('avaria')) {
+            limpiezaDanos += val;
+            label = 'Limpeza ou Danos';
+        } else if (cat.includes('carro') || cat.includes('auto') || cat.includes('veicul') || cat.includes('aluguel')) {
+            descontoCarro += val;
+            aluguelCarros += val;
+            label = 'Aluguel de Carros';
         } else {
-            descontosAdicionais += val;
+            // Fallback checking description if category was generic or empty
+            if (desc.includes('epi') && !desc.includes('manual')) {
+                epis += val;
+                label = 'EPIs';
+            } else if ((desc.includes('banc') || desc.includes('taxa')) && !desc.includes('manual')) {
+                taxasBancarias += val;
+                label = 'Taxas Bancárias';
+            } else if ((desc.includes('impost') || desc.includes('segurid') || desc.includes('social')) && !desc.includes('manual')) {
+                imposto += val;
+                label = 'Imposto / Segurança Social';
+            } else if ((desc.includes('adiant') || desc.includes('anticip')) && !desc.includes('manual')) {
+                adiantamento += val;
+                label = 'Adiantamento';
+            } else if (desc.includes('multa') && desc.includes('trans') && !desc.includes('manual')) {
+                multaTransito += val;
+                label = 'Multa de Trânsito';
+            } else if ((desc.includes('combust') || desc.includes('gasolina')) && !desc.includes('manual')) {
+                combustible += val;
+                label = 'Combustível';
+            } else if (desc.includes('peaj') && !desc.includes('manual')) {
+                peajes += val;
+                label = 'Pedágios (Peajes)';
+            } else if (desc.includes('suminist') && !desc.includes('manual')) {
+                suministros += val;
+                label = 'Suprimentos (Suministros)';
+            } else if (desc.includes('aloj') && !desc.includes('manual')) {
+                multaAlojamiento += val;
+                label = 'Multa de Alojamento';
+            } else if ((desc.includes('limp') || desc.includes('dan')) && !desc.includes('manual')) {
+                limpiezaDanos += val;
+                label = 'Limpeza ou Danos';
+            } else if ((desc.includes('carro') || desc.includes('aluguel')) && !desc.includes('manual')) {
+                descontoCarro += val;
+                aluguelCarros += val;
+                label = 'Aluguel de Carros';
+            } else {
+                outros += val;
+                descontosAdicionais += val;
+                label = rawCat || rawDesc || 'Outros Descontos';
+            }
         }
+
+        itemizedList.push({
+            categoria: rawCat || label,
+            label: label || rawCat || 'Outros Descontos',
+            valor: val,
+            descricao: rawDesc && rawDesc !== 'Lançamento Manual' && rawDesc !== '-' ? rawDesc : undefined
+        });
     }
 
-    const totalDescontosDetalhados = adiantamento + aluguelCarros + taxasBancarias + imposto + descontosAdicionais;
+    const totalDescontosDetalhados = Math.round(itemizedList.reduce((acc, item) => acc + item.valor, 0) * 100) / 100;
 
     return {
         adiantamento,
         aluguelCarros,
         taxasBancarias,
         imposto,
+        descontoCarro,
+        multaTransito,
+        combustible,
+        peajes,
+        suministros,
+        multaAlojamiento,
+        limpiezaDanos,
+        epis,
+        outros,
         descontosAdicionais,
+        itemizedList,
         totalDescontosDetalhados,
+        totalDescontos: totalDescontosDetalhados,
     };
 }
 

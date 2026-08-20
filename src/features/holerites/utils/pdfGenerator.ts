@@ -413,13 +413,18 @@ export function generateHoleriteAltaPdf(
         doc.setFontSize(8);
         doc.setTextColor(20, 24, 33);
 
-        const descontosItens = [
-            { label: 'Adiantamento', val: data.detalhamento.descontos.adiantamento },
-            { label: 'Aluguel de Carros', val: data.detalhamento.descontos.aluguelCarros },
-            { label: 'Taxas Bancárias', val: data.detalhamento.descontos.taxasBancarias },
-            { label: 'Imposto / Retenções', val: data.detalhamento.descontos.imposto },
-            { label: 'Descontos Adicionais', val: data.detalhamento.descontos.descontosAdicionais },
-        ];
+        const descontosItens = data.detalhamento.descontos.itemizedList && data.detalhamento.descontos.itemizedList.length > 0
+            ? data.detalhamento.descontos.itemizedList.map(i => ({
+                label: i.descricao ? `${i.label} (${i.descricao})` : i.label,
+                val: i.valor
+            }))
+            : [
+                { label: 'Adiantamento', val: data.detalhamento.descontos.adiantamento },
+                { label: 'Aluguel de Carros', val: data.detalhamento.descontos.aluguelCarros },
+                { label: 'Taxas Bancárias', val: data.detalhamento.descontos.taxasBancarias },
+                { label: 'Imposto / Retenções', val: data.detalhamento.descontos.imposto },
+                { label: 'Descontos Adicionais', val: data.detalhamento.descontos.descontosAdicionais },
+            ];
 
         descontosItens.forEach(item => {
             doc.rect(rightTableX, ry, colTableW, 5.5, 'S');
@@ -658,13 +663,18 @@ export function generateHoleriteRegularizacaoPdf(data: HoleriteRegularizacaoCalc
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 24, 33);
 
-    const itensDesconto = [
-        { label: 'Adiantamento', val: data.descontos.adiantamento },
-        { label: 'Aluguel de Carros', val: data.descontos.aluguelCarros },
-        { label: 'Taxas Bancárias', val: data.descontos.taxasBancarias },
-        { label: 'Imposto', val: data.descontos.imposto },
-        { label: 'Descontos Adicionais', val: data.descontos.descontosAdicionais },
-    ];
+    const itensDesconto = data.descontos.itemizedList && data.descontos.itemizedList.length > 0
+        ? data.descontos.itemizedList.map(i => ({
+            label: i.descricao ? `${i.label} (${i.descricao})` : i.label,
+            val: i.valor
+        }))
+        : [
+            { label: 'Adiantamento', val: data.descontos.adiantamento },
+            { label: 'Aluguel de Carros', val: data.descontos.aluguelCarros },
+            { label: 'Taxas Bancárias', val: data.descontos.taxasBancarias },
+            { label: 'Imposto', val: data.descontos.imposto },
+            { label: 'Descontos Adicionais', val: data.descontos.descontosAdicionais },
+        ];
 
     itensDesconto.forEach(item => {
         doc.rect(margin, y, descTableW, 5.5, 'S');

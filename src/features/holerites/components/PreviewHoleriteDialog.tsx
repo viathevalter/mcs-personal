@@ -370,30 +370,27 @@ export function PreviewHoleriteDialog({
                                     {/* Table 2: Descontos */}
                                     <div className="border rounded-lg overflow-hidden">
                                         <div className="bg-slate-900 text-white font-bold px-3 py-2 flex justify-between text-xs">
-                                            <span>Descontos</span>
+                                            <span>Descontos Detalhados</span>
                                             <span>Valor</span>
                                         </div>
                                         <div className="divide-y divide-slate-100 text-xs">
-                                            <div className="px-3 py-1.5 flex justify-between">
-                                                <span>Adiantamento</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.adiantamento > 0 ? `${altaData.detalhamento.descontos.adiantamento.toFixed(2)}€` : '-'}</span>
-                                            </div>
-                                            <div className="px-3 py-1.5 flex justify-between">
-                                                <span>Aluguel de Carros</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.aluguelCarros > 0 ? `${altaData.detalhamento.descontos.aluguelCarros.toFixed(2)}€` : '-'}</span>
-                                            </div>
-                                            <div className="px-3 py-1.5 flex justify-between">
-                                                <span>Taxas Bancárias</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.taxasBancarias > 0 ? `${altaData.detalhamento.descontos.taxasBancarias.toFixed(2)}€` : '-'}</span>
-                                            </div>
-                                            <div className="px-3 py-1.5 flex justify-between">
-                                                <span>Imposto / Retenções</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.imposto > 0 ? `${altaData.detalhamento.descontos.imposto.toFixed(2)}€` : '-'}</span>
-                                            </div>
-                                            <div className="px-3 py-1.5 flex justify-between">
-                                                <span>Descontos Adicionais</span>
-                                                <span className="font-mono">{altaData.detalhamento.descontos.descontosAdicionais > 0 ? `${altaData.detalhamento.descontos.descontosAdicionais.toFixed(2)}€` : '-'}</span>
-                                            </div>
+                                            {altaData.detalhamento.descontos.itemizedList && altaData.detalhamento.descontos.itemizedList.length > 0 ? (
+                                                altaData.detalhamento.descontos.itemizedList.map((item, idx) => (
+                                                    <div key={idx} className="px-3 py-2 flex justify-between items-center">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium text-slate-800">{item.label}</span>
+                                                            {item.descricao && (
+                                                                <span className="text-[10px] text-slate-500 font-normal">↳ {item.descricao}</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-mono text-slate-900 font-semibold">{item.valor.toFixed(2)}€</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-3 text-slate-400 text-center italic">
+                                                    Nenhum desconto no período
+                                                </div>
+                                            )}
                                             <div className="px-3 py-2.5 bg-rose-50 flex justify-between items-center font-bold text-rose-700">
                                                 <span>Total Descontos</span>
                                                 <span className="font-mono">{altaData.detalhamento.descontos.totalDescontosDetalhados.toFixed(2)}€</span>
@@ -491,36 +488,33 @@ export function PreviewHoleriteDialog({
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-900 text-white font-bold text-xs">
-                                                    <th className="py-2 px-3">Descontos</th>
+                                                    <th className="py-2 px-3">Descontos Detalhados</th>
                                                     <th className="py-2 px-3 text-right w-28">Valor (€)</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-xs">
-                                                <tr>
-                                                    <td className="py-1.5 px-3">Adiantamento</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono">{regularizacaoData.descontos.adiantamento > 0 ? `${regularizacaoData.descontos.adiantamento.toFixed(2)}€` : '-'}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="py-1.5 px-3">Aluguel de Carros</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono">{regularizacaoData.descontos.aluguelCarros > 0 ? `${regularizacaoData.descontos.aluguelCarros.toFixed(2)}€` : '-'}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="py-1.5 px-3">Taxas Bancárias</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono">{regularizacaoData.descontos.taxasBancarias > 0 ? `${regularizacaoData.descontos.taxasBancarias.toFixed(2)}€` : '-'}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="py-1.5 px-3">Imposto</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono">{regularizacaoData.descontos.imposto > 0 ? `${regularizacaoData.descontos.imposto.toFixed(2)}€` : '-'}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="py-1.5 px-3">Descontos Adicionais</td>
-                                                    <td className="py-1.5 px-3 text-right font-mono">{regularizacaoData.descontos.descontosAdicionais > 0 ? `${regularizacaoData.descontos.descontosAdicionais.toFixed(2)}€` : '-'}</td>
-                                                </tr>
+                                                {regularizacaoData.descontos.itemizedList && regularizacaoData.descontos.itemizedList.length > 0 ? (
+                                                    regularizacaoData.descontos.itemizedList.map((item, idx) => (
+                                                        <tr key={idx}>
+                                                            <td className="py-1.5 px-3">
+                                                                <span className="font-medium text-slate-800 block">{item.label}</span>
+                                                                {item.descricao && (
+                                                                    <span className="text-[10px] text-slate-500 font-normal block">↳ {item.descricao}</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-900">{item.valor.toFixed(2)}€</td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={2} className="py-3 px-3 text-slate-400 text-center italic">Nenhum desconto no período</td>
+                                                    </tr>
+                                                )}
                                             </tbody>
                                             <tfoot>
                                                 <tr className="bg-rose-50 border-t font-bold text-rose-700">
                                                     <td className="py-2 px-3">Total Descontos:</td>
-                                                    <td className="py-2 px-3 text-right font-mono">{regularizacaoData.descontos.totalDescontos.toFixed(2)}€</td>
+                                                    <td className="py-2 px-3 text-right font-mono">{(regularizacaoData.descontos.totalDescontos || regularizacaoData.descontos.totalDescontosDetalhados).toFixed(2)}€</td>
                                                 </tr>
                                             </tfoot>
                                         </table>
