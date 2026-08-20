@@ -195,8 +195,8 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
         : '';
 
     return (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl md:max-w-6xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -469,7 +469,7 @@ export const GenerateDocumentWizardModal: React.FC<GenerateDocumentWizardModalPr
                                 <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
                                     Valores Substituídos Automaticamente:
                                 </h4>
-                                <div className="grid grid-cols-2 gap-2 text-xs max-h-44 overflow-y-auto pr-1">
+                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 text-xs max-h-48 overflow-y-auto pr-1">
                                     {Object.entries(dataMap).map(([k, v]) => (
                                         <div key={k} className="p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
                                             <span className="font-mono text-[10px] text-blue-600 dark:text-blue-400 block font-bold">
