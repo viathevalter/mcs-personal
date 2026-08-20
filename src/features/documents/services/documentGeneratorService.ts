@@ -301,23 +301,35 @@ export const documentGeneratorService = {
             filledBuffer = new Uint8Array(zipProcessedBuffer);
         }
 
-        // 4. Upload generated document to Supabase Storage bucket 'documents'
+        // 4. Upload generated document to Supabase Storage
         const fileName = `generated_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.docx`;
         const filePath = `generated/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('documents')
+        let usedBucket = 'generated-documents';
+        let uploadRes = await supabase.storage
+            .from(usedBucket)
             .upload(filePath, filledBuffer, {
                 contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 upsert: true
             });
 
-        if (uploadError) {
-            throw new Error(`Erro ao fazer upload do documento gerado: ${uploadError.message}`);
+        if (uploadRes.error) {
+            // Fallback to 'documents' bucket
+            const fallbackRes = await supabase.storage
+                .from('documents')
+                .upload(filePath, filledBuffer, {
+                    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    upsert: true
+                });
+            if (!fallbackRes.error) {
+                usedBucket = 'documents';
+            } else {
+                throw new Error(`Erro ao fazer upload do documento gerado: ${uploadRes.error.message}`);
+            }
         }
 
         const { data: publicUrlData } = supabase.storage
-            .from('documents')
+            .from(usedBucket)
             .getPublicUrl(filePath);
 
         const documentUrl = publicUrlData.publicUrl;
@@ -398,17 +410,31 @@ export const documentGeneratorService = {
         const sigFileName = `sig_${Date.now()}_${token.slice(0, 8)}.png`;
         const sigPath = `signatures/${sigFileName}`;
 
-        const { error: sigUploadErr } = await supabase.storage
-            .from('documents')
+        let sigBucket = 'proposal-signatures';
+        let sigUploadErr = (await supabase.storage
+            .from(sigBucket)
             .upload(sigPath, sigBlob, {
                 contentType: 'image/png',
                 upsert: true
-            });
+            })).error;
+
+        if (sigUploadErr) {
+            const fallbackRes = await supabase.storage
+                .from('signatures')
+                .upload(sigPath, sigBlob, {
+                    contentType: 'image/png',
+                    upsert: true
+                });
+            if (!fallbackRes.error) {
+                sigUploadErr = null;
+                sigBucket = 'signatures';
+            }
+        }
 
         let signatureUrl = payload.signatureDataUrl;
         if (!sigUploadErr) {
             const { data: sigPublicUrlData } = supabase.storage
-                .from('documents')
+                .from(sigBucket)
                 .getPublicUrl(sigPath);
             signatureUrl = sigPublicUrlData.publicUrl;
         }
