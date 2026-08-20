@@ -112,17 +112,17 @@ export const pdfExportService = {
                 container.appendChild(sigBlock);
             }
 
-            // 5. Capture HTML to Canvas
+            // 5. Capture HTML to Canvas (High clarity scale 1.5)
             const canvas = await html2canvas(container, {
-                scale: 2,
+                scale: 1.5,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff'
             });
 
-            // 6. Generate Multi-page A4 PDF with jsPDF
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
+            // 6. Generate Compressed Multi-page A4 PDF with jsPDF (stream compression enabled)
+            const imgData = canvas.toDataURL('image/jpeg', 0.82);
+            const pdf = new jsPDF('p', 'mm', 'a4', true);
             const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
             const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
@@ -133,14 +133,14 @@ export const pdfExportService = {
             let position = 0;
 
             // Page 1
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
             heightLeft -= pageHeight;
 
             // Subsequent pages
             while (heightLeft > 0) {
                 position -= pageHeight;
                 pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
                 heightLeft -= pageHeight;
             }
 
