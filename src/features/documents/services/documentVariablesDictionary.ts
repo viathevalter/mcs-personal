@@ -41,6 +41,9 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{empresa.nome}}', label: 'Nome da Sua Empresa', category: 'empresa', example: 'Mastercorp' },
     { key: '{{empresa.nif}}', label: 'NIF da Sua Empresa', category: 'empresa', example: 'B98765432' },
     { key: '{{empresa.endereco}}', label: 'Endereço da Sua Empresa', category: 'empresa', example: 'Plaza de España, 1' },
+    { key: '{{acuerdo_codigo}}', label: 'Código do Acordo / Contrato', category: 'geral', example: 'AC-2026-001' },
+    { key: '{{acuerdo_data}}', label: 'Data do Acordo', category: 'geral', example: '20/08/2026' },
+    { key: '{{contenido}}', label: 'Conteúdo / Cláusulas Gerais', category: 'geral', example: 'Conforme estipulado pelas partes' },
     { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '20 de Agosto de 2026' },
     { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '20/08/2026' },
     { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' }
@@ -72,6 +75,7 @@ export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Rec
                 : 'NIF/NIE';
 
     const docNum = worker?.nif || worker?.nie || worker?.dni || worker?.pasaporte || worker?.document_number || '';
+    const acuerdoCode = `AC-${Date.now().toString().slice(-6)}`;
 
     return {
         'trabalhador.nome': worker?.nome || worker?.display_name || worker?.full_name || '',
@@ -91,9 +95,12 @@ export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Rec
         'trabalhador.salario_base': worker?.base_salary ? `${worker.base_salary} €` : '',
         'trabalhador.data_admissao': hireDate,
         
-        'empresa.nome': empresaName,
-        'empresa.nif': '',
-        'empresa.endereco': '',
+        'empresa.nome': empresaName || 'Mastercorp',
+        'empresa.nif': 'B98765432',
+        'empresa.endereco': 'Plaza de España, 1 - Madrid',
+        'acuerdo_codigo': acuerdoCode,
+        'acuerdo_data': formattedDateCurta,
+        'contenido': 'Conforme estipulado pelas partes no presente acordo.',
         'geral.data_atual': formattedDateExtenso,
         'geral.data_curta': formattedDateCurta,
         'geral.cidade_emissao': 'Madrid'
@@ -104,6 +111,7 @@ export function buildClientDataMap(client: any, empresaName = 'Mastercorp'): Rec
     const today = new Date();
     const formattedDateExtenso = today.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
     const formattedDateCurta = today.toLocaleDateString('pt-BR');
+    const acuerdoCode = `AC-${Date.now().toString().slice(-6)}`;
 
     return {
         'cliente.nome_legal': client?.legal_name || client?.name || '',
@@ -115,12 +123,15 @@ export function buildClientDataMap(client: any, empresaName = 'Mastercorp'): Rec
         'cliente.cidade': client?.city || '',
         'cliente.codigo_postal': client?.postal_code || '',
         'cliente.pais': client?.country || 'Espanha',
-        'cliente.contato_responsavel': client?.contact_name || client?.billing_contact_name || client?.collections_contact_name || '',
+        'cliente.contato_responsavel': client?.contact_name || client?.billing_contact_name || client?.collections_contact_name || client?.legal_name || '',
         'cliente.prazo_pagamento': client?.payment_terms || '30 dias',
 
-        'empresa.nome': empresaName,
-        'empresa.nif': '',
-        'empresa.endereco': '',
+        'empresa.nome': empresaName || 'Mastercorp',
+        'empresa.nif': 'B98765432',
+        'empresa.endereco': 'Plaza de España, 1 - Madrid',
+        'acuerdo_codigo': acuerdoCode,
+        'acuerdo_data': formattedDateCurta,
+        'contenido': 'Conforme estipulado pelas partes no presente acordo.',
         'geral.data_atual': formattedDateExtenso,
         'geral.data_curta': formattedDateCurta,
         'geral.cidade_emissao': 'Madrid'

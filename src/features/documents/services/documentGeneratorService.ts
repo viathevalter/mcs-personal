@@ -39,20 +39,51 @@ export const documentGeneratorService = {
         }
         const templateBuffer = await response.arrayBuffer();
 
-        // 2. Prepare variables map for docx-templates (supports both delimiter styles)
-        const cmdData: Record<string, any> = {};
+        // 2. Prepare nested and flat variables map for docx-templates
+        const cmdData: Record<string, any> = {
+            cliente: {},
+            trabalhador: {},
+            empresa: {},
+            geral: {}
+        };
+
         for (const [key, val] of Object.entries(params.dataMap)) {
             const cleanKey = key.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
-            cmdData[cleanKey] = val || '';
-            // Also map key with brackets
-            cmdData[key] = val || '';
+            const valueStr = val || '';
+
+            cmdData[cleanKey] = valueStr;
+            cmdData[key] = valueStr;
+
+            if (cleanKey.includes('.')) {
+                const [category, ...rest] = cleanKey.split('.');
+                const prop = rest.join('.');
+                if (!cmdData[category] || typeof cmdData[category] !== 'object') {
+                    cmdData[category] = {};
+                }
+                cmdData[category][prop] = valueStr;
+                if (!cmdData[prop]) {
+                    cmdData[prop] = valueStr;
+                }
+            }
         }
+
+        const dataResolver = (query?: string) => {
+            if (!query) return cmdData;
+            const clean = query.trim();
+            if (clean.includes('.')) {
+                const [parent, child] = clean.split('.');
+                if (cmdData[parent] && typeof cmdData[parent] === 'object' && cmdData[parent][child] !== undefined) {
+                    return cmdData[parent][child];
+                }
+            }
+            return cmdData[clean] ?? params.dataMap[clean] ?? params.dataMap[`{{${clean}}}`] ?? '';
+        };
 
         let outputUint8Array: Uint8Array;
         try {
             outputUint8Array = await createReport({
                 template: new Uint8Array(templateBuffer),
-                data: cmdData,
+                data: dataResolver as any,
                 cmdDelimiter: ['{{', '}}'],
                 failFast: false
             });
