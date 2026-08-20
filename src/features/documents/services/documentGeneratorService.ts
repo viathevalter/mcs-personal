@@ -337,9 +337,8 @@ export const documentGeneratorService = {
         // 5. Generate secure public signing token
         const publicToken = crypto.randomUUID();
 
-        // 6. Save in core_docs.generated_documents
+        // 6. Save in public.generated_documents
         const { data: docRecord, error: dbError } = await supabase
-            .schema('core_docs' as any)
             .from('generated_documents')
             .insert({
                 template_id: params.templateId || null,
@@ -364,7 +363,6 @@ export const documentGeneratorService = {
 
     async listGeneratedDocuments(): Promise<GeneratedDocument[]> {
         const { data, error } = await supabase
-            .schema('core_docs' as any)
             .from('generated_documents')
             .select('*')
             .order('created_at', { ascending: false });
@@ -379,7 +377,6 @@ export const documentGeneratorService = {
 
     async getByToken(token: string): Promise<GeneratedDocument | null> {
         const { data, error } = await supabase
-            .schema('core_docs' as any)
             .from('generated_documents')
             .select('*')
             .eq('public_token', token)
@@ -441,7 +438,6 @@ export const documentGeneratorService = {
 
         // 2. Update record in database
         const { data, error } = await supabase
-            .schema('core_docs' as any)
             .from('generated_documents')
             .update({
                 signature_status: 'signed',
@@ -462,7 +458,6 @@ export const documentGeneratorService = {
 
     async deleteGeneratedDocument(id: string): Promise<void> {
         const { error } = await supabase
-            .schema('core_docs' as any)
             .from('generated_documents')
             .delete()
             .eq('id', id);
