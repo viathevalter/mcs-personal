@@ -4,14 +4,13 @@ import { mapSupabaseError } from '@/shared/api/supabaseError';
 export interface WorkerStatusHistory {
     id: string;
     worker_id: string;
-    change_type: 'TRABALHADOR' | 'SEGURIDADE';
-    old_value: string | null;
+    change_type: string;
+    old_value: string;
     new_value: string;
     effective_date: string;
-    comments: string | null;
-    changed_by: string | null;
+    comments?: string;
+    changed_by?: string;
     created_at: string;
-    // Joined user info
     changed_by_name?: string;
 }
 
@@ -47,7 +46,6 @@ export async function getWorkerStatusHistory(workerId: string): Promise<WorkerSt
     }));
 }
 
-
 export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): Promise<void> {
     const { workerId, statusTrabalhador, statusSeguridad, effectiveDate, comments } = payload;
 
@@ -55,7 +53,7 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
     const { data: worker, error: fetchError } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('status_trabajador, status_seguridad, cod_colab, nif, niss, dni, nie, contracts(empresa_id)')
+        .select('status_trabajador, status_seguridad, cod_colab, nome, nif, niss, dni, nie, contracts(empresa_id)')
         .eq('id', workerId)
         .single();
 
@@ -111,7 +109,19 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
             .eq('cod_colab', worker.cod_colab);
 
         if (syncError) {
-            console.error("Erro ao sincronizar com public.colaboradores:", syncError);
+            console.error("Erro ao sincronizar com public.colaboradores por cod_colab:", syncError);
+        }
+    } else if (worker.nome) {
+        const { error: syncByNameError } = await supabase
+            .from('colaboradores')
+            .update({
+                status_trabajador: statusTrabalhador,
+                status_seguridad: statusSeguridad
+            })
+            .ilike('nombre', worker.nome);
+
+        if (syncByNameError) {
+            console.error("Erro ao sincronizar com public.colaboradores por nome:", syncByNameError);
         }
     }
 
@@ -119,7 +129,10 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
     const userId = (await supabase.auth.getUser()).data.user?.id;
     const historyInserts: any[] = [];
 
-    if (oldStatusTrabalhador !== statusTrabalhador) {
+    const isTrabChanged = (oldStatusTrabalhador || '').toLowerCase().trim() !== (statusTrabalhador || '').toLowerCase().trim();
+    const isSegChanged = (oldStatusSeguridad || '').toLowerCase().trim() !== (statusSeguridad || '').toLowerCase().trim();
+
+    if (isTrabChanged) {
         historyInserts.push({
             worker_id: workerId,
             change_type: 'TRABALHADOR',
@@ -131,7 +144,7 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
         });
     }
 
-    if (oldStatusSeguridad !== statusSeguridad) {
+    if (isSegChanged) {
         historyInserts.push({
             worker_id: workerId,
             change_type: 'SEGURIDADE',
@@ -149,29 +162,8 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
             .from('worker_status_history')
             .insert(historyInserts);
 
-        if (historyError) console.error("Erro ao registrar histórico de status:", historyError);
-    }
-
-    // 5. Se o status passou para Inativo/Desligado, finalizar alocações ativas
-    if (['INATIVO', 'INACTIVO', 'BAIXA', 'DESLIGADO', 'DESISTIU'].includes(statusTrabUpper)) {
-        if (worker.cod_colab) {
-            await supabase
-                .from('colaborador_por_pedido')
-                .update({ fechasalidatrabajador: effectiveDate })
-                .eq('cod_colab', worker.cod_colab)
-                .is('fechasalidatrabajador', null);
+        if (historyError) {
+            console.error("Erro ao registrar histórico de status:", historyError);
         }
-
-        await supabase
-            .schema('core_personal')
-            .from('worker_assignments')
-            .update({ 
-                status: 'completed', 
-                end_date: effectiveDate 
-            })
-            .eq('worker_id', workerId)
-            .in('status', ['planned', 'active', 'paused'])
-            .is('end_date', null);
     }
 }
-

@@ -19,13 +19,17 @@ export const useUpdateWorkerStatusUnified = () => {
 
     return useMutation({
         mutationFn: (payload: UnifiedStatusPayload) => updateWorkerStatusUnified(payload),
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['worker', variables.workerId] });
-            queryClient.invalidateQueries({ queryKey: ['workers'] });
-            queryClient.invalidateQueries({ queryKey: ['workerStatusHistory', variables.workerId] });
-            queryClient.invalidateQueries({ queryKey: ['workerAllocations', variables.workerId] });
-            queryClient.invalidateQueries({ queryKey: ['seguridade'] });
-            
+        onSuccess: async (_, variables) => {
+            // Força a invalidação e o re-fetch ativo imediato de todas as queries relacionadas ao trabalhador
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['worker', variables.workerId], refetchType: 'active' }),
+                queryClient.invalidateQueries({ queryKey: ['workers'], refetchType: 'active' }),
+                queryClient.invalidateQueries({ queryKey: ['workerStatusHistory', variables.workerId], refetchType: 'active' }),
+                queryClient.invalidateQueries({ queryKey: ['workerAllocations', variables.workerId], refetchType: 'active' }),
+                queryClient.invalidateQueries({ queryKey: ['seguridade'], refetchType: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['worker', variables.workerId] })
+            ]);
+
             toast.success('Status do Trabalhador e da Seguridade Social atualizados com sucesso!');
         },
         onError: (error: any) => {
