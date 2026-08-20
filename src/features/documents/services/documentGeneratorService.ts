@@ -55,7 +55,26 @@ export const documentGeneratorService = {
                 // Perform direct replacement for all variables in dataMap
                 for (const [k, v] of Object.entries(params.dataMap)) {
                     const cleanK = k.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
-                    const valStr = v || '';
+                    let valStr = v || '';
+
+                    // Convert HTML/RichText linebreaks and escape XML characters safely
+                    if (valStr) {
+                        valStr = valStr
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .replace(/<\/p>/gi, '\n\n')
+                            .replace(/<\/div>/gi, '\n')
+                            .replace(/<\/li>/gi, '\n')
+                            .replace(/<[^>]+>/g, '')
+                            .replace(/&nbsp;/gi, ' ')
+                            .replace(/&amp;/gi, '&')
+                            .replace(/&lt;/gi, '<')
+                            .replace(/&gt;/gi, '>')
+                            .replace(/&quot;/gi, '"')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/\n/g, '</w:t><w:br/><w:t>');
+                    }
 
                     if (cleanK) {
                         const escapedK = cleanK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
