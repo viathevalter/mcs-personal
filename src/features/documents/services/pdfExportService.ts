@@ -8,15 +8,15 @@ export const pdfExportService = {
      * Downloads a generated document as PDF.
      * If signed, attaches the formal digital signature seal block at the bottom before exporting.
      */
-    async downloadDocumentAsPdf(document: GeneratedDocument): Promise<void> {
+    async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
-        const response = await fetch(document.document_url);
+        const response = await fetch(docItem.document_url);
         if (!response.ok) {
             throw new Error(`Não foi possível carregar o arquivo do documento.`);
         }
         const blob = await response.blob();
 
-        // 2. Create offscreen container
+        // 2. Create offscreen container using global document DOM
         const container = document.createElement('div');
         container.style.position = 'absolute';
         container.style.left = '-9999px';
@@ -34,8 +34,8 @@ export const pdfExportService = {
             await renderAsync(blob, container);
 
             // 4. If signed, replace placeholder inside document and append signature block
-            if (document.signature_status === 'signed') {
-                if (document.signature_url) {
+            if (docItem.signature_status === 'signed') {
+                if (docItem.signature_url) {
                     const placeholders = [
                         '{{IMAGE FIRMA_CLIENTE}}_',
                         '{{IMAGE FIRMA_CLIENTE}}',
@@ -68,7 +68,7 @@ export const pdfExportService = {
                                 const span = document.createElement('span');
                                 let html = text;
                                 for (const ph of placeholders) {
-                                    const imgTag = `<img src="${document.signature_url}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
+                                    const imgTag = `<img src="${docItem.signature_url}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
                                     html = html.split(ph).join(imgTag);
                                 }
                                 span.innerHTML = html;
@@ -91,8 +91,8 @@ export const pdfExportService = {
                 sigBlock.style.backgroundColor = '#f0fdf4';
                 sigBlock.style.pageBreakInside = 'avoid';
 
-                const formattedDate = document.signed_at
-                    ? new Date(document.signed_at).toLocaleString('pt-BR')
+                const formattedDate = docItem.signed_at
+                    ? new Date(docItem.signed_at).toLocaleString('pt-BR')
                     : new Date().toLocaleString('pt-BR');
 
                 sigBlock.innerHTML = `
@@ -101,11 +101,11 @@ export const pdfExportService = {
                         <span style="font-size: 11px; color: #059669;">VALIDADO E VERIFICADO</span>
                     </div>
                     <div style="display: flex; gap: 20px; align-items: center;">
-                        ${document.signature_url ? `<img src="${document.signature_url}" style="max-height: 70px; max-width: 220px; object-contain: contain; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; background: #ffffff;" />` : ''}
+                        ${docItem.signature_url ? `<img src="${docItem.signature_url}" style="max-height: 70px; max-width: 220px; object-contain: contain; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; background: #ffffff;" />` : ''}
                         <div style="font-size: 12px; color: #334155; line-height: 1.6;">
-                            <p style="margin: 0;"><strong>Assinado por:</strong> ${document.signed_by_name || 'N/A'}</p>
+                            <p style="margin: 0;"><strong>Assinado por:</strong> ${docItem.signed_by_name || 'N/A'}</p>
                             <p style="margin: 0;"><strong>Data e Hora:</strong> ${formattedDate}</p>
-                            <p style="margin: 0; font-family: monospace; font-size: 10px; color: #64748b;"><strong>Token Audit:</strong> ${document.public_token}</p>
+                            <p style="margin: 0; font-family: monospace; font-size: 10px; color: #64748b;"><strong>Token Audit:</strong> ${docItem.public_token}</p>
                         </div>
                     </div>
                 `;
@@ -129,10 +129,10 @@ export const pdfExportService = {
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
             // Clean PDF filename
-            const cleanTitle = (document.title || 'documento')
+            const cleanTitle = (docItem.title || 'documento')
                 .replace(/[^a-zA-Z0-9_-]/g, '_')
                 .toLowerCase();
-            const pdfName = document.signature_status === 'signed'
+            const pdfName = docItem.signature_status === 'signed'
                 ? `${cleanTitle}_assinado.pdf`
                 : `${cleanTitle}.pdf`;
 
