@@ -118,6 +118,34 @@ export const PublicDocumentSignaturePage: React.FC = () => {
     };
 
     // --- CANVAS SIGNATURE DRAWING HANDLERS ---
+    const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+
+        let clientX = 0;
+        let clientY = 0;
+
+        if ('touches' in e) {
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+        } else {
+            clientX = (e as React.MouseEvent<HTMLCanvasElement>).clientX;
+            clientY = (e as React.MouseEvent<HTMLCanvasElement>).clientY;
+        }
+
+        // Scale factor between CSS display size and internal canvas resolution
+        const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    };
+
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -127,12 +155,9 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         setIsDrawing(true);
         setHasSignature(true);
 
-        const rect = canvas.getBoundingClientRect();
-        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
+        const { x, y } = getCanvasCoordinates(e);
         ctx.beginPath();
-        ctx.moveTo(clientX - rect.left, clientY - rect.top);
+        ctx.moveTo(x, y);
     };
 
     const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -142,15 +167,13 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        const { x, y } = getCanvasCoordinates(e);
 
         ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.lineTo(clientX - rect.left, clientY - rect.top);
+        ctx.lineTo(x, y);
         ctx.stroke();
     };
 
@@ -446,12 +469,13 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                                     </button>
                                 </div>
 
-                                <div className="bg-white rounded-xl overflow-hidden border-2 border-dashed border-slate-500 touch-none">
+                                <div className="bg-white rounded-xl overflow-hidden border-2 border-dashed border-slate-400 dark:border-slate-600 shadow-inner">
                                     <canvas
                                         ref={canvasRef}
-                                        width={700}
-                                        height={180}
-                                        className="w-full h-44 cursor-crosshair bg-white"
+                                        width={900}
+                                        height={240}
+                                        className="w-full h-48 cursor-crosshair bg-white block select-none"
+                                        style={{ touchAction: 'none' }}
                                         onMouseDown={startDrawing}
                                         onMouseMove={draw}
                                         onMouseUp={stopDrawing}
