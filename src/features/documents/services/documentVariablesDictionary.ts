@@ -37,16 +37,28 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{cliente.contato_responsavel}}', label: 'Contato / Representante Legal', category: 'cliente', example: 'Sr. Carlos Rodriguez' },
     { key: '{{cliente.prazo_pagamento}}', label: 'Prazo / Condição de Pagamento', category: 'cliente', example: '30 dias após faturamento' },
 
-    // --- EMPRESA EMITENTE & GERAL ---
+    // --- ALIASES DO CLIENTE DO RODAPÉ / SIGNATÁRIO ---
+    { key: '{{cliente_empresa}}', label: 'Empresa do Cliente (Rodapé)', category: 'cliente', example: 'Wiseowe LDA' },
+    { key: '{{cliente_nome}}', label: 'Nome do Destinatário / Contato', category: 'cliente', example: 'Carlos Rodriguez' },
+    { key: '{{cliente_email}}', label: 'E-mail do Destinatário', category: 'cliente', example: 'info@wiseowe.com' },
+    { key: '{{cliente_telefone}}', label: 'Telefone do Destinatário', category: 'cliente', example: '+34 912 345 678' },
+    { key: '{{cliente_endereco}}', label: 'Endereço do Destinatário', category: 'cliente', example: 'Rua S. Tomé e Príncipe, 267' },
+    { key: '{{cliente_cidade}}', label: 'Cidade do Destinatário', category: 'cliente', example: 'Vila Nova de Gaia' },
+    { key: '{{cliente_cif}}', label: 'CIF / NIF do Destinatário', category: 'cliente', example: '518599280' },
+
+    // --- EMPRESA EMITENTE, CONTEÚDO LIVRE & GERAL ---
     { key: '{{empresa.nome}}', label: 'Nome da Sua Empresa', category: 'empresa', example: 'Mastercorp' },
     { key: '{{empresa.nif}}', label: 'NIF da Sua Empresa', category: 'empresa', example: 'B98765432' },
     { key: '{{empresa.endereco}}', label: 'Endereço da Sua Empresa', category: 'empresa', example: 'Plaza de España, 1' },
     { key: '{{acuerdo_codigo}}', label: 'Código do Acordo / Contrato', category: 'geral', example: 'AC-2026-001' },
     { key: '{{acuerdo_data}}', label: 'Data do Acordo', category: 'geral', example: '20/08/2026' },
-    { key: '{{contenido}}', label: 'Conteúdo / Cláusulas Gerais', category: 'geral', example: 'Conforme estipulado pelas partes' },
+    { key: '{{contenido}}', label: 'Conteúdo Livre / Cláusulas Especiais', category: 'geral', example: 'Acordo comercial e condições acordadas.' },
+    { key: '{{conteudo}}', label: 'Conteúdo Livre (Alias)', category: 'geral', example: 'Cláusulas especiais do contrato' },
     { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '20 de Agosto de 2026' },
     { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '20/08/2026' },
-    { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' }
+    { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' },
+    { key: '{{assinatura.nome}}', label: 'Nome do Signatário Registrado', category: 'geral', example: 'Christian Andrade' },
+    { key: '{{assinatura.data}}', label: 'Data da Assinatura', category: 'geral', example: '20/08/2026' }
 ];
 
 export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Record<string, string> {
@@ -76,9 +88,10 @@ export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Rec
 
     const docNum = worker?.nif || worker?.nie || worker?.dni || worker?.pasaporte || worker?.document_number || '';
     const acuerdoCode = `AC-${Date.now().toString().slice(-6)}`;
+    const workerName = worker?.nome || worker?.display_name || worker?.full_name || '';
 
     return {
-        'trabalhador.nome': worker?.nome || worker?.display_name || worker?.full_name || '',
+        'trabalhador.nome': workerName,
         'trabalhador.nif': docNum,
         'trabalhador.nss': worker?.niss || worker?.nuss || worker?.nss || worker?.social_security || '',
         'trabalhador.documento_tipo': docType,
@@ -95,15 +108,27 @@ export function buildWorkerDataMap(worker: any, empresaName = 'Mastercorp'): Rec
         'trabalhador.salario_base': worker?.base_salary ? `${worker.base_salary} €` : '',
         'trabalhador.data_admissao': hireDate,
         
+        // Aliases do Trabalhador como Destinatário
+        'cliente_empresa': empresaName,
+        'cliente_nome': workerName,
+        'cliente_email': worker?.email || worker?.correo || '',
+        'cliente_telefone': worker?.movil || worker?.phone || '',
+        'cliente_endereco': worker?.address_line || worker?.morada_contrato || '',
+        'cliente_cidade': worker?.location || worker?.city || '',
+        'cliente_cif': docNum,
+
         'empresa.nome': empresaName || 'Mastercorp',
         'empresa.nif': 'B98765432',
         'empresa.endereco': 'Plaza de España, 1 - Madrid',
         'acuerdo_codigo': acuerdoCode,
         'acuerdo_data': formattedDateCurta,
         'contenido': 'Conforme estipulado pelas partes no presente acordo.',
+        'conteudo': 'Conforme estipulado pelas partes no presente acordo.',
         'geral.data_atual': formattedDateExtenso,
         'geral.data_curta': formattedDateCurta,
-        'geral.cidade_emissao': 'Madrid'
+        'geral.cidade_emissao': 'Madrid',
+        'assinatura.nome': workerName,
+        'assinatura.data': formattedDateCurta
     };
 }
 
@@ -113,18 +138,36 @@ export function buildClientDataMap(client: any, empresaName = 'Mastercorp'): Rec
     const formattedDateCurta = today.toLocaleDateString('pt-BR');
     const acuerdoCode = `AC-${Date.now().toString().slice(-6)}`;
 
+    const legalName = client?.legal_name || client?.name || '';
+    const tradeName = client?.trade_name || legalName;
+    const contactPerson = client?.contact_name || client?.billing_contact_name || client?.collections_contact_name || legalName;
+    const cifNum = client?.tax_id || client?.vat_number || client?.cif || client?.nif || '';
+    const emailStr = client?.email || client?.billing_email || '';
+    const phoneStr = client?.phone || client?.mobile || client?.contact_phone || '';
+    const addressStr = client?.address_line || client?.address || '';
+    const cityStr = client?.city || '';
+
     return {
-        'cliente.nome_legal': client?.legal_name || client?.name || '',
-        'cliente.nome_comercial': client?.trade_name || client?.legal_name || client?.name || '',
-        'cliente.nif': client?.tax_id || client?.vat_number || client?.cif || client?.nif || '',
-        'cliente.email': client?.email || client?.billing_email || '',
-        'cliente.telefone': client?.phone || client?.mobile || client?.contact_phone || '',
-        'cliente.endereco': client?.address_line || client?.address || '',
-        'cliente.cidade': client?.city || '',
+        'cliente.nome_legal': legalName,
+        'cliente.nome_comercial': tradeName,
+        'cliente.nif': cifNum,
+        'cliente.email': emailStr,
+        'cliente.telefone': phoneStr,
+        'cliente.endereco': addressStr,
+        'cliente.cidade': cityStr,
         'cliente.codigo_postal': client?.postal_code || '',
         'cliente.pais': client?.country || 'Espanha',
-        'cliente.contato_responsavel': client?.contact_name || client?.billing_contact_name || client?.collections_contact_name || client?.legal_name || '',
+        'cliente.contato_responsavel': contactPerson,
         'cliente.prazo_pagamento': client?.payment_terms || '30 dias',
+
+        // Aliases Específicos do Rodapé / Modelo
+        'cliente_empresa': legalName,
+        'cliente_nome': contactPerson,
+        'cliente_email': emailStr,
+        'cliente_telefone': phoneStr,
+        'cliente_endereco': addressStr,
+        'cliente_cidade': cityStr,
+        'cliente_cif': cifNum,
 
         'empresa.nome': empresaName || 'Mastercorp',
         'empresa.nif': 'B98765432',
@@ -132,8 +175,11 @@ export function buildClientDataMap(client: any, empresaName = 'Mastercorp'): Rec
         'acuerdo_codigo': acuerdoCode,
         'acuerdo_data': formattedDateCurta,
         'contenido': 'Conforme estipulado pelas partes no presente acordo.',
+        'conteudo': 'Conforme estipulado pelas partes no presente acordo.',
         'geral.data_atual': formattedDateExtenso,
         'geral.data_curta': formattedDateCurta,
-        'geral.cidade_emissao': 'Madrid'
+        'geral.cidade_emissao': 'Madrid',
+        'assinatura.nome': contactPerson,
+        'assinatura.data': formattedDateCurta
     };
 }
