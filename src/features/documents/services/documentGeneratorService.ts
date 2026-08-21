@@ -244,6 +244,11 @@ export const documentGeneratorService = {
                 // Perform direct replacement with styled WordprocessingML runs
                 for (const [k, v] of Object.entries(params.dataMap)) {
                     const cleanK = k.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+                    // Skip signature placeholders so they remain in the .docx for signing
+                    if (/firma|assinatura|image/i.test(cleanK) && !v) {
+                        continue;
+                    }
+
                     const rawVal = v || '';
                     const wordXmlValue = convertHtmlToWordXml(rawVal);
 
@@ -282,6 +287,32 @@ export const documentGeneratorService = {
             }
         }
 
+        // Preserve signature placeholders in docx-templates
+        const signaturePlaceholders = [
+            'IMAGE FIRMA_CLIENTE',
+            'IMAGE_FIRMA_CLIENTE',
+            'IMAGE FIRMA_TRABALHADOR',
+            'IMAGE_FIRMA_TRABALHADOR',
+            'IMAGE FIRMA_EMPLEADO',
+            'IMAGE_FIRMA_EMPLEADO',
+            'assinatura_imagem',
+            'imagem_assinatura',
+            'trabalhador_assinatura_imagem',
+            'FIRMA_CLIENTE',
+            'FIRMA_TRABALHADOR',
+            'FIRMA_EMPLEADO',
+            'assinatura_cliente',
+            'assinatura_trabalhador',
+            'firma',
+            'assinatura'
+        ];
+
+        for (const sigPh of signaturePlaceholders) {
+            if (!cmdData[sigPh]) {
+                cmdData[sigPh] = `{{${sigPh}}}`;
+            }
+        }
+
         // 3. Process with docx-templates
         let filledBuffer: Uint8Array;
         try {
@@ -291,8 +322,10 @@ export const documentGeneratorService = {
                 cmdDelimiter: ['{{', '}}'],
                 processLineBreaks: true,
                 failFast: false,
-                errorHandler: (err: any) => {
-                    console.warn("docx-templates placeholder warning:", err);
+                errorHandler: (err: any, cmd?: string) => {
+                    if (cmd && /firma|assinatura|image/i.test(cmd)) {
+                        return `{{${cmd}}}`;
+                    }
                     return '';
                 }
             });

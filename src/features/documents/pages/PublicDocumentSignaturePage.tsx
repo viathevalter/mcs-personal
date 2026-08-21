@@ -52,42 +52,41 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         }
     };
     const replaceSignaturePlaceholdersInHtml = (container: HTMLElement, signatureUrl: string) => {
-        const placeholders = [
-            '{{IMAGE FIRMA_CLIENTE}}_',
-            '{{IMAGE FIRMA_CLIENTE}}',
-            '{{IMAGE_FIRMA_CLIENTE}}',
-            '{{IMAGE FIRMA_TRABALHADOR}}_',
-            '{{IMAGE FIRMA_TRABALHADOR}}',
-            '{{IMAGE_FIRMA_TRABALHADOR}}',
-            '{{IMAGE FIRMA_EMPLEADO}}',
-            '{{IMAGE_FIRMA_EMPLEADO}}',
-            '{{assinatura_imagem}}',
-            '{{imagem_assinatura}}',
-            '{{trabalhador_assinatura_imagem}}',
-            '{{FIRMA_CLIENTE}}',
-            '{{FIRMA_TRABALHADOR}}',
-            '{{FIRMA_EMPLEADO}}'
+        const signaturePatterns = [
+            /\{\{\s*IMAGE\s+FIRMA_CLIENTE_?\s*\}\}/gi,
+            /\{\{\s*IMAGE_FIRMA_CLIENTE_?\s*\}\}/gi,
+            /\{\{\s*IMAGE\s+FIRMA_TRABALHADOR_?\s*\}\}/gi,
+            /\{\{\s*IMAGE_FIRMA_TRABALHADOR_?\s*\}\}/gi,
+            /\{\{\s*IMAGE\s+FIRMA_EMPLEADO_?\s*\}\}/gi,
+            /\{\{\s*IMAGE_FIRMA_EMPLEADO_?\s*\}\}/gi,
+            /\{\{\s*assinatura_imagem\s*\}\}/gi,
+            /\{\{\s*imagem_assinatura\s*\}\}/gi,
+            /\{\{\s*trabalhador_assinatura_imagem\s*\}\}/gi,
+            /\{\{\s*FIRMA_CLIENTE\s*\}\}/gi,
+            /\{\{\s*FIRMA_TRABALHADOR\s*\}\}/gi,
+            /\{\{\s*FIRMA_EMPLEADO\s*\}\}/gi,
+            /\{\{\s*assinatura_cliente\s*\}\}/gi,
+            /\{\{\s*assinatura_trabalhador\s*\}\}/gi,
+            /\{\{\s*firma\s*\}\}/gi,
+            /\{\{\s*assinatura\s*\}\}/gi
         ];
+
+        const imgTag = `<img src="${signatureUrl}" style="max-height: 85px; max-width: 250px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
 
         const walkTextNodes = (node: Node) => {
             if (node.nodeType === Node.TEXT_NODE) {
                 let text = node.nodeValue || '';
-                let matched = false;
-                for (const ph of placeholders) {
-                    if (text.includes(ph)) {
-                        matched = true;
-                        break;
+                let modified = false;
+                for (const pattern of signaturePatterns) {
+                    if (pattern.test(text)) {
+                        text = text.replace(pattern, '###SIG_IMG###');
+                        modified = true;
                     }
                 }
 
-                if (matched && node.parentNode) {
+                if (modified && node.parentNode) {
                     const span = document.createElement('span');
-                    let html = text;
-                    for (const ph of placeholders) {
-                        const imgTag = `<img src="${signatureUrl}" style="max-height: 85px; max-width: 250px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
-                        html = html.split(ph).join(imgTag);
-                    }
-                    span.innerHTML = html;
+                    span.innerHTML = text.split('###SIG_IMG###').join(imgTag);
                     node.parentNode.replaceChild(span, node);
                 }
             } else {
@@ -97,6 +96,19 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         };
 
         walkTextNodes(container);
+
+        // Also do a pass on innerHTML to catch any placeholders that were split across multiple tags
+        let html = container.innerHTML;
+        let htmlModified = false;
+        for (const pattern of signaturePatterns) {
+            if (pattern.test(html)) {
+                html = html.replace(pattern, imgTag);
+                htmlModified = true;
+            }
+        }
+        if (htmlModified) {
+            container.innerHTML = html;
+        }
     };
 
     const renderDocxPreview = async (url: string, currentDoc?: GeneratedDocument | null) => {
@@ -252,6 +264,9 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                 signatureDataUrl: finalDataUrl
             });
             setDoc(updated);
+            if (updated.document_url) {
+                await renderDocxPreview(updated.document_url, updated);
+            }
             toast.success('Documento assinado com sucesso!');
         } catch (err: any) {
             console.error('Error submitting signature:', err);
