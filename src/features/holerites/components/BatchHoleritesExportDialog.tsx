@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento } from '@/shared/types/holerites';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useTaxRules } from '@/features/taxes/hooks';
 import {
     calculateHoleriteAlta,
     calculateHoleriteRegularizacao,
@@ -61,6 +62,15 @@ export function BatchHoleritesExportDialog({
         total: 0,
     });
     const { empresas } = useEmpresa();
+    const { data: taxRules } = useTaxRules();
+
+    const ssTrabalhadorRule = taxRules?.find(r => r.tax_type === 'SS_TRABALHADOR' && r.is_active);
+    const customParams = React.useMemo(() => {
+        if (ssTrabalhadorRule && ssTrabalhadorRule.rate_percentage !== null && ssTrabalhadorRule.rate_percentage !== undefined) {
+            return { ssTaxaTrabalhador: Number(ssTrabalhadorRule.rate_percentage) / 100 };
+        }
+        return {};
+    }, [ssTrabalhadorRule]);
 
     // Filtra os trabalhadores que serão exportados
     const targetWorkers = exportScope === 'selected'
@@ -134,6 +144,7 @@ export function BatchHoleritesExportDialog({
                                 mesReferencia,
                                 empresas,
                                 workerMonthlyActivity: compActivity,
+                                customParams
                             });
                             calculatedList.push(calc);
                         } else {
@@ -162,6 +173,7 @@ export function BatchHoleritesExportDialog({
                             mesReferencia,
                             empresas,
                             workerMonthlyActivity: activity,
+                            customParams
                         });
                         calculatedList.push(calc);
                     } else {

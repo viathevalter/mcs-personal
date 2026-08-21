@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import type { Worker } from '@/shared/types/corePersonal';
 import type { HoleriteEvento } from '@/shared/types/holerites';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useTaxRules } from '@/features/taxes/hooks';
 import {
     calculateHoleriteAlta,
     calculateHoleriteRegularizacao,
@@ -50,6 +51,15 @@ export function PreviewHoleriteDialog({
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'recibo' | 'detalhes'>('recibo');
     const { empresas } = useEmpresa();
+    const { data: taxRules } = useTaxRules();
+
+    const ssTrabalhadorRule = taxRules?.find(r => r.tax_type === 'SS_TRABALHADOR' && r.is_active);
+    const customParams = React.useMemo(() => {
+        if (ssTrabalhadorRule && ssTrabalhadorRule.rate_percentage !== null && ssTrabalhadorRule.rate_percentage !== undefined) {
+            return { ssTaxaTrabalhador: Number(ssTrabalhadorRule.rate_percentage) / 100 };
+        }
+        return {};
+    }, [ssTrabalhadorRule]);
 
     // Determina se o trabalhador é de ALTA ou EM REGULARIZAÇÃO
     const statusSeguridad = (worker.status_seguridad || '').toLowerCase();
@@ -88,7 +98,8 @@ export function PreviewHoleriteDialog({
         eventosDescontos: descontosList,
         mesReferencia,
         empresas,
-        workerMonthlyActivity
+        workerMonthlyActivity,
+        customParams
     }) : null;
 
     const regularizacaoData: HoleriteRegularizacaoCalculado | null = !isAlta ? calculateHoleriteRegularizacao({

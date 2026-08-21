@@ -30,8 +30,8 @@ import {
 import { Label } from '@/components/ui/label';
 
 const TAX_CATEGORIES: { value: TaxCategory; label: string }[] = [
-    { value: 'SS_TRABALHADOR', label: 'Segurança Social (Trabalhador)' },
-    { value: 'SS_EMPRESA', label: 'Segurança Social (Empresa)' },
+    { value: 'SS_TRABALHADOR', label: 'Segurança Social (Trabalhador - Desconto no Holerite)' },
+    { value: 'SS_EMPRESA', label: 'Segurança Social (Empresa - Encargo Patronal)' },
     { value: 'IRS_DEFAULT', label: 'IRS (Taxa Default)' },
     { value: 'SUBSIDIO_ALIMENTACAO_LIMITE_DINHEIRO', label: 'Limite Isenção Subs. Alim. (Dinheiro)' },
     { value: 'SUBSIDIO_ALIMENTACAO_LIMITE_CARTAO', label: 'Limite Isenção Subs. Alim. (Cartão)' },
