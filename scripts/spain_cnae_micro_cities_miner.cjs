@@ -415,20 +415,32 @@ async function runCnaeMicroCitiesMiner() {
 
             // 1. Insert into Staging
             try {
-              await client.query(`
-                INSERT INTO core_comercial.lead_prospecting_results (
-                  job_id, company_name, email, phone, website, address, city, 
-                  country, status, source, confidence_score, metadata, created_at
-                ) VALUES (
-                  $1, $2, $3, $4, $5, $6, $7, 'Espanha', 'imported', 'google_maps', 98,
-                  $8, NOW()
-                ) ON CONFLICT (LOWER(TRIM(email))) DO NOTHING;
-              `, [
-                jobId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
-                comp.website || `https://www.${domain}`, comp.address || `${muni.zone}`,
-                comp.city || muni.city,
-                JSON.stringify({ sector: sector.title, cnae: sector.cnae, city: muni.city, zone: muni.zone, verified_mx: true })
-              ]);
+              const existingStag = await client.query('SELECT id FROM core_comercial.lead_prospecting_results WHERE LOWER(TRIM(email)) = $1;', [cleanEmail]);
+              if (existingStag.rows.length > 0) {
+                await client.query(`
+                  UPDATE core_comercial.lead_prospecting_results
+                  SET job_id = $1, empresa_id = $2, company_name = $3, phone = $4, website = $5,
+                      address = $6, city = $7, province = $8, status = 'imported', updated_at = NOW()
+                  WHERE id = $9;
+                `, [
+                  jobId, empresaId, comp.company_name, comp.phone || '+34 91 000 00 00',
+                  comp.website || `https://www.${domain}`, comp.address || `${muni.zone}`,
+                  comp.city || muni.city, muni.prov, existingStag.rows[0].id
+                ]);
+              } else {
+                await client.query(`
+                  INSERT INTO core_comercial.lead_prospecting_results (
+                    job_id, empresa_id, company_name, email, phone, website, address, city, 
+                    province, country, confidence_score, status, created_at, updated_at
+                  ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 98, 'imported', NOW(), NOW()
+                  );
+                `, [
+                  jobId, empresaId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
+                  comp.website || `https://www.${domain}`, comp.address || `${muni.zone}`,
+                  comp.city || muni.city, muni.prov
+                ]);
+              }
             } catch (e) {}
 
             // 2. Insert into CRM

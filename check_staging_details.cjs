@@ -1,27 +1,33 @@
 const { Client } = require('pg');
-const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
+
+const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
 async function checkStaging() {
-  const client = new Client({ connectionString: prodConnectionString });
+  const client = new Client({ connectionString: PROD_PG_URL });
   try {
     await client.connect();
 
-    const jobs = await client.query(`
-      SELECT * FROM core_comercial.lead_prospecting_jobs LIMIT 2;
-    `);
-    console.log("Sample Jobs:");
+    console.log("=== JOBS IN DB ===");
+    const jobs = await client.query(`SELECT id, title, processed_count, found_emails_count FROM core_comercial.lead_prospecting_jobs;`);
     console.table(jobs.rows);
 
-    const results = await client.query(`
-      SELECT 
-        count(*) as total_staging_rows,
-        count(DISTINCT LOWER(TRIM(email))) as unique_emails
-      FROM core_comercial.lead_prospecting_results;
+    console.log("\n=== STAGING RESULTS IN DB ===");
+    const staging = await client.query(`
+      SELECT job_id, count(*) as staging_count 
+      FROM core_comercial.lead_prospecting_results 
+      GROUP BY job_id;
     `);
-    console.table(results.rows);
+    console.table(staging.rows);
 
-  } catch (err) {
-    console.error("Error:", err);
+    console.log("\n=== RECENT LEADS IN CRM LINKED TO JOBS ===");
+    const crm = await client.query(`
+      SELECT prospecting_job_id, count(*) as count 
+      FROM core_comercial.leads 
+      WHERE prospecting_job_id IS NOT NULL 
+      GROUP BY prospecting_job_id;
+    `);
+    console.table(crm.rows);
+
   } finally {
     await client.end();
   }
