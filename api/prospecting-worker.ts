@@ -78,32 +78,40 @@ Return JSON array only:
   }
 ]`;
 
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.25,
+  const CANDIDATE_MODELS = ['gemini-3.6-flash', 'gemini-pro-latest', 'gemini-3.5-flash'];
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(t);
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.25,
+          },
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(t);
 
-    const json: any = await res.json();
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(clean);
-  } catch {
-    return [];
+      if (!res.ok) continue;
+      const json: any = await res.json();
+      const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+      const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch {
+      // try next
+    }
   }
+  return [];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

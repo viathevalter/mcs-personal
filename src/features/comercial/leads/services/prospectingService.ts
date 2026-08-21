@@ -256,38 +256,48 @@ Return JSON array only:
   }
 ]`;
 
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: prompt }],
-                },
-              ],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.25,
+        const CANDIDATE_MODELS = ['gemini-3.6-flash', 'gemini-pro-latest', 'gemini-3.5-flash'];
+        for (const model of CANDIDATE_MODELS) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
               },
-            }),
-          });
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: prompt }],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.25,
+                },
+              }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
 
-          if (!res.ok) return [];
-          const json = await res.json();
-          const content = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-          const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
-          const items: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
-          return items.map((it) => ({
-            ...it,
-            city: it.city || provinceName,
-            province: it.province || provinceName,
-          }));
-        } catch {
-          return [];
+            if (!res.ok) continue;
+            const json = await res.json();
+            const content = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+            const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
+            const items: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
+            if (Array.isArray(items) && items.length > 0) {
+              return items.map((it) => ({
+                ...it,
+                city: it.city || provinceName,
+                province: it.province || provinceName,
+              }));
+            }
+          } catch {
+            // Try next model
+          }
         }
+        return [];
       });
 
       const hubResults = await Promise.all(hubPromises);
