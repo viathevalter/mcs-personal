@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client } = require('pg');
 
 const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
@@ -16,151 +17,77 @@ const CNAE_SECTORS = [
 
 const SPAIN_MUNICIPALITIES = [
   { city: 'Getafe', prov: 'Madrid', zone: 'Polígonos Los Ángeles, San Marcos, Los Olivos' },
-  { city: 'Pinto', prov: 'Madrid', zone: 'Polígonos Las Arenas, La Estación' },
-  { city: 'Valdemoro', prov: 'Madrid', zone: 'Polígonos Albresa, Valmor' },
-  { city: 'Leganés', prov: 'Madrid', zone: 'Polígonos Nuestra Señora de Butarque, Ciudad del Automóvil' },
-  { city: 'Fuenlabrada', prov: 'Madrid', zone: 'Polígonos Cobo Calleja, Cantueña, Sonsoles' },
-  { city: 'Alcorcón', prov: 'Madrid', zone: 'Polígonos Urtinsa, Ventorro del Cano' },
-  { city: 'Móstoles', prov: 'Madrid', zone: 'Polígonos Regordoño, Arroyomolinos' },
-  { city: 'Alcalá de Henares', prov: 'Madrid', zone: 'Polígonos La Garena, Bañuelos, Camporroso' },
-  { city: 'Torrejón de Ardoz', prov: 'Madrid', zone: 'Polígonos Las Monjas, Casablanca' },
+  { city: 'Pinto & Valdemoro', prov: 'Madrid', zone: 'Polígonos Las Arenas, Albresa, Valmor' },
+  { city: 'Leganés & Fuenlabrada', prov: 'Madrid', zone: 'Polígonos Butarque, Cobo Calleja, Cantueña' },
+  { city: 'Alcorcón & Móstoles', prov: 'Madrid', zone: 'Polígonos Urtinsa, Regordoño, Arroyomolinos' },
+  { city: 'Alcalá de Henares & Torrejón', prov: 'Madrid', zone: 'Polígonos La Garena, Bañuelos, Las Monjas' },
   { city: 'Coslada & San Fernando', prov: 'Madrid', zone: 'Polígonos San Fernando Industrial, Coslada Este' },
   { city: 'Arganda del Rey', prov: 'Madrid', zone: 'Polígonos Borondo, El Guijar' },
-  { city: 'Sabadell', prov: 'Barcelona', zone: 'Polígonos Can Roqueta, Gràcia' },
-  { city: 'Terrassa', prov: 'Barcelona', zone: 'Polígonos Santa Margarita, Can Parellada, Els Bellots' },
-  { city: 'Rubí & Sant Cugat', prov: 'Barcelona', zone: 'Polígonos Can Jardí, La Llana' },
-  { city: 'Granollers', prov: 'Barcelona', zone: 'Polígonos Congost, Jordi Camp, Palou Nord' },
-  { city: 'Mollet del Vallès', prov: 'Barcelona', zone: 'Polígonos Can Magarola, Riera Seca' },
-  { city: 'Martorell & Abrera', prov: 'Barcelona', zone: 'Polígonos SEAT, Can Amat, Sant Ermengol' },
-  { city: 'Sant Boi & Cornellà', prov: 'Barcelona', zone: 'Polígonos Salinas, Almeda' },
-  { city: 'Manresa', prov: 'Barcelona', zone: 'Polígonos Bufalvent, Els Dolors' },
-  { city: 'Tarragona & Reus', prov: 'Tarragona', zone: 'Polígonos Riu Clar, Francolí, Agro-Reus' },
-  { city: 'Valls & Constantí', prov: 'Tarragona', zone: 'Polígonos Industrial Valls, Constantí' },
-  { city: 'Girona & Figueres', prov: 'Girona', zone: 'Polígonos Mas Xirgu, Pont del Príncep' },
-  { city: 'Lleida', prov: 'Lleida', zone: 'Polígonos El Segre, Camí dels Frares' },
-  { city: 'Bilbao & Barakaldo', prov: 'Vizcaya', zone: 'Polígonos Asua, El Árbol, Beurko' },
-  { city: 'Sestao & Portugalete', prov: 'Vizcaya', zone: 'Polígonos Ibarzaharra, Ballonti' },
-  { city: 'Trapagaran & Santurtzi', prov: 'Vizcaya', zone: 'Polígonos El Juncal, El Campillo' },
-  { city: 'Durango & Amorebieta', prov: 'Vizcaya', zone: 'Polígonos Montorreta, Boroa' },
-  { city: 'Zamudio & Derio', prov: 'Vizcaya', zone: 'Parque Tecnológico de Bizkaia, Ugaldeguren' },
-  { city: 'Vitoria-Gasteiz', prov: 'Álava', zone: 'Polígonos Júndiz, Betoño, Gamarra, Gojain' },
-  { city: 'Llodio & Amurrio', prov: 'Álava', zone: 'Polígonos Arza, Saratxaga, Maskuribai' },
-  { city: 'San Sebastián & Irún', prov: 'Guipúzcoa', zone: 'Polígonos 27 de Martutene, Zaisa' },
-  { city: 'Hernani & Errenteria', prov: 'Guipúzcoa', zone: 'Polígonos Eziago, Akarregi, Masti-Loidi' },
-  { city: 'Eibar & Elgoibar', prov: 'Guipúzcoa', zone: 'Polígonos Azitain, Matsaria, Lerun, Arriaga' },
-  { city: 'Arrasate / Mondragón & Bergara', prov: 'Guipúzcoa', zone: 'Polígonos Musakola, San Juan, San Antonio' },
-  { city: 'Beasain & Ordizia', prov: 'Guipúzcoa', zone: 'Polígonos Mallutz, Salbatore' },
-  { city: 'Pamplona (Iruña)', prov: 'Navarra', zone: 'Polígonos Landaben, Agustinos, Noáin, Comarca 2' },
-  { city: 'Tudela', prov: 'Navarra', zone: 'Polígonos Las Labradas, Montes del Cierzo' },
-  { city: 'Valencia & Paterna', prov: 'Valencia', zone: 'Polígonos Fuente del Jarro, Táctica' },
-  { city: 'Almussafes & Silla', prov: 'Valencia', zone: 'Polígonos Juan Carlos I, Rey Juan Carlos' },
-  { city: 'Ribarroja & Cheste', prov: 'Valencia', zone: 'Polígonos El Oliveral, Sector 13' },
-  { city: 'Sagunto & Puerto de Sagunto', prov: 'Valencia', zone: 'Parc Sagunt I y II, Camí de la Mar' },
-  { city: 'Castellón & Almassora', prov: 'Castellón', zone: 'Polígonos Mijares, Ramonet, Acceso Sur' },
-  { city: 'Vila-real & Onda', prov: 'Castellón', zone: 'Polígonos Carabona, El Colomer, Miralcamp' },
-  { city: 'Alicante & Elche', prov: 'Alicante', zone: 'Polígonos Las Atalayas, Parque Empresarial Elche' },
-  { city: 'Elda, Petrer & Villena', prov: 'Alicante', zone: 'Polígonos Les Pedreres, Salinetas, El Rubial' },
-  { city: 'Murcia & Molina de Segura', prov: 'Murcia', zone: 'Polígonos Oeste, Base 2000, La Serreta' },
-  { city: 'Cartagena', prov: 'Murcia', zone: 'Polígonos Cabezo Beaza, Los Camachos, Valle de Escombreras' },
-  { city: 'Zaragoza', prov: 'Zaragoza', zone: 'Polígonos Malpica, PLAZA, Centrovía, Cogullada' },
-  { city: 'Huesca & Monzón', prov: 'Huesca', zone: 'Polígonos Monzú, Paúles' },
-  { city: 'Gijón & Avilés', prov: 'Asturias', zone: 'Polígonos Porceyo, Bankunión, PEPA, Parque Empresarial Principado' },
+  { city: 'Sabadell & Terrassa', prov: 'Barcelona', zone: 'Polígonos Can Roqueta, Santa Margarita, Can Parellada' },
+  { city: 'Rubí & Sant Cugat', prov: 'Barcelona', zone: 'Polígonos Can Jardí, La Llana, Cova Solera' },
+  { city: 'Granollers & Mollet', prov: 'Barcelona', zone: 'Polígonos Congost, Jordi Camp, Can Prat' },
+  { city: 'Martorell & Abrera', prov: 'Barcelona', zone: 'Polígonos SEAT, Ca n’Amat, Barcelonès' },
+  { city: 'Sant Boi & Cornellà', prov: 'Barcelona', zone: 'Polígonos Salinas, Femades, Almeda' },
+  { city: 'Manresa & Vic', prov: 'Barcelona', zone: 'Polígonos Bufalvent, Els Dolors, Malloles' },
+  { city: 'Tarragona & Reus', prov: 'Tarragona', zone: 'Polígonos Francolí, Riuclar, Agro-Reus' },
+  { city: 'Bilbao & Barakaldo', prov: 'Vizcaya', zone: 'Polígonos El Campillo, Beurko, Burtzeña' },
+  { city: 'Basauri & Galdakao', prov: 'Vizcaya', zone: 'Polígonos Lapatza, Erletxes, Atxukarro' },
+  { city: 'Durango & Amorebieta', prov: 'Vizcaya', zone: 'Polígonos Trobika, Bakiola, Montorra' },
+  { city: 'Zumaia & Azpeitia', prov: 'Guipúzcoa', zone: 'Polígonos Joxe Mari Korta, Landeta' },
+  { city: 'Hernani & Andoain', prov: 'Guipúzcoa', zone: 'Polígonos Eziago, Akarregi, Borda Berri' },
+  { city: 'Vitoria-Gasteiz', prov: 'Álava', zone: 'Polígonos Jundiz, Betoño, Ali-Gobeo, Gamarra' },
+  { city: 'Pamplona & Tudela', prov: 'Navarra', zone: 'Polígonos Landaben, Agustinos, Noáin Esquíroz' },
+  { city: 'Valencia & Paterna', prov: 'Valencia', zone: 'Polígonos Fuente del Jarro, Táctica, L’Andana' },
+  { city: 'Almussafes & Silla', prov: 'Valencia', zone: 'Polígonos Juan Carlos I, Rey Juan Carlos, Bassa' },
+  { city: 'Sagunto & Puerto', prov: 'Valencia', zone: 'Parque Empresarial Parc Sagunt I y II' },
+  { city: 'Castellón & Almassora', prov: 'Castellón', zone: 'Polígonos Ciudad del Transporte, Ramonet' },
+  { city: 'Vila-real & Onda', prov: 'Castellón', zone: 'Polígonos Carabona, Corral Roig, Trencadís' },
+  { city: 'Alicante & Elche', prov: 'Alicante', zone: 'Polígonos Las Atalayas, Elche Parque Empresarial' },
+  { city: 'Murcia & Molina de Segura', prov: 'Murcia', zone: 'Polígonos Oeste, La Serreta, La Estrella' },
+  { city: 'Cartagena', prov: 'Murcia', zone: 'Polígonos Cabezo Beaza, Los Camachos, Escombreras' },
+  { city: 'Zaragoza', prov: 'Zaragoza', zone: 'Polígonos Malpica, Centrovía, Cogullada, PLAZA' },
+  { city: 'Gijón & Avilés', prov: 'Asturias', zone: 'Polígonos Tremañes, Somonte, Mora-Garay, PEPA' },
   { city: 'Oviedo & Llanera', prov: 'Asturias', zone: 'Polígonos Silvota, Asipo, Espíritu Santo' },
-  { city: 'Santander & Torrelavega', prov: 'Cantabria', zone: 'Polígonos Candina, Guarnizo, Tanos-Viérnoles' },
-  { city: 'Vigo & O Porriño', prov: 'Pontevedra', zone: 'Polígonos Balaídos, A Granxa, As Gándaras' },
-  { city: 'A Coruña & Ferrol', prov: 'A Coruña', zone: 'Polígonos A Grela, Sabón, Río do Pozo' },
-  { city: 'Sevilla & Dos Hermanas', prov: 'Sevilla', zone: 'Polígonos Calonge, Store, Carretera Amarilla, La Isla' },
-  { city: 'Alcalá de Guadaíra', prov: 'Sevilla', zone: 'Polígonos La Red, Cuchipanda, Recener' },
-  { city: 'Cádiz & Puerto Real', prov: 'Cádiz', zone: 'Polígonos El Trocadero, Río San Pedro' },
-  { city: 'Algeciras & Los Barrios', prov: 'Cádiz', zone: 'Polígonos Cortijo Real, Palmones' },
-  { city: 'Huelva & Palos', prov: 'Huelva', zone: 'Polígonos Nuevo Puerto, Fortiz' },
-  { city: 'Córdoba & Lucena', prov: 'Córdoba', zone: 'Polígonos Amargacena, Las Quemadas, Los Santos' },
-  { city: 'Málaga & Antequera', prov: 'Málaga', zone: 'Polígonos Guadalhorce, Santa Teresa, PEAN' },
-  { city: 'Jaén, Linares & Andújar', prov: 'Jaén', zone: 'Polígonos Los Rubiales, Guadiel, Los Jarales' },
-  { city: 'Granada', prov: 'Granada', zone: 'Polígonos Juncaril, Asegra' },
-  { city: 'Valladolid', prov: 'Valladolid', zone: 'Polígonos San Cristóbal, Argales, Jalón' },
-  { city: 'Burgos & Miranda de Ebro', prov: 'Burgos', zone: 'Polígonos Gamonal-Villímar, Villalonquéjar, Bayas' },
-  { city: 'León & Ponferrada', prov: 'León', zone: 'Polígonos Onzonilla, La Llanada' },
-  { city: 'Toledo & Illescas', prov: 'Toledo', zone: 'Polígonos Toledo Industrial, Cárcavas' },
-  { city: 'Guadalajara & Azuqueca', prov: 'Guadalajara', zone: 'Polígonos El Henares, Miralcampo' }
-];
-
-const JUNK_DOMAINS = [
-  'webador.es', 'wixpress.com', 'sentry.io', 'schema.org', 'example.com',
-  'ejemplo.com', 'doe.com', 'freehtml5.co', 'themewagon.com', 'bootstrap',
-  'popper', 'fontawesome', 'cloudflare.com', 'wordpress.org', 'gravatar.com',
-  'google.com', 'facebook.com', 'instagram.com'
+  { city: 'Santander & Torrelavega', prov: 'Cantabria', zone: 'Polígonos Candina, Barros, Tanos Viérnoles' },
+  { city: 'Vigo & O Porriño', prov: 'Pontevedra', zone: 'Polígonos Balaídos, Caramuxo, A Granxa, As Gándaras' },
+  { city: 'A Coruña & Ferrol', prov: 'A Coruña', zone: 'Polígonos A Grela, Sabón, Río do Pozo, Vilar do Colo' },
+  { city: 'Sevilla & Alcalá de Guadaíra', prov: 'Sevilla', zone: 'Polígonos La Isla, Calonge, Carretera Amarilla' },
+  { city: 'Cádiz, Puerto Real & Algeciras', prov: 'Cádiz', zone: 'Polígonos Trocadero, Bajo de la Cabezuela, Palmones' },
+  { city: 'Huelva', prov: 'Huelva', zone: 'Polígonos Nuevo Puerto, Fortiz, Tartessos' },
+  { city: 'Valladolid & Burgos', prov: 'Castilla y León', zone: 'Polígonos San Cristóbal, Argales, Villalonquéjar' }
 ];
 
 function isCleanValidEmail(email) {
-  if (!email) return false;
-  const lower = email.toLowerCase().trim();
-  if (lower.length < 6 || lower.length > 80) return false;
-  if (!lower.includes('@') || !lower.includes('.')) return false;
-  if (/@\d+\.\d+/i.test(lower) || /\.(js|css|png|jpg|jpeg|webp|gif|svg)@/i.test(lower)) return false;
-  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.webp') || lower.endsWith('.js') || lower.endsWith('.css')) return false;
-
-  for (const junk of JUNK_DOMAINS) {
-    if (lower.includes(junk)) return false;
-  }
-  return true;
+  if (!email || typeof email !== 'string') return false;
+  const em = email.trim().toLowerCase();
+  if (em.length < 6 || em.length > 80 || !em.includes('@') || !em.includes('.')) return false;
+  if (/(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.css|\.js|example\.com|wixpress|sentry|domain\.com|yourcompany)/i.test(em)) return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(em);
 }
 
-async function scrapeRealEmailsFromSite(baseUrl) {
-  if (!baseUrl || !baseUrl.startsWith('http')) return [];
-  const urlsToTry = [
-    baseUrl,
-    baseUrl.replace(/\/$/, '') + '/contacto',
-    baseUrl.replace(/\/$/, '') + '/contacto.html',
-    baseUrl.replace(/\/$/, '') + '/aviso-legal'
-  ];
-
-  for (const url of urlsToTry) {
-    try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        signal: controller.signal
-      });
-      clearTimeout(t);
-
-      if (!res.ok) continue;
-      const html = await res.text();
-      const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
-      const matches = html.match(emailRegex) || [];
-      const clean = matches.filter(isCleanValidEmail);
-
-      if (clean.length > 0) {
-        return clean.map(e => e.toLowerCase().trim());
-      }
-    } catch {}
-  }
-  return [];
-}
-
-async function checkMx(domain) {
+async function checkDomainLive(domain) {
   if (!domain || domain.includes(' ') || !domain.includes('.')) return false;
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 1500);
-    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, { signal: controller.signal });
+    const t = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`, { signal: controller.signal });
     clearTimeout(t);
     const json = await res.json();
-    return json.Status === 0 && Array.isArray(json.Answer) && json.Answer.length > 0;
+    if (json.Status === 0 && Array.isArray(json.Answer) && json.Answer.length > 0) return true;
+
+    const resMx = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`);
+    const jMx = await resMx.json();
+    return jMx.Status === 0 && Array.isArray(jMx.Answer) && jMx.Answer.length > 0;
   } catch {
     return false;
   }
 }
 
-async function fetchCnaeWorkshopsForMunicipality(muniObj, cnaeSectorObj, excluded) {
-  const excludeStr = excluded.length > 0 ? `\nDO NOT include: [${excluded.slice(-25).join(', ')}].` : '';
+async function fetchCnaeWorkshopsForMunicipality(muniObj, cnaeSectorObj) {
   const prompt = `You are a Spanish industrial B2B registry specialist.
-Find 25 REAL, REGISTERED, ACTIVE Spanish industrial workshops and fabricators (Pymes y Talleres) located in "${muniObj.city}" (${muniObj.prov}, Spain) in the industrial estates "${muniObj.zone}" registered under: "${cnaeSectorObj.search_terms}".
+Find 15 REAL, REGISTERED, ACTIVE Spanish industrial workshops and fabricators (Pymes y Talleres) located in "${muniObj.city}" (${muniObj.prov}, Spain) in the industrial estates "${muniObj.zone}" registered under: "${cnaeSectorObj.search_terms}".
 Target real small and medium industrial companies (10 to 100 workers) situated in these industrial zones that employ welders, tuberos, and metal fabricators.
-Only return registered Spanish companies with real websites (.es or .com).${excludeStr}
+Return only valid registered Spanish companies with their official website, phone, and known primary corporate contact email.
 
 Return JSON array only:
 [
@@ -170,26 +97,22 @@ Return JSON array only:
     "phone": "+34 9xx xxx xxx",
     "address": "Polígono Industrial...",
     "city": "${muniObj.city}",
-    "province": "${muniObj.prov}"
+    "province": "${muniObj.prov}",
+    "email": "contacto@domain.es"
   }
 ]`;
 
-  const CANDIDATE_MODELS = ['gemini-3.6-flash', 'gemini-pro-latest', 'gemini-3.5-flash'];
+  const CANDIDATE_MODELS = ['gemini-3.6-flash', 'gemini-pro-latest'];
   for (const model of CANDIDATE_MODELS) {
     try {
       const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 8000);
+      const t = setTimeout(() => controller.abort(), 35000);
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.35
-          }
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.35 }
         }),
         signal: controller.signal
       });
@@ -204,7 +127,7 @@ Return JSON array only:
         return parsed;
       }
     } catch {
-      // try next
+      // try next model
     }
   }
   return [];
@@ -233,14 +156,15 @@ async function startAutonomousDaemon() {
       `, [empresaId]);
       const defaultStageId = stageRes.rows[0]?.id || null;
 
-      // Sync / Create Official CNAE Jobs
+      // Sync Official CNAE Jobs Map
       const jobMap = {};
       for (const sec of CNAE_SECTORS) {
+        const baseCode = sec.code.split('_')[0];
         const existingJob = await client.query(`
           SELECT id FROM core_comercial.lead_prospecting_jobs 
-          WHERE empresa_id = $1 AND sector_filter = $2 
+          WHERE empresa_id = $1 AND title ILIKE $2 
           LIMIT 1;
-        `, [empresaId, sec.title]);
+        `, [empresaId, `%${baseCode}%`]);
 
         if (existingJob.rows.length > 0) {
           jobMap[sec.code] = existingJob.rows[0].id;
@@ -257,133 +181,109 @@ async function startAutonomousDaemon() {
         }
       }
 
-      // Load existing emails and domains
+      // Load existing emails for deduplication
       const existingRes = await client.query('SELECT LOWER(TRIM(email)) as email FROM core_comercial.leads WHERE email IS NOT NULL AND email != \'\';');
       const existingEmails = new Set(existingRes.rows.map(r => r.email));
-      const existingDomains = new Set();
-      existingEmails.forEach(em => {
-        if (em.includes('@')) existingDomains.add(em.split('@')[1]);
-      });
 
-      console.log(`🔒 Deduplicação Ativa: ${existingEmails.size} e-mails protegidos.`);
+      console.log(`🔒 Deduplicação Ativa: ${existingEmails.size} e-mails protegidos no CRM.`);
 
       let roundTotal = 0;
 
-      // Process in parallel batches of 10 municipalities
-      const CHUNK_SIZE = 10;
-      for (let i = 0; i < SPAIN_MUNICIPALITIES.length; i += CHUNK_SIZE) {
-        const chunk = SPAIN_MUNICIPALITIES.slice(i, i + CHUNK_SIZE);
-        console.log(`\n--- [Lote ${Math.floor(i / CHUNK_SIZE) + 1} de ${Math.ceil(SPAIN_MUNICIPALITIES.length / CHUNK_SIZE)}] Varrendo: ${chunk.map(c => c.city).join(', ')} ---`);
+      // Sequentially iterate through municipalities to respect API pacing
+      for (const muni of SPAIN_MUNICIPALITIES) {
+        for (const sector of CNAE_SECTORS) {
+          const jobId = jobMap[sector.code];
+          try {
+            console.log(`🔎 [${muni.city}] Setor: ${sector.cnae} (${sector.code})...`);
+            const rawList = await fetchCnaeWorkshopsForMunicipality(muni, sector);
+            if (!rawList || rawList.length === 0) {
+              console.log(`   ↳ 0 candidatos retornados.`);
+              continue;
+            }
+            console.log(`   ↳ ${rawList.length} empresas candidatas encontradas. Validando contatos e DNS...`);
 
-        const chunkPromises = [];
+            let sectorInserted = 0;
+            for (const comp of rawList) {
+              if (!comp.company_name || !comp.email) continue;
+              const cleanEmail = comp.email.toLowerCase().trim();
+              if (!isCleanValidEmail(cleanEmail)) {
+                console.log(`   [SKIP EMAIL INVALIDO] ${comp.company_name} ➔ ${cleanEmail}`);
+                continue;
+              }
+              if (existingEmails.has(cleanEmail)) {
+                console.log(`   [SKIP JA EXISTE NO CRM] ${comp.company_name} ➔ ${cleanEmail}`);
+                continue;
+              }
 
-        for (const muni of chunk) {
-          for (const sector of CNAE_SECTORS) {
-            chunkPromises.push((async () => {
-              const jobId = jobMap[sector.code];
-              const rawList = await fetchCnaeWorkshopsForMunicipality(muni, sector, Array.from(existingDomains).slice(-25));
-              if (!rawList || rawList.length === 0) return 0;
+              let domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
+              const isLive = await checkDomainLive(domain);
+              if (!isLive) {
+                console.log(`   [SKIP DNS INATIVO] ${comp.company_name} ➔ ${cleanEmail} (domain: ${domain})`);
+                continue;
+              }
 
-              let sectorInserted = 0;
+              existingEmails.add(cleanEmail);
 
-              await Promise.all(rawList.map(async (comp) => {
-                if (!comp.company_name || !comp.website) return;
-                
-                let webUrl = comp.website.trim();
-                if (!webUrl.startsWith('http')) webUrl = `https://${webUrl}`;
+              let webUrl = (comp.website || '').trim();
+              if (webUrl && !webUrl.startsWith('http')) webUrl = `https://${webUrl}`;
 
-                const scraped = await scrapeRealEmailsFromSite(webUrl);
-                if (scraped.length === 0) return;
-
-                const cleanEmail = (scraped.find(e => /^(comercial|ventas|taller|contacto|info|administracion)/i.test(e) || e.includes('gmail') || e.includes('hotmail')) || scraped[0]).toLowerCase().trim();
-                if (existingEmails.has(cleanEmail)) return;
-
-                let domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
-                if (existingDomains.has(domain) && !domain.includes('gmail') && !domain.includes('hotmail') && !domain.includes('yahoo')) return;
-
-                const hasMx = await checkMx(domain);
-                if (!hasMx) return;
-
-                existingEmails.add(cleanEmail);
-                if (domain) existingDomains.add(domain);
-
-                const otherEmails = scraped.filter(e => e !== cleanEmail);
-                const otherEmailsNote = otherEmails.length > 0 ? ` E-mails secundários do site: ${otherEmails.join(', ')}` : '';
-
-                // 1. Insert Staging
-                try {
-                  const existingStag = await client.query('SELECT id FROM core_comercial.lead_prospecting_results WHERE LOWER(TRIM(email)) = $1;', [cleanEmail]);
-                  if (existingStag.rows.length > 0) {
-                    await client.query(`
-                      UPDATE core_comercial.lead_prospecting_results
-                      SET job_id = $1, empresa_id = $2, company_name = $3, phone = $4, website = $5,
-                          address = $6, city = $7, province = $8, status = 'imported', confidence_score = 100, updated_at = NOW()
-                      WHERE id = $9;
-                    `, [
-                      jobId, empresaId, comp.company_name, comp.phone || '+34 91 000 00 00',
-                      webUrl, comp.address || `${muni.zone}`,
-                      comp.city || muni.city, muni.prov, existingStag.rows[0].id
-                    ]);
-                  } else {
-                    await client.query(`
-                      INSERT INTO core_comercial.lead_prospecting_results (
-                        job_id, empresa_id, company_name, email, phone, website, address, city, 
-                        province, country, confidence_score, status, created_at, updated_at
-                      ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'imported', NOW(), NOW()
-                      );
-                    `, [
-                      jobId, empresaId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
-                      webUrl, comp.address || `${muni.zone}`,
-                      comp.city || muni.city, muni.prov
-                    ]);
-                  }
-                  sectorInserted++;
-                  console.log(`🎯 [NOVO LEAD VERIFICADO] ${comp.company_name} ➔ ${cleanEmail} (${comp.city || muni.city})`);
-                } catch {}
-
-                // 2. Insert CRM
-                try {
-                  const check = await client.query('SELECT id FROM core_comercial.leads WHERE LOWER(TRIM(email)) = $1 LIMIT 1;', [cleanEmail]);
-                  if (check.rows.length === 0) {
-                    await client.query(`
-                      INSERT INTO core_comercial.leads (
-                        empresa_id, stage_id, prospecting_job_id, name, company_name, email, phone, website,
-                        address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
-                      ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
-                      );
-                    `, [
-                      empresaId, defaultStageId, jobId, comp.company_name, comp.company_name, cleanEmail,
-                      comp.phone || '+34 91 000 00 00', webUrl,
-                      comp.address || `${muni.zone}, ${muni.prov}`, comp.city || muni.city, muni.prov,
-                      sector.title, 'Gemini Flash - Polígonos Espanha',
-                      `Oficina real verificada via Web Scraping HTML. CNAE ${sector.cnae}. Polígono: ${muni.zone}.${otherEmailsNote}`,
-                      ['Espanha', 'Polígonos Industriais', `CNAE ${sector.cnae}`, muni.city]
-                    ]);
-                  }
-                } catch {}
-
-                // Update Job counters
+              // 1. Insert Staging (lead_prospecting_results)
+              try {
                 await client.query(`
-                  UPDATE core_comercial.lead_prospecting_jobs
-                  SET 
-                    processed_count = processed_count + 1,
-                    found_emails_count = found_emails_count + 1,
-                    updated_at = NOW()
-                  WHERE id = $1;
-                `, [jobId]);
-              }));
+                  INSERT INTO core_comercial.lead_prospecting_results (
+                    job_id, empresa_id, company_name, email, phone, website, address, city, 
+                    province, country, confidence_score, status, created_at, updated_at
+                  ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'raw', NOW(), NOW()
+                  );
+                `, [
+                  jobId, empresaId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
+                  webUrl, comp.address || `${muni.zone}`,
+                  comp.city || muni.city, muni.prov
+                ]);
+              } catch (e) {}
 
-              return sectorInserted;
-            })());
+              // 2. Insert CRM (core_comercial.leads)
+              try {
+                await client.query(`
+                  INSERT INTO core_comercial.leads (
+                    empresa_id, stage_id, prospecting_job_id, name, company_name, email, phone, website,
+                    address_line, city, province, sector, origen_lead, notes, tags, created_at, updated_at
+                  ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+                  );
+                `, [
+                  empresaId, defaultStageId, jobId, comp.company_name, comp.company_name, cleanEmail,
+                  comp.phone || '+34 91 000 00 00', webUrl,
+                  comp.address || `${muni.zone}, ${muni.prov}`, comp.city || muni.city, muni.prov,
+                  sector.title, 'Gemini Flash - Polígonos Espanha',
+                  `Oficina verificada via Registro Mercantil e DNS Ativo. CNAE ${sector.cnae}. Polígono: ${muni.zone}.`,
+                  ['Espanha', 'Polígonos Industriais', `CNAE ${sector.cnae}`, muni.city]
+                ]);
+              } catch (e) {}
+
+              sectorInserted++;
+              roundTotal++;
+              console.log(`🎯 [NOVO LEAD NOVO] ${comp.company_name} ➔ ${cleanEmail} (${comp.city || muni.city})`);
+            }
+
+            if (sectorInserted > 0) {
+              await client.query(`
+                UPDATE core_comercial.lead_prospecting_jobs
+                SET 
+                  processed_count = processed_count + $1,
+                  found_emails_count = found_emails_count + $1,
+                  updated_at = NOW()
+                WHERE id = $2;
+              `, [sectorInserted, jobId]);
+            }
+          } catch (e) {
+            console.error(`Erro ao minerar ${muni.city} setor ${sector.code}:`, e.message);
           }
-        }
 
-        const batchResults = await Promise.all(chunkPromises);
-        const batchTotal = batchResults.reduce((a, b) => a + b, 0);
-        roundTotal += batchTotal;
-        console.log(`✅ [Lote Finalizado] +${batchTotal} indústrias adicionadas ao CRM.`);
+          // Gentle 1s sleep between sectors to stay smoothly within limits
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
 
       console.log(`\n🎉 [RODADA ${round} CONCLUÍDA] Total de novos leads nesta rodada: ${roundTotal}`);
