@@ -2,51 +2,69 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Client } from 'pg';
 
 const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
-const AISA_BASE_URL = 'https://api.aisa.one/v1';
-const AISA_API_KEY = process.env.VITE_AISA_API_KEY || process.env.AISA_API_KEY || 'sk-aisa-rHasSfH7Ke5hXtc1lyKlXYOkP6DPOW_GiNxo6O6HOO0';
+const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
 
-const ALL_SPANISH_PROVINCES = [
-  'Madrid (Polígonos de Getafe, Pinto, San Fernando, Coslada y Alcalá)',
-  'Barcelona (Polígonos de Sabadell, Terrassa, Granollers, Martorell, Sant Boi y Zona Franca)',
-  'Vizcaya / Bilbao (Polígonos de Asua, Erandio, Trapagaran, Durango y Zamudio)',
-  'Zaragoza (Polígonos Malpica, Plaza, Centrovía, Cogullada y Utebo)',
-  'Valencia (Polígonos Fuente del Jarro, Almussafes, Paterna y Ribarroja)',
-  'Sevilla (Polígonos Calonge, Store, La Isla y Alcalá de Guadaíra)',
-  'Asturias (Polígonos Silvota, Asipo, PEPA Avilés y Porceyo Gijón)',
-  'Navarra (Polígonos Landaben, Noáin y Comarca 2)',
-  'Pontevedra / Vigo (Polígonos de Balaídos, O Campiño y Porriño)',
-  'A Coruña (Polígonos de Sabón, Grela y Ferrolterra)',
-  'Álava / Vitoria (Polígonos de Júndiz, Betoño y Gojain)',
-  'Gipuzkoa (Polígonos de Eibar, Beasain, Hernani e Irún)',
-  'Tarragona (Polígonos Químico Riu Clar, Francolí y Constantí)',
-  'Cádiz (Polígonos de Algeciras, San Fernando, Puerto Real y El Trocadero)',
-  'Murcia (Polígonos de Cartagena, Cabezo Beaza y Molina de Segura)',
-  'Valladolid (Polígonos San Cristóbal y Argales)',
-  'Alicante (Polígonos Las Atalayas y Pla de la Vallonga)',
-  'Cantabria (Polígonos Candina, Guarnizo y Morero)',
-  'Castellón (Polígonos Mijares y Ciudad del Transporte)',
-  'Huelva (Polígonos Nuevo Puerto y Palos de la Frontera)'
+const JUNK_DOMAINS = [
+  'webador.es', 'wixpress.com', 'sentry.io', 'schema.org', 'example.com',
+  'ejemplo.com', 'doe.com', 'freehtml5.co', 'themewagon.com', 'bootstrap',
+  'popper', 'fontawesome', 'cloudflare.com', 'wordpress.org', 'gravatar.com',
+  'google.com', 'facebook.com', 'instagram.com'
 ];
 
-async function checkMx(domain: string): Promise<boolean> {
-  if (!domain || domain.includes(' ') || !domain.includes('.')) return false;
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 1500);
-    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, { signal: controller.signal });
-    clearTimeout(t);
-    const json: any = await res.json();
-    return json.Status === 0 && Array.isArray(json.Answer) && json.Answer.length > 0;
-  } catch {
-    return false;
+function isCleanValidEmail(email: string): boolean {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  if (lower.length < 6 || lower.length > 80) return false;
+  if (!lower.includes('@') || !lower.includes('.')) return false;
+  if (/@\d+\.\d+/i.test(lower) || /\.(js|css|png|jpg|jpeg|webp|gif|svg)@/i.test(lower)) return false;
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.webp') || lower.endsWith('.js') || lower.endsWith('.css')) return false;
+
+  for (const junk of JUNK_DOMAINS) {
+    if (lower.includes(junk)) return false;
   }
+  return true;
+}
+
+async function scrapeRealEmailsFromSite(baseUrl: string): Promise<string[]> {
+  if (!baseUrl || !baseUrl.startsWith('http')) return [];
+  const urlsToTry = [
+    baseUrl,
+    baseUrl.replace(/\/$/, '') + '/contacto',
+    baseUrl.replace(/\/$/, '') + '/contacto.html',
+    baseUrl.replace(/\/$/, '') + '/aviso-legal'
+  ];
+
+  for (const url of urlsToTry) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(t);
+
+      if (!res.ok) continue;
+      const html = await res.text();
+      const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+      const matches = html.match(emailRegex) || [];
+      const clean = matches.filter(isCleanValidEmail);
+
+      if (clean.length > 0) {
+        return clean.map(e => e.toLowerCase().trim());
+      }
+    } catch {}
+  }
+  return [];
 }
 
 async function fetchHub(province: string, keywords: string, excludedCompanies: string[]): Promise<any[]> {
   const excludeStr = excludedCompanies.length > 0 ? `\nDO NOT return any of these previously captured: [${excludedCompanies.slice(-30).join(', ')}].` : '';
-  const prompt = `Provide 20 real, active small/medium industrial workshops and fabricators (Pymes / Talleres de calderería, tubería industrial, cerrajería pesada, soldadura TIG/MIG, montajes mecánicos y mecanizado) located in polígonos industriales across "${province}", Spain matching: "${keywords}".
+  const prompt = `Provide 25 real, active small/medium industrial workshops and fabricators (Pymes / Talleres de calderería, tubería industrial, cerrajería pesada, soldadura TIG/MIG, montajes mecánicos y mecanizado) located in polígonos industriales across "${province}", Spain matching: "${keywords}".
 Target medium and small workshops (10 to 50 workers) situated in industrial estates (Polígonos Industriales) that subcontract welders, fitters, and tuberos.
-Only return valid, non-fictional registered companies with their official website and primary contact email.${excludeStr}
+Only return registered Spanish companies with real websites (.es or .com).${excludeStr}
 
 Return JSON array only:
 [
@@ -56,31 +74,32 @@ Return JSON array only:
     "phone": "+34 9xx xxx xxx",
     "address": "Polígono Industrial...",
     "city": "${province}",
-    "province": "${province}",
-    "email": "contacto@company.es"
+    "province": "${province}"
   }
 ]`;
 
   try {
-    const res = await fetch(`${AISA_BASE_URL}/chat/completions`, {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AISA_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a Spanish industrial B2B registry assistant specializing in industrial parks and SME workshops. Return ONLY a valid JSON array.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.25,
+        },
       }),
+      signal: controller.signal
     });
+    clearTimeout(t);
 
     const json: any = await res.json();
-    const content = json.choices?.[0]?.message?.content || '[]';
-    const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(clean);
   } catch {
     return [];
