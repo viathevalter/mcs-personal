@@ -332,9 +332,9 @@ async function checkMx(domain) {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 async function fetchCnaeWorkshopsForMunicipality(muniObj, cnaeSectorObj, excluded) {
-  const excludeStr = excluded.length > 0 ? `\nDO NOT include: [${excluded.slice(-20).join(', ')}].` : '';
+  const excludeStr = excluded.length > 0 ? `\nDO NOT include: [${excluded.slice(-25).join(', ')}].` : '';
   const prompt = `You are a Spanish industrial B2B registry specialist.
-Find 15 REAL, NON-FICTIONAL, ACTIVE Spanish industrial workshops and fabricators (Pymes y Talleres) located in "${muniObj.city}" (${muniObj.prov}, Spain) in the industrial estates "${muniObj.zone}" registered under: "${cnaeSectorObj.search_terms}".
+Find 25 REAL, REGISTERED, ACTIVE Spanish industrial workshops and fabricators (Pymes y Talleres) located in "${muniObj.city}" (${muniObj.prov}, Spain) in the industrial estates "${muniObj.zone}" registered under: "${cnaeSectorObj.search_terms}".
 Target real small and medium industrial companies (10 to 100 workers) situated in these industrial zones that employ welders, tuberos, and metal fabricators.
 Only return registered Spanish companies with real websites (.es or .com).${excludeStr}
 
@@ -352,7 +352,7 @@ Return JSON array only:
 
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 9000);
+    const t = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
@@ -362,7 +362,7 @@ Return JSON array only:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.25
+          temperature: 0.3
         }
       }),
       signal: controller.signal
@@ -432,11 +432,11 @@ async function runCnaeMicroCitiesMiner() {
 
   let totalInsertedAll = 0;
 
-  // Process in parallel batches of 5 municipalities across all 8 CNAE sectors
-  const CHUNK_SIZE = 5;
+  // Process in parallel batches of 15 municipalities across all 8 CNAE sectors (120 parallel tasks)
+  const CHUNK_SIZE = 15;
   for (let i = 0; i < SPAIN_300_MUNICIPALITIES.length; i += CHUNK_SIZE) {
     const chunk = SPAIN_300_MUNICIPALITIES.slice(i, i + CHUNK_SIZE);
-    console.log(`\n=================== [LOTE ${Math.floor(i / CHUNK_SIZE) + 1} de ${Math.ceil(SPAIN_300_MUNICIPALITIES.length / CHUNK_SIZE)}] Processando: ${chunk.map(c => c.city).join(', ')} ===================`);
+    console.log(`\n=================== [TURBO LOTE ${Math.floor(i / CHUNK_SIZE) + 1} de ${Math.ceil(SPAIN_300_MUNICIPALITIES.length / CHUNK_SIZE)}] Processando ${chunk.length} Cidades ===================`);
 
     const chunkPromises = [];
 
@@ -444,30 +444,30 @@ async function runCnaeMicroCitiesMiner() {
       for (const sector of CNAE_SECTORS) {
         chunkPromises.push((async () => {
           const jobId = jobMap[sector.code];
-          const rawList = await fetchCnaeWorkshopsForMunicipality(muni, sector, Array.from(existingDomains).slice(-15));
+          const rawList = await fetchCnaeWorkshopsForMunicipality(muni, sector, Array.from(existingDomains).slice(-25));
           if (!rawList || rawList.length === 0) return 0;
 
           let sectorInserted = 0;
 
-          for (const comp of rawList) {
-            if (!comp.company_name || !comp.website) continue;
+          await Promise.all(rawList.map(async (comp) => {
+            if (!comp.company_name || !comp.website) return;
             
             let webUrl = comp.website.trim();
             if (!webUrl.startsWith('http')) webUrl = `https://${webUrl}`;
 
             // STRICT: Must extract real email from website HTML
             const scraped = await scrapeRealEmailsFromSite(webUrl);
-            if (scraped.length === 0) continue; // Skip if no real email in HTML!
+            if (scraped.length === 0) return; // Skip if no real email in HTML!
 
             const cleanEmail = (scraped.find(e => /^(info|contacto|taller|comercial|ventas|administracion)/i.test(e) || e.includes('gmail') || e.includes('hotmail')) || scraped[0]).toLowerCase().trim();
-            if (existingEmails.has(cleanEmail)) continue;
+            if (existingEmails.has(cleanEmail)) return;
 
             let domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
-            if (existingDomains.has(domain) && !domain.includes('gmail') && !domain.includes('hotmail') && !domain.includes('yahoo')) continue;
+            if (existingDomains.has(domain) && !domain.includes('gmail') && !domain.includes('hotmail') && !domain.includes('yahoo')) return;
 
             // Verify DNS MX
             const hasMx = await checkMx(domain);
-            if (!hasMx) continue;
+            if (!hasMx) return;
 
             existingEmails.add(cleanEmail);
             if (domain) existingDomains.add(domain);
@@ -500,6 +500,7 @@ async function runCnaeMicroCitiesMiner() {
                   comp.city || muni.city, muni.prov
                 ]);
               }
+              sectorInserted++;
             } catch (e) {}
 
             // 2. Insert into CRM
@@ -515,13 +516,12 @@ async function runCnaeMicroCitiesMiner() {
                   );
                 `, [
                   empresaId, defaultStageId, jobId, comp.company_name, comp.company_name, cleanEmail,
-                  comp.phone || '+34 91 000 00 00', comp.website || `https://www.${domain}`,
+                  comp.phone || '+34 91 000 00 00', webUrl,
                   comp.address || `${muni.zone}, ${muni.prov}`, comp.city || muni.city, muni.prov,
-                  sector.title, 'AIsa - Polígonos Espanha',
-                  `Oficina real verificada via DNS MX. CNAE ${sector.cnae}. Polígono: ${muni.zone}.`,
+                  sector.title, 'Gemini - Polígonos Espanha',
+                  `Oficina real verificada via Web Scraping HTML. CNAE ${sector.cnae}. Polígono: ${muni.zone}.`,
                   ['Espanha', 'Polígonos Industriais', `CNAE ${sector.cnae_code}`, muni.city]
                 ]);
-                sectorInserted++;
               }
             } catch (e) {}
 
@@ -534,7 +534,7 @@ async function runCnaeMicroCitiesMiner() {
                 updated_at = NOW()
               WHERE id = $1;
             `, [jobId]);
-          }
+          }));
 
           return sectorInserted;
         })());
