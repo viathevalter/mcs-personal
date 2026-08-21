@@ -125,6 +125,29 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
         }
     }
 
+    // 3.5 Se o trabalhador foi inativado/desligado/baixa, atualizar data de saída efetiva nas alocações ativas
+    if (['INATIVO', 'INACTIVO', 'BAIXA', 'DESLIGADO', 'DESISTIU'].includes(statusTrabUpper)) {
+        await supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .update({
+                end_date: effectiveDate,
+                status: 'completed'
+            })
+            .eq('worker_id', workerId)
+            .eq('status', 'active');
+
+        if (worker.cod_colab) {
+            await supabase
+                .from('colaborador_por_pedido')
+                .update({
+                    fechasalidatrabajador: effectiveDate
+                })
+                .eq('cod_colab', worker.cod_colab)
+                .is('fechasalidatrabajador', null);
+        }
+    }
+
     // 4. Inserir histórico de alteração para cada status alterado
     const userId = (await supabase.auth.getUser()).data.user?.id;
     const historyInserts: any[] = [];
