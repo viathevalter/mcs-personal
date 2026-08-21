@@ -259,6 +259,62 @@ const SPAIN_300_MUNICIPALITIES = [
   { city: 'Cáceres & Plasencia', prov: 'Cáceres', zone: 'Polígonos Las Capellanías, Plasencia' }
 ];
 
+const JUNK_DOMAINS = [
+  'webador.es', 'wixpress.com', 'sentry.io', 'schema.org', 'example.com',
+  'ejemplo.com', 'doe.com', 'freehtml5.co', 'themewagon.com', 'bootstrap',
+  'popper', 'fontawesome', 'cloudflare.com', 'wordpress.org', 'gravatar.com',
+  'google.com', 'facebook.com', 'instagram.com'
+];
+
+function isCleanValidEmail(email) {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  if (lower.length < 6 || lower.length > 80) return false;
+  if (!lower.includes('@') || !lower.includes('.')) return false;
+  if (/@\d+\.\d+/i.test(lower) || /\.(js|css|png|jpg|jpeg|webp|gif|svg)@/i.test(lower)) return false;
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.webp') || lower.endsWith('.js') || lower.endsWith('.css')) return false;
+
+  for (const junk of JUNK_DOMAINS) {
+    if (lower.includes(junk)) return false;
+  }
+  return true;
+}
+
+async function scrapeRealEmailsFromSite(baseUrl) {
+  if (!baseUrl || !baseUrl.startsWith('http')) return [];
+  const urlsToTry = [
+    baseUrl,
+    baseUrl.replace(/\/$/, '') + '/contacto',
+    baseUrl.replace(/\/$/, '') + '/contacto.html',
+    baseUrl.replace(/\/$/, '') + '/aviso-legal'
+  ];
+
+  for (const url of urlsToTry) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(t);
+
+      if (!res.ok) continue;
+      const html = await res.text();
+      const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+      const matches = html.match(emailRegex) || [];
+      const clean = matches.filter(isCleanValidEmail);
+
+      if (clean.length > 0) {
+        return clean.map(e => e.toLowerCase().trim());
+      }
+    } catch {}
+  }
+  return [];
+}
+
 async function checkMx(domain) {
   if (!domain || domain.includes(' ') || !domain.includes('.')) return false;
   try {
@@ -395,23 +451,27 @@ async function runCnaeMicroCitiesMiner() {
           let sectorInserted = 0;
 
           for (const comp of rawList) {
-            if (!comp.email || !comp.company_name) continue;
-            const cleanEmail = comp.email.toLowerCase().trim();
+            if (!comp.company_name || !comp.website) continue;
+            
+            let webUrl = comp.website.trim();
+            if (!webUrl.startsWith('http')) webUrl = `https://${webUrl}`;
+
+            // STRICT: Must extract real email from website HTML
+            const scraped = await scrapeRealEmailsFromSite(webUrl);
+            if (scraped.length === 0) continue; // Skip if no real email in HTML!
+
+            const cleanEmail = (scraped.find(e => /^(info|contacto|taller|comercial|ventas|administracion)/i.test(e) || e.includes('gmail') || e.includes('hotmail')) || scraped[0]).toLowerCase().trim();
             if (existingEmails.has(cleanEmail)) continue;
 
-            let domain = comp.website ? comp.website.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].split('?')[0].trim() : '';
-            if (!domain && cleanEmail.includes('@')) {
-              domain = cleanEmail.split('@')[1];
-            }
-
-            if (existingDomains.has(domain)) continue;
+            let domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
+            if (existingDomains.has(domain) && !domain.includes('gmail') && !domain.includes('hotmail') && !domain.includes('yahoo')) continue;
 
             // Verify DNS MX
             const hasMx = await checkMx(domain);
             if (!hasMx) continue;
 
             existingEmails.add(cleanEmail);
-            existingDomains.add(domain);
+            if (domain) existingDomains.add(domain);
 
             // 1. Insert into Staging
             try {
@@ -420,11 +480,11 @@ async function runCnaeMicroCitiesMiner() {
                 await client.query(`
                   UPDATE core_comercial.lead_prospecting_results
                   SET job_id = $1, empresa_id = $2, company_name = $3, phone = $4, website = $5,
-                      address = $6, city = $7, province = $8, status = 'imported', updated_at = NOW()
+                      address = $6, city = $7, province = $8, status = 'imported', confidence_score = 100, updated_at = NOW()
                   WHERE id = $9;
                 `, [
                   jobId, empresaId, comp.company_name, comp.phone || '+34 91 000 00 00',
-                  comp.website || `https://www.${domain}`, comp.address || `${muni.zone}`,
+                  webUrl, comp.address || `${muni.zone}`,
                   comp.city || muni.city, muni.prov, existingStag.rows[0].id
                 ]);
               } else {
@@ -433,11 +493,11 @@ async function runCnaeMicroCitiesMiner() {
                     job_id, empresa_id, company_name, email, phone, website, address, city, 
                     province, country, confidence_score, status, created_at, updated_at
                   ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 98, 'imported', NOW(), NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'imported', NOW(), NOW()
                   );
                 `, [
                   jobId, empresaId, comp.company_name, cleanEmail, comp.phone || '+34 91 000 00 00',
-                  comp.website || `https://www.${domain}`, comp.address || `${muni.zone}`,
+                  webUrl, comp.address || `${muni.zone}`,
                   comp.city || muni.city, muni.prov
                 ]);
               }
