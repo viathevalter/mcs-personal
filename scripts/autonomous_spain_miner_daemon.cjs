@@ -215,8 +215,8 @@ async function startAutonomousDaemon() {
     try {
       await client.connect();
 
-      const empRes = await client.query('SELECT id FROM core_common.empresas LIMIT 1;');
-      const empresaId = empRes.rows[0]?.id || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+      const jobEmpRes = await client.query('SELECT empresa_id FROM core_comercial.lead_prospecting_jobs LIMIT 1;');
+      const empresaId = jobEmpRes.rows[0]?.empresa_id || '847796c4-b253-4e53-9e6b-34a127ec7d85';
 
       const stageRes = await client.query(`
         SELECT id FROM core_comercial.kanban_stages 
