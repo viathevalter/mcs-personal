@@ -329,12 +329,14 @@ async function checkMx(domain) {
   }
 }
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
 async function fetchCnaeWorkshopsForMunicipality(muniObj, cnaeSectorObj, excluded) {
   const excludeStr = excluded.length > 0 ? `\nDO NOT include: [${excluded.slice(-20).join(', ')}].` : '';
   const prompt = `You are a Spanish industrial B2B registry specialist.
 Find 15 REAL, NON-FICTIONAL, ACTIVE Spanish industrial workshops and fabricators (Pymes y Talleres) located in "${muniObj.city}" (${muniObj.prov}, Spain) in the industrial estates "${muniObj.zone}" registered under: "${cnaeSectorObj.search_terms}".
 Target real small and medium industrial companies (10 to 100 workers) situated in these industrial zones that employ welders, tuberos, and metal fabricators.
-Only return registered Spanish companies with real websites (.es or .com) and verified contact emails (info@, comercial@, contacto@, administracion@).${excludeStr}
+Only return registered Spanish companies with real websites (.es or .com).${excludeStr}
 
 Return JSON array only:
 [
@@ -344,35 +346,32 @@ Return JSON array only:
     "phone": "+34 9xx xxx xxx",
     "address": "Polígono Industrial...",
     "city": "${muniObj.city}",
-    "province": "${muniObj.prov}",
-    "email": "info@domain.es"
+    "province": "${muniObj.prov}"
   }
 ]`;
 
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 9000);
-    const res = await fetch(`${AISA_BASE_URL}/chat/completions`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AISA_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a Spanish industrial registry database assistant. Return ONLY valid JSON array with real verified Spanish companies.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.35,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.25
+        }
       }),
       signal: controller.signal
     });
     clearTimeout(t);
 
     const json = await res.json();
-    const content = json.choices?.[0]?.message?.content || '[]';
-    const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(clean);
   } catch (err) {
     return [];

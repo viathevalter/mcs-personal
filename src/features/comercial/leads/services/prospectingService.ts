@@ -2,8 +2,8 @@ import { supabase } from '@/shared/supabase/client';
 import type { LeadProspectingJob, LeadProspectingResult, SearchSourceEngine } from '../types/prospectingTypes';
 import { REAL_SPANISH_INDUSTRIAL_DATABASE } from './spanishIndustrialDirectory';
 
-export const DEFAULT_AISA_API_KEY = import.meta.env.VITE_AISA_API_KEY || 'sk-aisa-rHasSfH7Ke5hXtc1lyKlXYOkP6DPOW_GiNxo6O6HOO0';
-export const AISA_BASE_URL = 'https://api.aisa.one/v1';
+export const DEFAULT_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export interface ScrapedCompanyRaw {
   company_name: string;
@@ -91,7 +91,7 @@ export class ProspectingService {
     apiKeyOverride?: string,
     excludedCompanyNames: string[] = []
   ): Promise<ScrapedCompanyRaw[]> {
-    const apiKey = apiKeyOverride || DEFAULT_AISA_API_KEY;
+    const apiKey = apiKeyOverride || DEFAULT_GEMINI_API_KEY;
 
     // 1. First priority: Pull directly from Verified Spanish Industrial Registry Catalog
     const excludedSet = new Set(excludedCompanyNames.map((n) => n.toLowerCase().trim()));
@@ -257,31 +257,27 @@ Return JSON array only:
 ]`;
 
         try {
-          const res = await fetch(`${AISA_BASE_URL}/chat/completions`, {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'gpt-4o',
-              messages: [
+              contents: [
                 {
-                  role: 'system',
-                  content: 'You are a Spanish industrial B2B registry assistant. Return ONLY a valid JSON array.',
-                },
-                {
-                  role: 'user',
-                  content: prompt,
+                  parts: [{ text: prompt }],
                 },
               ],
-              temperature: 0.25,
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.25,
+              },
             }),
           });
 
           if (!res.ok) return [];
           const json = await res.json();
-          const content = json.choices?.[0]?.message?.content || '[]';
+          const content = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
           const cleanJsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
           const items: ScrapedCompanyRaw[] = JSON.parse(cleanJsonStr);
           return items.map((it) => ({

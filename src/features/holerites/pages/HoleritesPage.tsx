@@ -1653,12 +1653,11 @@ export function HoleritesPage() {
                         <Button
                             size="sm"
                             variant="ghost"
-                                variant="ghost"
-                                onClick={() => setSelectedWorkerIds(new Set())}
-                                className="h-8 text-xs text-slate-400 hover:text-white"
-                            >
-                                Limpar Seleção
-                            </Button>
+                            onClick={() => setSelectedWorkerIds(new Set())}
+                            className="h-8 text-xs text-slate-400 hover:text-white"
+                        >
+                            Limpar Seleção
+                        </Button>
                         </div>
                     </div>
                 )}
