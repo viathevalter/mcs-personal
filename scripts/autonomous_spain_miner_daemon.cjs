@@ -4,14 +4,14 @@ const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postg
 const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
 
 const CNAE_SECTORS = [
-  { code: '2511', cnae: '25.11', title: '🏗️ 1. CNAE 2511 - Estructuras Metálicas, Naves & Cerrajería Pesada', search_terms: 'CNAE 2511 fabricación de estructuras metálicas, calderería estructural, vigas de acero soldadas, cerrajería industrial' },
-  { code: '2529', cnae: '25.29', title: '🔨 2. CNAE 2529 - Calderería Pesada, Tanques & Recipientes a Presión', search_terms: 'CNAE 2529 fabricación de cisternas, grandes depósitos, recipientes a presión, autoclaves, calderería pesada' },
-  { code: '3320', cnae: '33.20', title: '🚰 3. CNAE 3320 - Tubería Industrial, Piping & Montajes Mecánicos', search_terms: 'CNAE 3320 instalación y montaje de tubería industrial, líneas de vapor, piping industrial, montajes mecánicos' },
-  { code: '2562', cnae: '25.62', title: '⚙️ 4. CNAE 2562 - Mecanizado Industrial CNC, Tornería & Matricería', search_terms: 'CNAE 2562 ingeniería de mecanizado por control numérico CNC, tornos verticales, centros de mecanizado, fresado pesado' },
-  { code: '2825', cnae: '28.25', title: '🔥 5. CNAE 2825 - Intercambiadores de Calor, Calderas & Frío Industrial', search_terms: 'CNAE 2825 fabricación de intercambiadores de calor, enfriadores industriales, calderas industriales, climatización pesada' },
-  { code: '3011', cnae: '30.11 / 33.15', title: '⚓ 6. CNAE 3011 / 3315 - Construcción & Reparación Naval / Astilleros', search_terms: 'CNAE 3011 construcción naval, reparación de buques, calderería naval, astilleros y varaderos' },
-  { code: '2893', cnae: '28.93', title: '🥛 7. CNAE 2893 - Industria Agroalimentaria, Bodegas & Tubería Inox', search_terms: 'CNAE 2893 fabricación de maquinaria alimentaria, depósitos de acero inoxidable para bodegas, piping alimentario' },
-  { code: '4329', cnae: '43.29', title: '❄️ 8. CNAE 4329 - Aislamiento Térmico, Calorifugado & Climatización', search_terms: 'CNAE 4329 calorifugado industrial, aislamiento térmico de tuberías, aislamiento acústico industrial' }
+  { code: '3320', cnae: '33.20', title: '🚰 1. CNAE 3320 - Tubería Industrial, Piping & Montajes Mecánicos (Perfil Ingalux / Vallès)', search_terms: 'CNAE 3320 montaje de tubería industrial, líneas de vapor, piping industrial, montajes mecánicos, soldadura de tuberías' },
+  { code: '2529', cnae: '25.29', title: '🔨 2. CNAE 2529 - Calderería Pesada, Tanques, Tolvas & Recipientes a Presión (Perfil Dayma / Osona)', search_terms: 'CNAE 2529 fabricación de cisternas, grandes depósitos, tolvas, recipientes a presión, autoclaves, calderería pesada' },
+  { code: '2893', cnae: '28.93', title: '🥛 3. CNAE 2893 - Tubería Inox, Bodegas, Industria Alimentaria & Farmacéutica (Perfil Alvinox / Caldinox)', search_terms: 'CNAE 2893 tubería de acero inoxidable, depósitos inox para bodegas, piping alimentario, maquinaria láctea y farmacéutica' },
+  { code: '2511_2599', cnae: '25.11 / 25.99', title: '🏗️ 4. CNAE 2511 & 2599 - Estructuras Metálicas Pesadas, Naves & Cerrajería (Perfil Continente / Dizmar)', search_terms: 'CNAE 2511 fabricación de estructuras metálicas, calderería estructural, vigas de acero soldadas, cerrajería pesada' },
+  { code: '4322_3311', cnae: '43.22 / 33.11', title: '🔥 5. CNAE 4322 & 3311 - Mantenimiento de Paradas de Planta, Vapor & Climatización Industrial', search_terms: 'CNAE 4322 mantenimiento industrial, paradas de planta, instalaciones de vapor, climatización industrial pesada, redes térmicas' },
+  { code: '4299', cnae: '42.99', title: '🌐 6. CNAE 4299 - Montaje de Redes de Tuberías Industriales, Plantas Energéticas & Gas', search_terms: 'CNAE 4299 construcción de redes de tuberías, plantas de gas, plantas de hidrógeno, montajes de energía y cogeneración' },
+  { code: '2562', cnae: '25.62', title: '⚙️ 7. CNAE 2562 - Mecanizado Industrial CNC, Tornería Pesada & Matricería (Perfil Gran Mecanizado)', search_terms: 'CNAE 2562 mecanizado por control numérico CNC, tornos verticales, centros de mecanizado, fresado pesado' },
+  { code: '3011', cnae: '30.11 / 33.15', title: '⚓ 8. CNAE 3011 / 3315 - Construcción & Reparación Naval / Astilleros y Varaderos (Perfil Tacman)', search_terms: 'CNAE 3011 construcción naval, reparación de buques, calderería naval, astilleros, varaderos y calderería marítima' }
 ];
 
 const SPAIN_MUNICIPALITIES = [
