@@ -258,9 +258,9 @@ export function ProspectingPage() {
           break;
         }
 
-        // Optimized anti-blocking delay
-        const waitMs = Math.max(500, (currentJob.delay_seconds || 1) * 1000);
-        addLog(`Pausa otimizada de ${waitMs / 1000}s entre lotes...`, 'info');
+        // Fast Gemini pacing
+        const waitMs = Math.max(300, (currentJob.delay_seconds || 0.3) * 1000);
+        addLog(`Pausa de ${waitMs / 1000}s entre lotes...`, 'info');
         await new Promise((resolve) => setTimeout(resolve, waitMs));
 
         // Refetch latest state directly from DB
