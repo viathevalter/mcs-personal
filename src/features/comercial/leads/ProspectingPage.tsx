@@ -663,16 +663,16 @@ export function ProspectingPage() {
 
           <div className="bg-slate-800/80 backdrop-blur-md rounded-xl p-4 border border-slate-700/60">
             <div className="flex items-center justify-between text-slate-300 text-xs font-medium">
-              <span>{t('comercial.prospector.connectionStatus', 'Conexão Google Gemini')}</span>
+              <span>Motor B2B Autônomo</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-semibold text-emerald-300">
-                {t('comercial.prospector.connectionStatusOk', 'Gemini Flash Ativo / 100% Ok')}
+                Diretório & Web Scraper Ativo
               </span>
             </div>
-            <div className="text-xs text-slate-400 mt-1">{t('comercial.prospector.rateLimitActive', 'Econômico & Ultrarrápido')}</div>
+            <div className="text-xs text-slate-400 mt-1">100% Gratuito / Custo Zero (€ 0,00)</div>
           </div>
         </div>
       </div>
