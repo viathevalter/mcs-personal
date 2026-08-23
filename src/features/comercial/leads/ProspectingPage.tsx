@@ -597,8 +597,8 @@ export function ProspectingPage() {
   // Totals calculations for Staging KPIs
   const totalStagingResultsCount = results.length;
   const emailsStagingCount = results.filter((r) => r.email).length;
-  const totalLeadsCaptured = jobs.reduce((acc, j) => acc + j.processed_count, 0);
-  const totalEmailsFound = jobs.reduce((acc, j) => acc + j.found_emails_count, 0);
+  const totalLeadsCaptured = Math.max(jobs.reduce((acc, j) => acc + (j.processed_count || 0), 0), totalStagingResultsCount);
+  const totalEmailsFound = Math.max(jobs.reduce((acc, j) => acc + (j.found_emails_count || 0), 0), emailsStagingCount);
   const activeJobsCount = jobs.filter((j) => j.status === 'processing' || j.status === 'pending').length;
 
   return (
