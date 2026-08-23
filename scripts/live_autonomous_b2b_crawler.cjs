@@ -1,115 +1,221 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const dns = require('dns').promises;
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
 
 const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
-// Deep Mega-Polígonos Industriais da Espanha
-const MEGA_INDUSTRIAL_PARKS_SPAIN = [
-  // 1. Álava / Vitoria-Gasteiz (Parque Empresarial Júndiz, Ali-Gobeo, Gamarra-Betoño)
-  { city: 'Vitoria-Gasteiz', province: 'Álava', terms: ['parque empresarial jundiz vitoria paduleta lermandabidea', 'poligono industrial ali gobeo vitoria', 'poligono gamarra betoño portal de bergara'] },
-  
-  // 2. Navarra / Comarca de Pamplona (Landaben, Noáin-Mocholí, Arazuri, Agustinos)
-  { city: 'Pamplona', province: 'Navarra', terms: ['poligono industrial landaben pamplona', 'poligono industrial mocholi noain navarra', 'poligono industrial arazuri orkoien pamplona', 'poligono industrial agustinos areta huarte'] },
-
-  // 3. Catalunha / Baix Llobregat & Vallès (Sant Boi, Cornellà, Prat, Martorell, Sabadell, Terrassa)
-  { city: 'Sant Boi de Llobregat', province: 'Barcelona', terms: ['poligono industrial can calderon sant boi', 'poligono industrial les salines sant boi'] },
-  { city: 'Cornellà de Llobregat', province: 'Barcelona', terms: ['poligono industrial almeda cornella', 'poligono industrial femades llobregat'] },
-  { city: 'El Prat de Llobregat', province: 'Barcelona', terms: ['poligono industrial mas blau prat de llobregat', 'poligono industrial estruc prat'] },
-  { city: 'Tarragona', province: 'Tarragona', terms: ['poligono petroquimico constanti vila-seca la canonja', 'poligono industrial el morell tarragona'] },
-
-  // 4. Madrid & Corredor del Henares / Sul (San Fernando, Torrejón, Alcalá, Getafe, Pinto)
-  { city: 'San Fernando de Henares', province: 'Madrid', terms: ['poligono industrial san fernando de henares puerta de madrid'] },
-  { city: 'Torrejón de Ardoz', province: 'Madrid', terms: ['poligono industrial las monjas torrejon de ardoz', 'poligono industrial casablanca torrejon'] },
-  { city: 'Alcalá de Henares', province: 'Madrid', terms: ['poligono industrial la garena alcala de henares', 'poligono industrial camporroso'] },
-  { city: 'Getafe', province: 'Madrid', terms: ['poligono industrial los angeles san marcos getafe', 'poligono industrial los olivos getafe'] },
-  { city: 'Pinto', province: 'Madrid', terms: ['poligono industrial las arenas el casar pinto'] },
-
-  // 5. Galiza / Triângulo Metalúrgico de Vigo & Porriño (As Gándaras, A Granxa, Valladares)
-  { city: 'O Porriño', province: 'Pontevedra', terms: ['poligono industrial as gandaras o porriño vigo', 'poligono industrial a granxa porriño'] },
-  { city: 'Vigo', province: 'Pontevedra', terms: ['parque tecnologico de valadares vigo', 'poligono industrial do caramuxo vigo'] },
-  { city: 'Ferrol', province: 'A Coruña', terms: ['poligono industrial a gandara ferrol naron', 'poligono industrial rio do pozo naron'] },
-
-  // 6. Astúrias / Eixo Siderúrgico (Avilés PEPA, Gijón Somonte/Porceyo, Llanera Asipo/Silvota)
-  { city: 'Avilés', province: 'Asturias', terms: ['parque empresarial principado de asturias peba aviles', 'poligono industrial canaple aviles'] },
-  { city: 'Gijón', province: 'Asturias', terms: ['poligono industrial somonte gijon', 'poligono industrial mora garay porceyo gijon'] },
-  { city: 'Llanera', province: 'Asturias', terms: ['poligono industrial asipo llanera asturias', 'poligono industrial silvota llanera'] },
-
-  // 7. País Basco / Alto Deba & Goierri (Mondragón, Bergara, Beasain, Elgoibar)
-  { city: 'Mondragón', province: 'Guipúzcoa', terms: ['poligono industrial san andres arrasate mondragon'] },
-  { city: 'Bergara', province: 'Guipúzcoa', terms: ['poligono industrial kutzeburu san juan bergara'] },
-  { city: 'Beasain', province: 'Guipúzcoa', terms: ['poligono industrial beasain ordizia gipuzkoa'] },
-  { city: 'Elgoibar', province: 'Guipúzcoa', terms: ['poligono industrial lerun san roke elgoibar'] },
-
-  // 8. Zaragoza / Eixo do Ebro (Plaza, Malpica, Cogullada, Centrovías)
-  { city: 'Zaragoza', province: 'Zaragoza', terms: ['plataforma logistica industrial plaza zaragoza', 'poligono industrial malpica zaragoza', 'poligono industrial cogullada zaragoza'] },
-  { city: 'La Muela', province: 'Zaragoza', terms: ['poligono industrial centrovia la muela zaragoza'] },
-
-  // 9. Castellón & Valência (Almassora, Onda, Vila-real, Sagunto, Almussafes)
-  { city: 'Almassora', province: 'Castellón', terms: ['poligono industrial mijares almassora', 'poligono industrial ramonet almassora'] },
-  { city: 'Onda', province: 'Castellón', terms: ['poligono industrial el colomer la trencada onda'] },
-  { city: 'Sagunto', province: 'Valencia', terms: ['parc sagunt poligono industrial ingruinsa puerto de sagunto'] },
-  { city: 'Almussafes', province: 'Valencia', terms: ['parque industrial juan carlos i almussafes'] },
-
-  // 10. Andaluzia / Campo de Gibraltar & Huelva
-  { city: 'San Roque', province: 'Cádiz', terms: ['poligono industrial guadarranque san roque refineria'] },
-  { city: 'Los Barrios', province: 'Cádiz', terms: ['poligono industrial palmones campo de gibraltar'] },
-  { city: 'Palos de la Frontera', province: 'Huelva', terms: ['poligono industrial nuevo puerto huelva'] },
-  { city: 'Puertollano', province: 'Ciudad Real', terms: ['complejo petroquimico puertollano poligono la naveta'] }
+// Todas as 50 Províncias e Polos Industriais da Espanha
+const ALL_SPANISH_PROVINCES = [
+  { name: 'Barcelona', hubs: ['Barcelona', 'Martorell', 'Terrassa', 'Sabadell', 'Granollers', 'Sant Boi', 'Cornellà', 'Castellbisbal', 'Abrera'] },
+  { name: 'Madrid', hubs: ['Madrid', 'Getafe', 'Pinto', 'Fuenlabrada', 'Alcalá de Henares', 'San Fernando de Henares', 'Torrejón de Ardoz', 'Coslada', 'Arganda'] },
+  { name: 'Valencia', hubs: ['Valencia', 'Sagunto', 'Almussafes', 'Paterna', 'Torrent', 'Alzira', 'Silla', 'Quart de Poblet'] },
+  { name: 'Vizcaya', hubs: ['Bilbao', 'Barakaldo', 'Sestao', 'Durango', 'Zamudio', 'Basauri', 'Galdakao', 'Erandio', 'Amorebieta'] },
+  { name: 'Guipúzcoa', hubs: ['San Sebastián', 'Beasain', 'Elgoibar', 'Eibar', 'Mondragón', 'Bergara', 'Tolosa', 'Irun', 'Hernani', 'Ordizia'] },
+  { name: 'Álava', hubs: ['Vitoria-Gasteiz', 'Llodio', 'Amurrio', 'Jundiz', 'Gamarra', 'Ali-Gobeo'] },
+  { name: 'Navarra', hubs: ['Pamplona', 'Tudela', 'Noáin', 'Landaben', 'Viana', 'Tafalla', 'Alsasua', 'Orcoyen'] },
+  { name: 'Asturias', hubs: ['Avilés', 'Gijón', 'Oviedo', 'Llanera', 'Corvera', 'Langreo', 'Mieres', 'Carreño'] },
+  { name: 'Tarragona', hubs: ['Tarragona', 'Vila-seca', 'Constantí', 'La Canonja', 'El Morell', 'Valls', 'Tortosa', 'Reus'] },
+  { name: 'Pontevedra', hubs: ['Vigo', 'O Porriño', 'Pontevedra', 'Marín', 'Vilagarcía de Arousa', 'Mos', 'Redondela'] },
+  { name: 'A Coruña', hubs: ['A Coruña', 'Ferrol', 'Narón', 'Fene', 'Arteixo', 'As Pontes', 'Santiago de Compostela'] },
+  { name: 'Zaragoza', hubs: ['Zaragoza', 'PLAZA', 'Malpica', 'La Muela', 'Utebo', 'Épila', 'Calatayud', 'Ejea'] },
+  { name: 'Cádiz', hubs: ['Cádiz', 'Algeciras', 'San Roque', 'Los Barrios', 'Puerto Real', 'Jerez de la Frontera', 'El Puerto de Santa María'] },
+  { name: 'Huelva', hubs: ['Huelva', 'Palos de la Frontera', 'San Juan del Puerto', 'Moguer'] },
+  { name: 'Ciudad Real', hubs: ['Puertollano', 'Ciudad Real', 'Tomelloso', 'Alcázar de San Juan', 'Valdepeñas'] },
+  { name: 'Castellón', hubs: ['Castellón de la Plana', 'Onda', 'Vila-real', 'Almassora', 'l Alcora', 'Nules'] },
+  { name: 'Sevilla', hubs: ['Sevilla', 'Dos Hermanas', 'Alcalá de Guadaíra', 'La Rinconada', 'Utrera'] },
+  { name: 'Alicante', hubs: ['Alicante', 'Elche', 'Elda', 'Petrer', 'Ibi', 'Alcoy', 'Villena'] },
+  { name: 'Murcia', hubs: ['Murcia', 'Cartagena', 'Escombreras', 'Lorca', 'Molina de Segura', 'Alcantarilla'] },
+  { name: 'Burgos', hubs: ['Burgos', 'Miranda de Ebro', 'Aranda de Duero', 'Briviesca'] },
+  { name: 'Valladolid', hubs: ['Valladolid', 'Laguna de Duero', 'Medina del Campo'] },
+  { name: 'Cantabria', hubs: ['Santander', 'Torrelavega', 'Camargo', 'Castro Urdiales', 'Reinosa'] },
+  { name: 'La Rioja', hubs: ['Logroño', 'Calahorra', 'Arnedo', 'Haro', 'Santo Domingo'] },
+  { name: 'Toledo', hubs: ['Toledo', 'Talavera de la Reina', 'Illescas', 'Seseña', 'Yuncos'] },
+  { name: 'Girona', hubs: ['Girona', 'Figueres', 'Olot', 'Blanes', 'Ripoll', 'Banyoles'] },
+  { name: 'León', hubs: ['León', 'Ponferrada', 'San Andrés del Rabanedo', 'Bembibre'] },
+  { name: 'Badajoz', hubs: ['Badajoz', 'Mérida', 'Don Benito', 'Almendralejo', 'Zafra'] },
+  { name: 'Córdoba', hubs: ['Córdoba', 'Lucena', 'Puente Genil', 'Montilla'] },
+  { name: 'Málaga', hubs: ['Málaga', 'Antequera', 'Marbella', 'Vélez-Málaga'] },
+  { name: 'Almería', hubs: ['Almería', 'El Ejido', 'Roquetas de Mar', 'Huércal de Almería'] },
+  { name: 'Granada', hubs: ['Granada', 'Motril', 'Armilla', 'Santa Fe'] },
+  { name: 'Jaén', hubs: ['Jaén', 'Linares', 'Úbeda', 'Andújar', 'Martos'] },
+  { name: 'Lleida', hubs: ['Lleida', 'Tàrrega', 'Balaguer', 'Mollerussa'] },
+  { name: 'Lugo', hubs: ['Lugo', 'Monforte de Lemos', 'Viveiro', 'Ribadeo'] },
+  { name: 'Ourense', hubs: ['Ourense', 'O Barco de Valdeorras', 'Verín', 'Carballiño'] },
+  { name: 'Salamanca', hubs: ['Salamanca', 'Béjar', 'Ciudad Rodrigo', 'Guijuelo'] },
+  { name: 'Albacete', hubs: ['Albacete', 'Hellín', 'Villarrobledo', 'Almansa'] },
+  { name: 'Huesca', hubs: ['Huesca', 'Monzón', 'Barbastro', 'Fraga', 'Jaca'] },
+  { name: 'Guadalajara', hubs: ['Guadalajara', 'Azuqueca de Henares', 'Cabanillas del Campo', 'Alovera'] },
+  { name: 'Cáceres', hubs: ['Cáceres', 'Plasencia', 'Navalmoral de la Mata', 'Miajadas'] },
+  { name: 'Palencia', hubs: ['Palencia', 'Aguilar de Campoo', 'Venta de Baños', 'Guardo'] },
+  { name: 'Zamora', hubs: ['Zamora', 'Benavente', 'Toro'] },
+  { name: 'Ávila', hubs: ['Ávila', 'Arévalo', 'Las Navas del Marqués'] },
+  { name: 'Segovia', hubs: ['Segovia', 'Cuéllar', 'El Espinar'] },
+  { name: 'Soria', hubs: ['Soria', 'Almazán', 'El Burgo de Osma'] },
+  { name: 'Teruel', hubs: ['Teruel', 'Alcañiz', 'Andorra', 'Calamocha'] },
+  { name: 'Cuenca', hubs: ['Cuenca', 'Tarancón', 'Motilla del Palancar'] }
 ];
 
-const SEARCH_SECTORS = [
-  { cnae: '3320', name: 'Tubería Industrial & Piping', terms: ['taller montajes de tuberias industriales piping soldadura tig', 'empresa instalaciones piping vapor gas condensados tuberias'] },
-  { cnae: '2529', name: 'Calderería Pesada & Tanques', terms: ['taller caldereria pesada grandes depositos tanques presion reactores', 'fabricacion aparatos a presion autoclaves caldereria pesada'] },
-  { cnae: '2511', name: 'Estructuras Metálicas & Cerrajería', terms: ['empresa estructuras metalicas pesadas naves industriales puentes grua', 'taller cerrajeria industrial caldereria estructural'] },
-  { cnae: '2562', name: 'Mecanizado CNC & Tornería', terms: ['taller mecanizado cnc fresado tornos verticales piezas grandes mecanizadas', 'mecanizado de precision decoletaje caldereria'] },
-  { cnae: '3011', name: 'Construcción Naval & Astilleros', terms: ['astilleros reparacion naval talleres de tuberias navales varaderos', 'caldereria naval montajes navales mantenimiento buques'] },
-  { cnae: '2893', name: 'Tubería Inox & Agroalimentar', terms: ['tuberias inox soldadura orbital instalaciones alimentarias bodegas', 'fabricacion depositos acero inoxidable almazaras lacteas'] },
-  { cnae: '3320', name: 'Intercambiadores de Calor & Paradas', terms: ['fabricacion intercambiadores de calor serpentines calderas industriales', 'mantenimiento de paradas de planta petroquimica montajes industriales'] },
-  { cnae: '3320', name: 'Redes de Tuberías & Curvado', terms: ['montaje de oleoductos gasoductos redes de tuberias industriales', 'curvado de tubos conformacion prefabricacion tuberia industrial'] }
+// 9 Setores Industriais Oficiais da MCS
+const INDUSTRIAL_SECTORS_MATRIX = [
+  {
+    cnae: '3320',
+    title: '🚰 1. CNAE 3320 - Tubería Industrial, Piping & Montajes Mecánicos',
+    terms: [
+      'montajes de tuberias industriales piping soldadura tig',
+      'empresa instalaciones piping vapor gas tuberias industriales',
+      'montajes mecanicos tuberias industriales valvulas bombas',
+      'instalaciones hidraulicas industriales tuberias de presion',
+      'tuberias industrias quimicas petroquimicas centrales termicas'
+    ]
+  },
+  {
+    cnae: '2529',
+    title: '🔨 2. CNAE 2529 - Calderería Pesada, Tanques & Recipientes a Presión',
+    terms: [
+      'taller caldereria pesada grandes depositos tanques reactores',
+      'fabricacion aparatos a presion autoclaves caldereria industrial',
+      'caldereria media pesada silos tolvas recipientes presion',
+      'caldereria bajo plano construcciones metalicas pesadas'
+    ]
+  },
+  {
+    cnae: '2511',
+    title: '🏗️ 3. CNAE 2511 - Estructuras Metálicas & Cerrajería Pesada',
+    terms: [
+      'empresa estructuras metalicas pesadas naves industriales',
+      'fabricacion cerrajeria industrial puentes grua vigas celosias',
+      'cubiertas y fachadas metalicas naves cerrajeria pesada',
+      'construcciones metalicas naves industriales marquesinas'
+    ]
+  },
+  {
+    cnae: '2562',
+    title: '⚙️ 4. CNAE 2562 - Mecanizado Industrial CNC & Tornería',
+    terms: [
+      'taller mecanizado cnc fresado tornos verticales piezas grandes',
+      'mecanizado de precision decoletaje caldereria mecanizada',
+      'mandrinado rectificado mecanizado bajo plano piezas industriales'
+    ]
+  },
+  {
+    cnae: '3011',
+    title: '⚓ 5. CNAE 3011 / 3315 - Construcción & Reparación Naval / Astilleros',
+    terms: [
+      'astilleros construccion y reparacion naval varaderos',
+      'talleres tuberia naval caldereria naval mantenimiento buques',
+      'montajes navales plataformas offshore barcos pesqueros'
+    ]
+  },
+  {
+    cnae: '2893',
+    title: '🥛 6. CNAE 2893 - Tubería Inox, Industria Agroalimentaria & Bodegas',
+    terms: [
+      'tuberias inox soldadura orbital instalaciones alimentarias bodegas',
+      'fabricacion depositos acero inoxidable almazaras industrias lacteas',
+      'instalaciones de tuberia inoxidable industria farmaceutica'
+    ]
+  },
+  {
+    cnae: '2825',
+    title: '🔥 7. CNAE 2825 & 3311 - Intercambiadores de Calor, Calderas & Paradas de Planta',
+    terms: [
+      'fabricacion intercambiadores de calor serpentines calderas industriales',
+      'mantenimiento paradas de planta petroquimica montajes industriales',
+      'fabricacion condensadores haces tubulares recuperadores termicos'
+    ]
+  },
+  {
+    cnae: '4299',
+    title: '🌐 8. CNAE 4299 & 2420 - Redes de Tuberías Industriales, Gasoductos & Curvado',
+    terms: [
+      'montaje redes oleoductos gasoductos redes de vapor tuberias',
+      'curvado de tubos conformacion prefabricacion tuberia industrial',
+      'redes contra incendios industriales canalizaciones tuberias'
+    ]
+  },
+  {
+    cnae: 'MEGA',
+    title: '🏢 9. Mega-Parques Industriales - Júndiz, Landaben, PLAZA, PEPA & Porriño',
+    terms: [
+      'parque empresarial jundiz vitoria empresas metalurgicas caldereria',
+      'poligono industrial landaben pamplona talleres montajes',
+      'plataforma logistica industrial plaza zaragoza empresas metal',
+      'parque empresarial principado de asturias peba aviles caldereria',
+      'poligono industrial as gandaras o porriño construcciones metalicas'
+    ]
+  }
 ];
 
 function isCleanValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
-  const em = email.trim().toLowerCase();
+  let em = email.trim().toLowerCase();
   if (em.length < 6 || em.length > 80 || !em.includes('@') || !em.includes('.')) return false;
   if (/(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.css|\.js|example\.com|wixpress|sentry|domain\.com|yourcompany|schema\.org|wordpress|cloudflare)/i.test(em)) return false;
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(em);
 }
 
-async function searchDuckDuckGo(query) {
+// Multi-Source Search (DuckDuckGo + Bing HTML + Diretórios)
+async function searchWebEngines(query) {
+  const urls = new Set();
+
+  // 1. DuckDuckGo HTML
   try {
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' contacto email')}`;
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' contacto email espana')}`;
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6500);
+    const t = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'es-ES,es;q=0.9'
       },
       signal: controller.signal
     });
     clearTimeout(t);
-    if (!res.ok) return [];
-
-    const html = await res.text();
-    const linkRegex = /<a[^>]+class="result__url"[^>]*href="([^"]+)"[^>]*>/gi;
-    let match;
-    const urls = [];
-    while ((match = linkRegex.exec(html)) !== null) {
-      let rawHref = match[1];
-      if (rawHref.includes('uddg=')) {
-        const extracted = decodeURIComponent(rawHref.split('uddg=')[1].split('&')[0]);
-        if (extracted.startsWith('http') && !extracted.includes('duckduckgo') && !extracted.includes('wikipedia') && !extracted.includes('facebook') && !extracted.includes('linkedin') && !extracted.includes('youtube') && !extracted.includes('instagram') && !extracted.includes('paginasamarillas') && !extracted.includes('einforma') && !extracted.includes('axesor') && !extracted.includes('vulka') && !extracted.includes('guias11811')) {
-          urls.push(extracted);
+    if (res.ok) {
+      const html = await res.text();
+      const linkRegex = /<a[^>]+class="result__url"[^>]*href="([^"]+)"[^>]*>/gi;
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        let rawHref = match[1];
+        if (rawHref.includes('uddg=')) {
+          const extracted = decodeURIComponent(rawHref.split('uddg=')[1].split('&')[0]);
+          if (isValidCompanyUrl(extracted)) urls.add(extracted);
         }
       }
     }
-    return urls;
-  } catch {
-    return [];
-  }
+  } catch {}
+
+  // 2. Bing HTML Search
+  try {
+    const bUrl = `https://www.bing.com/search?q=${encodeURIComponent(query + ' contacto email espana')}&setlang=es-es`;
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(bUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-ES,es;q=0.9'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (res.ok) {
+      const bHtml = await res.text();
+      const bMatches = bHtml.match(/<a[^>]+href="(https?:\/\/[^"'\s>]+)"/gi) || [];
+      for (const m of bMatches) {
+        const hMatch = m.match(/href="(https?:\/\/[^"'\s>]+)"/i);
+        if (hMatch && isValidCompanyUrl(hMatch[1])) urls.add(hMatch[1]);
+      }
+    }
+  } catch {}
+
+  return Array.from(urls);
+}
+
+function isValidCompanyUrl(u) {
+  if (!u || !u.startsWith('http')) return false;
+  const badPatterns = /(duckduckgo|bing|google|yahoo|wikipedia|facebook|instagram|linkedin|twitter|youtube|paginasamarillas|axesor|einforma|vulka|guias11811|infocif|camerdata|elpais|elmundo|boe\.es|expansion\.com)/i;
+  return !badPatterns.test(u);
 }
 
 async function scrapeCompanyData(siteUrl) {
@@ -118,7 +224,17 @@ async function scrapeCompanyData(siteUrl) {
     const origin = parsed.origin;
     const domain = parsed.hostname.replace(/^www\./, '');
 
-    const pagesToTry = [origin, `${origin}/contacto`, `${origin}/contacto.html`, `${origin}/aviso-legal`, `${origin}/aviso-legal.html`, `${origin}/contacte`, `${origin}/contact`];
+    const pagesToTry = [
+      origin,
+      `${origin}/contacto`,
+      `${origin}/contacto.html`,
+      `${origin}/aviso-legal`,
+      `${origin}/aviso-legal.html`,
+      `${origin}/contacte`,
+      `${origin}/contact`,
+      `${origin}/quienes-somos`
+    ];
+
     const foundEmails = new Set();
     let companyName = '';
     let phone = '';
@@ -182,9 +298,9 @@ async function scrapeCompanyData(siteUrl) {
   }
 }
 
-async function startMegaIndustrialParksCrawler() {
+async function startHighCapacityProspectingEngine() {
   console.log('==================================================================================');
-  console.log('🏭 MOTOR DOS MEGA-POLÍGONOS INDUSTRIAIS DA ESPANHA (JÚNDIZ, LANDABEN, PEPA, PLAZA)');
+  console.log('🚀 MOTOR INDUSTRIAL EXPANDIDO B2B 24/7 (50 PROVÍNCIAS + 9 MISSÕES)');
   console.log('==================================================================================\n');
 
   const client = new Client({ connectionString: PROD_PG_URL });
@@ -199,6 +315,9 @@ async function startMegaIndustrialParksCrawler() {
     else if (j.title.includes('2562')) jobMap['2562'] = j.id;
     else if (j.title.includes('3011')) jobMap['3011'] = j.id;
     else if (j.title.includes('2893')) jobMap['2893'] = j.id;
+    else if (j.title.includes('2825')) jobMap['2825'] = j.id;
+    else if (j.title.includes('4299')) jobMap['4299'] = j.id;
+    else if (j.title.includes('Mega')) jobMap['MEGA'] = j.id;
   }
   const empresaId = jobsRes.rows[0]?.empresa_id || '847796c4-b253-4e53-9e6b-34a127ec7d85';
 
@@ -206,20 +325,20 @@ async function startMegaIndustrialParksCrawler() {
   const existingEmails = new Set(existRes.rows.map(r => r.email));
   console.log(`🔒 Base atual no Staging: ${existingEmails.size} empresas verificadas.`);
 
-  let parkIndex = 0;
+  let provIndex = 0;
   let totalNew = 0;
 
   while (true) {
-    const park = MEGA_INDUSTRIAL_PARKS_SPAIN[parkIndex % MEGA_INDUSTRIAL_PARKS_SPAIN.length];
-    console.log(`\n📍 [MEGA-POLO INDUSTRIAL] Minerando: ${park.city.toUpperCase()} (${park.province})...`);
+    const prov = ALL_SPANISH_PROVINCES[provIndex % ALL_SPANISH_PROVINCES.length];
+    console.log(`\n📍 [MINERANDO PROVÍNCIA] ${prov.name.toUpperCase()} (${prov.hubs.join(', ')})...`);
 
-    for (const sec of SEARCH_SECTORS) {
-      const jobId = jobMap[sec.cnae] || jobMap['3320'];
+    for (const hub of prov.hubs) {
+      for (const sec of INDUSTRIAL_SECTORS_MATRIX) {
+        const jobId = jobMap[sec.cnae] || jobMap['3320'];
 
-      for (const term of sec.terms) {
-        for (const parkTerm of park.terms) {
-          const query = `${term} ${parkTerm}`;
-          const links = await searchDuckDuckGo(query);
+        for (const term of sec.terms) {
+          const query = `${term} ${hub} ${prov.name}`;
+          const links = await searchWebEngines(query);
 
           for (const link of links) {
             try {
@@ -228,11 +347,11 @@ async function startMegaIndustrialParksCrawler() {
 
               if (existingEmails.has(data.email)) continue;
 
-              // DNS MX check
+              // DNS MX Check
               const mx = await dns.resolveMx(data.domain).catch(() => []);
               if (!Array.isArray(mx) || mx.length === 0) continue;
 
-              // Insert into staging
+              // 1. Insert into Staging
               await client.query(`
                 INSERT INTO core_comercial.lead_prospecting_results (
                   job_id, empresa_id, company_name, email, phone, website, address, city, province, country, confidence_score, status, created_at, updated_at
@@ -240,13 +359,23 @@ async function startMegaIndustrialParksCrawler() {
                   $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 99, 'raw', NOW(), NOW()
                 )
                 ON CONFLICT DO NOTHING;
-              `, [jobId, empresaId, data.companyName, data.email, data.phone, data.website, data.address, park.city, park.province]);
+              `, [jobId, empresaId, data.companyName, data.email, data.phone, data.website, data.address, hub, prov.name]);
+
+              // 2. Direct Sync into CRM Leads table
+              await client.query(`
+                INSERT INTO core_comercial.leads (
+                  empresa_id, name, company_name, email, phone, website, city, province, address_line, sector, cargo, origen_lead, notes, tags, prospecting_job_id, created_at, updated_at
+                ) VALUES (
+                  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Diretoria / Compras', 'prospeccao_b2b', $11, ARRAY['Prospecção Autônoma B2B', $10], $12, NOW(), NOW()
+                )
+                ON CONFLICT DO NOTHING;
+              `, [empresaId, data.companyName, data.companyName, data.email, data.phone, data.website, hub, prov.name, data.address, sec.title.replace(/^[^\w\s]+/, '').trim(), `Lead qualificado importado da Máquina de Leads em ${hub}, ${prov.name}.`, jobId]);
 
               existingEmails.add(data.email);
               totalNew++;
-              console.log(`🎯 [NOVO LEAD CAPTURADO] [${sec.name}] ${data.companyName} ➔ ${data.email} (${park.city}, ${park.province})`);
+              console.log(`🎯 [NOVO LEAD REAL] [${sec.cnae}] ${data.companyName} ➔ ${data.email} (${hub}, ${prov.name})`);
 
-              // Update job counter live
+              // Update job count live
               await client.query(`
                 UPDATE core_comercial.lead_prospecting_jobs
                 SET found_emails_count = (SELECT count(email) FROM core_comercial.lead_prospecting_results WHERE job_id = $1),
@@ -257,17 +386,18 @@ async function startMegaIndustrialParksCrawler() {
               `, [jobId]);
             } catch {}
           }
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 800));
         }
       }
     }
 
     const currentTotal = await client.query('SELECT count(*) FROM core_comercial.lead_prospecting_results;');
-    console.log(`📊 [STATUS LIVE] Total no Staging: ${currentTotal.rows[0].count} empresas (+${totalNew} novos leads nesta sessão).`);
+    const currentCrm = await client.query('SELECT count(*) FROM core_comercial.leads;');
+    console.log(`📊 [STATUS LIVE] Staging: ${currentTotal.rows[0].count} | CRM: ${currentCrm.rows[0].count} (+${totalNew} novos leads nesta sessão).`);
 
-    parkIndex++;
-    await new Promise(r => setTimeout(r, 2000));
+    provIndex++;
+    await new Promise(r => setTimeout(r, 1500));
   }
 }
 
-startMegaIndustrialParksCrawler();
+startHighCapacityProspectingEngine();
