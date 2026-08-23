@@ -206,7 +206,8 @@ export function ProspectingPage() {
     const initialMetric = isEmailTargetInitial ? job.found_emails_count : job.processed_count;
 
     setActiveJob(job);
-    setSelectedJobId(job.id);
+    // Keep user selection intact: only set selectedJobId if none was selected
+    setSelectedJobId((prev) => (prev ? prev : job.id));
 
     addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
 
@@ -705,9 +706,9 @@ export function ProspectingPage() {
 
             {/* Global Repositoriy Selector */}
             <button
-              onClick={() => setSelectedJobId(null)}
+              onClick={() => setSelectedJobId('all')}
               className={`w-full mb-3 p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between transition-all ${
-                selectedJobId === null
+                selectedJobId === 'all' || selectedJobId === null
                   ? 'bg-blue-600 text-white border-blue-700 shadow-md'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800'
               }`}
