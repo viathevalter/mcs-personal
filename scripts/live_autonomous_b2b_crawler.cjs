@@ -5,72 +5,61 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
-// Strategic Industrial Hubs across Spain (Polos Petroquímicos, Portuários, Siderúrgicos e Industriais)
-const STRATEGIC_SPANISH_HUBS = [
-  // Polo Petroquímico & Catalunha
-  { city: 'Tarragona', province: 'Tarragona', terms: ['poligono petroquimico constanti vila-seca la canonja', 'poligono industrial el morell tarragona'] },
-  { city: 'Valls', province: 'Tarragona', terms: ['poligono industrial valls tarragona'] },
-  { city: 'Martorell', province: 'Barcelona', terms: ['poligono industrial martorell abrera'] },
-  { city: 'Granollers', province: 'Barcelona', terms: ['poligono industrial congost palou can carner'] },
-  { city: 'Barberà del Vallès', province: 'Barcelona', terms: ['poligono industrial santiga can salvatella'] },
-  { city: 'Castellbisbal', province: 'Barcelona', terms: ['poligono industrial sant vicenç del valles'] },
-  { city: 'Sant Andreu de la Barca', province: 'Barcelona', terms: ['poligono industrial can magre'] },
+// Deep Mega-Polígonos Industriais da Espanha
+const MEGA_INDUSTRIAL_PARKS_SPAIN = [
+  // 1. Álava / Vitoria-Gasteiz (Parque Empresarial Júndiz, Ali-Gobeo, Gamarra-Betoño)
+  { city: 'Vitoria-Gasteiz', province: 'Álava', terms: ['parque empresarial jundiz vitoria paduleta lermandabidea', 'poligono industrial ali gobeo vitoria', 'poligono gamarra betoño portal de bergara'] },
   
-  // Polo Siderúrgico & Astúrias
-  { city: 'Avilés', province: 'Asturias', terms: ['parque empresarial principado de asturias peba aviles', 'poligono industrial canaple'] },
-  { city: 'Gijón', province: 'Asturias', terms: ['poligono industrial mora garay somonte porceyo tremañes'] },
-  { city: 'Corvera', province: 'Asturias', terms: ['poligono industrial los arroyos asturias'] },
-  { city: 'Llanera', province: 'Asturias', terms: ['parque tecnologico de asturias poligono silvota asipo'] },
+  // 2. Navarra / Comarca de Pamplona (Landaben, Noáin-Mocholí, Arazuri, Agustinos)
+  { city: 'Pamplona', province: 'Navarra', terms: ['poligono industrial landaben pamplona', 'poligono industrial mocholi noain navarra', 'poligono industrial arazuri orkoien pamplona', 'poligono industrial agustinos areta huarte'] },
 
-  // Polo Petroquímico & Andaluzia
-  { city: 'San Roque', province: 'Cádiz', terms: ['poligono industrial guadarranque san roque refineria'] },
-  { city: 'Los Barrios', province: 'Cádiz', terms: ['poligono industrial palmones campo de gibraltar'] },
-  { city: 'Algeciras', province: 'Cádiz', terms: ['poligono industrial cortijo real algeciras puerto'] },
-  { city: 'Palos de la Frontera', province: 'Huelva', terms: ['poligono industrial nuevo puerto huelva refineria'] },
-  { city: 'Huelva', province: 'Huelva', terms: ['poligono industrial tartessos peguerillas punta del sebo'] },
-  { city: 'Puertollano', province: 'Ciudad Real', terms: ['complejo petroquimico puertollano poligono la naveta'] },
+  // 3. Catalunha / Baix Llobregat & Vallès (Sant Boi, Cornellà, Prat, Martorell, Sabadell, Terrassa)
+  { city: 'Sant Boi de Llobregat', province: 'Barcelona', terms: ['poligono industrial can calderon sant boi', 'poligono industrial les salines sant boi'] },
+  { city: 'Cornellà de Llobregat', province: 'Barcelona', terms: ['poligono industrial almeda cornella', 'poligono industrial femades llobregat'] },
+  { city: 'El Prat de Llobregat', province: 'Barcelona', terms: ['poligono industrial mas blau prat de llobregat', 'poligono industrial estruc prat'] },
+  { city: 'Tarragona', province: 'Tarragona', terms: ['poligono petroquimico constanti vila-seca la canonja', 'poligono industrial el morell tarragona'] },
 
-  // Polo Metalúrgico & Valência / Castellón
+  // 4. Madrid & Corredor del Henares / Sul (San Fernando, Torrejón, Alcalá, Getafe, Pinto)
+  { city: 'San Fernando de Henares', province: 'Madrid', terms: ['poligono industrial san fernando de henares puerta de madrid'] },
+  { city: 'Torrejón de Ardoz', province: 'Madrid', terms: ['poligono industrial las monjas torrejon de ardoz', 'poligono industrial casablanca torrejon'] },
+  { city: 'Alcalá de Henares', province: 'Madrid', terms: ['poligono industrial la garena alcala de henares', 'poligono industrial camporroso'] },
+  { city: 'Getafe', province: 'Madrid', terms: ['poligono industrial los angeles san marcos getafe', 'poligono industrial los olivos getafe'] },
+  { city: 'Pinto', province: 'Madrid', terms: ['poligono industrial las arenas el casar pinto'] },
+
+  // 5. Galiza / Triângulo Metalúrgico de Vigo & Porriño (As Gándaras, A Granxa, Valladares)
+  { city: 'O Porriño', province: 'Pontevedra', terms: ['poligono industrial as gandaras o porriño vigo', 'poligono industrial a granxa porriño'] },
+  { city: 'Vigo', province: 'Pontevedra', terms: ['parque tecnologico de valadares vigo', 'poligono industrial do caramuxo vigo'] },
+  { city: 'Ferrol', province: 'A Coruña', terms: ['poligono industrial a gandara ferrol naron', 'poligono industrial rio do pozo naron'] },
+
+  // 6. Astúrias / Eixo Siderúrgico (Avilés PEPA, Gijón Somonte/Porceyo, Llanera Asipo/Silvota)
+  { city: 'Avilés', province: 'Asturias', terms: ['parque empresarial principado de asturias peba aviles', 'poligono industrial canaple aviles'] },
+  { city: 'Gijón', province: 'Asturias', terms: ['poligono industrial somonte gijon', 'poligono industrial mora garay porceyo gijon'] },
+  { city: 'Llanera', province: 'Asturias', terms: ['poligono industrial asipo llanera asturias', 'poligono industrial silvota llanera'] },
+
+  // 7. País Basco / Alto Deba & Goierri (Mondragón, Bergara, Beasain, Elgoibar)
+  { city: 'Mondragón', province: 'Guipúzcoa', terms: ['poligono industrial san andres arrasate mondragon'] },
+  { city: 'Bergara', province: 'Guipúzcoa', terms: ['poligono industrial kutzeburu san juan bergara'] },
+  { city: 'Beasain', province: 'Guipúzcoa', terms: ['poligono industrial beasain ordizia gipuzkoa'] },
+  { city: 'Elgoibar', province: 'Guipúzcoa', terms: ['poligono industrial lerun san roke elgoibar'] },
+
+  // 8. Zaragoza / Eixo do Ebro (Plaza, Malpica, Cogullada, Centrovías)
+  { city: 'Zaragoza', province: 'Zaragoza', terms: ['plataforma logistica industrial plaza zaragoza', 'poligono industrial malpica zaragoza', 'poligono industrial cogullada zaragoza'] },
+  { city: 'La Muela', province: 'Zaragoza', terms: ['poligono industrial centrovia la muela zaragoza'] },
+
+  // 9. Castellón & Valência (Almassora, Onda, Vila-real, Sagunto, Almussafes)
+  { city: 'Almassora', province: 'Castellón', terms: ['poligono industrial mijares almassora', 'poligono industrial ramonet almassora'] },
+  { city: 'Onda', province: 'Castellón', terms: ['poligono industrial el colomer la trencada onda'] },
   { city: 'Sagunto', province: 'Valencia', terms: ['parc sagunt poligono industrial ingruinsa puerto de sagunto'] },
   { city: 'Almussafes', province: 'Valencia', terms: ['parque industrial juan carlos i almussafes'] },
-  { city: 'Paterna', province: 'Valencia', terms: ['poligono industrial fuente del jarro valencia'] },
-  { city: 'Onda', province: 'Castellón', terms: ['poligono industrial el colomer la trencada onda'] },
-  { city: 'Vila-real', province: 'Castellón', terms: ['poligono industrial travessa vila-real'] },
 
-  // Polo Naval & Galiza
-  { city: 'Vigo', province: 'Pontevedra', terms: ['zona franca de vigo beiramar bouzas poligono as gandaras'] },
-  { city: 'Ferrol', province: 'A Coruña', terms: ['poligono industrial a gandara ferrol astillero navantia'] },
-  { city: 'Narón', province: 'A Coruña', terms: ['poligono industrial rio do pozo naron'] },
-  { city: 'Fene', province: 'A Coruña', terms: ['poligono industrial vilar do colo fene astillero'] },
-  { city: 'Marín', province: 'Pontevedra', terms: ['puerto de marin pontevedra astillero nodosa'] },
-  { city: 'Arteixo', province: 'A Coruña', terms: ['poligono industrial sabon arteixo coruña'] },
-
-  // Polo Mecanizado & País Basco
-  { city: 'Beasain', province: 'Guipúzcoa', terms: ['poligono industrial beasain ordizia lazkao'] },
-  { city: 'Elgoibar', province: 'Guipúzcoa', terms: ['poligono industrial lerun san roke elgoibar'] },
-  { city: 'Eibar', province: 'Guipúzcoa', terms: ['poligono industrial azitain eibar matsaria'] },
-  { city: 'Mondragón', province: 'Guipúzcoa', terms: ['poligono industrial san andres arrasate mondragon'] },
-  { city: 'Durango', province: 'Vizcaya', terms: ['poligono industrial montorreta tabira durango'] },
-  { city: 'Zamudio', province: 'Vizcaya', terms: ['parque tecnologico de bizkaia torrelarragoiti zamudio'] },
-  { city: 'Sestao', province: 'Vizcaya', terms: ['poligono industrial sestao bilbao ria'] },
-
-  // Polo Inox / Alimentar & Vale do Ebro
-  { city: 'Calahorra', province: 'La Rioja', terms: ['poligono industrial tejerias calahorra la rioja'] },
-  { city: 'Tudela', province: 'Navarra', terms: ['poligono industrial municipal tudela navarra'] },
-  { city: 'Viana', province: 'Navarra', terms: ['poligono industrial la albergueria viana'] },
-  { city: 'Zaragoza', province: 'Zaragoza', terms: ['poligono industrial malpica plaza centrovias cogullada'] },
-  { city: 'Épila', province: 'Zaragoza', terms: ['poligono industrial valdeconsejo el sabinar epila'] },
-
-  // Polo Estruturas & Castela / Madrid
-  { city: 'Miranda de Ebro', province: 'Burgos', terms: ['poligono industrial bayas irecorp miranda de ebro'] },
-  { city: 'Aranda de Duero', province: 'Burgos', terms: ['poligono industrial allendeduero aranda'] },
-  { city: 'Getafe', province: 'Madrid', terms: ['poligono industrial los angeles san marcos los olivos getafe'] },
-  { city: 'Pinto', province: 'Madrid', terms: ['poligono industrial las arenas el casar pinto'] },
-  { city: 'Fuenlabrada', province: 'Madrid', terms: ['poligono industrial cobo calleja cantueña fuenlabrada'] }
+  // 10. Andaluzia / Campo de Gibraltar & Huelva
+  { city: 'San Roque', province: 'Cádiz', terms: ['poligono industrial guadarranque san roque refineria'] },
+  { city: 'Los Barrios', province: 'Cádiz', terms: ['poligono industrial palmones campo de gibraltar'] },
+  { city: 'Palos de la Frontera', province: 'Huelva', terms: ['poligono industrial nuevo puerto huelva'] },
+  { city: 'Puertollano', province: 'Ciudad Real', terms: ['complejo petroquimico puertollano poligono la naveta'] }
 ];
 
-// Expanded High-Demand Industrial Sectors
-const EXPANDED_SEARCH_SECTORS = [
+const SEARCH_SECTORS = [
   { cnae: '3320', name: 'Tubería Industrial & Piping', terms: ['taller montajes de tuberias industriales piping soldadura tig', 'empresa instalaciones piping vapor gas condensados tuberias'] },
   { cnae: '2529', name: 'Calderería Pesada & Tanques', terms: ['taller caldereria pesada grandes depositos tanques presion reactores', 'fabricacion aparatos a presion autoclaves caldereria pesada'] },
   { cnae: '2511', name: 'Estructuras Metálicas & Cerrajería', terms: ['empresa estructuras metalicas pesadas naves industriales puentes grua', 'taller cerrajeria industrial caldereria estructural'] },
@@ -89,7 +78,7 @@ function isCleanValidEmail(email) {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(em);
 }
 
-async function searchDuckDuckGoAndAds(query) {
+async function searchDuckDuckGo(query) {
   try {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' contacto email')}`;
     const controller = new AbortController();
@@ -193,9 +182,9 @@ async function scrapeCompanyData(siteUrl) {
   }
 }
 
-async function startExpandedStrategicHubCrawler() {
+async function startMegaIndustrialParksCrawler() {
   console.log('==================================================================================');
-  console.log('🌍 MOTOR ESTRATÉGICO EXPANDIDO B2B ESPANHA (POLOS PETROQUÍMICOS & SIDERÚRGICOS 24/7)');
+  console.log('🏭 MOTOR DOS MEGA-POLÍGONOS INDUSTRIAIS DA ESPANHA (JÚNDIZ, LANDABEN, PEPA, PLAZA)');
   console.log('==================================================================================\n');
 
   const client = new Client({ connectionString: PROD_PG_URL });
@@ -217,20 +206,20 @@ async function startExpandedStrategicHubCrawler() {
   const existingEmails = new Set(existRes.rows.map(r => r.email));
   console.log(`🔒 Base atual no Staging: ${existingEmails.size} empresas verificadas.`);
 
-  let hubIndex = 0;
-  let totalNewCaptured = 0;
+  let parkIndex = 0;
+  let totalNew = 0;
 
   while (true) {
-    const hub = STRATEGIC_SPANISH_HUBS[hubIndex % STRATEGIC_SPANISH_HUBS.length];
-    console.log(`\n📍 [POLO INDUSTRIAL] Minerando: ${hub.city.toUpperCase()} (${hub.province})...`);
+    const park = MEGA_INDUSTRIAL_PARKS_SPAIN[parkIndex % MEGA_INDUSTRIAL_PARKS_SPAIN.length];
+    console.log(`\n📍 [MEGA-POLO INDUSTRIAL] Minerando: ${park.city.toUpperCase()} (${park.province})...`);
 
-    for (const sec of EXPANDED_SEARCH_SECTORS) {
+    for (const sec of SEARCH_SECTORS) {
       const jobId = jobMap[sec.cnae] || jobMap['3320'];
 
       for (const term of sec.terms) {
-        for (const hubTerm of hub.terms) {
-          const query = `${term} ${hubTerm}`;
-          const links = await searchDuckDuckGoAndAds(query);
+        for (const parkTerm of park.terms) {
+          const query = `${term} ${parkTerm}`;
+          const links = await searchDuckDuckGo(query);
 
           for (const link of links) {
             try {
@@ -239,7 +228,7 @@ async function startExpandedStrategicHubCrawler() {
 
               if (existingEmails.has(data.email)) continue;
 
-              // DNS MX validation
+              // DNS MX check
               const mx = await dns.resolveMx(data.domain).catch(() => []);
               if (!Array.isArray(mx) || mx.length === 0) continue;
 
@@ -251,11 +240,11 @@ async function startExpandedStrategicHubCrawler() {
                   $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 99, 'raw', NOW(), NOW()
                 )
                 ON CONFLICT DO NOTHING;
-              `, [jobId, empresaId, data.companyName, data.email, data.phone, data.website, data.address, hub.city, hub.province]);
+              `, [jobId, empresaId, data.companyName, data.email, data.phone, data.website, data.address, park.city, park.province]);
 
               existingEmails.add(data.email);
-              totalNewCaptured++;
-              console.log(`🎯 [NOVO LEAD CAPTURADO] [${sec.name}] ${data.companyName} ➔ ${data.email} (${hub.city}, ${hub.province})`);
+              totalNew++;
+              console.log(`🎯 [NOVO LEAD CAPTURADO] [${sec.name}] ${data.companyName} ➔ ${data.email} (${park.city}, ${park.province})`);
 
               // Update job counter live
               await client.query(`
@@ -268,17 +257,17 @@ async function startExpandedStrategicHubCrawler() {
               `, [jobId]);
             } catch {}
           }
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
     }
 
     const currentTotal = await client.query('SELECT count(*) FROM core_comercial.lead_prospecting_results;');
-    console.log(`📊 [STATUS LIVE] Total no Staging: ${currentTotal.rows[0].count} empresas (+${totalNewCaptured} novos leads nesta sessão).`);
+    console.log(`📊 [STATUS LIVE] Total no Staging: ${currentTotal.rows[0].count} empresas (+${totalNew} novos leads nesta sessão).`);
 
-    hubIndex++;
+    parkIndex++;
     await new Promise(r => setTimeout(r, 2000));
   }
 }
 
-startExpandedStrategicHubCrawler();
+startMegaIndustrialParksCrawler();
