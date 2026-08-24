@@ -686,7 +686,7 @@ export const Cobros = () => {
                 <div className="relative overflow-hidden rounded-xl bg-slate-900 border border-slate-800 text-slate-100 shadow-md">
                     <div className="flex items-center">
                         {/* Live Anchor Badge */}
-                        <div className="flex items-center gap-2 bg-slate-950/90 border-r border-slate-800 px-3.5 py-2.5 z-10 shrink-0 font-bold text-[11px] uppercase tracking-wider text-slate-200 shadow-sm">
+                        <div className="flex items-center gap-2 bg-slate-950/95 border-r border-slate-800 px-3.5 py-2.5 z-20 shrink-0 font-bold text-[11px] uppercase tracking-wider text-slate-200 shadow-md">
                             <span className="relative flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -696,64 +696,118 @@ export const Cobros = () => {
                             </span>
                         </div>
 
-                        {/* Ticker Content */}
-                        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-2 px-4 text-xs whitespace-nowrap">
-                            {/* Vencidos Metric */}
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('vencido')} title="Filtrar títulos vencidos">
-                                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Vencidos</span>
-                                <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.vencido)}</span>
-                                <span className="text-[11px] text-slate-400">({kpis.vencidoCount} docs • {taxaInadimplencia.toFixed(1)}%)</span>
-                            </div>
-
-                            <div className="h-3 w-px bg-slate-800 shrink-0" />
-
-                            {/* Pagos Metric */}
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('pago')} title="Filtrar títulos pagos">
-                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] uppercase">Liquidados</span>
-                                <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.pago)}</span>
-                                <span className="text-[11px] text-slate-400">({kpis.pagoCount} docs • {taxaLiquidacao.toFixed(1)}%)</span>
-                            </div>
-
-                            <div className="h-3 w-px bg-slate-800 shrink-0" />
-
-                            {/* A Vencer Metric */}
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('a_vencer')} title="Filtrar títulos a vencer">
-                                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px] uppercase">A Vencer</span>
-                                <span className="font-mono font-bold text-blue-300">{formatCurrency(kpis.a_vencer)}</span>
-                                <span className="text-[11px] text-slate-400">({kpis.a_vencerCount} docs • {taxaAVencer.toFixed(1)}%)</span>
-                            </div>
-
-                            {topVencido && (
-                                <>
-                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
-                                    {/* Top Devedor */}
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Maior Vencido</span>
-                                        <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topVencido.Cliente || ''}>{topVencido.Cliente}</span>
-                                        <span className="font-mono font-bold text-amber-300">{formatCurrency(topVencido.Saldo_a_pagar || topVencido.Valot_total || 0)}</span>
+                        {/* Marquee Ticker Track (No Scrollbar, smooth continuous CSS animation) */}
+                        <div className="overflow-hidden flex-1 relative mask-linear-gradient">
+                            <div className="animate-ticker py-2 text-xs whitespace-nowrap select-none">
+                                {/* Set 1 */}
+                                <div className="flex items-center gap-6 px-4 shrink-0">
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('vencido')} title="Filtrar títulos vencidos">
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Vencidos</span>
+                                        <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.vencido)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.vencidoCount} docs • {taxaInadimplencia.toFixed(1)}%)</span>
                                     </div>
-                                </>
-                            )}
 
-                            {topEmpresa && (
-                                <>
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
-                                    {/* Top Empresa Faturadora */}
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Top Faturadora</span>
-                                        <span className="font-semibold text-slate-200">{topEmpresa.name}</span>
-                                        <span className="font-mono font-bold text-indigo-300">{formatCurrency(topEmpresa.total)}</span>
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('pago')} title="Filtrar títulos pagos">
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] uppercase">Liquidados</span>
+                                        <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.pago)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.pagoCount} docs • {taxaLiquidacao.toFixed(1)}%)</span>
                                     </div>
-                                </>
-                            )}
 
-                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                            {/* Total Geral */}
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('all')} title="Ver todos os títulos">
-                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Carteira Total</span>
-                                <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.total)}</span>
-                                <span className="text-[11px] text-slate-400">({kpis.totalCount} docs)</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('a_vencer')} title="Filtrar títulos a vencer">
+                                        <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px] uppercase">A Vencer</span>
+                                        <span className="font-mono font-bold text-blue-300">{formatCurrency(kpis.a_vencer)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.a_vencerCount} docs • {taxaAVencer.toFixed(1)}%)</span>
+                                    </div>
+
+                                    {topVencido && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Maior Vencido</span>
+                                                <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topVencido.Cliente || ''}>{topVencido.Cliente}</span>
+                                                <span className="font-mono font-bold text-amber-300">{formatCurrency(topVencido.Saldo_a_pagar || topVencido.Valot_total || 0)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {topEmpresa && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Top Faturadora</span>
+                                                <span className="font-semibold text-slate-200">{topEmpresa.name}</span>
+                                                <span className="font-mono font-bold text-indigo-300">{formatCurrency(topEmpresa.total)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('all')} title="Ver todos os títulos">
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Carteira Total</span>
+                                        <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.total)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs)</span>
+                                    </div>
+                                </div>
+
+                                {/* Set 2 (Duplicate for Seamless Infinite Marquee Loop) */}
+                                <div className="flex items-center gap-6 px-4 shrink-0">
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('vencido')} title="Filtrar títulos vencidos">
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Vencidos</span>
+                                        <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.vencido)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.vencidoCount} docs • {taxaInadimplencia.toFixed(1)}%)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('pago')} title="Filtrar títulos pagos">
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] uppercase">Liquidados</span>
+                                        <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.pago)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.pagoCount} docs • {taxaLiquidacao.toFixed(1)}%)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('a_vencer')} title="Filtrar títulos a vencer">
+                                        <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px] uppercase">A Vencer</span>
+                                        <span className="font-mono font-bold text-blue-300">{formatCurrency(kpis.a_vencer)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.a_vencerCount} docs • {taxaAVencer.toFixed(1)}%)</span>
+                                    </div>
+
+                                    {topVencido && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Maior Vencido</span>
+                                                <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topVencido.Cliente || ''}>{topVencido.Cliente}</span>
+                                                <span className="font-mono font-bold text-amber-300">{formatCurrency(topVencido.Saldo_a_pagar || topVencido.Valot_total || 0)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {topEmpresa && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Top Faturadora</span>
+                                                <span className="font-semibold text-slate-200">{topEmpresa.name}</span>
+                                                <span className="font-mono font-bold text-indigo-300">{formatCurrency(topEmpresa.total)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('all')} title="Ver todos os títulos">
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Carteira Total</span>
+                                        <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.total)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs)</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

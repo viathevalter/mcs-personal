@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake } from 'lucide-react';
 import { formatCurrency, formatDate, normalizeEmpresaName } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -693,16 +693,24 @@ export const Cobranca = () => {
         return true;
     });
 
+    const getUniqueClientsCount = (items: EnrichedTitulo[]) => {
+        const clients = items.map(i => i.Cliente || i.Cliente_id).filter(Boolean);
+        return new Set(clients).size;
+    };
+
     // KPIs Calculations
     const kpis = {
         atrasoVal: kpiData.filter(i => isOverdue(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         atrasoCount: kpiData.filter(i => isOverdue(i)).length,
+        atrasoClients: getUniqueClientsCount(kpiData.filter(i => isOverdue(i))),
 
         alertaVal: kpiData.filter(i => isDueSoon(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         alertaCount: kpiData.filter(i => isDueSoon(i)).length,
+        alertaClients: getUniqueClientsCount(kpiData.filter(i => isDueSoon(i))),
 
         judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         judicialCount: kpiData.filter(i => i.Status === 'Judicial').length,
+        judicialClients: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Judicial')),
 
         negociadoVal: kpiData.filter(i => i.Status === 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         negociadoCount: kpiData.filter(i => i.Status === 'Negociado').length,
@@ -710,7 +718,24 @@ export const Cobranca = () => {
 
         totalVal: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         totalCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').length,
+        totalClients: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado')),
     };
+
+    const topDevedor = useMemo(() => {
+        const atrasoItems = kpiData.filter(i => isOverdue(i));
+        if (atrasoItems.length === 0) return null;
+        return atrasoItems.reduce((max, item) => ((item.Saldo_a_pagar || item.Valot_total || 0) > (max.Saldo_a_pagar || max.Valot_total || 0)) ? item : max, atrasoItems[0]);
+    }, [kpiData]);
+
+    const topEmpresaCobranca = useMemo(() => {
+        const empMap: Record<string, number> = {};
+        kpiData.filter(i => isOverdue(i)).forEach(i => {
+            const emp = normalizeEmpresaName(i.Empresa);
+            if (emp) empMap[emp] = (empMap[emp] || 0) + (i.Saldo_a_pagar || i.Valot_total || 0);
+        });
+        const sorted = Object.entries(empMap).sort((a, b) => b[1] - a[1]);
+        return sorted.length > 0 ? { name: sorted[0][0], total: sorted[0][1] } : null;
+    }, [kpiData]);
 
     const filteredData = kpiData.filter(item => {
         // Tab filter
@@ -833,79 +858,331 @@ export const Cobranca = () => {
     return (
         <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
             <div className="flex-none space-y-4">
+                {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            <ShieldAlert className="w-8 h-8 text-destructive" />
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <ShieldAlert className="w-7 h-7 text-rose-600 dark:text-rose-500" />
                             {t('financeiro.title_cobranca', 'Gestão de Cobrança / Inadimplência')}
                         </h2>
-                        <p className="text-muted-foreground mt-1">{t('financeiro.subtitle_cobranca', 'Monitore clientes inadimplentes, emita lembretes e encaminhe títulos para cobrança jurídica.')}</p>
+                        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{t('financeiro.subtitle_cobranca', 'Monitore clientes inadimplentes, emita lembretes e encaminhe títulos para cobrança jurídica.')}</p>
+                    </div>
+                </div>
+
+                {/* Wall Street / Home Broker Live Financial Ticker Tape for Cobrança */}
+                <div className="relative overflow-hidden rounded-xl bg-slate-900 border border-slate-800 text-slate-100 shadow-md">
+                    <div className="flex items-center">
+                        {/* Live Anchor Badge */}
+                        <div className="flex items-center gap-2 bg-slate-950/95 border-r border-slate-800 px-3.5 py-2.5 z-20 shrink-0 font-bold text-[11px] uppercase tracking-wider text-slate-200 shadow-md">
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                            </span>
+                            <span className="font-mono font-semibold text-rose-400 tracking-wide flex items-center gap-1.5">
+                                <Activity size={13} /> RADAR DE COBRANÇA
+                            </span>
+                        </div>
+
+                        {/* Marquee Ticker Track */}
+                        <div className="overflow-hidden flex-1 relative">
+                            <div className="animate-ticker py-2 text-xs whitespace-nowrap select-none">
+                                {/* Set 1 */}
+                                <div className="flex items-center gap-6 px-4 shrink-0">
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title="Ver títulos em atraso">
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Em Atraso</span>
+                                        <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.atrasoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} docs • {kpis.atrasoClients} clientes)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title="Ver títulos a vencer em 7 dias">
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Alerta 7 Dias</span>
+                                        <span className="font-mono font-bold text-amber-300">{formatCurrency(kpis.alertaVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} docs)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title="Ver processos judiciais">
+                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">Jurídico</span>
+                                        <span className="font-mono font-bold text-red-300">{formatCurrency(kpis.judicialVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} processos)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title="Ver acordos negociados">
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Negociados</span>
+                                        <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} docs)</span>
+                                    </div>
+
+                                    {topDevedor && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">Maior Devedor</span>
+                                                <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topDevedor.Cliente || ''}>{topDevedor.Cliente}</span>
+                                                <span className="font-mono font-bold text-rose-300">{formatCurrency(topDevedor.Saldo_a_pagar || topDevedor.Valot_total || 0)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {topEmpresaCobranca && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">Empresa c/ Maior Atraso</span>
+                                                <span className="font-semibold text-slate-200">{topEmpresaCobranca.name}</span>
+                                                <span className="font-mono font-bold text-sky-300">{formatCurrency(topEmpresaCobranca.total)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Total em Cobrança</span>
+                                        <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.totalVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs • {kpis.totalClients} clientes)</span>
+                                    </div>
+                                </div>
+
+                                {/* Set 2 (Duplicate for Seamless Loop) */}
+                                <div className="flex items-center gap-6 px-4 shrink-0">
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title="Ver títulos em atraso">
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Em Atraso</span>
+                                        <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.atrasoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} docs • {kpis.atrasoClients} clientes)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title="Ver títulos a vencer em 7 dias">
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Alerta 7 Dias</span>
+                                        <span className="font-mono font-bold text-amber-300">{formatCurrency(kpis.alertaVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} docs)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title="Ver processos judiciais">
+                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">Jurídico</span>
+                                        <span className="font-mono font-bold text-red-300">{formatCurrency(kpis.judicialVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} processos)</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title="Ver acordos negociados">
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Negociados</span>
+                                        <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} docs)</span>
+                                    </div>
+
+                                    {topDevedor && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">Maior Devedor</span>
+                                                <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topDevedor.Cliente || ''}>{topDevedor.Cliente}</span>
+                                                <span className="font-mono font-bold text-rose-300">{formatCurrency(topDevedor.Saldo_a_pagar || topDevedor.Valot_total || 0)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {topEmpresaCobranca && (
+                                        <>
+                                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">Empresa c/ Maior Atraso</span>
+                                                <span className="font-semibold text-slate-200">{topEmpresaCobranca.name}</span>
+                                                <span className="font-mono font-bold text-sky-300">{formatCurrency(topEmpresaCobranca.total)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Total em Cobrança</span>
+                                        <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.totalVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs • {kpis.totalClients} clientes)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 {/* KPI Premium Row */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {/* Em Atraso Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'atraso' ? 'border-l-destructive bg-destructive/5 dark:bg-destructive/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'atraso' 
+                                ? 'bg-rose-950/40 border-rose-500/50 ring-2 ring-rose-500/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-300'
+                        }`}
                         onClick={() => setActiveTab('atraso')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-destructive uppercase tracking-wider">{t('financeiro.kpis.title_overdue', 'Em Atraso (Vencidos)')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-destructive">{formatCurrency(kpis.atrasoVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.atrasoCount} {kpis.atrasoCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
+                        <div className="h-1.5 w-full bg-rose-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                    {t('financeiro.kpis.title_overdue', 'Em Atraso (Vencidos)')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                                    <AlertTriangle size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-rose-600 dark:text-rose-400">
+                                    {formatCurrency(kpis.atrasoVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.atrasoCount} {kpis.atrasoCount === 1 ? 'título' : 'títulos'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                        {kpis.atrasoClients} {kpis.atrasoClients === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
+                    {/* A Vencer Alerta Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'alerta' ? 'border-l-amber-500 bg-amber-50/10 dark:bg-amber-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'alerta' 
+                                ? 'bg-amber-950/40 border-amber-500/50 ring-2 ring-amber-500/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-300'
+                        }`}
                         onClick={() => setActiveTab('alerta')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{t('financeiro.kpis.title_due_soon', 'A Vencer (Próximos 7 Dias)')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-amber-500">{formatCurrency(kpis.alertaVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.alertaCount} {kpis.alertaCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
+                        <div className="h-1.5 w-full bg-amber-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                    {t('financeiro.kpis.title_due_soon', 'A Vencer (7 Dias)')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
+                                    <Clock size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-amber-500">
+                                    {formatCurrency(kpis.alertaVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.alertaCount} {kpis.alertaCount === 1 ? 'título' : 'títulos'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                        {kpis.alertaClients} {kpis.alertaClients === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
+                    {/* Setor Judicial Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'judicial' ? 'border-l-red-800 bg-red-900/5 dark:bg-red-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'judicial' 
+                                ? 'bg-red-950/40 border-red-700/50 ring-2 ring-red-700/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-400'
+                        }`}
                         onClick={() => setActiveTab('judicial')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-red-800 uppercase tracking-wider">{t('financeiro.kpis.title_judicial', 'Setor Judicial')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-red-800">{formatCurrency(kpis.judicialVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos ativos')}</p>
+                        <div className="h-1.5 w-full bg-red-700" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                                    {t('financeiro.kpis.title_judicial', 'Setor Judicial')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
+                                    <Scale size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-red-700 dark:text-red-400">
+                                    {formatCurrency(kpis.judicialVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.judicialCount} {kpis.judicialCount === 1 ? 'processo' : 'processos'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+                                        {kpis.judicialClients} {kpis.judicialClients === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
+                    {/* Negociados Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'negociado' ? 'border-l-indigo-650 bg-indigo-50/10 dark:bg-indigo-950/20' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'negociado' 
+                                ? 'bg-indigo-950/40 border-indigo-500/50 ring-2 ring-indigo-500/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+                        }`}
                         onClick={() => setActiveTab('negociado')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-indigo-650 dark:text-indigo-400 uppercase tracking-wider">{t('financeiro.kpis.title_negotiated', 'Negociados')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-indigo-650 dark:text-indigo-400">{formatCurrency(kpis.negociadoVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">
-                                {kpis.negociadoCount} {kpis.negociadoCount === 1 ? t('financeiro.kpis.title_singular', 'fatura') : t('financeiro.kpis.titles_plural', 'faturas')} ({kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? t('financeiro.kpis.client_singular', 'cliente') : t('financeiro.kpis.clients_plural', 'clientes')})
-                            </p>
+                        <div className="h-1.5 w-full bg-indigo-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                    {t('financeiro.kpis.title_negotiated', 'Negociados')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                                    <Handshake size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-indigo-600 dark:text-indigo-400">
+                                    {formatCurrency(kpis.negociadoVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.negociadoCount} {kpis.negociadoCount === 1 ? 'fatura' : 'faturas'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                                        {kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-l-4 border-l-slate-600 bg-slate-100/50 dark:bg-slate-900/30">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('financeiro.kpis.title_total', 'Total Sob Cobrança')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">{formatCurrency(kpis.totalVal)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">{kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.pending_titles_singular', 'título pendente') : t('financeiro.kpis.pending_titles_plural', 'títulos pendentes')}</p>
+                    {/* Total Sob Cobrança Card */}
+                    <Card className="relative overflow-hidden border rounded-xl shadow-sm bg-gradient-to-br from-slate-900 to-slate-800 text-white border-slate-700">
+                        <div className="h-1.5 w-full bg-slate-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                                    {t('financeiro.kpis.title_total', 'Total Sob Cobrança')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300">
+                                    <TrendingDown size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-white">
+                                    {formatCurrency(kpis.totalVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-300">
+                                        {kpis.totalCount} {kpis.totalCount === 1 ? 'título' : 'títulos'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-semibold text-[10px] bg-slate-800 text-slate-200">
+                                        {kpis.totalClients} {kpis.totalClients === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
