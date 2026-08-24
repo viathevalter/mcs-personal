@@ -166,14 +166,37 @@ function MultiSelectCombobox({
     onChange(selectedValues.filter(v => v !== val));
   };
 
+  const handleSelectAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const allFilteredVals = filteredOptions.map(o => o.value);
+    const combined = Array.from(new Set([...selectedValues, ...allFilteredVals]));
+    onChange(combined);
+  };
+
+  const handleClearAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange([]);
+  };
+
   return (
     <div className="space-y-1.5 relative">
-      <Label className="text-xs font-semibold">{label}</Label>
+      <div className="flex justify-between items-center">
+        <Label className="text-xs font-semibold">{label}</Label>
+        {selectedValues.length > 0 && (
+          <button 
+            type="button" 
+            onClick={handleClearAll}
+            className="text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-semibold cursor-pointer"
+          >
+            Limpar ({selectedValues.length})
+          </button>
+        )}
+      </div>
       
       {/* Trigger Area */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full min-h-[38px] border border-slate-300 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 px-2.5 py-1 text-xs cursor-pointer flex flex-wrap items-center gap-1.5 focus-within:ring-2 focus-within:ring-amber-500/20 shadow-2xs hover:border-amber-500/50 transition-colors"
+        className="w-full min-h-[40px] max-h-[90px] overflow-y-auto border border-slate-300 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs cursor-pointer flex flex-wrap items-center gap-1.5 focus-within:ring-2 focus-within:ring-amber-500/20 shadow-2xs hover:border-amber-500/50 transition-colors scrollbar-thin"
       >
         {selectedValues.length === 0 ? (
           <span className="text-slate-400 text-xs py-0.5">{placeholder}</span>
@@ -184,9 +207,9 @@ function MultiSelectCombobox({
             return (
               <span 
                 key={val} 
-                className="bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-500/30 rounded-md text-[11px] px-2 py-0.5 flex items-center gap-1 font-bold"
+                className="bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-500/30 rounded-md text-[11px] px-2 py-0.5 flex items-center gap-1 font-bold shrink-0"
               >
-                {labelText}
+                <span className="truncate max-w-[200px]">{labelText}</span>
                 <X 
                   className="h-3 w-3 hover:text-red-600 cursor-pointer shrink-0" 
                   onClick={(e) => removeValue(val, e)} 
@@ -202,18 +225,30 @@ function MultiSelectCombobox({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-60 overflow-y-auto">
-            <Input
-              placeholder="Pesquisar..."
-              className="h-8 text-xs bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-72 overflow-y-auto w-full min-w-[340px]">
+            <div className="flex gap-1.5">
+              <Input
+                placeholder="Pesquisar..."
+                className="h-8 text-xs bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 flex-1"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleSelectAll}
+                className="h-8 text-[11px] px-2"
+              >
+                Todos
+              </Button>
+            </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 max-h-52 overflow-y-auto scrollbar-thin">
               {filteredOptions.length === 0 ? (
-                <div className="text-[11px] text-slate-400 p-2 text-center">Nenhuma opção encontrada</div>
+                <div className="text-[11px] text-slate-400 p-3 text-center">Nenhuma opção encontrada</div>
               ) : (
                 filteredOptions.map(opt => {
                   const isChecked = selectedValues.includes(opt.value);
@@ -221,7 +256,7 @@ function MultiSelectCombobox({
                     <div
                       key={opt.value}
                       onClick={() => toggleOption(opt.value)}
-                      className={`flex items-center gap-2 p-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                      className={`flex items-center gap-2.5 p-2 rounded-lg text-xs cursor-pointer transition-colors ${
                         isChecked 
                           ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold' 
                           : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -231,7 +266,7 @@ function MultiSelectCombobox({
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => {}}
-                        className="rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
+                        className="rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 h-4 w-4 cursor-pointer shrink-0"
                       />
                       <span className="truncate">{opt.label}</span>
                     </div>
@@ -239,19 +274,6 @@ function MultiSelectCombobox({
                 })
               )}
             </div>
-
-            {selectedValues.length > 0 && (
-              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center text-[11px]">
-                <span className="text-slate-500 font-bold">{selectedValues.length} selecionados</span>
-                <button
-                  type="button"
-                  onClick={() => onChange([])}
-                  className="text-red-500 hover:underline font-bold"
-                >
-                  Limpar seleção
-                </button>
-              </div>
-            )}
           </div>
         </>
       )}
@@ -1988,7 +2010,7 @@ export function CampaignsPage() {
 
       {/* Target Audience Dialog */}
       <Dialog open={isAudienceModalOpen} onOpenChange={setIsAudienceModalOpen}>
-        <DialogContent className="sm:max-w-[980px] max-h-[90vh] flex flex-col justify-between p-6">
+        <DialogContent className="w-[96vw] max-w-[1480px] h-[92vh] max-h-[92vh] flex flex-col justify-between p-6 rounded-2xl shadow-2xl">
           <DialogHeader className="border-b pb-2">
             <DialogTitle>Configurar Público-Alvo da Campanha</DialogTitle>
             <DialogDescription>
@@ -2002,10 +2024,10 @@ export function CampaignsPage() {
               Carregando leads da empresa...
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden flex-1 py-2 text-sm max-h-[65vh]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-hidden flex-1 py-3 text-sm min-h-0">
               
               {/* Left Column: Filtros de Segmentação (col-span-5) */}
-              <div className="lg:col-span-5 space-y-4 overflow-y-auto pr-3 lg:border-r max-h-[60vh] scrollbar-thin">
+              <div className="lg:col-span-5 space-y-4 overflow-y-auto pr-4 lg:border-r h-full scrollbar-thin">
                 <div>
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Filtros Gerais</h3>
                 </div>
@@ -2239,7 +2261,7 @@ export function CampaignsPage() {
               </div>
 
               {/* Right Column: Galeria e Seleção de Leads (col-span-7) */}
-              <div className="lg:col-span-7 flex flex-col justify-between overflow-hidden max-h-[60vh]">
+              <div className="lg:col-span-7 flex flex-col justify-between overflow-hidden h-full pl-2">
                 <div className="mb-2">
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Destinatários Selecionados</h3>
                   <div className="flex gap-2">
@@ -2379,7 +2401,7 @@ export function CampaignsPage() {
 
       {/* Dialog: Criar Público Reutilizável (Sem Campanha Associada) */}
       <Dialog open={isNewAudienceDialogOpen} onOpenChange={setIsNewAudienceDialogOpen}>
-        <DialogContent className="sm:max-w-[980px] max-h-[90vh] flex flex-col justify-between p-6">
+        <DialogContent className="w-[96vw] max-w-[1480px] h-[92vh] max-h-[92vh] flex flex-col justify-between p-6 rounded-2xl shadow-2xl">
           <DialogHeader className="border-b pb-2">
             <DialogTitle>Criar Novo Público Salvo</DialogTitle>
             <DialogDescription>
@@ -2393,10 +2415,10 @@ export function CampaignsPage() {
               Carregando leads da empresa...
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden flex-1 py-2 text-sm max-h-[65vh]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-hidden flex-1 py-3 text-sm min-h-0">
               
               {/* Left Column: Filtros de Segmentação (col-span-5) */}
-              <div className="lg:col-span-5 space-y-4 overflow-y-auto pr-3 lg:border-r max-h-[60vh] scrollbar-thin">
+              <div className="lg:col-span-5 space-y-4 overflow-y-auto pr-4 lg:border-r h-full scrollbar-thin">
                 <div>
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Filtros Gerais</h3>
                 </div>
@@ -2581,7 +2603,7 @@ export function CampaignsPage() {
               </div>
 
               {/* Right Column: Galeria e Seleção de Leads (col-span-7) */}
-              <div className="lg:col-span-7 flex flex-col justify-between overflow-hidden max-h-[60vh]">
+              <div className="lg:col-span-7 flex flex-col justify-between overflow-hidden h-full pl-2">
                 <div className="mb-2">
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Membros do Segmento</h3>
                   <div className="flex gap-2">
