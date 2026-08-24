@@ -15,6 +15,15 @@ const contatoItemSchema = z.object({
   email: z.string().email('Email inválido').optional().or(z.literal('')),
 });
 
+const contaBancariaItemSchema = z.object({
+  banco: z.string().optional(),
+  iban: z.string().optional(),
+  swift: z.string().optional(),
+  titular_conta: z.string().optional(),
+  metodo_pago: z.string().default('Transferir'),
+  principal: z.boolean().default(false),
+});
+
 const provedorSchema = z.object({
   nome_razao_social: z.string().min(1, 'Razão Social é obrigatória'),
   nome_comercial: z.string().optional(),
@@ -26,6 +35,7 @@ const provedorSchema = z.object({
   telefone: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   contatos: z.array(contatoItemSchema).default([]),
+  dados_bancarios: z.array(contaBancariaItemSchema).default([]),
   metodo_pago: z.string().default('Transferir'),
   banco: z.string().optional(),
   iban: z.string().optional(),
@@ -66,6 +76,9 @@ export const ProvedorForm: React.FC = () => {
       ativo: true,
       contatos: [
         { nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' }
+      ],
+      dados_bancarios: [
+        { banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: true }
       ]
     },
   });
@@ -93,21 +106,33 @@ export const ProvedorForm: React.FC = () => {
     }
   }, [selectedRegionId, regions, setValue]);
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields: contatosFields, append: appendContato, remove: removeContato } = useFieldArray({
     control,
     name: 'contatos'
+  });
+
+  const { fields: bancoFields, append: appendBanco, remove: removeBanco } = useFieldArray({
+    control,
+    name: 'dados_bancarios'
   });
 
   const onSubmit = async (data: ProvedorFormValues) => {
     try {
       setIsSubmitting(true);
 
-      const principal = data.contatos[0];
+      const principalContato = data.contatos[0];
+      const principalBanco = data.dados_bancarios.find(b => b.principal) || data.dados_bancarios[0];
+
       const payload = {
         ...data,
-        contato_nome: principal?.nome || data.contato_nome || '',
-        telefone: principal?.telefone || data.telefone || '',
-        email: principal?.email || data.email || ''
+        contato_nome: principalContato?.nome || data.contato_nome || '',
+        telefone: principalContato?.telefone || data.telefone || '',
+        email: principalContato?.email || data.email || '',
+        banco: principalBanco?.banco || data.banco || '',
+        iban: principalBanco?.iban || data.iban || '',
+        swift: principalBanco?.swift || data.swift || '',
+        titular_conta: principalBanco?.titular_conta || data.titular_conta || '',
+        metodo_pago: principalBanco?.metodo_pago || data.metodo_pago || 'Transferir'
       };
 
       await registrosService.createProvedor(payload as any);
@@ -118,6 +143,12 @@ export const ProvedorForm: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const onError = (errs: any) => {
+    console.error('Form Validation Errors:', errs);
+    const firstKey = Object.keys(errs)[0];
+    alert(`Atenção: O campo "${firstKey}" necessita ajuste: ${errs[firstKey]?.message || 'Verifique o preenchimento.'}`);
   };
 
   return (
@@ -151,7 +182,7 @@ export const ProvedorForm: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={handleSubmit(onSubmit)}
+            onClick={handleSubmit(onSubmit, onError)}
             disabled={isSubmitting}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
           >
@@ -161,7 +192,7 @@ export const ProvedorForm: React.FC = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
         {/* BLOCO 1: Identificação do Proveedor */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -234,7 +265,7 @@ export const ProvedorForm: React.FC = () => {
             </h3>
             <button
               type="button"
-              onClick={() => append({ nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' })}
+              onClick={() => appendContato({ nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' })}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg text-xs font-bold transition-colors"
             >
               <Plus size={14} />
@@ -243,7 +274,7 @@ export const ProvedorForm: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {fields.map((field, index) => (
+            {contatosFields.map((field, index) => (
               <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-4 items-end shadow-xs">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Contato</label>
@@ -251,7 +282,7 @@ export const ProvedorForm: React.FC = () => {
                     type="text"
                     {...register(`contatos.${index}.nome` as const)}
                     className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Ex: Rebeca Conde"
+                    placeholder="Ex: Sr. Joaquim Prujà Roca"
                   />
                 </div>
                 <div>
@@ -269,7 +300,7 @@ export const ProvedorForm: React.FC = () => {
                     type="text"
                     {...register(`contatos.${index}.telefone` as const)}
                     className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Ex: +34 666 45 55 12"
+                    placeholder="Ex: +34 604 49 14 91"
                   />
                 </div>
                 <div className="flex gap-2 items-center">
@@ -282,10 +313,10 @@ export const ProvedorForm: React.FC = () => {
                       placeholder="email@exemplo.com"
                     />
                   </div>
-                  {fields.length > 1 && (
+                  {contatosFields.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => remove(index)}
+                      onClick={() => removeContato(index)}
                       className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                       title="Remover"
                     >
@@ -298,71 +329,105 @@ export const ProvedorForm: React.FC = () => {
           </div>
         </div>
 
-        {/* BLOCO 3: Forma de Pagamento & Dados Bancários */}
+        {/* BLOCO 3: Múltiplas Contas Bancárias & Formas de Pagamento */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
-            Dados Bancários e Forma de Pagamento
-          </h3>
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
+              Dados Bancários e Formas de Pagamento
+            </h3>
+            <button
+              type="button"
+              onClick={() => appendBanco({ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: bancoFields.length === 0 })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-xs font-bold transition-colors"
+            >
+              <Plus size={14} />
+              Adicionar Conta Bancária
+            </button>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Método Principal de Pago</label>
-              <select
-                {...register('metodo_pago')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Transferir">Transferência Bancária (Transferir)</option>
-                <option value="Bizum">Bizum</option>
-                <option value="Pix">Pix / Chave Instantânea</option>
-                <option value="Efectivo">Efectivo / Dinheiro</option>
-                <option value="Tarjeta">Tarjeta / Cartão</option>
-              </select>
-            </div>
+          <div className="space-y-4">
+            {bancoFields.map((field, index) => (
+              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    Conta Bancária #{index + 1}
+                    {index === 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-semibold rounded-full">Principal / Padrão</span>}
+                  </span>
+                  {bancoFields.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeBanco(index)}
+                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
+                      title="Remover Conta"
+                    >
+                      <Trash2 size={14} />
+                      Remover Conta
+                    </button>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nome do Banco</label>
-              <input
-                type="text"
-                {...register('banco')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: CaixaBank, Banco Santander, BBVA"
-              />
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Método de Pago</label>
+                    <select
+                      {...register(`dados_bancarios.${index}.metodo_pago` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    >
+                      <option value="Transferir">Transferência Bancária (Transferir)</option>
+                      <option value="Bizum">Bizum</option>
+                      <option value="Pix">Pix / Chave Instantânea</option>
+                      <option value="Efectivo">Efectivo / Dinheiro</option>
+                      <option value="Tarjeta">Tarjeta / Cartão</option>
+                    </select>
+                  </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">IBAN / Cuenta / Chave Pix</label>
-              <input
-                type="text"
-                {...register('iban')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: ES93 2103 2336 2300 3300 0470"
-              />
-            </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Banco</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.banco` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ex: CaixaBank, Banco Santander, BBVA"
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Código SWIFT / BIC</label>
-              <input
-                type="text"
-                {...register('swift')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: CAIXESBBXXX"
-              />
-            </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">IBAN / Cuenta / Chave Pix</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.iban` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                      placeholder="Ex: ES93 2103 2336 2300 3300 0470"
+                    />
+                  </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Titular da Conta Bancária</label>
-              <input
-                type="text"
-                {...register('titular_conta')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: MERCEDES SASTRE VICENTE"
-              />
-            </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Código SWIFT / BIC</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.swift` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                      placeholder="Ex: CAIXESBBXXX"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titular da Conta Bancária</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.titular_conta` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ex: MERCEDES SASTRE VICENTE"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* BLOCO 4: Endereço Principal & Localização Fiscal (Padrão Master Data / Clientes) */}
+        {/* BLOCO 4: Endereço Principal & Localização Fiscal */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <MapPin className="h-4.5 w-4.5 text-blue-600" />

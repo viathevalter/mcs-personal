@@ -17,6 +17,14 @@ export interface Provedor {
     telefone?: string;
     email?: string;
   }>;
+  dados_bancarios?: Array<{
+    banco?: string;
+    iban?: string;
+    swift?: string;
+    titular_conta?: string;
+    metodo_pago?: string;
+    principal?: boolean;
+  }>;
   iban?: string;
   banco?: string;
   swift?: string;

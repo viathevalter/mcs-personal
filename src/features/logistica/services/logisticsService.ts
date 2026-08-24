@@ -8,6 +8,16 @@ export interface ContatoProvedor {
   email?: string;
 }
 
+export interface ContaBancariaProvedor {
+  id?: string;
+  banco?: string;
+  iban?: string;
+  swift?: string;
+  titular_conta?: string;
+  metodo_pago?: string;
+  principal?: boolean;
+}
+
 export interface Provedor {
   id: string;
   codigo?: string;
@@ -21,6 +31,7 @@ export interface Provedor {
   telefone?: string;
   email?: string;
   contatos?: ContatoProvedor[];
+  dados_bancarios?: ContaBancariaProvedor[];
   iban?: string;
   banco?: string;
   swift?: string;
