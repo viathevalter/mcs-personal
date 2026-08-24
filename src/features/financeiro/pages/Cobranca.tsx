@@ -879,7 +879,7 @@ export const Cobranca = () => {
                                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
                             </span>
                             <span className="font-mono font-semibold text-rose-400 tracking-wide flex items-center gap-1.5">
-                                <Activity size={13} /> RADAR DE COBRANÇA
+                                <Activity size={13} /> {t('financeiro.ticker.radar_morosidad', 'RADAR DE COBRANÇA')}
                             </span>
                         </div>
 
@@ -888,41 +888,41 @@ export const Cobranca = () => {
                             <div className="animate-ticker py-2 text-xs whitespace-nowrap select-none">
                                 {/* Set 1 */}
                                 <div className="flex items-center gap-6 px-4 shrink-0">
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title="Ver títulos em atraso">
-                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Em Atraso</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title={t('financeiro.kpis.tab_overdue', 'Em Atraso')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_delay', 'Em Atraso')}</span>
                                         <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.atrasoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} docs • {kpis.atrasoClients} clientes)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.atrasoClients} {t('financeiro.ticker.clients', 'clientes')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title="Ver títulos a vencer em 7 dias">
-                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Alerta 7 Dias</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title={t('financeiro.kpis.tab_due_soon', 'A Vencer')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.due_soon_7d', 'Alerta 7 Dias')}</span>
                                         <span className="font-mono font-bold text-amber-300">{formatCurrency(kpis.alertaVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} docs)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title="Ver processos judiciais">
-                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">Jurídico</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title={t('financeiro.kpis.tab_judicial', 'Jurídico')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.judicial', 'Jurídico')}</span>
                                         <span className="font-mono font-bold text-red-300">{formatCurrency(kpis.judicialVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} processos)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} {t('financeiro.kpis.active_processes_plural', 'processos')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title="Ver acordos negociados">
-                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Negociados</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.negotiated', 'Negociados')}</span>
                                         <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} docs)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     {topDevedor && (
                                         <>
                                             <div className="h-3 w-px bg-slate-800 shrink-0" />
                                             <div className="flex items-center gap-1.5">
-                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">Maior Devedor</span>
+                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">{t('financeiro.ticker.top_debtor', 'Maior Devedor')}</span>
                                                 <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topDevedor.Cliente || ''}>{topDevedor.Cliente}</span>
                                                 <span className="font-mono font-bold text-rose-300">{formatCurrency(topDevedor.Saldo_a_pagar || topDevedor.Valot_total || 0)}</span>
                                             </div>
@@ -933,7 +933,7 @@ export const Cobranca = () => {
                                         <>
                                             <div className="h-3 w-px bg-slate-800 shrink-0" />
                                             <div className="flex items-center gap-1.5">
-                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">Empresa c/ Maior Atraso</span>
+                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.top_overdue_company', 'Empresa c/ Maior Atraso')}</span>
                                                 <span className="font-semibold text-slate-200">{topEmpresaCobranca.name}</span>
                                                 <span className="font-mono font-bold text-sky-300">{formatCurrency(topEmpresaCobranca.total)}</span>
                                             </div>
@@ -943,49 +943,49 @@ export const Cobranca = () => {
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
                                     <div className="flex items-center gap-1.5">
-                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Total em Cobrança</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.total_under_collection', 'Total em Cobrança')}</span>
                                         <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.totalVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs • {kpis.totalClients} clientes)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.totalClients} {t('financeiro.ticker.clients', 'clientes')})</span>
                                     </div>
                                 </div>
 
                                 {/* Set 2 (Duplicate for Seamless Loop) */}
                                 <div className="flex items-center gap-6 px-4 shrink-0">
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title="Ver títulos em atraso">
-                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Em Atraso</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('atraso')} title={t('financeiro.kpis.tab_overdue', 'Em Atraso')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_delay', 'Em Atraso')}</span>
                                         <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.atrasoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} docs • {kpis.atrasoClients} clientes)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.atrasoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.atrasoClients} {t('financeiro.ticker.clients', 'clientes')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title="Ver títulos a vencer em 7 dias">
-                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Alerta 7 Dias</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('alerta')} title={t('financeiro.kpis.tab_due_soon', 'A Vencer')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.due_soon_7d', 'Alerta 7 Dias')}</span>
                                         <span className="font-mono font-bold text-amber-300">{formatCurrency(kpis.alertaVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} docs)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.alertaCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title="Ver processos judiciais">
-                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">Jurídico</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('judicial')} title={t('financeiro.kpis.tab_judicial', 'Jurídico')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-red-800/30 text-red-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.judicial', 'Jurídico')}</span>
                                         <span className="font-mono font-bold text-red-300">{formatCurrency(kpis.judicialVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} processos)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.judicialCount} {t('financeiro.kpis.active_processes_plural', 'processos')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title="Ver acordos negociados">
-                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Negociados</span>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.negotiated', 'Negociados')}</span>
                                         <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} docs)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.negociadoCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     {topDevedor && (
                                         <>
                                             <div className="h-3 w-px bg-slate-800 shrink-0" />
                                             <div className="flex items-center gap-1.5">
-                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">Maior Devedor</span>
+                                                <span className="px-1.5 py-0.5 rounded bg-rose-600/30 text-rose-200 font-bold text-[10px] uppercase">{t('financeiro.ticker.top_debtor', 'Maior Devedor')}</span>
                                                 <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topDevedor.Cliente || ''}>{topDevedor.Cliente}</span>
                                                 <span className="font-mono font-bold text-rose-300">{formatCurrency(topDevedor.Saldo_a_pagar || topDevedor.Valot_total || 0)}</span>
                                             </div>
@@ -996,7 +996,7 @@ export const Cobranca = () => {
                                         <>
                                             <div className="h-3 w-px bg-slate-800 shrink-0" />
                                             <div className="flex items-center gap-1.5">
-                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">Empresa c/ Maior Atraso</span>
+                                                <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.top_overdue_company', 'Empresa c/ Maior Atraso')}</span>
                                                 <span className="font-semibold text-slate-200">{topEmpresaCobranca.name}</span>
                                                 <span className="font-mono font-bold text-sky-300">{formatCurrency(topEmpresaCobranca.total)}</span>
                                             </div>
@@ -1006,9 +1006,9 @@ export const Cobranca = () => {
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
                                     <div className="flex items-center gap-1.5">
-                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Total em Cobrança</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.total_under_collection', 'Total em Cobrança')}</span>
                                         <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.totalVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} docs • {kpis.totalClients} clientes)</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.totalCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.totalClients} {t('financeiro.ticker.clients', 'clientes')})</span>
                                     </div>
                                 </div>
                             </div>
@@ -1043,10 +1043,10 @@ export const Cobranca = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.atrasoCount} {kpis.atrasoCount === 1 ? 'título' : 'títulos'}
+                                        {kpis.atrasoCount} {kpis.atrasoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                                        {kpis.atrasoClients} {kpis.atrasoClients === 1 ? 'cliente' : 'clientes'}
+                                        {kpis.atrasoClients} {kpis.atrasoClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1078,10 +1078,10 @@ export const Cobranca = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.alertaCount} {kpis.alertaCount === 1 ? 'título' : 'títulos'}
+                                        {kpis.alertaCount} {kpis.alertaCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                                        {kpis.alertaClients} {kpis.alertaClients === 1 ? 'cliente' : 'clientes'}
+                                        {kpis.alertaClients} {kpis.alertaClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1113,10 +1113,10 @@ export const Cobranca = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.judicialCount} {kpis.judicialCount === 1 ? 'processo' : 'processos'}
+                                        {kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-                                        {kpis.judicialClients} {kpis.judicialClients === 1 ? 'cliente' : 'clientes'}
+                                        {kpis.judicialClients} {kpis.judicialClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1148,10 +1148,10 @@ export const Cobranca = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.negociadoCount} {kpis.negociadoCount === 1 ? 'fatura' : 'faturas'}
+                                        {kpis.negociadoCount} {kpis.negociadoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
-                                        {kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? 'cliente' : 'clientes'}
+                                        {kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1176,10 +1176,10 @@ export const Cobranca = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-300">
-                                        {kpis.totalCount} {kpis.totalCount === 1 ? 'título' : 'títulos'}
+                                        {kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-semibold text-[10px] bg-slate-800 text-slate-200">
-                                        {kpis.totalClients} {kpis.totalClients === 1 ? 'cliente' : 'clientes'}
+                                        {kpis.totalClients} {kpis.totalClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
