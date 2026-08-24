@@ -1639,7 +1639,20 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
-  const periodoFat = `${monthsPt[emissionDate.getMonth()]} ${emissionDate.getFullYear()}`;
+  let periodoFat = '';
+  if (fatura.period_month && fatura.period_year) {
+    periodoFat = `${monthsPt[Number(fatura.period_month) - 1]} ${fatura.period_year}`;
+  } else if (fatura.ajustes_json?.descricao_servico) {
+    const match = fatura.ajustes_json.descricao_servico.match(/(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+(\d{4})/i);
+    if (match) {
+      periodoFat = `${match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()} ${match[2]}`;
+    }
+  }
+  if (!periodoFat) {
+    const prevMonthDate = new Date(emissionDate);
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    periodoFat = `${monthsPt[prevMonthDate.getMonth()]} ${prevMonthDate.getFullYear()}`;
+  }
 
   // Extract bank name from fatura IBAN details
   let bankName = '';

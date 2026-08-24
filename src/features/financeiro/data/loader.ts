@@ -331,7 +331,12 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.Obs !== undefined) dbData.obs = data.Obs;
     if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null;
     if (data.Dt_venc !== undefined) dbData.dt_venc = data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null;
-    if (data.Valot_total !== undefined) dbData.valot_total = data.Valot_total?.toString() || null;
+    if (data.Valot_total !== undefined) {
+      dbData.valot_total = data.Valot_total?.toString() || null;
+      if (data.Saldo_a_pagar === undefined && (data.Status === 'A vencer' || data.Status === 'Vencido')) {
+        dbData.saldo_a_pagar = data.Valot_total?.toString() || null;
+      }
+    }
     if (data.Saldo_a_pagar !== undefined) dbData.saldo_a_pagar = data.Saldo_a_pagar?.toString() || null;
     if (data.Status !== undefined) dbData.status = data.Status;
     if (data.Integral_parcial !== undefined) dbData.integral_parcial = data.Integral_parcial;

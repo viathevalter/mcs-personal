@@ -167,6 +167,13 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
          dataToSave.departamento_id = null as any;
       }
 
+      // If status is 'A vencer' or 'Vencido' and there are no partial payments, keep Saldo_a_pagar synced with Valot_total
+      if (!initialData || (!initialData.hist_valor_parcial && initialData.Status !== 'Pago' && initialData.Status !== 'Parcial')) {
+        if (dataToSave.Valot_total !== undefined) {
+          dataToSave.Saldo_a_pagar = dataToSave.Valot_total;
+        }
+      }
+
       await onSave(dataToSave);
       onClose();
     } catch (error) {
