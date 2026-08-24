@@ -26,28 +26,31 @@ export function WhatsAppRedirectPage() {
           .eq('id', leadId)
           .single();
 
-        if (lead) {
-          // Fetch the 'Contato Via WhatsApp' stage (order_index = 4)
-          const { data: targetStage } = await supabase
+        if (lead && lead.empresa_id) {
+          // Fetch the 'Contato Via WhatsApp' stage (order_index = 4) for this specific empresa
+          const { data: targetStages } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id, order_index')
+            .eq('empresa_id', lead.empresa_id)
             .or('order_index.eq.4,name.ilike.%WhatsApp%')
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+
+          const targetStage = targetStages && targetStages.length > 0 ? targetStages[0] : null;
 
           if (targetStage) {
             // Get order index of current stage to avoid downgrading
             let currentOrderIndex = 0;
             if (lead.stage_id) {
-              const { data: curStage } = await supabase
+              const { data: curStages } = await supabase
                 .schema('core_comercial')
                 .from('kanban_stages')
                 .select('order_index')
+                .eq('empresa_id', lead.empresa_id)
                 .eq('id', lead.stage_id)
-                .maybeSingle();
-              if (curStage) {
-                currentOrderIndex = curStage.order_index;
+                .limit(1);
+              if (curStages && curStages.length > 0) {
+                currentOrderIndex = curStages[0].order_index;
               }
             }
 

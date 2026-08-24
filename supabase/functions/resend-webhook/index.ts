@@ -39,34 +39,38 @@ serve(async (req) => {
       const cleanEmail = recipientEmail.toLowerCase().trim();
 
       // Find lead by email
-      const { data: lead } = await supabase
+      const { data: leads } = await supabase
         .schema("core_comercial")
         .from("leads")
-        .select("id, stage_id")
+        .select("id, stage_id, empresa_id")
         .ilike("email", cleanEmail)
-        .maybeSingle();
+        .limit(1);
 
-      if (lead) {
-        // Fetch 'E-mail Lido / Clicado' stage (order_index = 3)
-        const { data: stage3 } = await supabase
+      const lead = leads && leads.length > 0 ? leads[0] : null;
+
+      if (lead && lead.empresa_id) {
+        // Fetch 'E-mail Lido / Clicado' stage (order_index = 3) for this specific company
+        const { data: stages3 } = await supabase
           .schema("core_comercial")
           .from("kanban_stages")
           .select("id, order_index")
+          .eq("empresa_id", lead.empresa_id)
           .or("order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%")
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+
+        const stage3 = stages3 && stages3.length > 0 ? stages3[0] : null;
 
         if (stage3) {
           let currentOrderIndex = 0;
           if (lead.stage_id) {
-            const { data: curStage } = await supabase
+            const { data: curStages } = await supabase
               .schema("core_comercial")
               .from("kanban_stages")
               .select("order_index")
               .eq("id", lead.stage_id)
-              .maybeSingle();
-            if (curStage) {
-              currentOrderIndex = curStage.order_index;
+              .limit(1);
+            if (curStages && curStages.length > 0) {
+              currentOrderIndex = curStages[0].order_index;
             }
           }
 
@@ -81,7 +85,7 @@ serve(async (req) => {
               })
               .eq("id", lead.id);
 
-            console.log(`Lead ${lead.id} (${cleanEmail}) promovido para Estágio 3 (E-mail Lido/Clicado) via Webhook (${eventType}).`);
+            console.log(`Lead ${lead.id} (${cleanEmail}) promovido para Estágio 3 (E-mail Lido/Clicado) via Webhook (${eventType}) da Empresa ${lead.empresa_id}.`);
           }
         }
       }
