@@ -29,6 +29,20 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
     const [dataRecebimento, setDataRecebimento] = useState(new Date().toISOString().split('T')[0]);
     const [bancoId, setBancoId] = useState('');
     const [valorRecebido, setValorRecebido] = useState(titulo.Saldo_a_pagar.toString());
+    const [lancarComoTaxa, setLancarComoTaxa] = useState(false);
+    const [comentarioTaxa, setComentarioTaxa] = useState('');
+
+    const valorNum = parseFloat(valorRecebido) || 0;
+    const diferencaCalculada = Math.max(0, titulo.Saldo_a_pagar - valorNum);
+    const temDiferenca = diferencaCalculada > 0.009;
+
+    const handleFormaPagamentoChange = (value: string) => {
+        setFormaPagamento(value);
+        if (value === 'Confirme') {
+            setTipoRecebimento('Parcial');
+            setLancarComoTaxa(true);
+        }
+    };
 
     // Combine payments from pagamentos_reais and Hist_ValorParcial for display
     const partialPaymentsList = React.useMemo(() => {
@@ -86,6 +100,8 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             setValorRecebido(titulo.Saldo_a_pagar.toString());
             setTipoRecebimento('Integral');
             setFormaPagamento('Transferencia');
+            setLancarComoTaxa(false);
+            setComentarioTaxa('');
             setDataRecebimento(new Date().toISOString().split('T')[0]);
         }
     }, [isOpen, titulo]);
@@ -94,8 +110,6 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
         setIsLoadingBancos(true);
         try {
             const data = await fetchBancos();
-            // Filter active banks for this company if we had the company ID, 
-            // for now just show active banks
             const activeBancos = data.filter(b => b.ativo);
             setBancos(activeBancos);
             if (activeBancos.length > 0) {
@@ -128,13 +142,13 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
 
         setIsSaving(true);
         try {
-            // 1. Salvar o Recebimento
+            // 1. Salvar o Recebimento no valor real creditado na conta
             const novoRecebimento = {
                 conta_receber_id: titulo.id,
                 valor: valor,
                 data_recebimento: dataRecebimento,
                 forma_pagamento: formaPagamento,
-                tipo_recebimento: tipoRecebimento,
+                tipo_recebimento: (lancarComoTaxa && temDiferenca) ? 'Integral' : tipoRecebimento,
                 banco_id: bancoId || undefined
             };
 
@@ -142,30 +156,57 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             if (!recRes.success) throw recRes.error;
 
             // 2. Atualizar o Saldo e Status da Conta a Receber
-            const novoSaldo = titulo.Saldo_a_pagar - valor;
-            const novoStatus = novoSaldo <= 0 ? 'Pago' : 'Parcial';
+            let novoSaldo = titulo.Saldo_a_pagar - valor;
+            let novoStatus = novoSaldo <= 0 ? 'Pago' : 'Parcial';
+            let updatePayload: any = {
+                Form_receb: formaPagamento,
+                dt_recebimento: new Date(dataRecebimento)
+            };
 
-            const updateRes = await updateContaReceber(titulo.id, {
-                Saldo_a_pagar: novoSaldo,
-                Status: novoStatus,
-                Integral_parcial: tipoRecebimento
-            });
+            if (lancarComoTaxa && temDiferenca) {
+                novoSaldo = 0;
+                novoStatus = 'Pago';
+                updatePayload = {
+                    ...updatePayload,
+                    Saldo_a_pagar: 0,
+                    Status: 'Pago',
+                    Integral_parcial: 'Integral',
+                    comisao_taxa: diferencaCalculada.toFixed(2),
+                    comentarios: comentarioTaxa || `Liquidado via ${formaPagamento} com taxa bancária de € ${diferencaCalculada.toFixed(2)}`
+                };
+            } else {
+                updatePayload = {
+                    ...updatePayload,
+                    Saldo_a_pagar: novoSaldo,
+                    Status: novoStatus,
+                    Integral_parcial: tipoRecebimento
+                };
+            }
 
+            const updateRes = await updateContaReceber(titulo.id, updatePayload);
             if (!updateRes.success) throw updateRes.error;
 
             // 3. Salvar Observação Automática
             const bancoDestino = bancos.find(b => b.id === bancoId);
             const nomeBanco = bancoDestino ? bancoDestino.nome_banco : 'Não especificado';
+            
+            let obsText = '';
+            if (lancarComoTaxa && temDiferenca) {
+                obsText = `Recebimento ${formaPagamento} registrado: Creditado € ${valor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} + Comissão Bancária € ${diferencaCalculada.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (Total do Título: € ${titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}) - Título Liquidado como Pago (Banco: ${nomeBanco}).`;
+            } else {
+                obsText = `Recebimento ${tipoRecebimento} registrado: € ${valor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (Banco: ${nomeBanco}, Forma: ${formaPagamento})`;
+            }
+
             const autoObs = {
                 conta_receber_id: titulo.id,
                 usuario: user?.email || 'Sistema',
-                descricao: `Recebimento ${tipoRecebimento} registrado: € ${valor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (Banco: ${nomeBanco}, Forma: ${formaPagamento})`,
+                descricao: obsText,
                 tipo: 'Recebimento',
                 data: new Date().toISOString()
             };
             await saveObservacao(autoObs);
 
-            toast.success(t('financeiro.modals.msg_receipt_saved', 'Recebimento salvo com sucesso!'));
+            toast.success(lancarComoTaxa && temDiferenca ? 'Recebimento registrado e título liquidado com comissão bancária!' : t('financeiro.modals.msg_receipt_saved', 'Recebimento salvo com sucesso!'));
             onSuccess();
             onClose();
         } catch (error) {
@@ -210,7 +251,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                         <div className="space-y-2">
                             <Label htmlFor="forma_pagamento">{t('financeiro.modals.payment_method', 'Forma de Pago')}</Label>
-                            <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                            <Select value={formaPagamento} onValueChange={handleFormaPagamentoChange}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
@@ -234,6 +275,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                                         onChange={() => {
                                             setTipoRecebimento('Integral');
                                             setValorRecebido(titulo.Saldo_a_pagar.toString());
+                                            setLancarComoTaxa(false);
                                         }}
                                         className="w-4 h-4 text-brand-primary"
                                     />
@@ -302,6 +344,55 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                             </div>
                         </div>
                     </div>
+
+                    {/* Opção de Comissão / Taxa Bancária quando há diferença */}
+                    {temDiferenca && (
+                        <div className="mt-6 p-4 rounded-xl border border-amber-300 bg-amber-50/80 dark:bg-amber-950/20 space-y-3 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-200 text-amber-900 uppercase">
+                                            Diferença de Recebimento
+                                        </span>
+                                        <span className="font-mono font-bold text-amber-900 text-base">
+                                            € {diferencaCalculada.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-amber-800 mt-1">
+                                        Valor creditado em conta: <strong>€ {valorNum.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> de um saldo de <strong>€ {titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>.
+                                    </p>
+                                </div>
+
+                                <label className="flex items-center gap-2.5 cursor-pointer bg-white px-3.5 py-2.5 rounded-lg border border-amber-300 shadow-sm shrink-0 hover:bg-amber-50/50 transition-colors">
+                                    <input 
+                                        type="checkbox"
+                                        checked={lancarComoTaxa}
+                                        onChange={(e) => setLancarComoTaxa(e.target.checked)}
+                                        className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-slate-800">
+                                        Lançar como Comissão Bancária e Liquidar Título (Status Pago)
+                                    </span>
+                                </label>
+                            </div>
+
+                            {lancarComoTaxa && (
+                                <div className="pt-2 border-t border-amber-200/80 flex items-center gap-2">
+                                    <Label htmlFor="comentario_taxa" className="text-xs font-semibold text-amber-900 shrink-0">
+                                        Descrição da Taxa:
+                                    </Label>
+                                    <Input 
+                                        id="comentario_taxa"
+                                        type="text"
+                                        placeholder={`Taxa de antecipação / comissão bancária (${formaPagamento})`}
+                                        value={comentarioTaxa}
+                                        onChange={(e) => setComentarioTaxa(e.target.value)}
+                                        className="text-xs h-8 bg-white border-amber-300 text-slate-800"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Información Parcial / Historial de Pagos Parciales */}
                     <div className="mt-8 border rounded-xl overflow-hidden shadow-sm bg-white">

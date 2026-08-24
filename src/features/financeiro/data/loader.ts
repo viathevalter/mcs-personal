@@ -340,6 +340,11 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.Saldo_a_pagar !== undefined) dbData.saldo_a_pagar = data.Saldo_a_pagar?.toString() || null;
     if (data.Status !== undefined) dbData.status = data.Status;
     if (data.Integral_parcial !== undefined) dbData.integral_parcial = data.Integral_parcial;
+    if (data.comisao_taxa !== undefined) dbData.comisao_taxa = data.comisao_taxa;
+    if (data.comentarios !== undefined) dbData.comentarios = data.comentarios;
+    if (data.obs_recebimento !== undefined) dbData.obs_recebimento = data.obs_recebimento;
+    if (data.Form_receb !== undefined) dbData.form_receb = data.Form_receb;
+    if (data.dt_recebimento !== undefined) dbData.dt_recebimento = data.dt_recebimento ? new Date(data.dt_recebimento).toISOString() : null;
     if (data.categoria_id !== undefined) dbData.categoria_id = data.categoria_id;
     if (data.departamento_id !== undefined) dbData.departamento_id = data.departamento_id;
     if (data.obra_id !== undefined) dbData.obra_id = data.obra_id;
