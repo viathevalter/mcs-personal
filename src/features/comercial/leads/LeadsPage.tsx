@@ -742,6 +742,9 @@ export function LeadsPage() {
 
   const [selectedSector, setSelectedSector] = useState<string>('all');
   const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [selectedCompanySize, setSelectedCompanySize] = useState<string>('all');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all');
+  const [selectedProvince, setSelectedProvince] = useState<string>('all');
 
   const detectLeadCountry = (lead: any) => {
     if (lead.country_id) {
@@ -820,6 +823,20 @@ export function LeadsPage() {
     new Set(leads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
   );
 
+  const availableCompanySizes = [
+    { label: '🏢 Gran Empresa (Tier 1)', value: 'Gran Empresa (Tier 1)' },
+    { label: '🏭 Mediana Empresa (Tier 2)', value: 'Mediana Empresa (Tier 2)' },
+    { label: '⚙️ Taller / Pequeña (Tier 3)', value: 'Pequeña Empresa / Taller (Tier 3)' },
+  ];
+
+  const availableRegions = Array.from(
+    new Set(leads.map((l: any) => l.region).filter(Boolean))
+  ).sort() as string[];
+
+  const availableProvinces = Array.from(
+    new Set(leads.map((l: any) => l.province).filter(Boolean))
+  ).sort() as string[];
+
   const sectorCounts = {
     total: leads.length,
     naval: leads.filter((l) => normalizeSectorName(l.sector) === 'Construção & Reparação Naval').length,
@@ -840,6 +857,10 @@ export function LeadsPage() {
       const cInfo = countryLabels[cCode] || countryLabels.ES;
       return {
         'Empresa / Organização': l.company_name || 'N/A',
+        'Porte / Tamanho': (l as any).company_size || 'N/D',
+        'Região / Comunidade': (l as any).region || 'N/D',
+        'Província': l.province || '',
+        'Cidade': l.city || '',
         'País': `${cInfo.flag} ${cInfo.name}`,
         'Setor': normalizeSectorName(l.sector),
         'Nome do Contato': l.name || 'N/A',
@@ -864,20 +885,36 @@ export function LeadsPage() {
     toast.success(`Exportados ${filteredLeads.length} leads em Excel (.xlsx) com sucesso!`);
   };
 
-  const filteredLeads = leads.filter((lead) => {
+  const filteredLeads = leads.filter((lead: any) => {
     const leadNormSector = normalizeSectorName(lead.sector);
     if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
     if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
+    if (selectedCompanySize !== 'all') {
+      const sizeStr = lead.company_size || '';
+      const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedCompanySize);
+      if (sizeStr !== selectedCompanySize && !inTags) return false;
+    }
+    if (selectedRegion !== 'all') {
+      const regStr = lead.region || '';
+      const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedRegion);
+      if (regStr !== selectedRegion && !inTags) return false;
+    }
+    if (selectedProvince !== 'all' && lead.province !== selectedProvince) return false;
+
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
-      lead.name.toLowerCase().includes(search) ||
-      lead.email.toLowerCase().includes(search) ||
+      lead.name?.toLowerCase().includes(search) ||
+      lead.email?.toLowerCase().includes(search) ||
       (lead.company_name && lead.company_name.toLowerCase().includes(search)) ||
       (lead.phone && lead.phone.includes(search)) ||
+      (lead.city && lead.city.toLowerCase().includes(search)) ||
+      (lead.province && lead.province.toLowerCase().includes(search)) ||
+      (lead.region && lead.region.toLowerCase().includes(search)) ||
+      (lead.company_size && lead.company_size.toLowerCase().includes(search)) ||
       (lead.sector && lead.sector.toLowerCase().includes(search)) ||
       (lead.origen_lead && lead.origen_lead.toLowerCase().includes(search)) ||
-      (Array.isArray(lead.tags) && lead.tags.some((t) => t.toLowerCase().includes(search)))
+      (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
     );
   });
 
@@ -1112,7 +1149,7 @@ export function LeadsPage() {
           <div className="flex items-center gap-1.5 w-full sm:w-auto">
             <Filter className="w-4 h-4 text-yellow-500 shrink-0" />
             <Select value={selectedSector} onValueChange={setSelectedSector}>
-              <SelectTrigger className="w-full sm:w-56 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
+              <SelectTrigger className="w-full sm:w-52 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
                 <SelectValue placeholder="Todos os Setores" />
               </SelectTrigger>
               <SelectContent>
@@ -1125,6 +1162,62 @@ export function LeadsPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Company Size Tier Filter */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <Building2 className="w-4 h-4 text-purple-500 shrink-0" />
+            <Select value={selectedCompanySize} onValueChange={setSelectedCompanySize}>
+              <SelectTrigger className="w-full sm:w-48 h-9 text-xs font-semibold focus-visible:ring-purple-500">
+                <SelectValue placeholder="Porte da Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🏢 Todos os Portes</SelectItem>
+                {availableCompanySizes.map((s, idx) => (
+                  <SelectItem key={idx} value={s.value}>
+                    {s.label} ({leads.filter((l: any) => l.company_size === s.value || (Array.isArray(l.tags) && l.tags.includes(s.value))).length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Region / Autonomous Community Filter */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+            <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+              <SelectTrigger className="w-full sm:w-48 h-9 text-xs font-semibold focus-visible:ring-emerald-500">
+                <SelectValue placeholder="Comunidade / Região" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🗺️ Todas as Regiões</SelectItem>
+                {availableRegions.map((reg, idx) => (
+                  <SelectItem key={idx} value={reg}>
+                    {reg} ({leads.filter((l: any) => l.region === reg || (Array.isArray(l.tags) && l.tags.includes(reg))).length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Province Filter */}
+          {availableProvinces.length > 0 && (
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <Layers className="w-4 h-4 text-cyan-500 shrink-0" />
+              <Select value={selectedProvince} onValueChange={setSelectedProvince}>
+                <SelectTrigger className="w-full sm:w-44 h-9 text-xs font-semibold focus-visible:ring-cyan-500">
+                  <SelectValue placeholder="Província" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">📍 Todas as Províncias</SelectItem>
+                  {availableProvinces.map((prov, idx) => (
+                    <SelectItem key={idx} value={prov}>
+                      {prov} ({leads.filter((l: any) => l.province === prov).length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
       {error ? (
@@ -1208,11 +1301,30 @@ export function LeadsPage() {
                                 <span>{cInfo.flag}</span>
                                 <span>{cCode}</span>
                               </span>
+                              {(lead as any).company_size && (
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  (lead as any).company_size.includes('Tier 1')
+                                    ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800/60 shadow-sm'
+                                    : (lead as any).company_size.includes('Tier 2')
+                                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800/60'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                }`}>
+                                  {(lead as any).company_size}
+                                </span>
+                              )}
                             </div>
+                            {((lead as any).region || lead.city || lead.province) && (
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 pl-5">
+                                <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
+                                <span>
+                                  {[lead.city, lead.province, (lead as any).region].filter(Boolean).join(' • ')}
+                                </span>
+                              </div>
+                            )}
                             {lead.tags && lead.tags.length > 0 && (
-                              <div className="flex items-center gap-1 flex-wrap pl-6">
-                                {lead.tags.map((tg, idx) => (
-                                  <span key={idx} className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/40">
+                              <div className="flex items-center gap-1 flex-wrap pl-5 pt-0.5">
+                                {lead.tags.slice(0, 3).map((tg, idx) => (
+                                  <span key={idx} className="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-medium px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/40">
                                     {tg}
                                   </span>
                                 ))}
