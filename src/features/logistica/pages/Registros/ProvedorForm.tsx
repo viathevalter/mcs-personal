@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { useCountries, useRegions } from '@/features/master-data/locations/hooks/useLocations';
-import { identifyBankFromIban, formatIban, cleanIban } from '@/shared/utils/ibanHelper';
+import { identifyBankFromIban, formatIban } from '@/shared/utils/ibanHelper';
 
 const contatoItemSchema = z.object({
   nome: z.string().optional(),
@@ -61,6 +61,7 @@ export const ProvedorForm: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const dataLoadedRef = useRef(false);
 
   const { data: countries = [] } = useCountries();
 
@@ -69,15 +70,23 @@ export const ProvedorForm: React.FC = () => {
     handleSubmit,
     control,
     setValue,
+    getValues,
     reset,
     formState: { errors },
   } = useForm<ProvedorFormValues>({
     resolver: zodResolver(provedorSchema),
     defaultValues: {
+      nome_razao_social: '',
+      nome_comercial: '',
+      cif_nif: '',
       tipo: 'alojamento',
       tipo_pessoa: 'Persona Jurídica',
       classificacao: 'Proveedor Alojamiento',
       metodo_pago: 'Transferir',
+      endereco: '',
+      municipio: '',
+      provincia: '',
+      codigo_postal: '',
       pais: 'España',
       ativo: true,
       contatos: [
@@ -91,18 +100,18 @@ export const ProvedorForm: React.FC = () => {
 
   const selectedCountryId = useWatch({ control, name: 'country_id' });
   const selectedRegionId = useWatch({ control, name: 'region_id' });
-  const selectedPais = useWatch({ control, name: 'pais' });
-  const selectedProvincia = useWatch({ control, name: 'provincia' });
   const watchedDadosBancarios = useWatch({ control, name: 'dados_bancarios' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
-  // Carregar dados se estiver em modo de EDIÇÃO (quando houver ID na URL)
+  // Carregar dados APENAS UMA VEZ no modo de edição (quando id estiver disponível)
   useEffect(() => {
-    if (id) {
+    if (id && !dataLoadedRef.current) {
       setIsLoading(true);
       registrosService.fetchProvedorById(id).then((p) => {
         if (p) {
+          dataLoadedRef.current = true;
+
           const contatosCarregados = p.contatos && p.contatos.length > 0 ? p.contatos : [
             {
               nome: p.contato_nome || (p as any).contato || '',
@@ -123,7 +132,6 @@ export const ProvedorForm: React.FC = () => {
             }
           ];
 
-          // Auto-identificar banco/SWIFT se estiver faltando nos dados carregados
           dadosBancariosCarregados = dadosBancariosCarregados.map(b => {
             const rawIban = b.iban || '';
             const bankInfo = identifyBankFromIban(rawIban);
@@ -139,18 +147,7 @@ export const ProvedorForm: React.FC = () => {
           const provinciaTexto = p.provincia || (p as any).estado || (p as any).regiao || '';
           const enderecoTexto = p.endereco || (p as any).direccion || (p as any).direccion_hospedaje || (p as any).logradouro || (p as any).ubicacion_fiscal || '';
           const municipioTexto = p.municipio || (p as any).ciudad || (p as any).cidade || '';
-          const codigoPostalTexto = (p as any).codigo_postal || (p as any).cep || (p as any).cp || '';
-
-          // Resolver country_id pelo nome do país se disponível
-          let matchedCountryId = (p as any).country_id || null;
-          if (!matchedCountryId && paisTexto && countries.length > 0) {
-            const foundC = countries.find(c =>
-              c.name.toLowerCase().trim() === paisTexto.toLowerCase().trim() ||
-              (paisTexto.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
-              (paisTexto.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
-            );
-            if (foundC) matchedCountryId = foundC.id;
-          }
+          const codigoPostalTexto = p.codigo_postal || (p as any).cep || (p as any).cp || '';
 
           reset({
             nome_razao_social: p.nome_razao_social || '',
@@ -170,8 +167,8 @@ export const ProvedorForm: React.FC = () => {
             swift: p.swift || '',
             titular_conta: p.titular_conta || '',
             endereco: enderecoTexto,
-            country_id: matchedCountryId,
-            region_id: (p as any).region_id || null,
+            country_id: p.country_id || null,
+            region_id: p.region_id || null,
             municipio: municipioTexto,
             provincia: provinciaTexto,
             codigo_postal: codigoPostalTexto,
@@ -185,54 +182,39 @@ export const ProvedorForm: React.FC = () => {
         setIsLoading(false);
       });
     }
-  }, [id, reset, countries]);
+  }, [id, reset]);
 
-  // Sincronizar automaticamente country_id quando o catálogo de países carregar
+  // Se o país for resolvido após o catálogo de países carregar, preenche country_id sem resetar o formulário
   useEffect(() => {
-    if (!selectedCountryId && selectedPais && countries.length > 0) {
+    const currentCountryId = getValues('country_id');
+    const currentPais = getValues('pais') || 'España';
+    if (!currentCountryId && countries.length > 0) {
       const foundC = countries.find(c =>
-        c.name.toLowerCase().trim() === selectedPais.toLowerCase().trim() ||
-        (selectedPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
-        (selectedPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+        c.name.toLowerCase().trim() === currentPais.toLowerCase().trim() ||
+        (currentPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+        (currentPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
       );
       if (foundC) {
         setValue('country_id', foundC.id);
       }
     }
-  }, [countries, selectedPais, selectedCountryId, setValue]);
+  }, [countries, getValues, setValue]);
 
-  // Sincronizar automaticamente region_id quando o catálogo de regiões carregar
+  // Se a região for resolvida após o catálogo de regiões carregar, preenche region_id
   useEffect(() => {
-    if (!selectedRegionId && selectedProvincia && regions.length > 0) {
+    const currentRegionId = getValues('region_id');
+    const currentProvincia = getValues('provincia');
+    if (!currentRegionId && currentProvincia && regions.length > 0) {
       const foundR = regions.find(r =>
-        r.name.toLowerCase().trim() === selectedProvincia.toLowerCase().trim() ||
-        r.name.toLowerCase().includes(selectedProvincia.toLowerCase().trim()) ||
-        selectedProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
+        r.name.toLowerCase().trim() === currentProvincia.toLowerCase().trim() ||
+        r.name.toLowerCase().includes(currentProvincia.toLowerCase().trim()) ||
+        currentProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
       );
       if (foundR) {
         setValue('region_id', foundR.id);
       }
     }
-  }, [regions, selectedProvincia, selectedRegionId, setValue]);
-
-  // Atualizar nomes de país e província em texto quando os seletores mudarem
-  useEffect(() => {
-    if (selectedCountryId && countries.length > 0) {
-      const countryObj = countries.find(c => c.id === selectedCountryId);
-      if (countryObj) {
-        setValue('pais', countryObj.name);
-      }
-    }
-  }, [selectedCountryId, countries, setValue]);
-
-  useEffect(() => {
-    if (selectedRegionId && regions.length > 0) {
-      const regionObj = regions.find(r => r.id === selectedRegionId);
-      if (regionObj) {
-        setValue('provincia', regionObj.name);
-      }
-    }
-  }, [selectedRegionId, regions, setValue]);
+  }, [regions, getValues, setValue]);
 
   const { fields: contatosFields, append: appendContato, remove: removeContato } = useFieldArray({
     control,
@@ -244,14 +226,12 @@ export const ProvedorForm: React.FC = () => {
     name: 'dados_bancarios'
   });
 
-  // Função para lidar com a digitação do IBAN e auto-preencher Banco e SWIFT/BIC
   const handleIbanInputChange = (index: number, rawValue: string) => {
     const formatted = formatIban(rawValue);
     setValue(`dados_bancarios.${index}.iban`, formatted, { shouldDirty: true });
 
     const bankInfo = identifyBankFromIban(formatted);
     if (bankInfo) {
-      // Auto-preenche o nome do Banco e SWIFT se estiver vazio ou se pertencer ao banco anterior
       setValue(`dados_bancarios.${index}.banco`, bankInfo.name, { shouldDirty: true });
       setValue(`dados_bancarios.${index}.swift`, bankInfo.bic, { shouldDirty: true });
     }
@@ -273,7 +253,12 @@ export const ProvedorForm: React.FC = () => {
         iban: principalBanco?.iban || data.iban || '',
         swift: principalBanco?.swift || data.swift || '',
         titular_conta: principalBanco?.titular_conta || data.titular_conta || '',
-        metodo_pago: principalBanco?.metodo_pago || data.metodo_pago || 'Transferir'
+        metodo_pago: principalBanco?.metodo_pago || data.metodo_pago || 'Transferir',
+        endereco: data.endereco || '',
+        municipio: data.municipio || '',
+        provincia: data.provincia || '',
+        codigo_postal: data.codigo_postal || '',
+        pais: data.pais || 'España',
       };
 
       if (isEditing && id) {
@@ -283,9 +268,9 @@ export const ProvedorForm: React.FC = () => {
       }
 
       navigate('/logistica/registros/provedores');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving provedor:', error);
-      alert('Erro ao salvar provedor. Verifique os dados e o console.');
+      alert(`Erro ao salvar provedor: ${error.message || 'Verifique o console.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -558,7 +543,6 @@ export const ProvedorForm: React.FC = () => {
                         placeholder="Ex: ES09 0182 7307 4202 0009 3104"
                       />
 
-                      {/* Badge de Auto-identificação do Banco e SWIFT */}
                       {identifiedBank && (
                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md mt-1.5 border border-emerald-200 dark:border-emerald-800 animate-in fade-in duration-150">
                           <Sparkles size={13} className="text-emerald-600 flex-shrink-0" />
@@ -629,8 +613,12 @@ export const ProvedorForm: React.FC = () => {
                 <CountrySelector
                   value={selectedCountryId || null}
                   onChange={(val) => {
-                    setValue('country_id', val);
-                    setValue('region_id', null);
+                    setValue('country_id', val, { shouldDirty: true });
+                    setValue('region_id', null, { shouldDirty: true });
+                    const countryObj = countries.find(c => c.id === val);
+                    if (countryObj) {
+                      setValue('pais', countryObj.name, { shouldDirty: true });
+                    }
                   }}
                 />
               </div>
@@ -640,7 +628,13 @@ export const ProvedorForm: React.FC = () => {
                 <RegionSelector
                   countryId={selectedCountryId || null}
                   value={selectedRegionId || null}
-                  onChange={(val) => setValue('region_id', val)}
+                  onChange={(val) => {
+                    setValue('region_id', val, { shouldDirty: true });
+                    const regionObj = regions.find(r => r.id === val);
+                    if (regionObj) {
+                      setValue('provincia', regionObj.name, { shouldDirty: true });
+                    }
+                  }}
                 />
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -61,6 +61,7 @@ export const AlojamentoForm: React.FC = () => {
   const [nextSeq, setNextSeq] = useState<string>('0001');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const dataLoadedRef = useRef(false);
 
   const { data: countries = [] } = useCountries();
 
@@ -68,12 +69,15 @@ export const AlojamentoForm: React.FC = () => {
     register,
     handleSubmit,
     setValue,
+    getValues,
     control,
     reset,
     formState: { errors },
   } = useForm<AlojamentoFormValues>({
     resolver: zodResolver(alojamentoSchema),
     defaultValues: {
+      titulo: '',
+      provedor_id: '',
       capacidade_pessoas: 10,
       dormitorios: 5,
       total_camas: 10,
@@ -82,6 +86,10 @@ export const AlojamentoForm: React.FC = () => {
       banheiros: 3,
       tipo_alojamento: 'Fijo',
       classificacao: 'Privado',
+      endereco: '',
+      municipio: '',
+      provincia: '',
+      codigo_postal: '',
       pais: 'España',
       comodidades: { 'Wi-Fi': true, 'Aire acondicionado': true, 'Parking': true, 'Cocina': true },
       suministros: {},
@@ -92,8 +100,6 @@ export const AlojamentoForm: React.FC = () => {
   const selectedProvedorId = useWatch({ control, name: 'provedor_id' });
   const selectedCountryId = useWatch({ control, name: 'country_id' });
   const selectedRegionId = useWatch({ control, name: 'region_id' });
-  const selectedPais = useWatch({ control, name: 'pais' });
-  const selectedProvincia = useWatch({ control, name: 'provincia' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
@@ -117,27 +123,19 @@ export const AlojamentoForm: React.FC = () => {
     loadInitialData();
   }, []);
 
-  // Se estiver EDITANDO, carrega os dados do alojamento pelo ID
+  // Carregar dados APENAS UMA VEZ ao editar pelo ID
   useEffect(() => {
-    if (id) {
+    if (id && !dataLoadedRef.current) {
       setIsLoading(true);
       registrosService.fetchAlojamentoById(id).then((a) => {
         if (a) {
+          dataLoadedRef.current = true;
+
           const paisTexto = a.pais || (a as any).country || 'España';
           const provinciaTexto = a.provincia || (a as any).estado || '';
           const enderecoTexto = a.endereco || (a as any).direccion || (a as any).direccion_hospedaje || (a as any).logradouro || '';
           const municipioTexto = a.municipio || (a as any).ciudad || (a as any).cidade || '';
-          const codigoPostalTexto = (a as any).codigo_postal || (a as any).cep || (a as any).cp || '';
-
-          let matchedCountryId = (a as any).country_id || null;
-          if (!matchedCountryId && paisTexto && countries.length > 0) {
-            const foundC = countries.find(c =>
-              c.name.toLowerCase().trim() === paisTexto.toLowerCase().trim() ||
-              (paisTexto.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
-              (paisTexto.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
-            );
-            if (foundC) matchedCountryId = foundC.id;
-          }
+          const codigoPostalTexto = a.codigo_postal || (a as any).cep || (a as any).cp || '';
 
           reset({
             titulo: a.titulo || (a as any).nome || '',
@@ -151,8 +149,8 @@ export const AlojamentoForm: React.FC = () => {
             camas_duplas: a.camas_duplas || 0,
             banheiros: a.banheiros || 0,
             endereco: enderecoTexto,
-            country_id: matchedCountryId,
-            region_id: (a as any).region_id || null,
+            country_id: a.country_id || null,
+            region_id: a.region_id || null,
             municipio: municipioTexto,
             provincia: provinciaTexto,
             codigo_postal: codigoPostalTexto,
@@ -169,35 +167,39 @@ export const AlojamentoForm: React.FC = () => {
         setIsLoading(false);
       });
     }
-  }, [id, reset, countries]);
+  }, [id, reset]);
 
-  // Sincronizar country_id automaticamente quando os países carregarem
+  // Se o país for resolvido após o catálogo de países carregar, preenche country_id
   useEffect(() => {
-    if (!selectedCountryId && selectedPais && countries.length > 0) {
+    const currentCountryId = getValues('country_id');
+    const currentPais = getValues('pais') || 'España';
+    if (!currentCountryId && countries.length > 0) {
       const foundC = countries.find(c =>
-        c.name.toLowerCase().trim() === selectedPais.toLowerCase().trim() ||
-        (selectedPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
-        (selectedPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+        c.name.toLowerCase().trim() === currentPais.toLowerCase().trim() ||
+        (currentPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+        (currentPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
       );
       if (foundC) {
         setValue('country_id', foundC.id);
       }
     }
-  }, [countries, selectedPais, selectedCountryId, setValue]);
+  }, [countries, getValues, setValue]);
 
-  // Sincronizar region_id automaticamente quando as regiões carregarem
+  // Se a região for resolvida após o catálogo de regiões carregar, preenche region_id
   useEffect(() => {
-    if (!selectedRegionId && selectedProvincia && regions.length > 0) {
+    const currentRegionId = getValues('region_id');
+    const currentProvincia = getValues('provincia');
+    if (!currentRegionId && currentProvincia && regions.length > 0) {
       const foundR = regions.find(r =>
-        r.name.toLowerCase().trim() === selectedProvincia.toLowerCase().trim() ||
-        r.name.toLowerCase().includes(selectedProvincia.toLowerCase().trim()) ||
-        selectedProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
+        r.name.toLowerCase().trim() === currentProvincia.toLowerCase().trim() ||
+        r.name.toLowerCase().includes(currentProvincia.toLowerCase().trim()) ||
+        currentProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
       );
       if (foundR) {
         setValue('region_id', foundR.id);
       }
     }
-  }, [regions, selectedProvincia, selectedRegionId, setValue]);
+  }, [regions, getValues, setValue]);
 
   // Preencher título E LOCALIZAÇÃO (País, Província, Cidade, CEP) automaticamente quando o provedor é selecionado
   useEffect(() => {
@@ -206,11 +208,11 @@ export const AlojamentoForm: React.FC = () => {
       if (prov) {
         // 1. Título do Imóvel
         const autoTitle = `${prov.nome_razao_social} - AL-${nextSeq}`;
-        setValue('titulo', autoTitle);
+        setValue('titulo', autoTitle, { shouldDirty: true });
 
         // 2. País
         const provPais = prov.pais || (prov as any).country || 'España';
-        setValue('pais', provPais);
+        setValue('pais', provPais, { shouldDirty: true });
         if (countries.length > 0) {
           const foundC = countries.find(c =>
             c.name.toLowerCase().trim() === provPais.toLowerCase().trim() ||
@@ -218,58 +220,37 @@ export const AlojamentoForm: React.FC = () => {
             (provPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
           );
           if (foundC) {
-            setValue('country_id', foundC.id);
+            setValue('country_id', foundC.id, { shouldDirty: true });
           }
         }
 
         // 3. Província / Região
         const provProvincia = prov.provincia || (prov as any).estado || (prov as any).regiao || '';
         if (provProvincia) {
-          setValue('provincia', provProvincia);
+          setValue('provincia', provProvincia, { shouldDirty: true });
         }
 
         // 4. Cidade / Município
         const provMunicipio = prov.municipio || (prov as any).ciudad || (prov as any).cidade || '';
         if (provMunicipio) {
-          setValue('municipio', provMunicipio);
+          setValue('municipio', provMunicipio, { shouldDirty: true });
         }
 
         // 5. Código Postal
-        const provCp = (prov as any).codigo_postal || (prov as any).cep || (prov as any).cp || '';
+        const provCp = prov.codigo_postal || (prov as any).cep || (prov as any).cp || '';
         if (provCp) {
-          setValue('codigo_postal', provCp);
+          setValue('codigo_postal', provCp, { shouldDirty: true });
         }
 
         // 6. Logradouro / Endereço base do provedor (se o usuário ainda não tiver digitado nada)
+        const currentEndereco = getValues('endereco');
         const provEndereco = prov.endereco || (prov as any).direccion || (prov as any).direccion_hospedaje || (prov as any).logradouro || '';
-        if (provEndereco) {
-          const currentEndereco = (control as any)._formValues?.endereco;
-          if (!currentEndereco) {
-            setValue('endereco', provEndereco);
-          }
+        if (!currentEndereco && provEndereco) {
+          setValue('endereco', provEndereco, { shouldDirty: true });
         }
       }
     }
-  }, [isEditing, selectedProvedorId, provedores, nextSeq, countries, setValue, control]);
-
-  // Atualizar nomes de país e província em texto quando os seletores mudarem
-  useEffect(() => {
-    if (selectedCountryId && countries.length > 0) {
-      const countryObj = countries.find(c => c.id === selectedCountryId);
-      if (countryObj) {
-        setValue('pais', countryObj.name);
-      }
-    }
-  }, [selectedCountryId, countries, setValue]);
-
-  useEffect(() => {
-    if (selectedRegionId && regions.length > 0) {
-      const regionObj = regions.find(r => r.id === selectedRegionId);
-      if (regionObj) {
-        setValue('provincia', regionObj.name);
-      }
-    }
-  }, [selectedRegionId, regions, setValue]);
+  }, [isEditing, selectedProvedorId, provedores, nextSeq, countries, setValue, getValues]);
 
   const onSubmit = async (data: AlojamentoFormValues) => {
     try {
@@ -279,6 +260,11 @@ export const AlojamentoForm: React.FC = () => {
         ...data,
         nome: data.titulo,
         codigo: (data as any).codigo || `AL-${nextSeq}`,
+        endereco: data.endereco || '',
+        municipio: data.municipio || '',
+        provincia: data.provincia || '',
+        codigo_postal: data.codigo_postal || '',
+        pais: data.pais || 'España',
       };
 
       if (isEditing && id) {
@@ -432,7 +418,7 @@ export const AlojamentoForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Localização / Endereço Principal (Padrão Master Data / Clientes) */}
+          {/* Localização / Endereço Principal */}
           <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -464,8 +450,12 @@ export const AlojamentoForm: React.FC = () => {
                   <CountrySelector
                     value={selectedCountryId || null}
                     onChange={(val) => {
-                      setValue('country_id', val);
-                      setValue('region_id', null);
+                      setValue('country_id', val, { shouldDirty: true });
+                      setValue('region_id', null, { shouldDirty: true });
+                      const countryObj = countries.find(c => c.id === val);
+                      if (countryObj) {
+                        setValue('pais', countryObj.name, { shouldDirty: true });
+                      }
                     }}
                   />
                 </div>
@@ -475,7 +465,13 @@ export const AlojamentoForm: React.FC = () => {
                   <RegionSelector
                     countryId={selectedCountryId || null}
                     value={selectedRegionId || null}
-                    onChange={(val) => setValue('region_id', val)}
+                    onChange={(val) => {
+                      setValue('region_id', val, { shouldDirty: true });
+                      const regionObj = regions.find(r => r.id === val);
+                      if (regionObj) {
+                        setValue('provincia', regionObj.name, { shouldDirty: true });
+                      }
+                    }}
                   />
                 </div>
 
