@@ -228,8 +228,7 @@ serve(async (req) => {
             .trim()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
-            .replace(/\.+$|\s+/g, "")
-            .replace(/(\.(com|es|eu|org|net|pt|co|info))[a-z0-9_-]+$/gi, "$1");
+            .replace(/\.+$|\s+/g, "");
 
           // Envio real via API do Resend com retry e delay
           let res = await fetch("https://api.resend.com/emails", {
