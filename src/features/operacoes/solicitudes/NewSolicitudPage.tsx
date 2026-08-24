@@ -1937,7 +1937,7 @@ const WorkerQuestionsSection: React.FC<WorkerQuestionsSectionProps> = ({
                                 const currentVal = answers[questionId]?.resposta || '';
                                 
                                 return (
-                                    <div key={questionId} className="space-y-1.5">
+                                    <div key={questionId} className={`space-y-1.5 ${q.question_type === 'multi_choice' || q.question_type === 'long_text' ? 'md:col-span-2' : ''}`}>
                                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-350 block">
                                             {q.question_text} {isRequired && <span className="text-red-500">*</span>}
                                         </label>
@@ -1962,7 +1962,7 @@ const WorkerQuestionsSection: React.FC<WorkerQuestionsSectionProps> = ({
                                                 value={currentVal}
                                                 onChange={(e) => onAnswerChange(questionId, q.question_text, e.target.value, targetFunc.name)}
                                                 placeholder="Digite a resposta..."
-                                                className="resize-none text-xs min-h-[50px] md:col-span-2"
+                                                className="resize-none text-xs min-h-[50px] w-full"
                                                 rows={2}
                                             />
                                         )}
@@ -1983,7 +1983,44 @@ const WorkerQuestionsSection: React.FC<WorkerQuestionsSectionProps> = ({
                                             </Select>
                                         )}
 
-                                        {q.question_type !== 'boolean' && q.question_type !== 'long_text' && q.question_type !== 'single_choice' && (
+                                        {q.question_type === 'multi_choice' && q.options && q.options.length > 0 && (
+                                            <div className="space-y-2 border rounded-lg p-3 bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    {q.options.map((opt: string, optIdx: number) => {
+                                                        const currentList = currentVal ? currentVal.split(',').map((s: string) => s.trim()) : [];
+                                                        const isChecked = currentList.includes(opt);
+                                                        
+                                                        return (
+                                                            <label 
+                                                                key={optIdx} 
+                                                                className="flex items-center space-x-2.5 p-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer text-xs"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={(e) => {
+                                                                        const checked = e.target.checked;
+                                                                        let newList: string[];
+                                                                        if (checked) {
+                                                                            newList = [...currentList.filter((item: string) => item !== opt), opt];
+                                                                        } else {
+                                                                            newList = currentList.filter((item: string) => item !== opt);
+                                                                        }
+                                                                        onAnswerChange(questionId, q.question_text, newList.join(', '), targetFunc.name);
+                                                                    }}
+                                                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                                />
+                                                                <span className="font-medium text-slate-700 dark:text-slate-300 leading-tight">
+                                                                    {opt}
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {q.question_type !== 'boolean' && q.question_type !== 'long_text' && q.question_type !== 'single_choice' && q.question_type !== 'multi_choice' && (
                                             <Input 
                                                 type={q.question_type === 'number' ? 'number' : q.question_type === 'date' ? 'date' : 'text'}
                                                 value={currentVal}
