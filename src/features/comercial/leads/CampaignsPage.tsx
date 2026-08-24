@@ -42,11 +42,71 @@ import {
   Eye,
   Loader2,
   ChevronDown,
-  X
+  X,
+  Building2,
+  Building,
+  MapPin,
+  Layers,
+  Globe,
+  Filter,
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Badge } from '@/components/ui/badge';
+
+const countryLabels: Record<string, { name: string; flag: string }> = {
+  ES: { name: 'Espanha', flag: '🇪🇸' },
+  PT: { name: 'Portugal', flag: '🇵🇹' },
+  FR: { name: 'França', flag: '🇫🇷' },
+  DE: { name: 'Alemanha', flag: '🇩🇪' },
+  IT: { name: 'Itália', flag: '🇮🇹' },
+  NL: { name: 'Holanda', flag: '🇳🇱' },
+  BE: { name: 'Bélgica', flag: '🇧🇪' },
+  GB: { name: 'Reino Unido', flag: '🇬🇧' },
+  OTHER: { name: 'Outros', flag: '🌍' },
+};
+
+const detectLeadCountry = (lead: any): string => {
+  if (lead.country_id) {
+    const c = String(lead.country_id).toUpperCase();
+    if (['ES', 'PT', 'FR', 'DE', 'IT', 'NL', 'BE', 'GB'].includes(c)) return c;
+  }
+  if (lead.phone) {
+    const p = String(lead.phone).trim();
+    if (p.startsWith('+34') || p.startsWith('34')) return 'ES';
+    if (p.startsWith('+351') || p.startsWith('351')) return 'PT';
+    if (p.startsWith('+33') || p.startsWith('33')) return 'FR';
+    if (p.startsWith('+49') || p.startsWith('49')) return 'DE';
+    if (p.startsWith('+39') || p.startsWith('39')) return 'IT';
+    if (p.startsWith('+31') || p.startsWith('31')) return 'NL';
+    if (p.startsWith('+32') || p.startsWith('32')) return 'BE';
+    if (p.startsWith('+44') || p.startsWith('44')) return 'GB';
+  }
+  if (lead.email) {
+    const em = String(lead.email).toLowerCase().trim();
+    if (em.endsWith('.es')) return 'ES';
+    if (em.endsWith('.pt')) return 'PT';
+    if (em.endsWith('.fr')) return 'FR';
+    if (em.endsWith('.de')) return 'DE';
+    if (em.endsWith('.it')) return 'IT';
+    if (em.endsWith('.nl')) return 'NL';
+    if (em.endsWith('.be')) return 'BE';
+    if (em.endsWith('.uk') || em.endsWith('.co.uk')) return 'GB';
+  }
+  if (Array.isArray(lead.tags)) {
+    for (const t of lead.tags) {
+      if (typeof t === 'string') {
+        const lower = t.toLowerCase();
+        if (lower.includes('espanha') || lower.includes('españa')) return 'ES';
+        if (lower.includes('portugal')) return 'PT';
+        if (lower.includes('frança') || lower.includes('francia')) return 'FR';
+        if (lower.includes('itália') || lower.includes('italia')) return 'IT';
+        if (lower.includes('alemanha') || lower.includes('alemania')) return 'DE';
+      }
+    }
+  }
+  return 'ES';
+};
 
 const sectorOptions = [
   { label: 'Caldeiraria & Estruturas', value: 'caldereria' },
@@ -341,6 +401,10 @@ export function CampaignsPage() {
     stageId: string;
     origin: string;
     intelligence: string;
+    selectedCountries: string[];
+    selectedCompanySizes: string[];
+    selectedRegions: string[];
+    selectedProvinces: string[];
     selectedSectors: string[];
     selectedServices: string[];
     sectorKeyword: string;
@@ -352,6 +416,10 @@ export function CampaignsPage() {
     stageId: '',
     origin: '',
     intelligence: 'all',
+    selectedCountries: [],
+    selectedCompanySizes: [],
+    selectedRegions: [],
+    selectedProvinces: [],
     selectedSectors: [],
     selectedServices: [],
     sectorKeyword: '',
@@ -377,18 +445,69 @@ export function CampaignsPage() {
   const [leadGridSearch, setLeadGridSearch] = useState('');
   const [gridPage, setGridPage] = useState(1);
 
-  // Dynamic Sector and Service options extracted directly from database leads
-  const dynamicSectorOptions = useMemo(() => {
-    const set = new Set<string>();
+  // Dynamic Options derived from database leads
+  const dynamicCountryOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
     allLeads.forEach(l => {
-      if (l.sector) set.add(l.sector.trim());
+      const c = detectLeadCountry(l);
+      counts[c] = (counts[c] || 0) + 1;
     });
-    // Add common defaults if DB has few
-    ['CALDEREREIA', 'CONSTRUCCIONES', 'ESTRUCTURAS', 'INDUSTRIA', 'MECANICA', 'METALURGICA', 'MONTAJES', 'SOLDADURA', 'TALLERES', 'SERRALLERIA'].forEach(s => set.add(s));
-    
-    return Array.from(set).sort().map(sec => ({
-      label: sec.toUpperCase(),
-      value: sec
+    return Object.entries(countryLabels)
+      .filter(([code]) => (counts[code] || 0) > 0)
+      .map(([code, info]) => ({
+        label: `${info.flag} ${info.name} (${counts[code] || 0})`,
+        value: code,
+      }));
+  }, [allLeads]);
+
+  const dynamicCompanySizeOptions = useMemo(() => {
+    const sizes = [
+      { label: '🏢 Gran Empresa (Tier 1)', value: 'Gran Empresa (Tier 1)' },
+      { label: '🏭 Mediana Empresa (Tier 2)', value: 'Mediana Empresa (Tier 2)' },
+      { label: '⚙️ Taller / Pequeña (Tier 3)', value: 'Pequeña Empresa / Taller (Tier 3)' },
+    ];
+    return sizes.map(s => {
+      const count = allLeads.filter(l => l.company_size === s.value || (Array.isArray(l.tags) && l.tags.includes(s.value))).length;
+      return {
+        label: `${s.label} (${count})`,
+        value: s.value,
+      };
+    });
+  }, [allLeads]);
+
+  const dynamicRegionOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allLeads.forEach(l => {
+      if (l.region) counts[l.region] = (counts[l.region] || 0) + 1;
+    });
+    return Object.keys(counts).sort().map(reg => ({
+      label: `🗺️ ${reg} (${counts[reg]})`,
+      value: reg,
+    }));
+  }, [allLeads]);
+
+  const dynamicProvinceOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allLeads.forEach(l => {
+      if (l.province) counts[l.province] = (counts[l.province] || 0) + 1;
+    });
+    return Object.keys(counts).sort().map(prov => ({
+      label: `📍 ${prov} (${counts[prov]})`,
+      value: prov,
+    }));
+  }, [allLeads]);
+
+  const dynamicSectorOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allLeads.forEach(l => {
+      if (l.sector) {
+        const sec = l.sector.trim();
+        counts[sec] = (counts[sec] || 0) + 1;
+      }
+    });
+    return Object.keys(counts).sort().map(sec => ({
+      label: `${sec} (${counts[sec]})`,
+      value: sec,
     }));
   }, [allLeads]);
 
@@ -760,6 +879,10 @@ export function CampaignsPage() {
       stageId: '',
       origin: '',
       intelligence: 'all',
+      selectedCountries: [],
+      selectedCompanySizes: [],
+      selectedRegions: [],
+      selectedProvinces: [],
       selectedSectors: [],
       selectedServices: [],
       sectorKeyword: '',
@@ -784,7 +907,39 @@ export function CampaignsPage() {
         return false;
       }
 
-      // 3. Filter by Selected Sectors (Multi-select)
+      // 3. Filter by Country (Multi-select)
+      if (audienceFilters.selectedCountries && audienceFilters.selectedCountries.length > 0) {
+        const leadCountry = detectLeadCountry(l);
+        if (!audienceFilters.selectedCountries.includes(leadCountry)) {
+          return false;
+        }
+      }
+
+      // 4. Filter by Company Size Tier (Multi-select)
+      if (audienceFilters.selectedCompanySizes && audienceFilters.selectedCompanySizes.length > 0) {
+        const size = l.company_size || '';
+        const inTags = Array.isArray(l.tags) && audienceFilters.selectedCompanySizes.some(s => l.tags.includes(s));
+        const matchesSize = audienceFilters.selectedCompanySizes.includes(size) || inTags;
+        if (!matchesSize) return false;
+      }
+
+      // 5. Filter by Region / Autonomous Community (Multi-select)
+      if (audienceFilters.selectedRegions && audienceFilters.selectedRegions.length > 0) {
+        const reg = l.region || '';
+        const inTags = Array.isArray(l.tags) && audienceFilters.selectedRegions.some(r => l.tags.includes(r));
+        const matchesReg = audienceFilters.selectedRegions.includes(reg) || inTags;
+        if (!matchesReg) return false;
+      }
+
+      // 6. Filter by Province (Multi-select)
+      if (audienceFilters.selectedProvinces && audienceFilters.selectedProvinces.length > 0) {
+        const prov = l.province || '';
+        if (!audienceFilters.selectedProvinces.includes(prov)) {
+          return false;
+        }
+      }
+
+      // 7. Filter by Selected Sectors (Multi-select)
       if (audienceFilters.selectedSectors && audienceFilters.selectedSectors.length > 0) {
         const hasSectorMatch = audienceFilters.selectedSectors.some(sec => {
           const sLower = sec.toLowerCase();
@@ -796,7 +951,7 @@ export function CampaignsPage() {
         if (!hasSectorMatch) return false;
       }
 
-      // 3b. Filter by Selected Services (Multi-select)
+      // 8. Filter by Selected Services (Multi-select)
       if (audienceFilters.selectedServices && audienceFilters.selectedServices.length > 0) {
         const hasServiceMatch = audienceFilters.selectedServices.some(srv => {
           const sLower = srv.toLowerCase();
@@ -808,7 +963,7 @@ export function CampaignsPage() {
         if (!hasServiceMatch) return false;
       }
 
-      // 3c. Filter by Sector Keyword
+      // 9. Filter by Sector Keyword
       if (audienceFilters.sectorKeyword) {
         const keyword = audienceFilters.sectorKeyword.toLowerCase();
         const sectorText = (l.sector || '').toLowerCase();
@@ -820,7 +975,7 @@ export function CampaignsPage() {
         }
       }
 
-      // 4. Filter by Cargo Keyword
+      // 10. Filter by Cargo Keyword
       if (audienceFilters.cargoKeyword) {
         const keyword = audienceFilters.cargoKeyword.toLowerCase();
         const cargoText = (l.cargo || '').toLowerCase();
@@ -830,7 +985,7 @@ export function CampaignsPage() {
         }
       }
 
-      // 5. Filter by Province/Location Keyword
+      // 11. Filter by Province/Location Keyword
       if (audienceFilters.provinceKeyword) {
         const keyword = audienceFilters.provinceKeyword.toLowerCase();
         const provinceText = (l.province || '').toLowerCase();
@@ -841,7 +996,7 @@ export function CampaignsPage() {
         }
       }
 
-      // 6. Filter by intelligence rule
+      // 12. Filter by intelligence rule
       if (audienceFilters.intelligence === 'never_sent') {
         const hasBeenSent = allQueuedLeads.some(q => q.lead_id === l.id);
         if (hasBeenSent) return false;
@@ -860,7 +1015,7 @@ export function CampaignsPage() {
       return !isOptedOut;
     });
 
-    // 7. Apply limit and offset (Division of audience for batching)
+    // 13. Apply limit and offset (Division of audience for batching)
     const offsetVal = parseInt(audienceFilters.offset) || 0;
     const limitVal = parseInt(audienceFilters.limit);
     
@@ -1927,8 +2082,43 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
+                {/* Filtros Geográficos e Porte */}
+                <div className="space-y-3 border-t pt-3">
+                  <MultiSelectCombobox
+                    label="País (Multiseleção)"
+                    options={dynamicCountryOptions}
+                    selectedValues={audienceFilters.selectedCountries}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedCountries: vals })}
+                    placeholder="Selecione países (ex: Espanha, Portugal)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Porte da Empresa (Multiseleção)"
+                    options={dynamicCompanySizeOptions}
+                    selectedValues={audienceFilters.selectedCompanySizes}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedCompanySizes: vals })}
+                    placeholder="Selecione portes (ex: Tier 1, Tier 2, Tier 3)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Região / Comunidade Autônoma (Multiseleção)"
+                    options={dynamicRegionOptions}
+                    selectedValues={audienceFilters.selectedRegions}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedRegions: vals })}
+                    placeholder="Selecione regiões (ex: Cataluña, Madrid, País Vasco)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Província (Multiseleção)"
+                    options={dynamicProvinceOptions}
+                    selectedValues={audienceFilters.selectedProvinces}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedProvinces: vals })}
+                    placeholder="Selecione províncias (ex: Barcelona, Madrid, Valencia)..."
+                  />
+                </div>
+
                 {/* Multi-Select Comboboxes para Setor e Serviço */}
-                <div className="space-y-3">
+                <div className="space-y-3 border-t pt-3">
                   <MultiSelectCombobox
                     label="Setores da Empresa (Multiseleção)"
                     options={dynamicSectorOptions}
@@ -1970,7 +2160,7 @@ export function CampaignsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="audProvince" className="text-xs">Província / Cidade</Label>
+                    <Label htmlFor="audProvince" className="text-xs">Cidade / Termo Livre</Label>
                     <Input
                       id="audProvince"
                       placeholder="Ex: Sevilha, Madrid..."
@@ -2088,26 +2278,53 @@ export function CampaignsPage() {
                   ) : (
                     paginatedLeads.map((l: any) => {
                       const stageName = kanbanStages.find((s: any) => s.id === l.stage_id)?.name || 'Sem estágio';
+                      const cCode = detectLeadCountry(l);
+                      const cInfo = countryLabels[cCode] || countryLabels.ES;
+                      const cleanName = l.company_name || l.name || 'Empresa Industrial';
+                      const isTier1 = (l.company_size || '').includes('Tier 1');
+                      const isTier2 = (l.company_size || '').includes('Tier 2');
+
                       return (
-                        <div key={l.id} className="flex justify-between items-center p-2.5 bg-white dark:bg-slate-900 rounded-lg border text-xs hover:bg-slate-50/50 dark:hover:bg-slate-950/50 transition-colors">
-                          <div className="flex items-center gap-3 truncate max-w-[320px]">
+                        <div key={l.id} className="flex justify-between items-center p-2.5 bg-white dark:bg-slate-900 rounded-lg border text-xs hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-colors gap-2">
+                          <div className="flex items-center gap-3 truncate max-w-[340px]">
                             <input
                               type="checkbox"
                               checked={selectedLeadIds.has(l.id)}
                               onChange={(e) => handleToggleSelectLead(l.id, e.target.checked)}
                               className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer shrink-0"
                             />
-                            <div className="truncate">
-                              <p className="font-semibold truncate text-slate-800 dark:text-slate-200">{l.name}</p>
-                              <p className="text-[10px] text-slate-500 truncate">{l.company_name} | {l.email}</p>
+                            <div className="truncate space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold truncate text-slate-900 dark:text-slate-100">{cleanName}</span>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                  <span>{cInfo.flag}</span>
+                                  <span>{cCode}</span>
+                                </span>
+                                {l.company_size && (
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                    isTier1 ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300' :
+                                    isTier2 ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300' :
+                                    'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200'
+                                  }`}>
+                                    {isTier1 ? '🏢 Tier 1' : isTier2 ? '🏭 Tier 2' : '⚙️ Tier 3'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
+                              </p>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 space-y-0.5">
                             <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[9px] text-slate-600 dark:text-slate-400 border font-medium">
                               {stageName}
                             </span>
-                            {l.province && (
-                              <p className="text-[9px] text-slate-450 mt-0.5">{l.province}</p>
+                            {(l.city || l.province || l.region) && (
+                              <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1">
+                                <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                <span>{[l.city, l.province].filter(Boolean).join(' • ') || l.region}</span>
+                              </p>
                             )}
                           </div>
                         </div>
@@ -2184,8 +2401,24 @@ export function CampaignsPage() {
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Filtros Gerais</h3>
                 </div>
 
+                {/* Live Stats Summary Banner */}
+                <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Total da Base</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">{allLeads.length} leads</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">No Filtro Atual</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400 text-sm">{visibleLeadsForGrid.length} elegíveis</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Selecionados</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">{selectedLeadIds.size} membros</span>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="newAudSaveName" className="text-xs">Nome do Público Salvo</Label>
+                  <Label htmlFor="newAudSaveName" className="text-xs font-semibold">Nome do Público Salvo</Label>
                   <Input
                     id="newAudSaveName"
                     placeholder="Ex: Caldeirarias da Espanha - Lote 1"
@@ -2231,8 +2464,43 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
+                {/* Filtros Geográficos e Porte */}
+                <div className="space-y-3 border-t pt-3">
+                  <MultiSelectCombobox
+                    label="País (Multiseleção)"
+                    options={dynamicCountryOptions}
+                    selectedValues={audienceFilters.selectedCountries}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedCountries: vals })}
+                    placeholder="Selecione países (ex: Espanha, Portugal)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Porte da Empresa (Multiseleção)"
+                    options={dynamicCompanySizeOptions}
+                    selectedValues={audienceFilters.selectedCompanySizes}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedCompanySizes: vals })}
+                    placeholder="Selecione portes (ex: Tier 1, Tier 2, Tier 3)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Região / Comunidade Autônoma (Multiseleção)"
+                    options={dynamicRegionOptions}
+                    selectedValues={audienceFilters.selectedRegions}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedRegions: vals })}
+                    placeholder="Selecione regiões (ex: Cataluña, Madrid, País Vasco)..."
+                  />
+
+                  <MultiSelectCombobox
+                    label="Província (Multiseleção)"
+                    options={dynamicProvinceOptions}
+                    selectedValues={audienceFilters.selectedProvinces}
+                    onChange={(vals) => setAudienceFilters({ ...audienceFilters, selectedProvinces: vals })}
+                    placeholder="Selecione províncias (ex: Barcelona, Madrid, Valencia)..."
+                  />
+                </div>
+
                 {/* Multi-Select Comboboxes para Setor e Serviço em Novo Público Salvo */}
-                <div className="space-y-3">
+                <div className="space-y-3 border-t pt-3">
                   <MultiSelectCombobox
                     label="Setores da Empresa (Multiseleção)"
                     options={dynamicSectorOptions}
@@ -2274,7 +2542,7 @@ export function CampaignsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="newAudProvince" className="text-xs">Província / Cidade</Label>
+                    <Label htmlFor="newAudProvince" className="text-xs">Cidade / Termo Livre</Label>
                     <Input
                       id="newAudProvince"
                       placeholder="Ex: Sevilha, Madrid..."
@@ -2352,26 +2620,53 @@ export function CampaignsPage() {
                   ) : (
                     paginatedLeads.map((l: any) => {
                       const stageName = kanbanStages.find((s: any) => s.id === l.stage_id)?.name || 'Sem estágio';
+                      const cCode = detectLeadCountry(l);
+                      const cInfo = countryLabels[cCode] || countryLabels.ES;
+                      const cleanName = l.company_name || l.name || 'Empresa Industrial';
+                      const isTier1 = (l.company_size || '').includes('Tier 1');
+                      const isTier2 = (l.company_size || '').includes('Tier 2');
+
                       return (
-                        <div key={l.id} className="flex justify-between items-center p-2.5 bg-white dark:bg-slate-900 rounded-lg border text-xs hover:bg-slate-50/50 dark:hover:bg-slate-950/50 transition-colors">
-                          <div className="flex items-center gap-3 truncate max-w-[320px]">
+                        <div key={l.id} className="flex justify-between items-center p-2.5 bg-white dark:bg-slate-900 rounded-lg border text-xs hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-colors gap-2">
+                          <div className="flex items-center gap-3 truncate max-w-[340px]">
                             <input
                               type="checkbox"
                               checked={selectedLeadIds.has(l.id)}
                               onChange={(e) => handleToggleSelectLead(l.id, e.target.checked)}
                               className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer shrink-0"
                             />
-                            <div className="truncate">
-                              <p className="font-semibold truncate text-slate-800 dark:text-slate-200">{l.name}</p>
-                              <p className="text-[10px] text-slate-500 truncate">{l.company_name} | {l.email}</p>
+                            <div className="truncate space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold truncate text-slate-900 dark:text-slate-100">{cleanName}</span>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                  <span>{cInfo.flag}</span>
+                                  <span>{cCode}</span>
+                                </span>
+                                {l.company_size && (
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                    isTier1 ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300' :
+                                    isTier2 ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300' :
+                                    'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200'
+                                  }`}>
+                                    {isTier1 ? '🏢 Tier 1' : isTier2 ? '🏭 Tier 2' : '⚙️ Tier 3'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
+                              </p>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 space-y-0.5">
                             <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[9px] text-slate-600 dark:text-slate-400 border font-medium">
                               {stageName}
                             </span>
-                            {l.province && (
-                              <p className="text-[9px] text-slate-450 mt-0.5">{l.province}</p>
+                            {(l.city || l.province || l.region) && (
+                              <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1">
+                                <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                <span>{[l.city, l.province].filter(Boolean).join(' • ') || l.region}</span>
+                              </p>
                             )}
                           </div>
                         </div>
@@ -2452,18 +2747,45 @@ export function CampaignsPage() {
                 <div className="space-y-2">
                   {viewLeadsAudience && getFilteredLeads().map((l: any) => {
                     const stageName = kanbanStages.find((s: any) => s.id === l.stage_id)?.name || 'Sem estágio';
+                    const cCode = detectLeadCountry(l);
+                    const cInfo = countryLabels[cCode] || countryLabels.ES;
+                    const cleanName = l.company_name || l.name || 'Empresa Industrial';
+                    const isTier1 = (l.company_size || '').includes('Tier 1');
+                    const isTier2 = (l.company_size || '').includes('Tier 2');
+
                     return (
-                      <div key={l.id} className="p-3 border rounded-lg bg-card text-xs flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
-                        <div>
-                          <p className="font-semibold text-slate-800 dark:text-slate-200">{l.name}</p>
-                          <p className="text-[10px] text-slate-500">{l.company_name} | {l.email}</p>
+                      <div key={l.id} className="p-3 border rounded-xl bg-white dark:bg-slate-900 text-xs flex justify-between items-center hover:border-amber-500/40 transition-colors gap-2">
+                        <div className="truncate space-y-0.5 max-w-[380px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold truncate text-slate-900 dark:text-slate-100">{cleanName}</span>
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              <span>{cInfo.flag}</span>
+                              <span>{cCode}</span>
+                            </span>
+                            {l.company_size && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                isTier1 ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300' :
+                                isTier2 ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300' :
+                                'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200'
+                              }`}>
+                                {isTier1 ? '🏢 Tier 1' : isTier2 ? '🏭 Tier 2' : '⚙️ Tier 3'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                            <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
+                          </p>
                         </div>
-                        <div className="text-right">
-                          <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-slate-600 dark:text-slate-400 border font-medium">
+                        <div className="text-right shrink-0 space-y-0.5">
+                          <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[9px] text-slate-600 dark:text-slate-400 border font-medium">
                             {stageName}
                           </span>
-                          {l.province && (
-                            <p className="text-[9px] text-slate-400 mt-1">{l.province}</p>
+                          {(l.city || l.province || l.region) && (
+                            <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1">
+                              <MapPin className="h-2.5 w-2.5 shrink-0" />
+                              <span>{[l.city, l.province].filter(Boolean).join(' • ') || l.region}</span>
+                            </p>
                           )}
                         </div>
                       </div>
