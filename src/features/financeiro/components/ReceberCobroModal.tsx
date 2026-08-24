@@ -94,15 +94,20 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
         return sum > 0 ? sum : (titulo.Valot_total - titulo.Saldo_a_pagar);
     }, [partialPaymentsList, titulo]);
 
+    const isAlreadyPaid = (titulo.Saldo_a_pagar <= 0 || titulo.Status === 'Pago') && titulo.Valot_total > 0;
+
     useEffect(() => {
         if (isOpen) {
             loadBancos();
             setValorRecebido(titulo.Saldo_a_pagar.toString());
-            setTipoRecebimento('Integral');
-            setFormaPagamento('Transferencia');
+            setTipoRecebimento(isAlreadyPaid ? 'Integral' : 'Integral');
+            setFormaPagamento(titulo.Form_receb || 'Transferencia');
             setLancarComoTaxa(false);
             setComentarioTaxa('');
-            setDataRecebimento(new Date().toISOString().split('T')[0]);
+            const initialDate = titulo.dt_recebimento 
+                ? new Date(titulo.dt_recebimento).toISOString().split('T')[0] 
+                : new Date().toISOString().split('T')[0];
+            setDataRecebimento(initialDate);
         }
     }, [isOpen, titulo]);
 
@@ -113,7 +118,9 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             const activeBancos = data.filter(b => b.ativo);
             setBancos(activeBancos);
             if (activeBancos.length > 0) {
-                setBancoId(activeBancos[0].id);
+                // If title already has a banco string, try to match by name
+                const matchedBanco = activeBancos.find(b => b.nome_banco?.toLowerCase() === titulo.Banco?.toLowerCase());
+                setBancoId(matchedBanco ? matchedBanco.id : activeBancos[0].id);
             }
         } catch (error) {
             console.error('Error fetching bancos:', error);
@@ -124,6 +131,42 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
     };
 
     const handleSave = async () => {
+        // If already paid, allow updating receipt date, bank, and method
+        if (isAlreadyPaid) {
+            setIsSaving(true);
+            try {
+                const bancoDestino = bancos.find(b => b.id === bancoId);
+                const nomeBanco = bancoDestino ? bancoDestino.nome_banco : (titulo.Banco || 'Não especificado');
+                const updateRes = await updateContaReceber(titulo.id, {
+                    dt_recebimento: new Date(dataRecebimento),
+                    Form_receb: formaPagamento,
+                    Banco: nomeBanco,
+                    Status: 'Pago',
+                    Saldo_a_pagar: 0
+                });
+                if (!updateRes.success) throw updateRes.error;
+
+                const autoObs = {
+                    conta_receber_id: titulo.id,
+                    usuario: user?.email || 'Sistema',
+                    descricao: `Dados de recebimento atualizados: Data ajustada para ${new Date(dataRecebimento).toLocaleDateString('pt-PT')} (Banco: ${nomeBanco}, Forma: ${formaPagamento})`,
+                    tipo: 'Recebimento',
+                    data: new Date().toISOString()
+                };
+                await saveObservacao(autoObs);
+
+                toast.success('Dados de recebimento atualizados com sucesso!');
+                onSuccess();
+                onClose();
+            } catch (error) {
+                console.error('Error updating paid cobro:', error);
+                toast.error('Erro ao atualizar dados do recebimento.');
+            } finally {
+                setIsSaving(false);
+            }
+            return;
+        }
+
         const valor = parseFloat(valorRecebido);
         if (isNaN(valor) || valor <= 0) {
             toast.error(t('financeiro.modals.err_val_zero', 'O valor recebido deve ser maior que zero.'));
@@ -244,9 +287,26 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         </div>
                         <div className="text-right">
                             <p className="text-sm text-gray-500 font-medium">{t('financeiro.modals.current_balance', 'Saldo a Pagar Atual')}</p>
-                            <p className="text-xl font-bold text-brand-primary">€ {titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
+                            {isAlreadyPaid ? (
+                                <div className="flex items-center gap-2 justify-end">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                        ✓ Liquidado (Pago)
+                                    </span>
+                                    <p className="text-xl font-bold text-emerald-600">€ 0,00</p>
+                                </div>
+                            ) : (
+                                <p className="text-xl font-bold text-brand-primary">€ {titulo.Saldo_a_pagar.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
+                            )}
                         </div>
                     </div>
+
+                    {isAlreadyPaid && (
+                        <div className="mb-6 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
+                            <span>
+                                ℹ️ Este título já se encontra <strong>liquidado / recebido</strong>. Caso deseje ajustar a <strong>data de recebimento</strong>, <strong>forma de pagamento</strong> ou <strong>banco de destino</strong>, selecione os valores abaixo e clique em <strong>Atualizar Recebimento</strong>.
+                            </span>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                         <div className="space-y-2">
@@ -460,11 +520,11 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                     </Button>
                     <Button 
                         onClick={handleSave} 
-                        disabled={isSaving || !valorRecebido || parseFloat(valorRecebido) <= 0}
+                        disabled={isSaving || (!isAlreadyPaid && (!valorRecebido || parseFloat(valorRecebido) <= 0))}
                         className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[140px]"
                     >
                         {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        {t('financeiro.modals.btn_save_receipt', 'Guardar recibo')}
+                        {isAlreadyPaid ? 'Atualizar Recebimento' : t('financeiro.modals.btn_save_receipt', 'Guardar recibo')}
                     </Button>
                 </div>
             </div>

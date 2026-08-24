@@ -131,7 +131,7 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
       Valot_total: valTotal,
       Saldo_a_pagar: saldo,
       Valor_parcial: parseEuroNumber(row.valor_parcial),
-      Status: row.status || 'Desconhecido',
+      Status: (saldo <= 0 && valTotal > 0 && row.status !== 'Judicial') ? 'Pago' : (row.status || 'Desconhecido'),
       Integral_parcial: row.integral_parcial || '',
       Banco: row.banco || '',
       Form_receb: row.form_receb || '',
