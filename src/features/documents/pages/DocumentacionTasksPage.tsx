@@ -1489,7 +1489,7 @@ Muchas gracias.`;
             }
 
             if (thenGenerateContract) {
-                await handleTriggerGenerate(selectedRequest.worker_id, selectedRequest.empresa_id);
+                handleTriggerGenerate(selectedRequest.worker_id, selectedRequest.empresa_id, selectedRequest.worker || { nome: verifyFormData.nome });
             }
         } catch (err: any) {
             console.error("Erro ao aprovar documentos:", err);
@@ -1500,47 +1500,65 @@ Muchas gracias.`;
     };
 
     // 8.5 Trigger para abrir modal de gerar contrato a partir de uma solicitação validada
-    const handleTriggerGenerate = async (workerId: string, empresaId: string) => {
-        setSelectedWorkerId(workerId);
-        if (empresaId) {
-            setSelectedEmpresaId(empresaId);
-        }
-        
-        // Mapear empresaId para selectedContratante
-        if (empresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
-            setSelectedContratante('STOCCO');
-        } else if (empresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
-            setSelectedContratante('WISEOWE UNIPESSOAL LDA');
-        } else if (empresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
-            setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
-        } else if (empresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
-            setSelectedContratante('TRIANGULO');
-        }
-
-        // Buscar alocação ativa mais recente para pré-selecionar
-        try {
-            const { data: wa } = await supabase
-                .schema('core_personal')
-                .from('worker_assignments')
-                .select('id, client_id')
-                .eq('worker_id', workerId)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            if (wa) {
-                setSelectedAssignmentId(wa.id);
-            }
-        } catch (e) {
-            console.error("Erro ao buscar alocação do trabalhador:", e);
-        }
-
-        // Garante o carregamento dos trabalhadores da empresa incluindo explicitamente o workerId
-        await loadWorkersForEmpresa(empresaId || activeEmpresaId, workerId);
-        
+    const handleTriggerGenerate = (workerId: string, empresaId: string, workerObj?: any) => {
+        // 1. Limpar estados de sucesso e pré-visualização e definir worker
         setGenerationSuccess(null);
         setPreviewBlob(null);
+        setSelectedWorkerId(workerId);
+        
+        // 2. Mapear empresaId para selectedContratante
+        let contratanteName = '';
+        if (empresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
+            contratanteName = 'STOCCO';
+        } else if (empresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+            contratanteName = 'WISEOWE UNIPESSOAL LDA';
+        } else if (empresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
+            contratanteName = 'LUMINOUS CAPITAL UNIPESSOAL LDA';
+        } else if (empresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+            contratanteName = 'TRIANGULO';
+        }
+        setSelectedContratante(contratanteName);
+        
+        // 3. Pré-definir modelo de contrato padrão se não houver um selecionado
+        setSelectedContractType(prev => prev || 'contrato_termo_incerto');
+
+        // 4. Se tiver workerObj, injeta imediatamente na workersList
+        if (workerObj && workerObj.nome) {
+            const workerLabel = `${workerObj.nome} (${workerObj.cod_colab || 'Sem Cód.'})`;
+            setWorkersList(prev => {
+                if (prev.some(w => w.value === workerId)) return prev;
+                return [{ value: workerId, label: workerLabel }, ...prev];
+            });
+        }
+
+        // 5. Abre o Dialog INSTANTANEAMENTE na tela sem travar
         setGenerateDialogOpen(true);
+
+        // 6. Carrega alocações e lista completa em segundo plano
+        (async () => {
+            try {
+                const { data: wa } = await supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select('id, client_id')
+                    .eq('worker_id', workerId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (wa) {
+                    setSelectedAssignmentId(wa.id);
+                }
+            } catch (e) {
+                console.error("Erro ao buscar alocação do trabalhador:", e);
+            }
+
+            try {
+                await loadWorkersForEmpresa(empresaId || activeEmpresaId, workerId);
+            } catch (e) {
+                console.error("Erro ao carregar lista de trabalhadores:", e);
+            }
+        })();
     };
 
     const handleCopyLink = (link: string) => {
@@ -2272,7 +2290,7 @@ Muchas gracias.`;
                                                                     <Button 
                                                                         size="sm" 
                                                                         className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
-                                                                        onClick={() => handleTriggerGenerate(req.worker_id, req.empresa_id)}
+                                                                        onClick={() => handleTriggerGenerate(req.worker_id, req.empresa_id, req.worker)}
                                                                     >
                                                                         <Plus className="h-3 w-3" /> Gerar Contrato
                                                                     </Button>
