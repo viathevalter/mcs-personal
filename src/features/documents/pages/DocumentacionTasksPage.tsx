@@ -804,19 +804,32 @@ Muchas gracias.`;
     };
 
     // 3. Carregar Trabalhadores para o Combobox
-    const loadWorkersForEmpresa = async (empresaId: string) => {
+    const loadWorkersForEmpresa = async (empresaId: string, specificWorkerId?: string) => {
         if (!empresaId) return;
         try {
             const res = await listWorkers({
                 empresaId: empresaId,
                 page: 1,
                 pageSize: 1000,
-                statusTrabajador: ['ativos', 'pendentes_ingresso'],
             });
-            const options = res.data.map(w => ({
+            let options = res.data.map(w => ({
                 value: w.id || '',
                 label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})`
             }));
+
+            const targetWorkerId = specificWorkerId || selectedWorkerId;
+            if (targetWorkerId && !options.some(o => o.value === targetWorkerId)) {
+                const { data: sw } = await supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, nome, cod_colab')
+                    .eq('id', targetWorkerId)
+                    .maybeSingle();
+                if (sw) {
+                    options = [{ value: sw.id, label: `${sw.nome} (${sw.cod_colab || 'Sem Cód.'})` }, ...options];
+                }
+            }
+
             setRequestWorkersList(options);
             setWorkersList(options);
         } catch (err) {
@@ -887,22 +900,10 @@ Muchas gracias.`;
     }, [selectedEmpresaId]);
 
     useEffect(() => {
-        if ((generateDialogOpen || requestDialogOpen) && selectedEmpresaId) {
+        if (requestDialogOpen && selectedEmpresaId) {
             loadWorkers();
         }
-
-        if (generateDialogOpen && selectedEmpresaId && !selectedContratante) {
-            if (selectedEmpresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
-                setSelectedContratante('STOCCO');
-            } else if (selectedEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
-                setSelectedContratante('WISEOWE UNIPESSOAL LDA');
-            } else if (selectedEmpresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
-                setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
-            } else if (selectedEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
-                setSelectedContratante('TRIANGULO');
-            }
-        }
-    }, [generateDialogOpen, requestDialogOpen, selectedEmpresaId]);
+    }, [requestDialogOpen, selectedEmpresaId]);
 
     useEffect(() => {
         if (previewBlob && previewContainerRef.current) {
@@ -1534,31 +1535,11 @@ Muchas gracias.`;
             console.error("Erro ao buscar alocação do trabalhador:", e);
         }
 
-        // Garante o carregamento dos trabalhadores da empresa do pedido
-        if (empresaId) {
-            await loadWorkersForEmpresa(empresaId);
-        }
-
-        // Se o trabalhador específico ainda não estiver na lista (ex: status diferenciado), carrega individualmente
-        try {
-            const { data: w } = await supabase
-                .schema('core_personal')
-                .from('workers')
-                .select('id, nome, cod_colab')
-                .eq('id', workerId)
-                .maybeSingle();
-
-            if (w) {
-                const label = `${w.nome} (${w.cod_colab || 'Sem Cód.'})`;
-                setWorkersList(prev => {
-                    if (prev.some(item => item.value === w.id)) return prev;
-                    return [{ value: w.id, label }, ...prev];
-                });
-            }
-        } catch (err) {
-            console.error("Erro ao buscar trabalhador específico:", err);
-        }
+        // Garante o carregamento dos trabalhadores da empresa incluindo explicitamente o workerId
+        await loadWorkersForEmpresa(empresaId || activeEmpresaId, workerId);
         
+        setGenerationSuccess(null);
+        setPreviewBlob(null);
         setGenerateDialogOpen(true);
     };
 
