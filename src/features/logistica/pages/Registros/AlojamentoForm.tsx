@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText } from 'lucide-react';
+import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText, Sparkles } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import { logisticsService } from '../../services/logisticsService';
 import type { Provedor } from '../../services/registrosService';
@@ -199,16 +199,58 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [regions, selectedProvincia, selectedRegionId, setValue]);
 
-  // Preencher título automaticamente apenas na CRIAÇÃO (quando o provedor é selecionado)
+  // Preencher título E LOCALIZAÇÃO (País, Província, Cidade, CEP) automaticamente quando o provedor é selecionado
   useEffect(() => {
     if (!isEditing && selectedProvedorId && provedores.length > 0) {
       const prov = provedores.find(p => p.id === selectedProvedorId);
       if (prov) {
+        // 1. Título do Imóvel
         const autoTitle = `${prov.nome_razao_social} - AL-${nextSeq}`;
         setValue('titulo', autoTitle);
+
+        // 2. País
+        const provPais = prov.pais || (prov as any).country || 'España';
+        setValue('pais', provPais);
+        if (countries.length > 0) {
+          const foundC = countries.find(c =>
+            c.name.toLowerCase().trim() === provPais.toLowerCase().trim() ||
+            (provPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+            (provPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+          );
+          if (foundC) {
+            setValue('country_id', foundC.id);
+          }
+        }
+
+        // 3. Província / Região
+        const provProvincia = prov.provincia || (prov as any).estado || (prov as any).regiao || '';
+        if (provProvincia) {
+          setValue('provincia', provProvincia);
+        }
+
+        // 4. Cidade / Município
+        const provMunicipio = prov.municipio || (prov as any).ciudad || (prov as any).cidade || '';
+        if (provMunicipio) {
+          setValue('municipio', provMunicipio);
+        }
+
+        // 5. Código Postal
+        const provCp = (prov as any).codigo_postal || (prov as any).cep || (prov as any).cp || '';
+        if (provCp) {
+          setValue('codigo_postal', provCp);
+        }
+
+        // 6. Logradouro / Endereço base do provedor (se o usuário ainda não tiver digitado nada)
+        const provEndereco = prov.endereco || (prov as any).direccion || (prov as any).direccion_hospedaje || (prov as any).logradouro || '';
+        if (provEndereco) {
+          const currentEndereco = (control as any)._formValues?.endereco;
+          if (!currentEndereco) {
+            setValue('endereco', provEndereco);
+          }
+        }
       }
     }
-  }, [isEditing, selectedProvedorId, provedores, nextSeq, setValue]);
+  }, [isEditing, selectedProvedorId, provedores, nextSeq, countries, setValue, control]);
 
   // Atualizar nomes de país e província em texto quando os seletores mudarem
   useEffect(() => {
@@ -392,10 +434,18 @@ export const AlojamentoForm: React.FC = () => {
 
           {/* Localização / Endereço Principal (Padrão Master Data / Clientes) */}
           <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <MapPin className="h-4.5 w-4.5 text-blue-600" />
-              Endereço Principal & Localização
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <MapPin className="h-4.5 w-4.5 text-blue-600" />
+                Endereço Principal & Localização
+              </h3>
+              {selectedProvedorId && (
+                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Sparkles size={12} />
+                  Sincronizado com o Provedor
+                </span>
+              )}
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -404,7 +454,7 @@ export const AlojamentoForm: React.FC = () => {
                   type="text"
                   {...register('endereco')}
                   className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Carrer de Collsaerola, 3. 3º 08207 Sabadell, Barcelona"
+                  placeholder="Ex: Arbúcies, Carrer Mossèn Jacint Verdaguer, núm. 21."
                 />
               </div>
 
@@ -435,7 +485,7 @@ export const AlojamentoForm: React.FC = () => {
                     type="text"
                     {...register('provincia')}
                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Barcelona"
+                    placeholder="Ex: Girona / Barcelona"
                   />
                 </div>
               </div>
@@ -447,7 +497,7 @@ export const AlojamentoForm: React.FC = () => {
                     type="text"
                     {...register('municipio')}
                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Sabadell"
+                    placeholder="Ex: Arbúcies / Sabadell"
                   />
                 </div>
 
@@ -457,7 +507,7 @@ export const AlojamentoForm: React.FC = () => {
                     type="text"
                     {...register('codigo_postal')}
                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: 08207"
+                    placeholder="Ex: 17401 / 08207"
                   />
                 </div>
               </div>
