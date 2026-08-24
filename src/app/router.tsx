@@ -383,11 +383,19 @@ export const router = createBrowserRouter([
                         element: <AlojamentoForm />
                     },
                     {
+                        path: 'registros/alojamentos/editar/:id',
+                        element: <AlojamentoForm />
+                    },
+                    {
                         path: 'registros/provedores',
                         element: <AlojamentosList />
                     },
                     {
                         path: 'registros/provedores/novo',
+                        element: <ProvedorForm />
+                    },
+                    {
+                        path: 'registros/provedores/editar/:id',
                         element: <ProvedorForm />
                     },
                     {

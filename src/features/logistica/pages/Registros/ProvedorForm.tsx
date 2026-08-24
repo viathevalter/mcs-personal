@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -55,7 +55,11 @@ type ProvedorFormValues = z.infer<typeof provedorSchema>;
 
 export const ProvedorForm: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditing = !!id;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { data: countries = [] } = useCountries();
 
@@ -64,6 +68,7 @@ export const ProvedorForm: React.FC = () => {
     handleSubmit,
     control,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<ProvedorFormValues>({
     resolver: zodResolver(provedorSchema),
@@ -87,6 +92,55 @@ export const ProvedorForm: React.FC = () => {
   const selectedRegionId = useWatch({ control, name: 'region_id' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
+
+  // Carregar dados se estiver em modo de EDIÇÃO (quando houver ID na URL)
+  useEffect(() => {
+    if (id) {
+      setIsLoading(true);
+      registrosService.fetchProvedorById(id).then((p) => {
+        if (p) {
+          const contatosCarregados = p.contatos && p.contatos.length > 0 ? p.contatos : [
+            { nome: p.contato_nome || '', cargo_tipo: 'Proprietário', telefone: p.telefone || '', email: p.email || '' }
+          ];
+
+          const dadosBancariosCarregados = p.dados_bancarios && p.dados_bancarios.length > 0 ? p.dados_bancarios : [
+            { banco: p.banco || '', iban: p.iban || '', swift: p.swift || '', titular_conta: p.titular_conta || '', metodo_pago: p.metodo_pago || 'Transferir', principal: true }
+          ];
+
+          reset({
+            nome_razao_social: p.nome_razao_social || '',
+            nome_comercial: p.nome_comercial || '',
+            cif_nif: p.cif_nif || '',
+            tipo: (p.tipo as any) || 'alojamento',
+            tipo_pessoa: (p.tipo_pessoa as any) || 'Persona Jurídica',
+            classificacao: p.classificacao || 'Proveedor Alojamiento',
+            contato_nome: p.contato_nome || '',
+            telefone: p.telefone || '',
+            email: p.email || '',
+            contatos: contatosCarregados,
+            dados_bancarios: dadosBancariosCarregados,
+            metodo_pago: p.metodo_pago || 'Transferir',
+            banco: p.banco || '',
+            iban: p.iban || '',
+            swift: p.swift || '',
+            titular_conta: p.titular_conta || '',
+            endereco: p.endereco || '',
+            country_id: (p as any).country_id || null,
+            region_id: (p as any).region_id || null,
+            municipio: p.municipio || '',
+            provincia: p.provincia || '',
+            codigo_postal: (p as any).codigo_postal || '',
+            pais: p.pais || 'España',
+            ativo: p.ativo ?? true,
+          });
+        }
+      }).catch(err => {
+        console.error('Erro ao carregar provedor:', err);
+      }).finally(() => {
+        setIsLoading(false);
+      });
+    }
+  }, [id, reset]);
 
   useEffect(() => {
     if (selectedCountryId && countries.length > 0) {
@@ -135,11 +189,16 @@ export const ProvedorForm: React.FC = () => {
         metodo_pago: principalBanco?.metodo_pago || data.metodo_pago || 'Transferir'
       };
 
-      await registrosService.createProvedor(payload as any);
+      if (isEditing && id) {
+        await registrosService.updateProvedor(id, payload as any);
+      } else {
+        await registrosService.createProvedor(payload as any);
+      }
+
       navigate('/logistica/registros/alojamentos');
     } catch (error) {
-      console.error('Error creating provedor:', error);
-      alert('Erro ao criar provedor. Verifique os dados e o console.');
+      console.error('Error saving provedor:', error);
+      alert('Erro ao salvar provedor. Verifique os dados e o console.');
     } finally {
       setIsSubmitting(false);
     }
@@ -150,6 +209,14 @@ export const ProvedorForm: React.FC = () => {
     const firstKey = Object.keys(errs)[0];
     alert(`Atenção: O campo "${firstKey}" necessita ajuste: ${errs[firstKey]?.message || 'Verifique o preenchimento.'}`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-8 py-12 text-center text-slate-500 font-medium">
+        Carregando dados do proveedor...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-8 py-6 space-y-6">
@@ -165,9 +232,11 @@ export const ProvedorForm: React.FC = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Novo Proveedor
+              {isEditing ? 'Editar Proveedor' : 'Novo Proveedor'}
             </h1>
-            <p className="text-sm text-slate-500">Cadastre os dados completos do novo fornecedor para alojamentos e serviços.</p>
+            <p className="text-sm text-slate-500">
+              {isEditing ? 'Atualize os dados completos do fornecedor.' : 'Cadastre os dados completos do novo fornecedor para alojamentos e serviços.'}
+            </p>
           </div>
         </div>
 
@@ -187,7 +256,7 @@ export const ProvedorForm: React.FC = () => {
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
           >
             <Save size={16} />
-            {isSubmitting ? 'Salvando...' : 'Salvar Proveedor'}
+            {isSubmitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Proveedor'}
           </button>
         </div>
       </div>

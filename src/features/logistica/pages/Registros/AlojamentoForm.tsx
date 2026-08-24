@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -54,9 +54,13 @@ const clasificacaoList = [
 
 export const AlojamentoForm: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditing = !!id;
+
   const [provedores, setProvedores] = useState<Provedor[]>([]);
   const [nextSeq, setNextSeq] = useState<string>('0001');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { data: countries = [] } = useCountries();
 
@@ -65,6 +69,7 @@ export const AlojamentoForm: React.FC = () => {
     handleSubmit,
     setValue,
     control,
+    reset,
     formState: { errors },
   } = useForm<AlojamentoFormValues>({
     resolver: zodResolver(alojamentoSchema),
@@ -110,16 +115,54 @@ export const AlojamentoForm: React.FC = () => {
     loadInitialData();
   }, []);
 
-  // Preencher título automaticamente quando o provedor é selecionado
+  // Se estiver EDITANDO, carrega os dados do alojamento pelo ID
   useEffect(() => {
-    if (selectedProvedorId && provedores.length > 0) {
+    if (id) {
+      setIsLoading(true);
+      registrosService.fetchAlojamentoById(id).then((a) => {
+        if (a) {
+          reset({
+            titulo: a.titulo || (a as any).nome || '',
+            provedor_id: a.provedor_id || '',
+            tipo_alojamento: a.tipo_alojamento || 'Fijo',
+            classificacao: a.classificacao || 'Privado',
+            capacidade_pessoas: a.capacidade_pessoas || 0,
+            dormitorios: a.dormitorios || 0,
+            total_camas: a.total_camas || 0,
+            camas_individuais: a.camas_individuais || 0,
+            camas_duplas: a.camas_duplas || 0,
+            banheiros: a.banheiros || 0,
+            endereco: a.endereco || '',
+            country_id: (a as any).country_id || null,
+            region_id: (a as any).region_id || null,
+            municipio: a.municipio || '',
+            provincia: a.provincia || '',
+            codigo_postal: (a as any).codigo_postal || '',
+            pais: a.pais || 'España',
+            valor_mensal: a.valor_mensal,
+            comodidades: a.comodidades || {},
+            suministros: a.suministros || {},
+            ativo: a.ativo ?? true
+          });
+        }
+      }).catch(err => {
+        console.error('Erro ao carregar alojamento para edição:', err);
+      }).finally(() => {
+        setIsLoading(false);
+      });
+    }
+  }, [id, reset]);
+
+  // Preencher título automaticamente apenas na CRIAÇÃO (quando o provedor é selecionado)
+  useEffect(() => {
+    if (!isEditing && selectedProvedorId && provedores.length > 0) {
       const prov = provedores.find(p => p.id === selectedProvedorId);
       if (prov) {
         const autoTitle = `${prov.nome_razao_social} - AL-${nextSeq}`;
         setValue('titulo', autoTitle);
       }
     }
-  }, [selectedProvedorId, provedores, nextSeq, setValue]);
+  }, [isEditing, selectedProvedorId, provedores, nextSeq, setValue]);
 
   // Atualizar nomes de país e província em texto quando os seletores mudarem
   useEffect(() => {
@@ -147,14 +190,19 @@ export const AlojamentoForm: React.FC = () => {
       const payload = {
         ...data,
         nome: data.titulo,
-        codigo: `AL-${nextSeq}`,
+        codigo: (data as any).codigo || `AL-${nextSeq}`,
       };
 
-      await registrosService.createAlojamento(payload as any);
+      if (isEditing && id) {
+        await registrosService.updateAlojamento(id, payload as any);
+      } else {
+        await registrosService.createAlojamento(payload as any);
+      }
+
       navigate('/logistica/registros/alojamentos');
     } catch (error: any) {
-      console.error('Error creating alojamento:', error);
-      alert(`Erro ao criar alojamento: ${error.message || 'Verifique o console.'}`);
+      console.error('Error saving alojamento:', error);
+      alert(`Erro ao salvar alojamento: ${error.message || 'Verifique o console.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +213,14 @@ export const AlojamentoForm: React.FC = () => {
     const firstKey = Object.keys(errs)[0];
     alert(`Atenção: O campo "${firstKey}" necessita ajuste: ${errs[firstKey]?.message || 'Verifique o preenchimento.'}`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-8 py-12 text-center text-slate-500 font-medium">
+        Carregando dados do alojamento...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-8 py-6 space-y-6">
@@ -180,9 +236,11 @@ export const AlojamentoForm: React.FC = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Novo Alojamiento
+              {isEditing ? 'Editar Alojamiento' : 'Novo Alojamiento'}
             </h1>
-            <p className="text-sm text-slate-500">Cadastre os detalhes do imóvel, capacidade de camas, comodidades e localização.</p>
+            <p className="text-sm text-slate-500">
+              {isEditing ? 'Atualize os detalhes do imóvel e capacidade.' : 'Cadastre os detalhes do imóvel, capacidade de camas, comodidades e localização.'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -201,7 +259,7 @@ export const AlojamentoForm: React.FC = () => {
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
           >
             <Save size={16} />
-            {isSubmitting ? 'Salvando...' : 'Salvar Alojamiento'}
+            {isSubmitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Alojamiento'}
           </button>
         </div>
       </div>

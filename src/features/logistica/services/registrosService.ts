@@ -149,7 +149,6 @@ export const registrosService = {
         .single();
       
       if (!error) {
-        // Gerar camas se total_camas > 0
         if (data && data.total_camas > 0) {
           const camasToInsert = Array.from({ length: data.total_camas }, (_, i) => ({
             alojamento_id: data.id,
@@ -173,5 +172,89 @@ export const registrosService = {
       throw error;
     }
     throw new Error('Falha ao inserir alojamento.');
+  },
+
+  async fetchProvedorById(id: string): Promise<Provedor | null> {
+    const { data, error } = await getClient()
+      .from('provedores')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data;
+  },
+
+  async updateProvedor(id: string, provedor: Partial<Provedor>): Promise<Provedor> {
+    const client = getClient();
+    let payload = { ...provedor };
+    let attempts = 0;
+
+    while (attempts < 10) {
+      attempts++;
+      const { data, error } = await client
+        .from('provedores')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (!error) return data;
+
+      if (error.message && error.message.includes('Could not find the')) {
+        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+        if (missingMatch && missingMatch[1]) {
+          delete (payload as any)[missingMatch[1]];
+          continue;
+        }
+      }
+
+      throw error;
+    }
+    throw new Error('Falha ao atualizar provedor.');
+  },
+
+  async fetchAlojamentoById(id: string): Promise<Alojamento | null> {
+    const { data, error } = await getClient()
+      .from('alojamentos')
+      .select('*, provedores(*)')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return {
+      ...data,
+      titulo: data.titulo || data.nome
+    };
+  },
+
+  async updateAlojamento(id: string, alojamento: Partial<Alojamento>): Promise<Alojamento> {
+    const client = getClient();
+    let payload: any = { ...alojamento };
+    if (payload.titulo && !payload.nome) {
+      payload.nome = payload.titulo;
+    }
+
+    let attempts = 0;
+    while (attempts < 10) {
+      attempts++;
+      const { data, error } = await client
+        .from('alojamentos')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (!error) return data;
+
+      if (error.message && error.message.includes('Could not find the')) {
+        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+        if (missingMatch && missingMatch[1]) {
+          delete (payload as any)[missingMatch[1]];
+          continue;
+        }
+      }
+
+      throw error;
+    }
+    throw new Error('Falha ao atualizar alojamento.');
   }
 };
