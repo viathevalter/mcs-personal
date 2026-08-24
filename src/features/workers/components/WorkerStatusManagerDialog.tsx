@@ -23,10 +23,15 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextObservationInput } from './RichTextObservationInput';
+import { WorkerObservationTimelineModal } from './WorkerObservationTimelineModal';
 import { useUpdateWorkerStatusUnified } from '../hooks/useWorkerStatus';
 
+
+
 // Opções de Status do Trabalhador com estilos visuais
+
+
 const STATUS_TRABALHO_OPTIONS = [
     { value: 'ATIVO', label: 'Ativo', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' },
     { value: 'INATIVO', label: 'Inativo', badgeBg: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800' },
@@ -66,7 +71,9 @@ export function WorkerStatusManagerDialog({
     currentSeguridadeStatus
 }: WorkerStatusManagerDialogProps) {
     const [open, setOpen] = useState(false);
+    const [timelineOpen, setTimelineOpen] = useState(false);
     const { mutate: updateStatusUnified, isPending } = useUpdateWorkerStatusUnified();
+
 
     // Normaliza o status de trabalho inicial para bater com as chaves maiúsculas se necessário
     const initialTrab = (currentTrabalhoStatus || 'ATIVO').toUpperCase();
@@ -268,15 +275,19 @@ export function WorkerStatusManagerDialog({
                                 name="comments"
                                 render={({ field }) => (
                                     <FormItem className="md:col-span-2">
-                                        <FormLabel className="flex items-center gap-1.5 text-xs font-semibold">
-                                            <FileText className="w-3.5 h-3.5 text-primary" />
-                                            Observações / Motivo (Opcional)
+                                        <FormLabel className="flex items-center gap-1.5 text-xs font-semibold justify-between">
+                                            <span className="flex items-center gap-1.5">
+                                                <FileText className="w-3.5 h-3.5 text-primary" />
+                                                Observações / Motivo (Opcional)
+                                            </span>
+                                            <span className="text-[11px] text-muted-foreground font-normal">Formatação & Alertas Disponíveis</span>
                                         </FormLabel>
                                         <FormControl>
-                                            <Textarea 
-                                                className="h-10 min-h-[40px] resize-none"
-                                                placeholder="Ex: Atualização solicitada pela contabilidade, Fim de obra, etc." 
-                                                {...field} 
+                                            <RichTextObservationInput
+                                                value={field.value || ''}
+                                                onChange={field.onChange}
+                                                placeholder="Ex: Atualização solicitada pela contabilidade, aviso da gerência, fim de obra..."
+                                                minHeight="min-h-[90px]"
                                             />
                                         </FormControl>
                                         <FormMessage />
@@ -286,17 +297,37 @@ export function WorkerStatusManagerDialog({
                         </div>
 
                         {/* BOTÕES DE AÇÃO */}
-                        <div className="flex items-center justify-end gap-3 pt-4 border-t">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                                Cancelar
+                        <div className="flex items-center justify-between gap-3 pt-4 border-t">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="text-xs font-medium gap-1.5"
+                                onClick={() => setTimelineOpen(true)}
+                            >
+                                <FileText className="w-3.5 h-3.5 text-primary" /> Ver Timeline de Histórico
                             </Button>
-                            <Button type="submit" disabled={isPending} className="px-6 font-semibold shadow-md">
-                                {isPending ? 'Salvando...' : 'Salvar Ambos os Status'}
-                            </Button>
+
+                            <div className="flex items-center gap-2">
+                                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" disabled={isPending} className="px-6 font-semibold shadow-md">
+                                    {isPending ? 'Salvando...' : 'Salvar Ambos os Status'}
+                                </Button>
+                            </div>
                         </div>
                     </form>
                 </Form>
             </DialogContent>
+            
+            {/* Timeline Dialog */}
+            <WorkerObservationTimelineModal
+                open={timelineOpen}
+                onOpenChange={setTimelineOpen}
+                workerId={workerId}
+            />
         </Dialog>
     );
 }
+

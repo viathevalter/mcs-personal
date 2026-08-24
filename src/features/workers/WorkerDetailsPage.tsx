@@ -4,7 +4,7 @@ import { useWorkerById } from './hooks/useWorkerById';
 import { useDocumentDownload } from './hooks/useWorkerDocuments';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, History } from 'lucide-react';
 
 // Components for tabs
 import { OverviewTab } from './components/OverviewTab';
@@ -15,6 +15,7 @@ import { VidaLaboralTab } from './components/VidaLaboralTab';
 import { AlocacoesTab } from './components/AlocacoesTab';
 import { EditWorkerDialog } from './components/EditWorkerDialog';
 import { WorkerStatusManagerDialog } from './components/WorkerStatusManagerDialog';
+import { WorkerObservationTimelineModal } from './components/WorkerObservationTimelineModal';
 import { DiscountsTab } from './components/tabs/DiscountsTab';
 import { BankTabProfile } from './components/BankTabProfile';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +29,8 @@ export function WorkerDetailsPage() {
     const navigate = useNavigate();
     const { role: globalRole } = useRole();
     const { selectedEmpresaId } = useEmpresa();
+    const [timelineOpen, setTimelineOpen] = useState(false);
+
 
     const tabParam = searchParams.get('tab');
     const [activeTab, setActiveTab] = useState(tabParam || 'overview');
@@ -123,7 +126,16 @@ export function WorkerDetailsPage() {
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 font-medium shadow-sm text-xs"
+                        onClick={() => setTimelineOpen(true)}
+                    >
+                        <History className="h-4 w-4 text-primary" /> Timeline de Observações
+                    </Button>
+
                     {globalRole !== 'visualizador' && (
                         <>
                             <WorkerStatusManagerDialog 
@@ -134,6 +146,7 @@ export function WorkerDetailsPage() {
                             <EditWorkerDialog worker={worker} />
                         </>
                     )}
+
                     {worker.status_trabajador && (
                         <div className="flex flex-col items-end gap-1 mr-2">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('dashboard.workerStatus', 'Status')}</span>
@@ -202,6 +215,15 @@ export function WorkerDetailsPage() {
                     <DocumentsTab workerId={worker.id} empresaId={selectedEmpresaId || worker.empresa_id} />
                 </TabsContent>
             </Tabs>
+
+            <WorkerObservationTimelineModal
+                open={timelineOpen}
+                onOpenChange={setTimelineOpen}
+                workerId={worker.id}
+                workerName={worker.nome}
+                codColab={worker.cod_colab}
+            />
         </div>
     );
 }
+

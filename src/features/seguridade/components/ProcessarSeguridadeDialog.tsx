@@ -21,6 +21,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { RichTextObservationInput } from '../../workers/components/RichTextObservationInput';
+import { WorkerObservationTimelineModal } from '../../workers/components/WorkerObservationTimelineModal';
 
 interface ProcessarSeguridadeDialogProps {
     isOpen: boolean;
@@ -59,6 +61,7 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
     const [dataEfetiva, setDataEfetiva] = useState('');
     const [observacoes, setObservacoes] = useState('');
     const [file, setFile] = useState<File | null>(null);
+    const [timelineOpen, setTimelineOpen] = useState(false);
 
     useEffect(() => {
         if (item) {
@@ -195,13 +198,15 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                         </div>
 
                         <div className="space-y-2 sm:col-span-2">
-                            <label className="text-sm font-medium">Observações / Anotações</label>
-                            <Textarea 
-                                placeholder="Insira detalhes sobre a resolução ou erro do trâmite contábil..." 
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium">Observações / Anotações</label>
+                                <span className="text-[11px] text-muted-foreground">Formatação & Alertas Disponíveis</span>
+                            </div>
+                            <RichTextObservationInput 
+                                placeholder="Insira detalhes sobre a resolução, observações da fábrica ou trâmite..." 
                                 value={observacoes}
-                                onChange={(e) => setObservacoes(e.target.value)}
-                                className="resize-none"
-                                rows={2}
+                                onChange={setObservacoes}
+                                minHeight="min-h-[90px]"
                             />
                         </div>
 
@@ -221,18 +226,40 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                     </TabsContent>
                 </Tabs>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
-                        Cancelar
-                    </Button>
+                <DialogFooter className="flex items-center justify-between sm:justify-between border-t pt-4">
                     <Button 
-                        onClick={() => mutation.mutate()} 
-                        disabled={mutation.isPending || status === ''}
+                        type="button" 
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs font-medium gap-1.5"
+                        onClick={() => setTimelineOpen(true)}
                     >
-                        {mutation.isPending ? 'Salvando...' : 'Salvar Alteração'}
+                        📜 Ver Timeline de Histórico
                     </Button>
+
+                    <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>
+                            Cancelar
+                        </Button>
+                        <Button 
+                            type="button" 
+                            onClick={() => mutation.mutate()} 
+                            disabled={mutation.isPending || !status}
+                            className="bg-emerald-600 hover:bg-emerald-700 font-semibold"
+                        >
+                            {mutation.isPending ? 'Salvando...' : 'Salvar Alteração'}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
+
+            <WorkerObservationTimelineModal
+                open={timelineOpen}
+                onOpenChange={setTimelineOpen}
+                workerId={item.worker.id}
+                workerName={item.worker.nome}
+                codColab={item.worker.cod_colab}
+            />
         </Dialog>
     );
 }
