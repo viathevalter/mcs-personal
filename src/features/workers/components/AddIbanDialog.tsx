@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useManageWorkerIban } from '../hooks/useManageWorkerIban';
 import { useWorkerById } from '../hooks/useWorkerById';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
+import { identifyBankFromIban, formatIban } from '@/shared/utils/ibanHelper';
 
 const ibanSchema = z.object({
     banco: z.string().min(2, 'O nome do banco é obrigatório'),
@@ -40,6 +41,19 @@ export function AddIbanDialog({ open, onOpenChange, workerId }: AddIbanDialogPro
             observacoes: '',
         }
     });
+
+    const watchedIban = useWatch({ control: form.control, name: 'iban' });
+    const identifiedBank = identifyBankFromIban(watchedIban || '');
+
+    const handleIbanChange = (rawValue: string) => {
+        const formatted = formatIban(rawValue);
+        form.setValue('iban', formatted, { shouldValidate: true });
+
+        const bankInfo = identifyBankFromIban(formatted);
+        if (bankInfo) {
+            form.setValue('banco', bankInfo.name, { shouldValidate: true });
+        }
+    };
 
     const onSubmit = async (data: IbanFormValues) => {
         try {
@@ -74,26 +88,37 @@ export function AddIbanDialog({ open, onOpenChange, workerId }: AddIbanDialogPro
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <FormField
                             control={form.control}
-                            name="banco"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Instituição Financeira (Banco)</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Ex: Santander, Millenium, ActivoBank..." {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        
-                        <FormField
-                            control={form.control}
                             name="iban"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>IBAN</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Escreva o número do IBAN (ex: PT50...)" {...field} />
+                                        <Input
+                                            placeholder="Ex: ES09 0182 7307... ou PT50 0035..."
+                                            value={field.value}
+                                            onChange={(e) => handleIbanChange(e.target.value)}
+                                            className="font-mono uppercase"
+                                        />
+                                    </FormControl>
+                                    {identifiedBank && (
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 mt-1">
+                                            <Sparkles size={13} className="text-emerald-600" />
+                                            <span>Banco: {identifiedBank.name} ({identifiedBank.bic})</span>
+                                        </div>
+                                    )}
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="banco"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Instituição Financeira (Banco)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Ex: BBVA, Santander, CaixaBank, Millennium..." {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

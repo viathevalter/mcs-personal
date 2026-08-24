@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { useCountries, useRegions } from '@/features/master-data/locations/hooks/useLocations';
+import { identifyBankFromIban, formatIban, cleanIban } from '@/shared/utils/ibanHelper';
 
 const contatoItemSchema = z.object({
   nome: z.string().optional(),
@@ -92,6 +93,7 @@ export const ProvedorForm: React.FC = () => {
   const selectedRegionId = useWatch({ control, name: 'region_id' });
   const selectedPais = useWatch({ control, name: 'pais' });
   const selectedProvincia = useWatch({ control, name: 'provincia' });
+  const watchedDadosBancarios = useWatch({ control, name: 'dados_bancarios' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
@@ -110,7 +112,7 @@ export const ProvedorForm: React.FC = () => {
             }
           ];
 
-          const dadosBancariosCarregados = p.dados_bancarios && p.dados_bancarios.length > 0 ? p.dados_bancarios : [
+          let dadosBancariosCarregados = p.dados_bancarios && p.dados_bancarios.length > 0 ? p.dados_bancarios : [
             {
               banco: p.banco || '',
               iban: p.iban || '',
@@ -120,6 +122,18 @@ export const ProvedorForm: React.FC = () => {
               principal: true
             }
           ];
+
+          // Auto-identificar banco/SWIFT se estiver faltando nos dados carregados
+          dadosBancariosCarregados = dadosBancariosCarregados.map(b => {
+            const rawIban = b.iban || '';
+            const bankInfo = identifyBankFromIban(rawIban);
+            return {
+              ...b,
+              iban: formatIban(rawIban),
+              banco: b.banco || bankInfo?.name || '',
+              swift: b.swift || bankInfo?.bic || '',
+            };
+          });
 
           const paisTexto = p.pais || (p as any).country || 'España';
           const provinciaTexto = p.provincia || (p as any).estado || (p as any).regiao || '';
@@ -229,6 +243,19 @@ export const ProvedorForm: React.FC = () => {
     control,
     name: 'dados_bancarios'
   });
+
+  // Função para lidar com a digitação do IBAN e auto-preencher Banco e SWIFT/BIC
+  const handleIbanInputChange = (index: number, rawValue: string) => {
+    const formatted = formatIban(rawValue);
+    setValue(`dados_bancarios.${index}.iban`, formatted, { shouldDirty: true });
+
+    const bankInfo = identifyBankFromIban(formatted);
+    if (bankInfo) {
+      // Auto-preenche o nome do Banco e SWIFT se estiver vazio ou se pertencer ao banco anterior
+      setValue(`dados_bancarios.${index}.banco`, bankInfo.name, { shouldDirty: true });
+      setValue(`dados_bancarios.${index}.swift`, bankInfo.bic, { shouldDirty: true });
+    }
+  };
 
   const onSubmit = async (data: ProvedorFormValues) => {
     try {
@@ -459,13 +486,16 @@ export const ProvedorForm: React.FC = () => {
           </div>
         </div>
 
-        {/* BLOCO 3: Múltiplas Contas Bancárias & Formas de Pagamento */}
+        {/* BLOCO 3: Múltiplas Contas Bancárias & Reconhecimento Automático de IBAN */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
-              Dados Bancários e Formas de Pagamento
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
+                Dados Bancários e Formas de Pagamento
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">O sistema identifica o Banco e o código SWIFT/BIC automaticamente ao digitar o IBAN.</p>
+            </div>
             <button
               type="button"
               onClick={() => appendBanco({ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: bancoFields.length === 0 })}
@@ -477,83 +507,101 @@ export const ProvedorForm: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {bancoFields.map((field, index) => (
-              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                    Conta Bancária #{index + 1}
-                    {index === 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-semibold rounded-full">Principal / Padrão</span>}
-                  </span>
-                  {bancoFields.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeBanco(index)}
-                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
-                      title="Remover Conta"
-                    >
-                      <Trash2 size={14} />
-                      Remover Conta
-                    </button>
-                  )}
+            {bancoFields.map((field, index) => {
+              const currentIban = watchedDadosBancarios?.[index]?.iban || '';
+              const identifiedBank = identifyBankFromIban(currentIban);
+
+              return (
+                <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      Conta Bancária #{index + 1}
+                      {index === 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-semibold rounded-full">Principal / Padrão</span>}
+                    </span>
+                    {bancoFields.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeBanco(index)}
+                        className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
+                        title="Remover Conta"
+                      >
+                        <Trash2 size={14} />
+                        Remover Conta
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Método de Pago</label>
+                      <select
+                        {...register(`dados_bancarios.${index}.metodo_pago` as const)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      >
+                        <option value="Transferir">Transferência Bancária (Transferir)</option>
+                        <option value="Bizum">Bizum</option>
+                        <option value="Pix">Pix / Chave Instantânea</option>
+                        <option value="Efectivo">Efectivo / Dinheiro</option>
+                        <option value="Tarjeta">Tarjeta / Cartão</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        IBAN / Cuenta / Chave Pix *
+                      </label>
+                      <input
+                        type="text"
+                        value={watchedDadosBancarios?.[index]?.iban || ''}
+                        onChange={e => handleIbanInputChange(index, e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-emerald-500"
+                        placeholder="Ex: ES09 0182 7307 4202 0009 3104"
+                      />
+
+                      {/* Badge de Auto-identificação do Banco e SWIFT */}
+                      {identifiedBank && (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md mt-1.5 border border-emerald-200 dark:border-emerald-800 animate-in fade-in duration-150">
+                          <Sparkles size={13} className="text-emerald-600 flex-shrink-0" />
+                          <span>
+                            Banco Reconhecido: <strong className="text-emerald-800 dark:text-emerald-200">{identifiedBank.name}</strong> • SWIFT/BIC: <strong className="font-mono text-emerald-800 dark:text-emerald-200">{identifiedBank.bic}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Banco</label>
+                      <input
+                        type="text"
+                        {...register(`dados_bancarios.${index}.banco` as const)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ex: BBVA, CaixaBank, Santander"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Código SWIFT / BIC</label>
+                      <input
+                        type="text"
+                        {...register(`dados_bancarios.${index}.swift` as const)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ex: BBVAESMMXXX"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titular da Conta Bancária</label>
+                      <input
+                        type="text"
+                        {...register(`dados_bancarios.${index}.titular_conta` as const)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ex: MERCEDES SASTRE VICENTE"
+                      />
+                    </div>
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Método de Pago</label>
-                    <select
-                      {...register(`dados_bancarios.${index}.metodo_pago` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    >
-                      <option value="Transferir">Transferência Bancária (Transferir)</option>
-                      <option value="Bizum">Bizum</option>
-                      <option value="Pix">Pix / Chave Instantânea</option>
-                      <option value="Efectivo">Efectivo / Dinheiro</option>
-                      <option value="Tarjeta">Tarjeta / Cartão</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Banco</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.banco` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Ex: CaixaBank, Banco Santander, BBVA"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">IBAN / Cuenta / Chave Pix</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.iban` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
-                      placeholder="Ex: ES93 2103 2336 2300 3300 0470"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Código SWIFT / BIC</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.swift` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
-                      placeholder="Ex: CAIXESBBXXX"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titular da Conta Bancária</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.titular_conta` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Ex: MERCEDES SASTRE VICENTE"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
