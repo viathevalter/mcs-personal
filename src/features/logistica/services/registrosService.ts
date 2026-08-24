@@ -79,35 +79,51 @@ const getClient = () => {
   return (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
 };
 
-// Serialização para garantir persistência de metadados mesmo que colunas não existam fisicamente
-const serializeProvedor = (provedor: any) => {
+// Serialização com sanitização de campos para PostgreSQL core_logistics.provedores
+const buildProvedorPayload = (input: any) => {
   const metadata: any = {
-    codigo_postal: provedor.codigo_postal,
-    country_id: provedor.country_id,
-    region_id: provedor.region_id,
-    dados_bancarios: provedor.dados_bancarios,
-    tipo_pessoa: provedor.tipo_pessoa,
-    classificacao: provedor.classificacao,
-    endereco: provedor.endereco,
-    municipio: provedor.municipio,
-    provincia: provedor.provincia,
-    pais: provedor.pais
+    codigo_postal: input.codigo_postal || '',
+    country_id: input.country_id || null,
+    region_id: input.region_id || null,
+    dados_bancarios: input.dados_bancarios || [],
+    tipo_pessoa: input.tipo_pessoa || 'Persona Jurídica',
+    classificacao: input.classificacao || 'Proveedor Alojamiento',
+    endereco: input.endereco || '',
+    municipio: input.municipio || '',
+    provincia: input.provincia || '',
+    pais: input.pais || 'España'
   };
 
-  let existingObs = provedor.observacoes || '';
-  existingObs = existingObs.replace(/__META_JSON__:[^\n]+/, '').trim();
-  const obsWithMeta = `${existingObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
+  let cleanObs = (input.observacoes || '').replace(/__META_JSON__:[^\n]+/, '').trim();
+  const obsWithMeta = `${cleanObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
 
-  return {
-    tipo: 'alojamento',
-    tipo_provedor: provedor.tipo_pessoa || 'Proveedor Alojamiento',
-    ...provedor,
+  // Apenas campos físicos válidos na tabela provedores
+  const payload: any = {
+    nome_razao_social: input.nome_razao_social || '',
+    nome_comercial: input.nome_comercial || '',
+    cif_nif: input.cif_nif || '',
+    classificacao: input.classificacao || 'Proveedor Alojamiento',
+    tipo_provedor: input.tipo_pessoa || 'Persona Jurídica',
+    contato_nome: input.contato_nome || '',
+    telefone: input.telefone || '',
+    email: input.email || '',
+    iban: input.iban || '',
+    banco: input.banco || '',
+    swift: input.swift || '',
+    titular_conta: input.titular_conta || '',
+    metodo_pago: input.metodo_pago || 'Transferir',
+    endereco: input.endereco || '',
+    municipio: input.municipio || '',
+    provincia: input.provincia || '',
+    pais: input.pais || 'España',
+    contatos: input.contatos || [],
     observacoes: obsWithMeta,
-    endereco: provedor.endereco || '',
-    municipio: provedor.municipio || '',
-    provincia: provedor.provincia || '',
-    pais: provedor.pais || 'España'
+    status: input.ativo === false ? 'Inactivo' : 'Activo'
   };
+
+  if (input.codigo) payload.codigo = input.codigo;
+
+  return payload;
 };
 
 const hydrateProvedor = (p: any): Provedor => {
@@ -124,13 +140,22 @@ const hydrateProvedor = (p: any): Provedor => {
     }
   }
 
+  const endereco = p.endereco || metadata.endereco || '';
+  const municipio = p.municipio || metadata.municipio || '';
+  const provincia = p.provincia || metadata.provincia || '';
+  const pais = p.pais || metadata.pais || 'España';
+  const codigo_postal = p.codigo_postal || metadata.codigo_postal || '';
+
   return {
     ...p,
-    endereco: p.endereco || metadata.endereco || '',
-    municipio: p.municipio || metadata.municipio || '',
-    provincia: p.provincia || metadata.provincia || '',
-    pais: p.pais || metadata.pais || 'España',
-    codigo_postal: p.codigo_postal || metadata.codigo_postal || '',
+    tipo: 'alojamento',
+    tipo_pessoa: p.tipo_pessoa || metadata.tipo_pessoa || (p.tipo_provedor?.includes('Física') ? 'Persona Física' : 'Persona Jurídica'),
+    classificacao: p.classificacao || metadata.classificacao || 'Proveedor Alojamiento',
+    endereco,
+    municipio,
+    provincia,
+    pais,
+    codigo_postal,
     country_id: p.country_id || metadata.country_id || null,
     region_id: p.region_id || metadata.region_id || null,
     dados_bancarios: (p.dados_bancarios && p.dados_bancarios.length > 0)
@@ -138,39 +163,49 @@ const hydrateProvedor = (p: any): Provedor => {
       : (metadata.dados_bancarios && metadata.dados_bancarios.length > 0)
         ? metadata.dados_bancarios
         : (p.iban ? [{ banco: p.banco, iban: p.iban, swift: p.swift, titular_conta: p.titular_conta, metodo_pago: p.metodo_pago, principal: true }] : []),
-    tipo_pessoa: p.tipo_pessoa || metadata.tipo_pessoa || (p.tipo_provedor?.includes('Física') ? 'Persona Física' : 'Persona Jurídica'),
-    classificacao: p.classificacao || metadata.classificacao || 'Proveedor Alojamiento',
+    ativo: p.status !== 'Inactivo' && p.ativo !== false,
   };
 };
 
-const serializeAlojamento = (alojamento: any) => {
+const buildAlojamentoPayload = (input: any) => {
   const metadata: any = {
-    codigo_postal: alojamento.codigo_postal,
-    country_id: alojamento.country_id,
-    region_id: alojamento.region_id,
-    comodidades: alojamento.comodidades,
-    suministros: alojamento.suministros,
-    valor_mensal: alojamento.valor_mensal,
-    endereco: alojamento.endereco,
-    municipio: alojamento.municipio,
-    provincia: alojamento.provincia,
-    pais: alojamento.pais
+    codigo_postal: input.codigo_postal || '',
+    country_id: input.country_id || null,
+    region_id: input.region_id || null,
+    comodidades: input.comodidades || {},
+    suministros: input.suministros || {},
+    valor_mensal: input.valor_mensal,
+    endereco: input.endereco || '',
+    municipio: input.municipio || '',
+    provincia: input.provincia || '',
+    pais: input.pais || 'España'
   };
 
-  let existingObs = alojamento.observacoes || '';
-  existingObs = existingObs.replace(/__META_JSON__:[^\n]+/, '').trim();
-  const obsWithMeta = `${existingObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
+  let cleanObs = (input.observacoes || '').replace(/__META_JSON__:[^\n]+/, '').trim();
+  const obsWithMeta = `${cleanObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
 
-  return {
-    nome: alojamento.titulo || alojamento.nome || 'Alojamento Sem Nome',
-    status: 'ativo',
-    ...alojamento,
+  const payload: any = {
+    nome: input.titulo || input.nome || 'Alojamento Sem Nome',
+    tipo_alojamento: input.tipo_alojamento || 'Fijo',
+    classificacao: input.classificacao || 'Privado',
+    capacidade_pessoas: Number(input.capacidade_pessoas) || 0,
+    dormitorios: Number(input.dormitorios) || 0,
+    total_camas: Number(input.total_camas) || 0,
+    camas_individuais: Number(input.camas_individuais) || 0,
+    camas_duplas: Number(input.camas_duplas) || 0,
+    banheiros: Number(input.banheiros) || 0,
+    endereco: input.endereco || '',
+    municipio: input.municipio || '',
+    provincia: input.provincia || '',
+    pais: input.pais || 'España',
     observacoes: obsWithMeta,
-    endereco: alojamento.endereco || '',
-    municipio: alojamento.municipio || '',
-    provincia: alojamento.provincia || '',
-    pais: alojamento.pais || 'España'
+    status: input.ativo === false ? 'inativo' : 'ativo'
   };
+
+  if (input.provedor_id) payload.provedor_id = input.provedor_id;
+  if (input.codigo) payload.codigo = input.codigo;
+
+  return payload;
 };
 
 const hydrateAlojamento = (a: any): Alojamento => {
@@ -189,7 +224,7 @@ const hydrateAlojamento = (a: any): Alojamento => {
 
   return {
     ...a,
-    titulo: a.titulo || a.nome || '',
+    titulo: a.nome || a.titulo || '',
     endereco: a.endereco || metadata.endereco || '',
     municipio: a.municipio || metadata.municipio || '',
     provincia: a.provincia || metadata.provincia || '',
@@ -200,7 +235,8 @@ const hydrateAlojamento = (a: any): Alojamento => {
     comodidades: a.comodidades || metadata.comodidades || {},
     suministros: a.suministros || metadata.suministros || {},
     valor_mensal: a.valor_mensal || metadata.valor_mensal,
-    provedor: a.provedores || a.provedor
+    provedor: a.provedores || a.provedor,
+    ativo: a.status !== 'inativo' && a.ativo !== false,
   };
 };
 
@@ -230,7 +266,7 @@ export const registrosService = {
 
   async createProvedor(provedor: Partial<Provedor>): Promise<Provedor> {
     const client = getClient();
-    let payload: any = serializeProvedor(provedor);
+    let payload = buildProvedorPayload(provedor);
     let attempts = 0;
 
     while (attempts < 12) {
@@ -258,7 +294,7 @@ export const registrosService = {
 
   async updateProvedor(id: string, provedor: Partial<Provedor>): Promise<Provedor> {
     const client = getClient();
-    let payload: any = serializeProvedor(provedor);
+    let payload = buildProvedorPayload(provedor);
     let attempts = 0;
 
     while (attempts < 12) {
@@ -297,7 +333,7 @@ export const registrosService = {
 
   async createAlojamento(alojamento: Partial<Alojamento>): Promise<Alojamento> {
     const client = getClient();
-    let payload: any = serializeAlojamento(alojamento);
+    let payload = buildAlojamentoPayload(alojamento);
     let attempts = 0;
 
     while (attempts < 12) {
@@ -336,7 +372,7 @@ export const registrosService = {
 
   async updateAlojamento(id: string, alojamento: Partial<Alojamento>): Promise<Alojamento> {
     const client = getClient();
-    let payload: any = serializeAlojamento(alojamento);
+    let payload = buildAlojamentoPayload(alojamento);
     let attempts = 0;
 
     while (attempts < 12) {

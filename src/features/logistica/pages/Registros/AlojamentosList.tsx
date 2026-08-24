@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -33,7 +33,10 @@ import { ImportModal } from '../../components/ImportModal';
 export const AlojamentosList: React.FC = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'alojamentos' | 'provedores'>('alojamentos');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'alojamentos' | 'provedores'>(
+    location.pathname.includes('provedores') ? 'provedores' : 'alojamentos'
+  );
 
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
   const [provedores, setProvedores] = useState<Provedor[]>([]);
@@ -55,13 +58,12 @@ export const AlojamentosList: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      if (activeTab === 'alojamentos') {
-        const data = await logisticsService.fetchAlojamentos();
-        setAlojamentos(data);
-      } else {
-        const data = await logisticsService.fetchProvedores();
-        setProvedores(data);
-      }
+      const [alojData, provData] = await Promise.all([
+        logisticsService.fetchAlojamentos(),
+        logisticsService.fetchProvedores()
+      ]);
+      setAlojamentos(alojData);
+      setProvedores(provData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -70,8 +72,16 @@ export const AlojamentosList: React.FC = () => {
   };
 
   useEffect(() => {
+    if (location.pathname.includes('provedores')) {
+      setActiveTab('provedores');
+    } else {
+      setActiveTab('alojamentos');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, []);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -632,7 +642,12 @@ export const AlojamentosList: React.FC = () => {
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1">
                   <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingProvedor.endereco || 'Logradouro não informado'}</p>
                   <p className="text-slate-500 text-xs">
-                    {[viewingProvedor.municipio, viewingProvedor.provincia, viewingProvedor.pais].filter(Boolean).join(', ')}
+                    {[
+                      viewingProvedor.municipio,
+                      viewingProvedor.provincia,
+                      viewingProvedor.codigo_postal ? `CP: ${viewingProvedor.codigo_postal}` : null,
+                      viewingProvedor.pais
+                    ].filter(Boolean).join(' • ')}
                   </p>
                 </div>
               </div>
@@ -662,13 +677,13 @@ export const AlojamentosList: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const provId = viewingProvedor.id;
+                    const id = viewingProvedor.id;
                     setViewingProvedor(null);
-                    navigate(`/logistica/registros/provedores/editar/${provId}`);
+                    navigate(`/logistica/registros/provedores/editar/${id}`);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+                  className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-1.5 shadow-sm"
                 >
-                  <Pencil size={14} />
+                  <Pencil size={13} />
                   Editar Provedor
                 </button>
               </div>
@@ -680,7 +695,7 @@ export const AlojamentosList: React.FC = () => {
       {/* MODAL DE VISUALIZAÇÃO COMPLETA DE ALOJAMIENTO */}
       {viewingAlojamento && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             {/* Header Modal */}
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
               <div className="flex items-center gap-3">
@@ -688,49 +703,42 @@ export const AlojamentosList: React.FC = () => {
                   <Home size={24} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{viewingAlojamento.nome}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded">
-                      {viewingAlojamento.codigo || 'AL-XXXX'}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded-full font-semibold">
-                      {viewingAlojamento.classificacao || 'Privado'}
-                    </span>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{viewingAlojamento.nome}</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[11px] font-mono text-slate-400">{viewingAlojamento.codigo || 'AL-XXXX'}</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold">{viewingAlojamento.tipo_alojamento || 'Fijo'}</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">{viewingAlojamento.classificacao || 'Privado'}</span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setViewingAlojamento(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Content */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm">
+            {/* Content Modal */}
+            <div className="p-6 overflow-y-auto space-y-5">
               {/* Capacidade e Quartos */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl text-center">
-                  <span className="text-xs text-blue-600 font-bold block mb-1">Capacidade</span>
-                  <span className="text-xl font-bold text-slate-900 dark:text-white">{viewingAlojamento.capacidade_pessoas} pax</span>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                  <span className="text-xs text-slate-400 block font-medium">Capacidade</span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.capacidade_pessoas} pessoas</span>
                 </div>
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                  <span className="text-xs text-slate-500 font-bold block mb-1">Dormitórios</span>
-                  <span className="text-xl font-bold text-slate-900 dark:text-white">{viewingAlojamento.dormitorios}</span>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                  <span className="text-xs text-slate-400 block font-medium">Dormitórios</span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.dormitorios} quartos</span>
                 </div>
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                  <span className="text-xs text-slate-500 font-bold block mb-1">Total Camas</span>
-                  <span className="text-xl font-bold text-slate-900 dark:text-white">{viewingAlojamento.total_camas}</span>
-                </div>
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                  <span className="text-xs text-slate-500 font-bold block mb-1">Banheiros</span>
-                  <span className="text-xl font-bold text-slate-900 dark:text-white">{viewingAlojamento.banheiros || 1}</span>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                  <span className="text-xs text-slate-400 block font-medium">Total Camas</span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.total_camas} camas</span>
                 </div>
               </div>
 
-              {/* Proveedor Vinculado */}
-              <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-xl space-y-1">
+              {/* Detalhes do Provedor */}
+              <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-xl space-y-1">
                 <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Proveedor Vinculado</span>
                 <p className="font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.provedor?.nome_razao_social || 'Proveedor não especificado'}</p>
                 {viewingAlojamento.provedor?.telefone && (
@@ -746,7 +754,12 @@ export const AlojamentosList: React.FC = () => {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Endereço Completo</span>
                 <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingAlojamento.endereco || 'Endereço não cadastrado'}</p>
                 <p className="text-slate-500 text-xs">
-                  {[viewingAlojamento.municipio, viewingAlojamento.provincia, viewingAlojamento.pais].filter(Boolean).join(', ')}
+                  {[
+                    viewingAlojamento.municipio,
+                    viewingAlojamento.provincia,
+                    viewingAlojamento.codigo_postal ? `CP: ${viewingAlojamento.codigo_postal}` : null,
+                    viewingAlojamento.pais
+                  ].filter(Boolean).join(' • ')}
                 </p>
               </div>
             </div>
