@@ -235,10 +235,27 @@ async function scrapeCompanyData(siteUrl) {
 
     const chosenEmail = Array.from(foundEmails).find(e => /^(info|contacto|comercial|ventas|taller|administracion|proyectos|caldereria|tuberia|pedidos)/i.test(e)) || Array.from(foundEmails)[0];
 
+    function isGenericScrapedName(name) {
+      if (!name || typeof name !== 'string') return true;
+      const n = name.trim().toLowerCase();
+      if (n.length < 3) return true;
+      const generic = ['aviso legal', 'inicio', 'home', 'contacto', 'contacte', 'contact', 'politica', 'privacidad', 'cookies', 'index', 'welcome', 'bienvenido', 'enlaces', 'pagina', 'formulario', 'empresa de desarrollo web', 'error 404', 'not found', 'quienes somos', 'sobre nosotros', 'servicios', 'productos'];
+      return generic.some(g => n === g || n.startsWith(g + ' ') || n.startsWith(g + '-') || n.startsWith(g + '|'));
+    }
+
+    let finalName = companyName;
+    if (isGenericScrapedName(finalName)) {
+      const dPart = domain.split('.')[0].replace(/[-_]/g, ' ');
+      finalName = dPart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      if (!finalName.toLowerCase().includes('s.l') && !finalName.toLowerCase().includes('s.a')) {
+        finalName = `${finalName} S.L.`;
+      }
+    }
+
     return {
       domain,
       website: origin,
-      companyName: companyName || `${domain.split('.')[0].toUpperCase()} S.L.`,
+      companyName: finalName || `${domain.split('.')[0].toUpperCase()} S.L.`,
       email: chosenEmail,
       phone: phone || '+34 91 000 00 00',
       address: address || 'Polígono Industrial'
