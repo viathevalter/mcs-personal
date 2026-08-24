@@ -142,10 +142,13 @@ export function WorkerDetailsPage() {
                                 workerId={worker.id} 
                                 currentTrabalhoStatus={worker.status_trabajador} 
                                 currentSeguridadeStatus={worker.status_seguridad} 
+                                workerName={worker.nome}
+                                codColab={worker.cod_colab}
                             />
                             <EditWorkerDialog worker={worker} />
                         </>
                     )}
+
 
                     {worker.status_trabajador && (
                         <div className="flex flex-col items-end gap-1 mr-2">

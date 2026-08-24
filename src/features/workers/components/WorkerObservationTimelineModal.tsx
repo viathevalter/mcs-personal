@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { pt, es } from 'date-fns/locale';
-import { Clock, User, Calendar, Plus, MessageSquare, ShieldAlert, History, Loader2, Sparkles, Tag } from 'lucide-react';
+import { Clock, User, Calendar, Plus, MessageSquare, ShieldAlert, History, Loader2, Sparkles, Tag, Building2, Briefcase } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import {
     Dialog,
@@ -24,6 +23,12 @@ interface WorkerObservationTimelineModalProps {
     codColab?: string;
 }
 
+const KNOWN_AUTHORS: Record<string, string> = {
+    '8b2cab3d-3395-4204-8522-d942d2b8aaf7': 'Marcos (Gestão Login Pro)',
+    'b7fca90a-9af5-4f12-b772-332e67dbc20a': 'Angie (Gestão Login Pro)',
+    'b1cd53d4-65a7-4672-ad5f-87f0e275e7df': 'RH Luminous'
+};
+
 export function WorkerObservationTimelineModal({
     open,
     onOpenChange,
@@ -41,29 +46,76 @@ export function WorkerObservationTimelineModal({
         queryKey: ['worker_observation_timeline', workerId],
         enabled: open && !!workerId,
         queryFn: async () => {
-            const { data, error } = await supabase
+            // 1. Fetch from worker_status_history
+            const { data: statusHistory, error: hError } = await supabase
                 .schema('core_personal')
                 .from('worker_status_history')
-                .select(`
-                    *,
-                    changed_by_user:changed_by (
-                        email,
-                        raw_user_meta_data
-                    )
-                `)
+                .select('*')
                 .eq('worker_id', workerId)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (hError) console.error("Error fetching worker_status_history:", hError);
 
-            return (data || []).map((row: any) => {
-                const meta = row.changed_by_user?.raw_user_meta_data;
-                const authorName = meta?.full_name || meta?.name || row.changed_by_user?.email || 'Usuário do Sistema';
-                return {
-                    ...row,
-                    author_name: authorName
-                };
+            // 2. Fetch from seguridade_status
+            const { data: seguridadeData, error: sError } = await supabase
+                .schema('core_personal')
+                .from('seguridade_status')
+                .select('*')
+                .eq('worker_id', workerId)
+                .order('created_at', { ascending: false });
+
+            if (sError) console.error("Error fetching seguridade_status:", sError);
+
+            const combined: any[] = [];
+            const seenComments = new Set<string>();
+
+            // Map status history
+            (statusHistory || []).forEach((row: any) => {
+                const author = row.changed_by ? (KNOWN_AUTHORS[row.changed_by] || 'Marcos') : 'Sistema';
+                if (row.comments) seenComments.add(row.comments.trim().toLowerCase());
+                
+                combined.push({
+                    id: row.id,
+                    created_at: row.created_at,
+                    effective_date: row.effective_date,
+                    change_type: row.change_type || 'STATUS',
+                    old_value: row.old_value,
+                    new_value: row.new_value,
+                    comments: row.comments,
+                    empresa_nome: row.empresa_nome,
+                    cliente_nome: row.cliente_nome,
+                    author_name: author,
+                    origem: 'STATUS'
+                });
             });
+
+            // Map seguridade status if they have comments not already captured
+            (seguridadeData || []).forEach((row: any) => {
+                if (row.observacoes && row.observacoes.trim() !== '') {
+                    const cClean = row.observacoes.trim().toLowerCase();
+                    if (!seenComments.has(cClean)) {
+                        seenComments.add(cClean);
+                        combined.push({
+                            id: row.id,
+                            created_at: row.updated_at || row.created_at,
+                            effective_date: row.data_efetiva || row.data_solicitacao,
+                            change_type: `SEGURIDADE (${(row.tipo_evento || 'alta').toUpperCase()})`,
+                            old_value: 'Pendente',
+                            new_value: (row.status || 'confirmado').toUpperCase(),
+                            comments: row.observacoes,
+                            empresa_nome: row.origem_contratante,
+                            cliente_nome: row.origem_cliente_nome,
+                            author_name: 'Marcos',
+                            origem: 'SEGURIDADE'
+                        });
+                    }
+                }
+            });
+
+            // Sort all by created_at DESC
+            combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+            return combined;
         }
     });
 
@@ -133,7 +185,7 @@ export function WorkerObservationTimelineModal({
                                     )}
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                                    Acompanhamento completo de anotações, ocorrências e alterações com data, hora e responsável.
+                                    Acompanhamento cronológico completo com data, horário exato, autor e observações.
                                 </DialogDescription>
                             </div>
                         </div>
@@ -150,9 +202,9 @@ export function WorkerObservationTimelineModal({
                     </div>
 
                     {workerName && (
-                        <div className="mt-3 p-2 px-3 rounded-lg bg-background border text-xs font-semibold text-foreground flex items-center justify-between">
-                            <span>Trabalhador: <strong className="text-primary">{workerName}</strong></span>
-                            <span className="text-muted-foreground font-normal">Total de Registros: <strong>{history.length}</strong></span>
+                        <div className="mt-3 p-2.5 px-3.5 rounded-lg bg-background border text-xs font-semibold text-foreground flex items-center justify-between shadow-sm">
+                            <span>Trabalhador: <strong className="text-primary text-sm">{workerName}</strong></span>
+                            <span className="text-muted-foreground font-normal">Total de Registros: <strong className="text-foreground">{history.length}</strong></span>
                         </div>
                     )}
                 </DialogHeader>
@@ -233,7 +285,7 @@ export function WorkerObservationTimelineModal({
                             {history.map((item: any, idx: number) => {
                                 const { dateFormatted, timeFormatted } = formatTimestamp(item.created_at);
                                 const isOcorrencia = item.change_type?.includes('OCORRÊNCIA') || item.comments?.includes('<alert>');
-                                const isSeguridade = item.change_type === 'SEGURIDADE';
+                                const isSeguridade = item.change_type?.includes('SEGURIDADE');
 
                                 return (
                                     <div key={item.id || idx} className="relative group">
@@ -278,12 +330,29 @@ export function WorkerObservationTimelineModal({
 
                                             {/* Status Transition Details if present */}
                                             {(item.old_value !== 'N/A' && (item.old_value || item.new_value)) && (
-                                                <div className="text-xs mb-2 p-1.5 px-2.5 rounded-md bg-muted/30 flex items-center gap-2 font-medium">
-                                                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                                    <span>Alteração de Status:</span>
-                                                    <span className="line-through text-muted-foreground">{item.old_value || 'Sem Status'}</span>
-                                                    <span>➔</span>
-                                                    <span className="text-primary font-bold">{item.new_value}</span>
+                                                <div className="text-xs mb-2 p-1.5 px-2.5 rounded-md bg-muted/30 flex items-center justify-between gap-2 font-medium">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span>Status:</span>
+                                                        <span className="line-through text-muted-foreground">{item.old_value || 'Sem Status'}</span>
+                                                        <span>➔</span>
+                                                        <span className="text-primary font-bold">{item.new_value}</span>
+                                                    </div>
+
+                                                    {(item.cliente_nome || item.empresa_nome) && (
+                                                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                                            {item.empresa_nome && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <Building2 className="h-3 w-3" /> {item.empresa_nome}
+                                                                </span>
+                                                            )}
+                                                            {item.cliente_nome && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <Briefcase className="h-3 w-3" /> {item.cliente_nome}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 

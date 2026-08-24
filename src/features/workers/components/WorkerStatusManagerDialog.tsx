@@ -63,16 +63,21 @@ interface WorkerStatusManagerDialogProps {
     workerId: string;
     currentTrabalhoStatus: string | null;
     currentSeguridadeStatus: string | null;
+    workerName?: string;
+    codColab?: string;
 }
 
 export function WorkerStatusManagerDialog({
     workerId,
     currentTrabalhoStatus,
-    currentSeguridadeStatus
+    currentSeguridadeStatus,
+    workerName,
+    codColab
 }: WorkerStatusManagerDialogProps) {
     const [open, setOpen] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
     const { mutate: updateStatusUnified, isPending } = useUpdateWorkerStatusUnified();
+
 
 
     // Normaliza o status de trabalho inicial para bater com as chaves maiúsculas se necessário
@@ -326,8 +331,11 @@ export function WorkerStatusManagerDialog({
                 open={timelineOpen}
                 onOpenChange={setTimelineOpen}
                 workerId={workerId}
+                workerName={workerName}
+                codColab={codColab}
             />
         </Dialog>
     );
 }
+
 
