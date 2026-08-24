@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
+import { registrosService } from './registrosService';
 
 export interface ContatoProvedor {
   id?: string;
@@ -54,6 +55,7 @@ export interface Alojamento {
   codigo?: string;
   provedor_id?: string;
   nome: string;
+  titulo?: string;
   tipo_alojamento?: string;
   classificacao?: string;
   capacidade_pessoas: number;
@@ -74,7 +76,10 @@ export interface Alojamento {
   valor_mensal?: number;
   observacoes?: string;
   status?: string;
-  provedor?: Provedor;
+  provedor?: {
+    nome_razao_social: string;
+    telefone?: string;
+  };
   camas?: Cama[];
 }
 
@@ -100,382 +105,109 @@ export interface Alocacao {
   worker_nome?: string;
 }
 
-const getClient = () => {
-  return (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-};
-
-const buildProvedorPayload = (input: any) => {
-  const metadata: any = {
-    codigo_postal: input.codigo_postal || '',
-    country_id: input.country_id || null,
-    region_id: input.region_id || null,
-    dados_bancarios: input.dados_bancarios || [],
-    tipo_pessoa: input.tipo_pessoa || 'Persona Jurídica',
-    classificacao: input.classificacao || 'Proveedor Alojamiento',
-    endereco: input.endereco || '',
-    municipio: input.municipio || '',
-    provincia: input.provincia || '',
-    pais: input.pais || 'España'
-  };
-
-  let cleanObs = (input.observacoes || '').replace(/__META_JSON__:[^\n]+/, '').trim();
-  const obsWithMeta = `${cleanObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
-
-  const payload: any = {
-    nome_razao_social: input.nome_razao_social || '',
-    nome_comercial: input.nome_comercial || '',
-    cif_nif: input.cif_nif || '',
-    classificacao: input.classificacao || 'Proveedor Alojamiento',
-    tipo_provedor: input.tipo_pessoa || 'Persona Jurídica',
-    contato_nome: input.contato_nome || '',
-    telefone: input.telefone || '',
-    email: input.email || '',
-    iban: input.iban || '',
-    banco: input.banco || '',
-    swift: input.swift || '',
-    titular_conta: input.titular_conta || '',
-    metodo_pago: input.metodo_pago || 'Transferir',
-    endereco: input.endereco || '',
-    municipio: input.municipio || '',
-    provincia: input.provincia || '',
-    pais: input.pais || 'España',
-    contatos: input.contatos || [],
-    observacoes: obsWithMeta,
-    status: input.ativo === false ? 'Inactivo' : 'Activo'
-  };
-
-  if (input.codigo) payload.codigo = input.codigo;
-
-  return payload;
-};
-
-const hydrateProvedor = (p: any): Provedor => {
-  if (!p) return p;
-  let metadata: any = {};
-  if (p.observacoes && p.observacoes.includes('__META_JSON__:')) {
-    try {
-      const match = p.observacoes.match(/__META_JSON__:(.+)/);
-      if (match && match[1]) {
-        metadata = JSON.parse(match[1].trim());
-      }
-    } catch (e) {
-      console.warn('Erro ao parsear metadata de provedor', e);
-    }
-  }
-
-  const endereco = p.endereco || metadata.endereco || '';
-  const municipio = p.municipio || metadata.municipio || '';
-  const provincia = p.provincia || metadata.provincia || '';
-  const pais = p.pais || metadata.pais || 'España';
-  const codigo_postal = p.codigo_postal || metadata.codigo_postal || '';
-
-  return {
-    ...p,
-    tipo: 'alojamento',
-    tipo_pessoa: p.tipo_pessoa || metadata.tipo_pessoa || (p.tipo_provedor?.includes('Física') ? 'Persona Física' : 'Persona Jurídica'),
-    classificacao: p.classificacao || metadata.classificacao || 'Proveedor Alojamiento',
-    endereco,
-    municipio,
-    provincia,
-    pais,
-    codigo_postal,
-    country_id: p.country_id || metadata.country_id || null,
-    region_id: p.region_id || metadata.region_id || null,
-    dados_bancarios: (p.dados_bancarios && p.dados_bancarios.length > 0)
-      ? p.dados_bancarios
-      : (metadata.dados_bancarios && metadata.dados_bancarios.length > 0)
-        ? metadata.dados_bancarios
-        : (p.iban ? [{ banco: p.banco, iban: p.iban, swift: p.swift, titular_conta: p.titular_conta, metodo_pago: p.metodo_pago, principal: true }] : []),
-    status: p.status || 'Activo'
-  };
-};
-
-const buildAlojamentoPayload = (input: any) => {
-  const metadata: any = {
-    codigo_postal: input.codigo_postal || '',
-    country_id: input.country_id || null,
-    region_id: input.region_id || null,
-    comodidades: input.comodidades || {},
-    suministros: input.suministros || {},
-    valor_mensal: input.valor_mensal,
-    endereco: input.endereco || '',
-    municipio: input.municipio || '',
-    provincia: input.provincia || '',
-    pais: input.pais || 'España'
-  };
-
-  let cleanObs = (input.observacoes || '').replace(/__META_JSON__:[^\n]+/, '').trim();
-  const obsWithMeta = `${cleanObs}\n__META_JSON__:${JSON.stringify(metadata)}`.trim();
-
-  const payload: any = {
-    nome: input.nome || input.titulo || 'Alojamento Sem Nome',
-    tipo_alojamento: input.tipo_alojamento || 'Fijo',
-    classificacao: input.classificacao || 'Privado',
-    capacidade_pessoas: Number(input.capacidade_pessoas) || 0,
-    dormitorios: Number(input.dormitorios) || 0,
-    total_camas: Number(input.total_camas) || 0,
-    camas_individuais: Number(input.camas_individuais) || 0,
-    camas_duplas: Number(input.camas_duplas) || 0,
-    banheiros: Number(input.banheiros) || 0,
-    endereco: input.endereco || '',
-    municipio: input.municipio || '',
-    provincia: input.provincia || '',
-    pais: input.pais || 'España',
-    observacoes: obsWithMeta,
-    status: input.ativo === false ? 'inativo' : 'ativo'
-  };
-
-  if (input.provedor_id) payload.provedor_id = input.provedor_id;
-  if (input.codigo) payload.codigo = input.codigo;
-
-  return payload;
-};
-
-const hydrateAlojamento = (a: any): Alojamento => {
-  if (!a) return a;
-  let metadata: any = {};
-  if (a.observacoes && a.observacoes.includes('__META_JSON__:')) {
-    try {
-      const match = a.observacoes.match(/__META_JSON__:(.+)/);
-      if (match && match[1]) {
-        metadata = JSON.parse(match[1].trim());
-      }
-    } catch (e) {
-      console.warn('Erro ao parsear metadata de alojamento', e);
-    }
-  }
-
-  return {
-    ...a,
-    nome: a.nome || a.titulo || '',
-    endereco: a.endereco || metadata.endereco || '',
-    municipio: a.municipio || metadata.municipio || '',
-    provincia: a.provincia || metadata.provincia || '',
-    pais: a.pais || metadata.pais || 'España',
-    codigo_postal: a.codigo_postal || metadata.codigo_postal || '',
-    country_id: a.country_id || metadata.country_id || null,
-    region_id: a.region_id || metadata.region_id || null,
-    comodidades: a.comodidades || metadata.comodidades || {},
-    suministros: a.suministros || metadata.suministros || {},
-    valor_mensal: a.valor_mensal || metadata.valor_mensal,
-    provedor: a.provedores || a.provedor
-  };
-};
-
 export const logisticsService = {
   // Provedores
   async fetchProvedores(): Promise<Provedor[]> {
-    const { data, error } = await getClient()
-      .from('provedores')
-      .select('*')
-      .order('nome_razao_social', { ascending: true });
-    
-    if (error) {
-      console.warn('Erro em core_logistics.provedores, tentando public...', error);
-      const res = await supabase.from('provedores').select('*');
-      return (res.data || []).map(hydrateProvedor);
-    }
-    return (data || []).map(hydrateProvedor);
+    return (await registrosService.fetchProvedores()) as Provedor[];
   },
 
   async createProvedor(provedor: Partial<Provedor>): Promise<Provedor> {
-    const client = getClient();
-    let payload = buildProvedorPayload(provedor);
-    let attempts = 0;
-
-    while (attempts < 12) {
-      attempts++;
-      const { data, error } = await client
-        .from('provedores')
-        .insert([payload])
-        .select()
-        .single();
-
-      if (!error) return hydrateProvedor(data);
-
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
-        }
-      }
-
-      throw error;
-    }
-    throw new Error('Falha ao inserir provedor após sanitização de colunas.');
+    return (await registrosService.createProvedor(provedor as any)) as Provedor;
   },
 
   async updateProvedor(id: string, provedor: Partial<Provedor>): Promise<Provedor> {
-    const client = getClient();
-    let payload = buildProvedorPayload(provedor);
-    let attempts = 0;
-
-    while (attempts < 12) {
-      attempts++;
-      const { data, error } = await client
-        .from('provedores')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (!error) return hydrateProvedor(data);
-
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
-        }
-      }
-
-      throw error;
-    }
-    throw new Error('Falha ao atualizar provedor após sanitização.');
+    return (await registrosService.updateProvedor(id, provedor as any)) as Provedor;
   },
 
   async fetchProvedorById(id: string): Promise<Provedor | null> {
-    const { data, error } = await getClient()
-      .from('provedores')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (error) return null;
-    return hydrateProvedor(data);
+    return (await registrosService.fetchProvedorById(id)) as Provedor | null;
+  },
+
+  async deleteProvedor(id: string): Promise<boolean> {
+    return await registrosService.deleteProvedor(id);
   },
 
   // Alojamentos
   async fetchAlojamentos(): Promise<Alojamento[]> {
-    const client = getClient();
-    const { data, error } = await client
-      .from('alojamentos')
-      .select(`
-        *,
-        provedores (*)
-      `)
-      .order('nome', { ascending: true });
-
-    if (error) {
-      console.warn('Erro ao carregar alojamentos:', error);
-      const res = await supabase.from('alojamentos').select('*');
-      return (res.data || []).map(hydrateAlojamento);
-    }
-
-    return (data || []).map(hydrateAlojamento);
+    const list = await registrosService.fetchAlojamentos();
+    return list.map(a => ({
+      ...a,
+      nome: a.titulo || a.nome || ''
+    }));
   },
 
   async createAlojamento(alojamento: Partial<Alojamento>): Promise<Alojamento> {
-    const client = getClient();
-    let payload = buildAlojamentoPayload(alojamento);
-    let attempts = 0;
-
-    while (attempts < 12) {
-      attempts++;
-      const { data, error } = await client
-        .from('alojamentos')
-        .insert([payload])
-        .select()
-        .single();
-
-      if (!error) {
-        if (data && data.total_camas > 0) {
-          const camasToInsert = Array.from({ length: data.total_camas }, (_, i) => ({
-            alojamento_id: data.id,
-            identificador: `Cama ${String(i + 1).padStart(2, '0')}`,
-            tipo: i < (data.camas_individuais || 0) ? 'individual' : 'dupla',
-            status: 'livre'
-          }));
-          await client.from('camas').insert(camasToInsert).catch(console.warn);
-        }
-        return hydrateAlojamento(data);
-      }
-
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
-        }
-      }
-
-      throw error;
-    }
-    throw new Error('Falha ao inserir alojamento.');
+    const res = await registrosService.createAlojamento({
+      ...alojamento,
+      titulo: alojamento.nome || alojamento.titulo || 'Novo Alojamento'
+    });
+    return {
+      ...res,
+      nome: res.titulo || res.nome || ''
+    };
   },
 
   async updateAlojamento(id: string, alojamento: Partial<Alojamento>): Promise<Alojamento> {
-    const client = getClient();
-    let payload = buildAlojamentoPayload(alojamento);
-    let attempts = 0;
-
-    while (attempts < 12) {
-      attempts++;
-      const { data, error } = await client
-        .from('alojamentos')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (!error) return hydrateAlojamento(data);
-
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
-        }
-      }
-
-      throw error;
-    }
-    throw new Error('Falha ao atualizar alojamento.');
+    const res = await registrosService.updateAlojamento(id, {
+      ...alojamento,
+      titulo: alojamento.nome || alojamento.titulo || ''
+    });
+    return {
+      ...res,
+      nome: res.titulo || res.nome || ''
+    };
   },
 
   async fetchAlojamentoById(id: string): Promise<Alojamento | null> {
-    const { data, error } = await getClient()
-      .from('alojamentos')
-      .select('*, provedores(*)')
-      .eq('id', id)
-      .single();
-    if (error) return null;
-    return hydrateAlojamento(data);
+    const res = await registrosService.fetchAlojamentoById(id);
+    if (!res) return null;
+    return {
+      ...res,
+      nome: res.titulo || res.nome || ''
+    };
+  },
+
+  async deleteAlojamento(id: string): Promise<boolean> {
+    return await registrosService.deleteAlojamento(id);
   },
 
   // Camas & Alocações
   async fetchCamas(alojamentoId?: string): Promise<Cama[]> {
-    const client = getClient();
-    let query = client.from('camas').select('*');
-    if (alojamentoId) query = query.eq('alojamento_id', alojamentoId);
-    
-    const { data, error } = await query;
-    if (error) return [];
-    return data || [];
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+    try {
+      let query = client.from('camas').select('*');
+      if (alojamentoId) query = query.eq('alojamento_id', alojamentoId);
+      const { data, error } = await query;
+      if (!error && data) return data;
+    } catch (e) {}
+    return [];
   },
 
   async fetchAlocacoes(): Promise<Alocacao[]> {
-    const client = getClient();
-    const { data, error } = await client
-      .from('alocacoes')
-      .select(`
-        *,
-        camas (
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+    try {
+      const { data, error } = await client
+        .from('alocacoes')
+        .select(`
           *,
-          alojamentos (
-            *
+          camas (
+            *,
+            alojamentos (
+              *
+            )
           )
-        )
-      `)
-      .order('data_inicio', { ascending: false });
+        `)
+        .order('data_inicio', { ascending: false });
 
-    if (error) return [];
-
-    return (data || []).map((item: any) => ({
-      ...item,
-      cama: item.camas,
-      alojamento: item.camas?.alojamentos
-    }));
+      if (!error && data) {
+        return data.map((item: any) => ({
+          ...item,
+          cama: item.camas,
+          alojamento: item.camas?.alojamentos
+        }));
+      }
+    } catch (e) {}
+    return [];
   },
 
   async alocarTrabalhador(payload: {
@@ -486,7 +218,7 @@ export const logisticsService = {
     data_fim?: string;
     observacoes?: string;
   }): Promise<Alocacao> {
-    const client = getClient();
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
     const { data, error } = await client
       .from('alocacoes')
       .insert([{
@@ -504,12 +236,11 @@ export const logisticsService = {
     if (error) throw error;
 
     await client.from('camas').update({ status: 'ocupada' }).eq('id', payload.cama_id);
-
     return data;
   },
 
   async checkoutTrabalhador(alocacaoId: string, camaId: string, motivo?: string): Promise<void> {
-    const client = getClient();
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
     await client
       .from('alocacoes')
       .update({
@@ -520,25 +251,5 @@ export const logisticsService = {
       .eq('id', alocacaoId);
 
     await client.from('camas').update({ status: 'livre' }).eq('id', camaId);
-  },
-
-  async deleteProvedor(id: string): Promise<boolean> {
-    const { error } = await getClient()
-      .from('provedores')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-    return true;
-  },
-
-  async deleteAlojamento(id: string): Promise<boolean> {
-    const client = getClient();
-    await client.from('camas').delete().eq('alojamento_id', id).catch(console.warn);
-    const { error } = await client
-      .from('alojamentos')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-    return true;
   }
 };
