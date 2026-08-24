@@ -571,8 +571,11 @@ export async function approveDocumentRequest(
         nacionalidade?: string;
         fecha_nacimiento?: string;
         iban?: string;
+        camiseta?: string;
+        pantalones?: string;
         foto?: string;
-    }
+    },
+    updatedFormData?: any
 ): Promise<void> {
     // 1. Atualizar o cadastro do trabalhador
     const { error: workerErr } = await supabase
@@ -585,12 +588,26 @@ export async function approveDocumentRequest(
         throw mapSupabaseError(workerErr);
     }
 
-    // 2. Marcar a solicitação como verificada
+    // 2. Atualizar o extracted_data da solicitação e marcar como verificada
+    const { data: currentReq } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .select('extracted_data')
+        .eq('id', requestId)
+        .maybeSingle();
+
+    const mergedExtracted = {
+        ...(currentReq?.extracted_data || {}),
+        ...(updatedFormData || approvedData),
+        updated_at: new Date().toISOString()
+    };
+
     const { error: requestErr } = await supabase
         .schema('core_personal')
         .from('document_requests')
         .update({
             status: 'verified',
+            extracted_data: mergedExtracted,
             updated_at: new Date().toISOString()
         })
         .eq('id', requestId);

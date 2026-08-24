@@ -40,6 +40,43 @@ const formatHeaderDate = (dateStr?: string | null) => {
     }
 };
 
+const parseDateToInput = (dateStr?: string | null): string => {
+    if (!dateStr) return '';
+    const trimmed = String(dateStr).trim();
+    
+    // Check if ISO format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        return trimmed.substring(0, 10);
+    }
+    
+    // Check if DD/MM/YYYY or DD-MM-YYYY
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyy) {
+        const day = ddmmyyyy[1].padStart(2, '0');
+        const month = ddmmyyyy[2].padStart(2, '0');
+        const year = ddmmyyyy[3];
+        return `${year}-${month}-${day}`;
+    }
+
+    // Check if YYYY/MM/DD
+    const yyyymmdd = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (yyyymmdd) {
+        const year = yyyymmdd[1];
+        const month = yyyymmdd[2].padStart(2, '0');
+        const day = yyyymmdd[3].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    try {
+        const parsed = new Date(trimmed);
+        if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString().substring(0, 10);
+        }
+    } catch (_) {}
+
+    return '';
+};
+
 const getStartDateUrgency = (dateStr?: string | null) => {
     if (!dateStr) return { text: 'A Definir', badgeClass: 'bg-slate-500/20 text-slate-300 border-slate-400/30' };
     
@@ -854,7 +891,7 @@ Muchas gracias.`;
             loadWorkers();
         }
 
-        if (generateDialogOpen && selectedEmpresaId) {
+        if (generateDialogOpen && selectedEmpresaId && !selectedContratante) {
             if (selectedEmpresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
                 setSelectedContratante('STOCCO');
             } else if (selectedEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
@@ -863,8 +900,6 @@ Muchas gracias.`;
                 setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
             } else if (selectedEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
                 setSelectedContratante('TRIANGULO');
-            } else {
-                setSelectedContratante('');
             }
         }
     }, [generateDialogOpen, requestDialogOpen, selectedEmpresaId]);
@@ -1154,6 +1189,9 @@ Muchas gracias.`;
     const handleOpenVerify = (req: DocumentRequest) => {
         setSelectedRequest(req);
         const data = req.extracted_data || {};
+        const rawBirthDate = data.fecha_nacimiento || req.worker?.fecha_nacimiento || '';
+        const normalizedBirthDate = parseDateToInput(rawBirthDate);
+
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
@@ -1163,18 +1201,18 @@ Muchas gracias.`;
             contacto_emergencia_nombre: data.contacto_emergencia_nombre || '',
             contacto_emergencia_parentesco: data.contacto_emergencia_parentesco || '',
             contacto_emergencia_telefono: data.contacto_emergencia_telefono || '',
-            talla_camisa: data.talla_camisa || '',
-            talla_pantalon: data.talla_pantalon || '',
+            talla_camisa: data.talla_camisa || (req.worker as any)?.camiseta || '',
+            talla_pantalon: data.talla_pantalon || (req.worker as any)?.pantalones || '',
             banco: data.banco || '',
             iban: data.iban || req.worker?.iban || '',
-            nif: data.nif || '',
-            niss: data.niss || '',
-            nie: data.nie || '',
-            dni: data.dni || '',
-            pasaporte: data.pasaporte || '',
-            licencia_conducir: data.licencia_conducir || '',
-            nacionalidade: data.nacionalidade || '',
-            fecha_nacimiento: data.fecha_nacimiento || ''
+            nif: data.nif || req.worker?.nif || '',
+            niss: data.niss || req.worker?.niss || '',
+            nie: data.nie || req.worker?.nie || '',
+            dni: data.dni || req.worker?.dni || '',
+            pasaporte: data.pasaporte || req.worker?.pasaporte || '',
+            licencia_conducir: data.licencia_conducir || req.worker?.licencia_conducir || '',
+            nacionalidade: data.nacionalidade || req.worker?.nacionalidade || '',
+            fecha_nacimiento: normalizedBirthDate
         });
         setActiveDocTab('identity');
         setSelectedAttachDocType('passaporte');
@@ -1395,8 +1433,8 @@ Muchas gracias.`;
     };
 
     // 8. Salvar aprovação de cadastro
-    const handleApproveVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleApproveVerify = async (e?: React.FormEvent, thenGenerateContract: boolean = false) => {
+        if (e) e.preventDefault();
         if (!selectedRequest) return;
 
         try {
@@ -1411,6 +1449,8 @@ Muchas gracias.`;
                 if (emergencyNotes) emergencyNotes += ' | ';
                 emergencyNotes += `Uniformes - Camisa: ${verifyFormData.talla_camisa || '-'}, Calça: ${verifyFormData.talla_pantalon || '-'}`;
             }
+
+            const cleanBirthDate = parseDateToInput(verifyFormData.fecha_nacimiento) || verifyFormData.fecha_nacimiento;
 
             // Selfie URL passa a ser a foto oficial do trabalhador se presente
             const approvedPayload = {
@@ -1428,20 +1468,31 @@ Muchas gracias.`;
                 pasaporte: verifyFormData.pasaporte,
                 licencia_conducir: verifyFormData.licencia_conducir,
                 nacionalidade: verifyFormData.nacionalidade,
-                fecha_nacimiento: verifyFormData.fecha_nacimiento,
+                fecha_nacimiento: cleanBirthDate,
+                camiseta: verifyFormData.talla_camisa || undefined,
+                pantalones: verifyFormData.talla_pantalon || undefined,
                 foto: selectedRequest.selfie_url || undefined
             };
 
-            await approveDocumentRequest(selectedRequest.id, selectedRequest.worker_id, approvedPayload);
+            const updatedFormData = {
+                ...verifyFormData,
+                fecha_nacimiento: cleanBirthDate
+            };
+
+            await approveDocumentRequest(selectedRequest.id, selectedRequest.worker_id, approvedPayload, updatedFormData);
             toast.success("Documentação validada e cadastro atualizado com sucesso!");
             setVerifyDialogOpen(false);
             loadDocRequests();
             if (selectedTaskForWorkers) {
                 loadTaskWorkers(selectedTaskForWorkers);
             }
-        } catch (err) {
+
+            if (thenGenerateContract) {
+                await handleTriggerGenerate(selectedRequest.worker_id, selectedRequest.empresa_id);
+            }
+        } catch (err: any) {
             console.error("Erro ao aprovar documentos:", err);
-            toast.error("Erro ao salvar validação de documentos.");
+            toast.error(`Erro ao salvar validação de documentos: ${err?.message || 'Falha ao salvar'}`);
         } finally {
             setVerifying(false);
         }
@@ -1450,6 +1501,9 @@ Muchas gracias.`;
     // 8.5 Trigger para abrir modal de gerar contrato a partir de uma solicitação validada
     const handleTriggerGenerate = async (workerId: string, empresaId: string) => {
         setSelectedWorkerId(workerId);
+        if (empresaId) {
+            setSelectedEmpresaId(empresaId);
+        }
         
         // Mapear empresaId para selectedContratante
         if (empresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
@@ -1460,8 +1514,24 @@ Muchas gracias.`;
             setSelectedContratante('LUMINOUS CAPITAL UNIPESSOAL LDA');
         } else if (empresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
             setSelectedContratante('TRIANGULO');
-        } else {
-            setSelectedContratante('');
+        }
+
+        // Buscar alocação ativa mais recente para pré-selecionar
+        try {
+            const { data: wa } = await supabase
+                .schema('core_personal')
+                .from('worker_assignments')
+                .select('id, client_id')
+                .eq('worker_id', workerId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (wa) {
+                setSelectedAssignmentId(wa.id);
+            }
+        } catch (e) {
+            console.error("Erro ao buscar alocação do trabalhador:", e);
         }
 
         // Garante o carregamento dos trabalhadores da empresa do pedido
@@ -2930,11 +3000,20 @@ Muchas gracias.`;
                                     </div>
                                 </div>
 
-                                <div className="flex gap-2 pt-4 border-t mt-4">
-                                    <Button type="button" variant="outline" className="flex-1" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
+                                <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t mt-4">
+                                    <Button type="button" variant="outline" className="px-4" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
                                     <Button type="submit" disabled={verifying} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                                         {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                         {selectedRequest?.status === 'verified' ? 'Salvar Alterações no Cadastro' : 'Aprovar & Salvar no Cadastro'}
+                                    </Button>
+                                    <Button 
+                                        type="button" 
+                                        disabled={verifying} 
+                                        onClick={() => handleApproveVerify(undefined, true)}
+                                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
+                                    >
+                                        {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4" />}
+                                        Salvar & Gerar Contrato ⚡
                                     </Button>
                                 </div>
                             </form>
