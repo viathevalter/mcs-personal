@@ -126,3 +126,18 @@ export const isDateInRange = (date: Date, start: Date, end: Date) => {
   const e = new Date(end.setHours(23, 59, 59, 999));
   return d >= s && d <= e;
 };
+
+export const normalizeEmpresaName = (raw?: string | null): string => {
+  if (!raw) return '';
+  const upper = raw.trim().toUpperCase();
+  if (upper.includes('LUMINOUS')) return 'LUMINOUS';
+  if (upper.includes('STOCCO')) return 'STOCCO';
+  if (upper.includes('WISEOWE')) return 'WISEOWE';
+  if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) return 'TRIANGULO';
+  if (upper.includes('KOTRIK')) return 'KOTRIK';
+  if (upper.includes('ROSAS')) return 'ROSAS';
+  if (upper.includes('GENIO') || upper.includes('GÊNIO')) return 'GENIO';
+  if (upper.includes('SANTIFER')) return 'SANTIFER';
+  if (upper.includes('LOGIN PRO')) return 'LOGIN PRO';
+  return upper;
+};

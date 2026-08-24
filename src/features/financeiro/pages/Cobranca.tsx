@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings } from 'lucide-react';
-import { formatCurrency, formatDate } from '../lib/utils';
+import { formatCurrency, formatDate, normalizeEmpresaName } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
@@ -605,8 +605,8 @@ export const Cobranca = () => {
     };
 
     // Extract unique lists
-    const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
-    const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean)));
+    const uniqueEmpresas = Array.from(new Set(data.map(i => normalizeEmpresaName(i.Empresa)).filter(Boolean))).sort();
+    const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean))).sort();
     const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
 
     // Filters and tabs
@@ -618,8 +618,8 @@ export const Cobranca = () => {
             (item.Num_doc?.toLowerCase() || '').includes(searchLower);
         if (!matchesSearch) return false;
 
-        // Empresa filter
-        if (filterEmpresas.length > 0 && !filterEmpresas.includes(item.Empresa)) return false;
+        // Empresa filter (normalized)
+        if (filterEmpresas.length > 0 && !filterEmpresas.includes(normalizeEmpresaName(item.Empresa))) return false;
 
         // Banco filter
         if (filterBancos.length > 0 && !filterBancos.includes(item.Banco)) return false;
@@ -831,7 +831,7 @@ export const Cobranca = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-6 w-full max-w-[1600px] mx-auto">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>

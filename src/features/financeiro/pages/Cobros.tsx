@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
+import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, CheckCircle2, AlertTriangle, Activity, Building2 } from 'lucide-react';
+import { formatCurrency, formatDate, formatCompactCurrency, normalizeEmpresaName } from '../lib/utils';
 import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber, saveObservacao, fetchModernEmpresas } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { CobroFormSheet } from '../components/CobroFormSheet';
@@ -102,34 +102,6 @@ export const Cobros = () => {
 
     const [showFilters, setShowFilters] = useState(false);
     const [activeKpiFilter, setActiveKpiFilter] = useState<'all' | 'pago' | 'vencido' | 'a_vencer'>(() => (sessionStorage.getItem('cobros_activeKpiFilter') as any) || 'all');
-    const [isSyncing, setIsSyncing] = useState(false);
-
-    const handleSyncSharePoint = async () => {
-        setIsSyncing(true);
-        const toastId = toast.loading('Iniciando sincronização com o SharePoint...');
-        try {
-            const { data: resData, error: invokeErr } = await supabase.functions.invoke('sync-contas-receber');
-            
-            if (invokeErr) {
-                throw new Error(invokeErr.message);
-            }
-            
-            if (resData && resData.success) {
-                toast.success('Sincronização concluída!', {
-                    id: toastId,
-                    description: `${resData.synced_records} títulos de contas a receber foram atualizados com o SharePoint.`
-                });
-                await loadData();
-            } else {
-                throw new Error(resData?.error || 'Erro desconhecido na sincronização.');
-            }
-        } catch (err: any) {
-            console.error('Sync failed:', err);
-            toast.error('Erro na Sincronização: ' + err.message, { id: toastId });
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
     const loadData = async () => {
         setIsLoading(true);
@@ -453,8 +425,8 @@ export const Cobros = () => {
         return new Set(clients).size;
     };
 
-    const uniqueEmpresas = Array.from(new Set(data.map(i => i.Empresa).filter(Boolean)));
-    const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean)));
+    const uniqueEmpresas = Array.from(new Set(data.map(i => normalizeEmpresaName(i.Empresa)).filter(Boolean))).sort();
+    const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean))).sort();
     const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
 
     const kpiData = data.filter(item => {
@@ -466,8 +438,8 @@ export const Cobros = () => {
             (item.Obra?.toLowerCase() || '').includes(searchLower);
         if (!matchesSearch) return false;
 
-        // Empresa filter
-        if (filterEmpresas.length > 0 && !filterEmpresas.includes(item.Empresa)) return false;
+        // Empresa filter (normalized)
+        if (filterEmpresas.length > 0 && !filterEmpresas.includes(normalizeEmpresaName(item.Empresa))) return false;
 
         // Banco filter
         if (filterBancos.length > 0 && !filterBancos.includes(item.Banco)) return false;
@@ -558,6 +530,26 @@ export const Cobros = () => {
         a_vencerCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && !getOverdueStatus(i)).length,
         a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && !getOverdueStatus(i))),
     };
+
+    const taxaLiquidacao = kpis.total > 0 ? (kpis.pago / kpis.total) * 100 : 0;
+    const taxaInadimplencia = kpis.total > 0 ? (kpis.vencido / kpis.total) * 100 : 0;
+    const taxaAVencer = kpis.total > 0 ? (kpis.a_vencer / kpis.total) * 100 : 0;
+
+    const topVencido = useMemo(() => {
+        const overdueItems = kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && getOverdueStatus(i));
+        if (overdueItems.length === 0) return null;
+        return overdueItems.reduce((max, item) => ((item.Saldo_a_pagar || item.Valot_total || 0) > (max.Saldo_a_pagar || max.Valot_total || 0)) ? item : max, overdueItems[0]);
+    }, [kpiData]);
+
+    const topEmpresa = useMemo(() => {
+        const empMap: Record<string, number> = {};
+        kpiData.forEach(i => {
+            const emp = normalizeEmpresaName(i.Empresa);
+            if (emp) empMap[emp] = (empMap[emp] || 0) + (i.Valot_total || 0);
+        });
+        const sorted = Object.entries(empMap).sort((a, b) => b[1] - a[1]);
+        return sorted.length > 0 ? { name: sorted[0][0], total: sorted[0][1] } : null;
+    }, [kpiData]);
 
     const filteredData = kpiData.filter(item => {
         if (item.Status === 'Negociado') return false;
@@ -675,89 +667,239 @@ export const Cobros = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-6 w-full max-w-[1600px] mx-auto">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
             <div className="flex-none space-y-4">
+                {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">{t('financeiro.title_cobros', 'Cobros / Recebimentos')}</h2>
-                        <p className="text-muted-foreground mt-1">{t('financeiro.subtitle_cobros', 'Gerencie as contas a receber da empresa.')}</p>
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('financeiro.title_cobros', 'Cobros / Recebimentos')}</h2>
+                        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{t('financeiro.subtitle_cobros', 'Acompanhe faturas emitidas, controle recebimentos e gerencie o fluxo de caixa.')}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button 
-                            onClick={handleSyncSharePoint} 
-                            disabled={isSyncing} 
-                            variant="outline" 
-                            className="flex items-center gap-2 border-slate-300 dark:border-slate-800"
-                        >
-                            {isSyncing ? (
-                                <span className="h-4.5 w-4.5 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
-                            ) : (
-                                <RefreshCw size={18} className="text-slate-500" />
-                            )}
-                            {isSyncing ? t('common.loading', 'Sincronizando...') : t('financeiro.actions.btn_sync', 'Sincronizar SharePoint')}
-                        </Button>
-                        <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm">
+                        <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm font-semibold">
                             <Plus size={18} /> {t('financeiro.actions.btn_new_cobro', 'Novo Cobro')}
                         </Button>
                     </div>
                 </div>
 
-                {/* KPIs Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                {/* Wall Street / Home Broker Live Financial Ticker Tape */}
+                <div className="relative overflow-hidden rounded-xl bg-slate-900 border border-slate-800 text-slate-100 shadow-md">
+                    <div className="flex items-center">
+                        {/* Live Anchor Badge */}
+                        <div className="flex items-center gap-2 bg-slate-950/90 border-r border-slate-800 px-3.5 py-2.5 z-10 shrink-0 font-bold text-[11px] uppercase tracking-wider text-slate-200 shadow-sm">
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                            <span className="font-mono font-semibold text-emerald-400 tracking-wide flex items-center gap-1.5">
+                                <Activity size={13} /> RADAR FINANCEIRO
+                            </span>
+                        </div>
+
+                        {/* Ticker Content */}
+                        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-2 px-4 text-xs whitespace-nowrap">
+                            {/* Vencidos Metric */}
+                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('vencido')} title="Filtrar títulos vencidos">
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px] uppercase">Vencidos</span>
+                                <span className="font-mono font-bold text-rose-300">{formatCurrency(kpis.vencido)}</span>
+                                <span className="text-[11px] text-slate-400">({kpis.vencidoCount} docs • {taxaInadimplencia.toFixed(1)}%)</span>
+                            </div>
+
+                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                            {/* Pagos Metric */}
+                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('pago')} title="Filtrar títulos pagos">
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] uppercase">Liquidados</span>
+                                <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.pago)}</span>
+                                <span className="text-[11px] text-slate-400">({kpis.pagoCount} docs • {taxaLiquidacao.toFixed(1)}%)</span>
+                            </div>
+
+                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                            {/* A Vencer Metric */}
+                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('a_vencer')} title="Filtrar títulos a vencer">
+                                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px] uppercase">A Vencer</span>
+                                <span className="font-mono font-bold text-blue-300">{formatCurrency(kpis.a_vencer)}</span>
+                                <span className="text-[11px] text-slate-400">({kpis.a_vencerCount} docs • {taxaAVencer.toFixed(1)}%)</span>
+                            </div>
+
+                            {topVencido && (
+                                <>
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                    {/* Top Devedor */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Maior Vencido</span>
+                                        <span className="font-semibold text-slate-200 max-w-[160px] truncate" title={topVencido.Cliente || ''}>{topVencido.Cliente}</span>
+                                        <span className="font-mono font-bold text-amber-300">{formatCurrency(topVencido.Saldo_a_pagar || topVencido.Valot_total || 0)}</span>
+                                    </div>
+                                </>
+                            )}
+
+                            {topEmpresa && (
+                                <>
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+                                    {/* Top Empresa Faturadora */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">Top Faturadora</span>
+                                        <span className="font-semibold text-slate-200">{topEmpresa.name}</span>
+                                        <span className="font-mono font-bold text-indigo-300">{formatCurrency(topEmpresa.total)}</span>
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                            {/* Total Geral */}
+                            <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveKpiFilter('all')} title="Ver todos os títulos">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Carteira Total</span>
+                                <span className="font-mono font-bold text-slate-100">{formatCurrency(kpis.total)}</span>
+                                <span className="text-[11px] text-slate-400">({kpis.totalCount} docs)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Premium KPIs Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Total Geral Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'all' ? 'border-l-slate-600 bg-slate-100/50 dark:bg-slate-800/40 ring-1 ring-slate-200/50' : 'border-l-slate-400 bg-slate-50/50 dark:bg-slate-900/30'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeKpiFilter === 'all' 
+                                ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-white border-slate-700 ring-2 ring-brand-primary/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
                         onClick={() => setActiveKpiFilter('all')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-semibold text-slate-650 dark:text-slate-400 uppercase tracking-wider">{t('financeiro.kpis.total_general', 'Total Geral')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">{formatCurrency(kpis.total)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">
-                                {kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')} ({kpis.totalClientes} {kpis.totalClientes === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')})
-                            </p>
+                        <div className={`h-1.5 w-full ${activeKpiFilter === 'all' ? 'bg-brand-primary' : 'bg-slate-400'}`} />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className={`text-[11px] font-bold uppercase tracking-wider ${activeKpiFilter === 'all' ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                                    {t('financeiro.kpis.total_general', 'Total Geral')}
+                                </span>
+                                <div className={`p-1.5 rounded-lg ${activeKpiFilter === 'all' ? 'bg-slate-800 text-brand-primary' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                                    <TrendingUp size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className={`text-2xl lg:text-3xl font-extrabold tracking-tight font-mono ${activeKpiFilter === 'all' ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
+                                    {formatCurrency(kpis.total)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className={activeKpiFilter === 'all' ? 'text-slate-300' : 'text-slate-500'}>
+                                        {kpis.totalCount} {kpis.totalCount === 1 ? 'título' : 'títulos'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${activeKpiFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                                        {kpis.totalClientes} {kpis.totalClientes === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
+
+                    {/* Pago Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'pago' ? 'border-l-emerald-600 bg-emerald-100/30 dark:bg-emerald-950/20 ring-1 ring-emerald-200/40' : 'border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/10'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeKpiFilter === 'pago' 
+                                ? 'bg-emerald-950/40 border-emerald-500/50 ring-2 ring-emerald-500/50' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300'
+                        }`}
                         onClick={() => setActiveKpiFilter('pago')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{t('financeiro.kpis.pago', 'Total Pago')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(kpis.pago)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">
-                                {kpis.pagoCount} {kpis.pagoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')} ({kpis.pagoClientes} {kpis.pagoClientes === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')})
-                            </p>
+                        <div className="h-1.5 w-full bg-emerald-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                    {t('financeiro.kpis.pago', 'Pago (Período)')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-emerald-600 dark:text-emerald-400">
+                                    {formatCurrency(kpis.pago)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.pagoCount} {kpis.pagoCount === 1 ? 'título' : 'títulos'} ({kpis.pagoClientes} cl.)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                        {taxaLiquidacao.toFixed(1)}% do total
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
+
+                    {/* Vencido Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'vencido' ? 'border-l-destructive bg-destructive/10 dark:bg-destructive/20 ring-1 ring-destructive/20' : 'border-l-destructive bg-destructive/5 dark:bg-destructive/10'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeKpiFilter === 'vencido' 
+                                ? 'bg-rose-950/40 border-rose-500/50 ring-2 ring-rose-500/50' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-300'
+                        }`}
                         onClick={() => setActiveKpiFilter('vencido')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-semibold text-destructive uppercase tracking-wider">{t('financeiro.kpis.vencido', 'Total Vencido')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-destructive">{formatCurrency(kpis.vencido)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">
-                                {kpis.vencidoCount} {kpis.vencidoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')} ({kpis.vencidoClientes} {kpis.vencidoClientes === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')})
-                            </p>
+                        <div className="h-1.5 w-full bg-rose-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                        {t('financeiro.kpis.vencido', 'Vencido (Período)')}
+                                    </span>
+                                </div>
+                                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                                    <AlertTriangle size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-rose-600 dark:text-rose-400">
+                                    {formatCurrency(kpis.vencido)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.vencidoCount} {kpis.vencidoCount === 1 ? 'título' : 'títulos'} ({kpis.vencidoClientes} cl.)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                        {taxaInadimplencia.toFixed(1)}% taxa
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
+
+                    {/* A Vencer Card */}
                     <Card 
-                        className={`border-l-4 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${activeKpiFilter === 'a_vencer' ? 'border-l-blue-600 bg-blue-100/30 dark:bg-blue-950/20 ring-1 ring-blue-200/40' : 'border-l-blue-500 bg-blue-50/30 dark:bg-blue-950/10'}`}
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeKpiFilter === 'a_vencer' 
+                                ? 'bg-blue-950/40 border-blue-500/50 ring-2 ring-blue-500/50' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                        }`}
                         onClick={() => setActiveKpiFilter('a_vencer')}
                     >
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{t('financeiro.kpis.a_vencer', 'Total A Vencer')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">{formatCurrency(kpis.a_vencer)}</div>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium">
-                                {kpis.a_vencerCount} {kpis.a_vencerCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')} ({kpis.a_vencerClientes} {kpis.a_vencerClientes === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')})
-                            </p>
+                        <div className="h-1.5 w-full bg-blue-500" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                    {t('financeiro.kpis.a_vencer', 'A Vencer (Período)')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                                    <Clock size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-blue-600 dark:text-blue-400">
+                                    {formatCurrency(kpis.a_vencer)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.a_vencerCount} {kpis.a_vencerCount === 1 ? 'título' : 'títulos'} ({kpis.a_vencerClientes} cl.)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                        {taxaAVencer.toFixed(1)}% previsto
+                                    </span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

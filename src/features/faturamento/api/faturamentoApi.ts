@@ -2,6 +2,7 @@ import { supabase } from '@/shared/supabase/client';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
 import { getHoursControlWorkers } from '@/features/workers/api/workersApi';
 import { createClient } from '@supabase/supabase-js';
+import { normalizeEmpresaName } from '@/features/financeiro/lib/utils';
 
 // Helper to query Supabase tables in small batches to prevent URL/HTTP gateway size limits (e.g. 414 Request-URI Too Large)
 async function fetchInChunks<T>(
@@ -1662,7 +1663,7 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
 
   const dbData = {
     sp_id: nextSpId,
-    empresa: empresaNome,
+    empresa: normalizeEmpresaName(empresaNome),
     cod_cliente: fatura.client?.codigo || fatura.client_id.substring(0, 8),
     cliente: fatura.client?.nombre_comercial || 'Cliente',
     obra: fatura.ajustes_json?.obra || 'SIN OBRA',

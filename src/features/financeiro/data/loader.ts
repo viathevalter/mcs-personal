@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
-import { parseEuroNumber, parseDate } from '../lib/utils';
+import { parseEuroNumber, parseDate, normalizeEmpresaName } from '../lib/utils';
 import type { 
   ContasReceber, 
   Cliente, 
@@ -119,7 +119,7 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
 
     return {
       id: row.id?.toString() || `generated-${index}`,
-      Empresa: row.empresa || '',
+      Empresa: normalizeEmpresaName(row.empresa),
       CodCliente: row.cod_cliente || '',
       Cliente: row.cliente || '',
       Obra: row.obra || '',
@@ -285,7 +285,7 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
 
     const dbData = {
       sp_id: nextSpId,
-      empresa: data.Empresa || null,
+      empresa: normalizeEmpresaName(data.Empresa) || null,
       cod_cliente: data.CodCliente || null,
       cliente: data.Cliente || null,
       obra: data.Obra || null,
@@ -321,7 +321,7 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     const dbData: any = {
       modificado: new Date().toISOString()
     };
-    if (data.Empresa !== undefined) dbData.empresa = data.Empresa;
+    if (data.Empresa !== undefined) dbData.empresa = normalizeEmpresaName(data.Empresa) || null;
     if (data.CodCliente !== undefined) dbData.cod_cliente = data.CodCliente;
     if (data.Cliente !== undefined) dbData.cliente = data.Cliente;
     if (data.Obra !== undefined) dbData.obra = data.Obra;
