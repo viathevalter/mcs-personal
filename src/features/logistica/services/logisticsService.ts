@@ -303,5 +303,35 @@ export const logisticsService = {
 
     // Liberar a cama
     await client.from('camas').update({ status: 'livre' }).eq('id', camaId);
+  },
+
+  async deleteProvedor(id: string): Promise<boolean> {
+    const { error } = await getClient()
+      .from('provedores')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  async deleteAlojamento(id: string): Promise<boolean> {
+    const client = getClient();
+    await client.from('camas').delete().eq('alojamento_id', id).catch(console.warn);
+    const { error } = await client
+      .from('alojamentos')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  async fetchProvedorById(id: string): Promise<Provedor | null> {
+    const { data, error } = await getClient()
+      .from('provedores')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data;
   }
 };

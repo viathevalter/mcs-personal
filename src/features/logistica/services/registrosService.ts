@@ -256,5 +256,26 @@ export const registrosService = {
       throw error;
     }
     throw new Error('Falha ao atualizar alojamento.');
+  },
+
+  async deleteProvedor(id: string): Promise<boolean> {
+    const { error } = await getClient()
+      .from('provedores')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  async deleteAlojamento(id: string): Promise<boolean> {
+    const client = getClient();
+    // Excluir camas vinculadas primeiro se necessário
+    await client.from('camas').delete().eq('alojamento_id', id).catch(console.warn);
+    const { error } = await client
+      .from('alojamentos')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
   }
 };

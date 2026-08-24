@@ -90,6 +90,8 @@ export const ProvedorForm: React.FC = () => {
 
   const selectedCountryId = useWatch({ control, name: 'country_id' });
   const selectedRegionId = useWatch({ control, name: 'region_id' });
+  const selectedPais = useWatch({ control, name: 'pais' });
+  const selectedProvincia = useWatch({ control, name: 'provincia' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
@@ -100,22 +102,51 @@ export const ProvedorForm: React.FC = () => {
       registrosService.fetchProvedorById(id).then((p) => {
         if (p) {
           const contatosCarregados = p.contatos && p.contatos.length > 0 ? p.contatos : [
-            { nome: p.contato_nome || '', cargo_tipo: 'Proprietário', telefone: p.telefone || '', email: p.email || '' }
+            {
+              nome: p.contato_nome || (p as any).contato || '',
+              cargo_tipo: 'Proprietário',
+              telefone: p.telefone || (p as any).telefono || '',
+              email: p.email || ''
+            }
           ];
 
           const dadosBancariosCarregados = p.dados_bancarios && p.dados_bancarios.length > 0 ? p.dados_bancarios : [
-            { banco: p.banco || '', iban: p.iban || '', swift: p.swift || '', titular_conta: p.titular_conta || '', metodo_pago: p.metodo_pago || 'Transferir', principal: true }
+            {
+              banco: p.banco || '',
+              iban: p.iban || '',
+              swift: p.swift || '',
+              titular_conta: p.titular_conta || '',
+              metodo_pago: p.metodo_pago || 'Transferir',
+              principal: true
+            }
           ];
+
+          const paisTexto = p.pais || (p as any).country || 'España';
+          const provinciaTexto = p.provincia || (p as any).estado || (p as any).regiao || '';
+          const enderecoTexto = p.endereco || (p as any).direccion || (p as any).direccion_hospedaje || (p as any).logradouro || (p as any).ubicacion_fiscal || '';
+          const municipioTexto = p.municipio || (p as any).ciudad || (p as any).cidade || '';
+          const codigoPostalTexto = (p as any).codigo_postal || (p as any).cep || (p as any).cp || '';
+
+          // Resolver country_id pelo nome do país se disponível
+          let matchedCountryId = (p as any).country_id || null;
+          if (!matchedCountryId && paisTexto && countries.length > 0) {
+            const foundC = countries.find(c =>
+              c.name.toLowerCase().trim() === paisTexto.toLowerCase().trim() ||
+              (paisTexto.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+              (paisTexto.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+            );
+            if (foundC) matchedCountryId = foundC.id;
+          }
 
           reset({
             nome_razao_social: p.nome_razao_social || '',
             nome_comercial: p.nome_comercial || '',
-            cif_nif: p.cif_nif || '',
+            cif_nif: p.cif_nif || (p as any).cif || (p as any).nif || (p as any).tax_id || '',
             tipo: (p.tipo as any) || 'alojamento',
             tipo_pessoa: (p.tipo_pessoa as any) || 'Persona Jurídica',
-            classificacao: p.classificacao || 'Proveedor Alojamiento',
-            contato_nome: p.contato_nome || '',
-            telefone: p.telefone || '',
+            classificacao: p.classificacao || (p as any).tipo_provedor || 'Proveedor Alojamiento',
+            contato_nome: p.contato_nome || (p as any).contato || '',
+            telefone: p.telefone || (p as any).telefono || '',
             email: p.email || '',
             contatos: contatosCarregados,
             dados_bancarios: dadosBancariosCarregados,
@@ -124,13 +155,13 @@ export const ProvedorForm: React.FC = () => {
             iban: p.iban || '',
             swift: p.swift || '',
             titular_conta: p.titular_conta || '',
-            endereco: p.endereco || '',
-            country_id: (p as any).country_id || null,
+            endereco: enderecoTexto,
+            country_id: matchedCountryId,
             region_id: (p as any).region_id || null,
-            municipio: p.municipio || '',
-            provincia: p.provincia || '',
-            codigo_postal: (p as any).codigo_postal || '',
-            pais: p.pais || 'España',
+            municipio: municipioTexto,
+            provincia: provinciaTexto,
+            codigo_postal: codigoPostalTexto,
+            pais: paisTexto,
             ativo: p.ativo ?? true,
           });
         }
@@ -140,8 +171,37 @@ export const ProvedorForm: React.FC = () => {
         setIsLoading(false);
       });
     }
-  }, [id, reset]);
+  }, [id, reset, countries]);
 
+  // Sincronizar automaticamente country_id quando o catálogo de países carregar
+  useEffect(() => {
+    if (!selectedCountryId && selectedPais && countries.length > 0) {
+      const foundC = countries.find(c =>
+        c.name.toLowerCase().trim() === selectedPais.toLowerCase().trim() ||
+        (selectedPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+        (selectedPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+      );
+      if (foundC) {
+        setValue('country_id', foundC.id);
+      }
+    }
+  }, [countries, selectedPais, selectedCountryId, setValue]);
+
+  // Sincronizar automaticamente region_id quando o catálogo de regiões carregar
+  useEffect(() => {
+    if (!selectedRegionId && selectedProvincia && regions.length > 0) {
+      const foundR = regions.find(r =>
+        r.name.toLowerCase().trim() === selectedProvincia.toLowerCase().trim() ||
+        r.name.toLowerCase().includes(selectedProvincia.toLowerCase().trim()) ||
+        selectedProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
+      );
+      if (foundR) {
+        setValue('region_id', foundR.id);
+      }
+    }
+  }, [regions, selectedProvincia, selectedRegionId, setValue]);
+
+  // Atualizar nomes de país e província em texto quando os seletores mudarem
   useEffect(() => {
     if (selectedCountryId && countries.length > 0) {
       const countryObj = countries.find(c => c.id === selectedCountryId);
@@ -195,7 +255,7 @@ export const ProvedorForm: React.FC = () => {
         await registrosService.createProvedor(payload as any);
       }
 
-      navigate('/logistica/registros/alojamentos');
+      navigate('/logistica/registros/provedores');
     } catch (error) {
       console.error('Error saving provedor:', error);
       alert('Erro ao salvar provedor. Verifique os dados e o console.');
@@ -212,7 +272,8 @@ export const ProvedorForm: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="w-full px-8 py-12 text-center text-slate-500 font-medium">
+      <div className="w-full px-8 py-16 text-center text-slate-500 font-medium">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
         Carregando dados do proveedor...
       </div>
     );
@@ -235,7 +296,7 @@ export const ProvedorForm: React.FC = () => {
               {isEditing ? 'Editar Proveedor' : 'Novo Proveedor'}
             </h1>
             <p className="text-sm text-slate-500">
-              {isEditing ? 'Atualize os dados completos do fornecedor.' : 'Cadastre os dados completos do novo fornecedor para alojamentos e serviços.'}
+              {isEditing ? 'Atualize os dados cadastrais, contatos, contas bancárias e endereço fiscal.' : 'Cadastre os dados completos do novo fornecedor para alojamentos e serviços.'}
             </p>
           </div>
         </div>
@@ -364,7 +425,7 @@ export const ProvedorForm: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telefone</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telefone / WhatsApp</label>
                   <input
                     type="text"
                     {...register(`contatos.${index}.telefone` as const)}

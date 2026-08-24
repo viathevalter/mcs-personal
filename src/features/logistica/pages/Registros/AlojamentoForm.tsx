@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText, Euro } from 'lucide-react';
+import { ArrowLeft, Save, X, Home, MapPin, CheckSquare, FileText } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import { logisticsService } from '../../services/logisticsService';
 import type { Provedor } from '../../services/registrosService';
@@ -92,6 +92,8 @@ export const AlojamentoForm: React.FC = () => {
   const selectedProvedorId = useWatch({ control, name: 'provedor_id' });
   const selectedCountryId = useWatch({ control, name: 'country_id' });
   const selectedRegionId = useWatch({ control, name: 'region_id' });
+  const selectedPais = useWatch({ control, name: 'pais' });
+  const selectedProvincia = useWatch({ control, name: 'provincia' });
 
   const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
@@ -121,6 +123,22 @@ export const AlojamentoForm: React.FC = () => {
       setIsLoading(true);
       registrosService.fetchAlojamentoById(id).then((a) => {
         if (a) {
+          const paisTexto = a.pais || (a as any).country || 'España';
+          const provinciaTexto = a.provincia || (a as any).estado || '';
+          const enderecoTexto = a.endereco || (a as any).direccion || (a as any).direccion_hospedaje || (a as any).logradouro || '';
+          const municipioTexto = a.municipio || (a as any).ciudad || (a as any).cidade || '';
+          const codigoPostalTexto = (a as any).codigo_postal || (a as any).cep || (a as any).cp || '';
+
+          let matchedCountryId = (a as any).country_id || null;
+          if (!matchedCountryId && paisTexto && countries.length > 0) {
+            const foundC = countries.find(c =>
+              c.name.toLowerCase().trim() === paisTexto.toLowerCase().trim() ||
+              (paisTexto.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+              (paisTexto.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+            );
+            if (foundC) matchedCountryId = foundC.id;
+          }
+
           reset({
             titulo: a.titulo || (a as any).nome || '',
             provedor_id: a.provedor_id || '',
@@ -132,13 +150,13 @@ export const AlojamentoForm: React.FC = () => {
             camas_individuais: a.camas_individuais || 0,
             camas_duplas: a.camas_duplas || 0,
             banheiros: a.banheiros || 0,
-            endereco: a.endereco || '',
-            country_id: (a as any).country_id || null,
+            endereco: enderecoTexto,
+            country_id: matchedCountryId,
             region_id: (a as any).region_id || null,
-            municipio: a.municipio || '',
-            provincia: a.provincia || '',
-            codigo_postal: (a as any).codigo_postal || '',
-            pais: a.pais || 'España',
+            municipio: municipioTexto,
+            provincia: provinciaTexto,
+            codigo_postal: codigoPostalTexto,
+            pais: paisTexto,
             valor_mensal: a.valor_mensal,
             comodidades: a.comodidades || {},
             suministros: a.suministros || {},
@@ -151,7 +169,35 @@ export const AlojamentoForm: React.FC = () => {
         setIsLoading(false);
       });
     }
-  }, [id, reset]);
+  }, [id, reset, countries]);
+
+  // Sincronizar country_id automaticamente quando os países carregarem
+  useEffect(() => {
+    if (!selectedCountryId && selectedPais && countries.length > 0) {
+      const foundC = countries.find(c =>
+        c.name.toLowerCase().trim() === selectedPais.toLowerCase().trim() ||
+        (selectedPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
+        (selectedPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
+      );
+      if (foundC) {
+        setValue('country_id', foundC.id);
+      }
+    }
+  }, [countries, selectedPais, selectedCountryId, setValue]);
+
+  // Sincronizar region_id automaticamente quando as regiões carregarem
+  useEffect(() => {
+    if (!selectedRegionId && selectedProvincia && regions.length > 0) {
+      const foundR = regions.find(r =>
+        r.name.toLowerCase().trim() === selectedProvincia.toLowerCase().trim() ||
+        r.name.toLowerCase().includes(selectedProvincia.toLowerCase().trim()) ||
+        selectedProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
+      );
+      if (foundR) {
+        setValue('region_id', foundR.id);
+      }
+    }
+  }, [regions, selectedProvincia, selectedRegionId, setValue]);
 
   // Preencher título automaticamente apenas na CRIAÇÃO (quando o provedor é selecionado)
   useEffect(() => {
@@ -216,7 +262,8 @@ export const AlojamentoForm: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="w-full px-8 py-12 text-center text-slate-500 font-medium">
+      <div className="w-full px-8 py-16 text-center text-slate-500 font-medium">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
         Carregando dados do alojamento...
       </div>
     );
