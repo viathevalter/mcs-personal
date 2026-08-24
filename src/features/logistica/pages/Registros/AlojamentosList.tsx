@@ -58,12 +58,12 @@ export const AlojamentosList: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [alojData, provData] = await Promise.all([
+      const [alojRes, provRes] = await Promise.allSettled([
         logisticsService.fetchAlojamentos(),
         logisticsService.fetchProvedores()
       ]);
-      setAlojamentos(alojData);
-      setProvedores(provData);
+      if (alojRes.status === 'fulfilled') setAlojamentos(alojRes.value);
+      if (provRes.status === 'fulfilled') setProvedores(provRes.value);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -122,12 +122,18 @@ export const AlojamentosList: React.FC = () => {
   };
 
   const sortedAlojamentos = [...alojamentos]
-    .filter(a =>
-      a.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (a.municipio && a.municipio.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (a.provedor?.nome_razao_social && a.provedor.nome_razao_social.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (a.codigo && a.codigo.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+    .filter(a => {
+      const search = (searchTerm || '').toLowerCase();
+      if (!search) return true;
+      return (
+        (a.nome || a.titulo || '').toLowerCase().includes(search) ||
+        (a.codigo || '').toLowerCase().includes(search) ||
+        (a.endereco || '').toLowerCase().includes(search) ||
+        (a.municipio || '').toLowerCase().includes(search) ||
+        (a.provincia || '').toLowerCase().includes(search) ||
+        (a.provedor?.nome_razao_social || '').toLowerCase().includes(search)
+      );
+    })
     .sort((a, b) => {
       let aVal = (a as any)[sortField] || '';
       let bVal = (b as any)[sortField] || '';
@@ -139,14 +145,19 @@ export const AlojamentosList: React.FC = () => {
     });
 
   const sortedProvedores = [...provedores]
-    .filter(p =>
-      p.nome_razao_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.nome_comercial && p.nome_comercial.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.contato_nome && p.contato_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.telefone && p.telefone.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.iban && p.iban.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.municipio && p.municipio.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+    .filter(p => {
+      const search = (searchTerm || '').toLowerCase();
+      if (!search) return true;
+      return (
+        (p.nome_razao_social || '').toLowerCase().includes(search) ||
+        (p.nome_comercial || '').toLowerCase().includes(search) ||
+        (p.contato_nome || '').toLowerCase().includes(search) ||
+        (p.telefone || '').toLowerCase().includes(search) ||
+        (p.iban || '').toLowerCase().includes(search) ||
+        (p.municipio || '').toLowerCase().includes(search) ||
+        (p.provincia || '').toLowerCase().includes(search)
+      );
+    })
     .sort((a, b) => {
       let aVal = (a as any)[sortField] || '';
       let bVal = (b as any)[sortField] || '';
