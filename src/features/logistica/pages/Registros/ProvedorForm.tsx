@@ -97,6 +97,72 @@ export const ProvedorForm: React.FC = () => {
   const watchedPais = useWatch({ control, name: 'pais' });
   const watchedProvincia = useWatch({ control, name: 'provincia' });
 
+  // Estado para alertar sobre restauração de rascunho
+  const [isDraftRestored, setIsDraftRestored] = useState<boolean>(false);
+
+  // Recuperação de Rascunho do LocalStorage (Persistência ao trocar de abas)
+  useEffect(() => {
+    if (!id && !dataLoadedRef.current) {
+      try {
+        const savedDraft = localStorage.getItem('mcs_provedor_draft_novo');
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && (parsed.nome_razao_social || parsed.cif_nif || parsed.telefone || parsed.endereco)) {
+            reset(parsed);
+            setIsDraftRestored(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar rascunho de provedor:', e);
+      }
+    }
+  }, [id, reset]);
+
+  // Auto-Save contínuo do Rascunho no LocalStorage com debounce
+  const allWatchedValues = watch();
+  useEffect(() => {
+    if (!isEditing) {
+      const timer = setTimeout(() => {
+        try {
+          const hasContent = allWatchedValues.nome_razao_social || allWatchedValues.cif_nif || allWatchedValues.telefone || allWatchedValues.endereco;
+          if (hasContent) {
+            localStorage.setItem('mcs_provedor_draft_novo', JSON.stringify(allWatchedValues));
+          }
+        } catch (e) {}
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [allWatchedValues, isEditing]);
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('mcs_provedor_draft_novo');
+    reset({
+      nome_razao_social: '',
+      nome_comercial: '',
+      cif_nif: '',
+      tipo: 'alojamento',
+      tipo_pessoa: 'Persona Jurídica',
+      classificacao: 'Proveedor Alojamiento',
+      contato_nome: '',
+      telefone: '',
+      email: '',
+      contatos: [{ nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' }],
+      dados_bancarios: [{ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: true }],
+      metodo_pago: 'Transferir',
+      banco: '',
+      iban: '',
+      swift: '',
+      titular_conta: '',
+      endereco: '',
+      municipio: '',
+      provincia: '',
+      codigo_postal: '',
+      pais: 'España',
+      ativo: true,
+    });
+    setIsDraftRestored(false);
+  };
+
   // Carregar dados APENAS UMA VEZ no modo de edição (quando id estiver disponível)
   useEffect(() => {
     if (id && !dataLoadedRef.current) {
@@ -221,6 +287,9 @@ export const ProvedorForm: React.FC = () => {
       }
 
       setSaveSuccess(true);
+      localStorage.removeItem('mcs_provedor_draft_novo');
+      setIsDraftRestored(false);
+
       setTimeout(() => {
         navigate('/logistica/registros/provedores');
       }, 500);
@@ -302,6 +371,22 @@ export const ProvedorForm: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isDraftRestored && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-5 py-3 rounded-2xl flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold">
+            <Sparkles size={16} className="text-amber-600 flex-shrink-0" />
+            <span>Rascunho recuperado automaticamente! Seus dados cadastrais foram preservados ao alternar entre abas do navegador.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="text-xs text-amber-700 hover:text-red-600 dark:text-amber-400 font-bold px-3 py-1 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+          >
+            Limpar Rascunho
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
         {/* BLOCO 1: Informações Gerais & Fiscais */}

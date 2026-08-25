@@ -223,6 +223,30 @@ export const AlojamentoForm: React.FC = () => {
   const watchedSuminLimpieza = useWatch({ control, name: 'suministro_limpieza' });
   const watchedSuminOtros = useWatch({ control, name: 'suministro_otros' });
 
+  // Estado para alertar sobre restauração de rascunho
+  const [isDraftRestored, setIsDraftRestored] = useState<boolean>(false);
+
+  // Recuperação de Rascunho do LocalStorage (Persistência ao trocar de abas/navegador)
+  useEffect(() => {
+    if (!id && !dataLoadedRef.current) {
+      try {
+        const savedDraft = localStorage.getItem('mcs_alojamento_draft_novo');
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && (parsed.nome || parsed.provedor_id || parsed.endereco || (parsed.__savedFotos && parsed.__savedFotos.length > 0))) {
+            reset(parsed);
+            if (parsed.__savedFotos && Array.isArray(parsed.__savedFotos)) {
+              setFotos(parsed.__savedFotos);
+            }
+            setIsDraftRestored(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao restaurar rascunho:', e);
+      }
+    }
+  }, [id, reset]);
+
   // Carregar lista de provedores e alojamentos existentes para auto-cálculos
   useEffect(() => {
     registrosService.fetchProvedores()
@@ -241,6 +265,67 @@ export const AlojamentoForm: React.FC = () => {
       })
       .catch((err) => console.error('Erro ao buscar alojamentos:', err));
   }, []);
+
+  // Auto-Save contínuo do Rascunho no LocalStorage com debounce
+  const allWatchedValues = watch();
+  useEffect(() => {
+    if (!isEditing) {
+      const timer = setTimeout(() => {
+        try {
+          const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0);
+          if (hasContent) {
+            const draftPayload = {
+              ...allWatchedValues,
+              __savedFotos: fotos,
+              __draftSavedAt: new Date().toISOString()
+            };
+            localStorage.setItem('mcs_alojamento_draft_novo', JSON.stringify(draftPayload));
+          }
+        } catch (e) {
+          // localStorage quota safety
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [allWatchedValues, fotos, isEditing]);
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('mcs_alojamento_draft_novo');
+    reset({
+      nome: '',
+      codigo: '',
+      provedor_id: '',
+      tipo_alojamento: 'Fijo',
+      classificacao: 'Privado',
+      status: 'Activo',
+      capacidade_pessoas: 0,
+      dormitorios: 0,
+      total_camas: 0,
+      camas_individuais: 0,
+      camas_duplas: 0,
+      banheiros: 0,
+      endereco: '',
+      municipio: '',
+      provincia: '',
+      codigo_postal: '',
+      pais: 'España',
+      wifi: true,
+      cocina: true,
+      calefaccion: true,
+      lavadora: true,
+      tv: true,
+      suministro_internet: true,
+      suministro_agua: true,
+      suministro_luz: true,
+      valor_mensal: 0,
+      tipo_contrato: 'Fijo',
+      fianza_valor: 0,
+      fianza_meses: 1,
+      metodo_pago: 'Transferir'
+    });
+    setFotos([]);
+    setIsDraftRestored(false);
+  };
 
   // Calcula o próximo código global sequencial (AL-0001, AL-0002, AL-0003...)
   const getNextGlobalCode = (list: Alojamento[]) => {
@@ -462,6 +547,8 @@ export const AlojamentoForm: React.FC = () => {
       }
 
       setSaveSuccess(true);
+      localStorage.removeItem('mcs_alojamento_draft_novo');
+      setIsDraftRestored(false);
 
       if (redirectAfter) {
         setTimeout(() => {
@@ -587,6 +674,22 @@ export const AlojamentoForm: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isDraftRestored && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-5 py-3 rounded-2xl flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold">
+            <Sparkles size={16} className="text-amber-600 flex-shrink-0" />
+            <span>Rascunho recuperado automaticamente! Seus dados e fotos anexadas foram preservados ao alternar entre abas do navegador.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="text-xs text-amber-700 hover:text-red-600 dark:text-amber-400 font-bold px-3 py-1 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+          >
+            Limpar Rascunho
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit, onError)} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
