@@ -242,9 +242,23 @@ export const AlojamentoForm: React.FC = () => {
       .catch((err) => console.error('Erro ao buscar alojamentos:', err));
   }, []);
 
+  // Calcula o próximo código global sequencial (AL-0001, AL-0002, AL-0003...)
+  const getNextGlobalCode = (list: Alojamento[]) => {
+    let maxNum = 0;
+    (list || []).forEach(a => {
+      if (a.codigo) {
+        const match = a.codigo.match(/AL-(\d+)/i);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    return `AL-${String(maxNum + 1).padStart(4, '0')}`;
+  };
+
   // Encontra o provedor selecionado atualmente e seus alojamentos vinculados
   const currentProvedor = provedores.find(p => p.id === selectedProvedorId);
-  const provAlojamentosCount = existingAlojamentos.filter(a => a.provedor_id === selectedProvedorId).length;
 
   // SMART CALC 1: Sincronização Inteligente de Camas e Capacidade
   useEffect(() => {
@@ -270,19 +284,21 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [watchedTipoContrato, watchedValorPorPessoa, watchedCapacidadePessoas, setValue]);
 
-  // Quando o usuário seleciona um provedor, auto-preenche o título, código, endereço e dados bancários
+  // Quando o usuário seleciona um provedor, auto-preenche o título, código GLOBAL, endereço e dados bancários
   const handleProvedorChange = (provId: string) => {
     setValue('provedor_id', provId, { shouldDirty: true });
     const prov = provedores.find(p => p.id === provId);
     if (prov) {
-      // Calcula código sequencial baseado no total de imóveis deste provedor
-      const countForProv = existingAlojamentos.filter(a => a.provedor_id === provId).length;
-      const provSeqCode = `AL-${String(countForProv + 1).padStart(4, '0')}`;
-      setValue('codigo', provSeqCode, { shouldDirty: true });
+      // Código sequencial GLOBAL único para todo o sistema (AL-0001, AL-0002, AL-0003...)
+      let nextCode = getValues('codigo');
+      if (!isEditing || !nextCode || nextCode === 'AL-0001') {
+        nextCode = getNextGlobalCode(existingAlojamentos);
+        setValue('codigo', nextCode, { shouldDirty: true });
+      }
 
       // Auto-gera Título: "[Nome do Provedor] - [Código Alojamento]"
       if (!isEditing || !getValues('nome')) {
-        setValue('nome', `${prov.nome_razao_social} - ${provSeqCode}`, { shouldDirty: true });
+        setValue('nome', `${prov.nome_razao_social} - ${nextCode}`, { shouldDirty: true });
       }
 
       // Auto-preenche localização a partir do endereço do Provedor
@@ -452,8 +468,7 @@ export const AlojamentoForm: React.FC = () => {
         }, 500);
       } else {
         // Modo "Guardar y Crear Otro Alojamiento para este Proveedor"
-        const nextCount = provAlojamentosCount + 2;
-        const nextCode = `AL-${String(nextCount).padStart(4, '0')}`;
+        const nextCode = getNextGlobalCode([...existingAlojamentos, { codigo: data.codigo } as any]);
         setValue('codigo', nextCode, { shouldDirty: true });
         if (currentProvedor) {
           setValue('nome', `${currentProvedor.nome_razao_social} - ${nextCode}`, { shouldDirty: true });

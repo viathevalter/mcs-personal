@@ -454,6 +454,32 @@ export const registrosService = {
             continue;
           }
         }
+        if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
+          try {
+            const { data: allCodes } = await client.from('alojamentos').select('codigo');
+            let maxN = 0;
+            (allCodes || []).forEach((item: any) => {
+              if (item.codigo) {
+                const m = item.codigo.match(/AL-(\d+)/i);
+                if (m && m[1]) {
+                  const n = parseInt(m[1], 10);
+                  if (n > maxN) maxN = n;
+                }
+              }
+            });
+            const nextAutoCode = `AL-${String(maxN + 1).padStart(4, '0')}`;
+            payload.codigo = nextAutoCode;
+            if (payload.nome && payload.nome.includes('AL-')) {
+              payload.nome = payload.nome.replace(/AL-\d+/i, nextAutoCode);
+            }
+            if (payload.titulo && payload.titulo.includes('AL-')) {
+              payload.titulo = payload.titulo.replace(/AL-\d+/i, nextAutoCode);
+            }
+            continue;
+          } catch (codeErr) {
+            console.warn('Erro ao resolver codigo duplicado:', codeErr);
+          }
+        }
         if (error.message.includes('invalid input value for enum')) {
           payload.status = 'ativo';
           continue;
@@ -494,6 +520,32 @@ export const registrosService = {
           if (notNullMatch && notNullMatch[1]) {
             payload[notNullMatch[1]] = payload.nome || payload.titulo || 'Alojamento';
             continue;
+          }
+        }
+        if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
+          try {
+            const { data: allCodes } = await client.from('alojamentos').select('codigo');
+            let maxN = 0;
+            (allCodes || []).forEach((item: any) => {
+              if (item.codigo) {
+                const m = item.codigo.match(/AL-(\d+)/i);
+                if (m && m[1]) {
+                  const n = parseInt(m[1], 10);
+                  if (n > maxN) maxN = n;
+                }
+              }
+            });
+            const nextAutoCode = `AL-${String(maxN + 1).padStart(4, '0')}`;
+            payload.codigo = nextAutoCode;
+            if (payload.nome && payload.nome.includes('AL-')) {
+              payload.nome = payload.nome.replace(/AL-\d+/i, nextAutoCode);
+            }
+            if (payload.titulo && payload.titulo.includes('AL-')) {
+              payload.titulo = payload.titulo.replace(/AL-\d+/i, nextAutoCode);
+            }
+            continue;
+          } catch (codeErr) {
+            console.warn('Erro ao resolver codigo duplicado:', codeErr);
           }
         }
         if (error.message.includes('invalid input value for enum')) {
