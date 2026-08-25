@@ -281,27 +281,47 @@ const hydrateAlojamento = (a: any): Alojamento => {
 
 export const registrosService = {
   async fetchProvedores(): Promise<Provedor[]> {
-    const { data, error } = await getClient()
-      .from('provedores')
-      .select('*')
-      .order('nome_razao_social');
+    try {
+      const { data, error } = await getClient()
+        .from('provedores')
+        .select('*')
+        .order('nome_razao_social');
 
-    if (error) throw error;
-    return (data || []).map(hydrateProvedor);
+      if (error) {
+        const basic = await getClient().from('provedores').select('*');
+        return (basic.data || []).map(hydrateProvedor);
+      }
+      return (data || []).map(hydrateProvedor);
+    } catch (e) {
+      console.warn('Erro ao buscar provedores:', e);
+      return [];
+    }
   },
 
   async fetchAlojamentos(): Promise<Alojamento[]> {
-    const { data, error } = await getClient()
-      .from('alojamentos')
-      .select(`*, provedores(id, codigo, nome_razao_social, telefone, banco, iban, swift, titular_conta, metodo_pago)`)
-      .order('nome');
+    const client = getClient();
+    try {
+      const [alojRes, provRes] = await Promise.all([
+        client.from('alojamentos').select('*'),
+        client.from('provedores').select('*')
+      ]);
 
-    if (error) {
-      const basic = await getClient().from('alojamentos').select('*').order('nome');
-      if (basic.data) return basic.data.map(hydrateAlojamento);
-      throw error;
+      const alojData = alojRes.data || [];
+      const provData = (provRes.data || []).map(hydrateProvedor);
+
+      return alojData.map((a: any) => {
+        const matchingProv = provData.find(p => p.id === a.provedor_id);
+        const hydrated = hydrateAlojamento(a);
+        if (matchingProv) {
+          hydrated.provedor = matchingProv;
+        }
+        return hydrated;
+      });
+    } catch (err) {
+      console.warn('Erro ao buscar alojamentos:', err);
+      const basic = await client.from('alojamentos').select('*');
+      return (basic.data || []).map(hydrateAlojamento);
     }
-    return (data || []).map(hydrateAlojamento);
   },
 
   async fetchProvedorById(id: string): Promise<Provedor | null> {
