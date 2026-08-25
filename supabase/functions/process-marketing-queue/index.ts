@@ -186,7 +186,8 @@ serve(async (req) => {
           .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
           .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
           .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink)
-          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${lead.id}`);
+          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${lead.id}`)
+          .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, `${appUrl}/public/whatsapp?lead_id=${lead.id}`);
       };
 
       const htmlBody = formatVars(rawHtml);

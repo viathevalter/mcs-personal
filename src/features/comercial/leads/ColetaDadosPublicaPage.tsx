@@ -358,6 +358,7 @@ export function ColetaDadosPublicaPage() {
               .schema('core_comercial')
               .from('kanban_stages')
               .select('id, order_index')
+              .eq('empresa_id', data.empresa_id)
               .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
               .limit(1)
               .maybeSingle();
@@ -369,6 +370,7 @@ export function ColetaDadosPublicaPage() {
                   .schema('core_comercial')
                   .from('kanban_stages')
                   .select('order_index')
+                  .eq('empresa_id', data.empresa_id)
                   .eq('id', data.stage_id)
                   .maybeSingle();
                 if (curStage) {

@@ -322,6 +322,7 @@ export function SolicitarPresupuestoPage() {
                 .schema('core_comercial')
                 .from('kanban_stages')
                 .select('id, order_index')
+                .eq('empresa_id', lead.empresa_id)
                 .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
                 .limit(1)
                 .maybeSingle();
@@ -333,6 +334,7 @@ export function SolicitarPresupuestoPage() {
                     .schema('core_comercial')
                     .from('kanban_stages')
                     .select('order_index')
+                    .eq('empresa_id', lead.empresa_id)
                     .eq('id', lead.stage_id)
                     .maybeSingle();
                   if (curStage) {
@@ -455,14 +457,15 @@ export function SolicitarPresupuestoPage() {
 
     try {
       if (targetLeadId) {
-        // Fetch 'Orçamento Solicitado' stage ID (order_index = 5)
+        // Fetch 'Orçamento Solicitado' stage ID (order_index = 4) for this empresa
         let budgetStageId = null;
         try {
           const { data: bStage } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id')
-            .or('order_index.eq.5,name.ilike.%Orçamento%,name.ilike.%Presupuesto%')
+            .eq('empresa_id', empresaId)
+            .or('order_index.eq.4,name.ilike.%Orçamento%,name.ilike.%Presupuesto%')
             .limit(1)
             .maybeSingle();
 
