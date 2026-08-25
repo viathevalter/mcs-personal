@@ -22,7 +22,26 @@ import {
   Bed,
   Users,
   Calendar,
-  Sparkles
+  Sparkles,
+  Wifi,
+  Snowflake,
+  Car,
+  UtensilsCrossed,
+  Flame,
+  Tv,
+  Shirt,
+  ArrowUpCircle,
+  Globe,
+  Droplets,
+  Zap,
+  DollarSign,
+  Download,
+  Maximize2,
+  Image as ImageIcon,
+  CheckCircle2,
+  ShieldCheck,
+  FileText,
+  Info
 } from 'lucide-react';
 import { useLanguage } from '@/features/operacoes/i18n';
 import { logisticsService } from '../../services/logisticsService';
@@ -46,6 +65,8 @@ export const AlojamentosList: React.FC = () => {
   // Modais de Visualização e Exclusão
   const [viewingProvedor, setViewingProvedor] = useState<Provedor | null>(null);
   const [viewingAlojamento, setViewingAlojamento] = useState<Alojamento | null>(null);
+  const [activeViewPhotoIndex, setActiveViewPhotoIndex] = useState<number>(0);
+  const [zoomPhotoUrl, setZoomPhotoUrl] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string; type: 'alojamento' | 'provedor' } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -708,112 +729,488 @@ export const AlojamentosList: React.FC = () => {
       )}
 
       {/* MODAL DE VISUALIZAÇÃO COMPLETA DE ALOJAMIENTO */}
-      {viewingAlojamento && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            {/* Header Modal */}
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-xl">
-                  <Home size={24} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{viewingAlojamento.nome}</h2>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] font-mono text-slate-400">{viewingAlojamento.codigo || 'AL-XXXX'}</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold">{viewingAlojamento.tipo_alojamento || 'Fijo'}</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">{viewingAlojamento.classificacao || 'Privado'}</span>
+      {viewingAlojamento && (() => {
+        const comod = viewingAlojamento.comodidades || {};
+        const sumin = viewingAlojamento.suministros || {};
+        const cont = viewingAlojamento.contrato || (comod as any).__contrato || {};
+        const rawFotos: string[] = viewingAlojamento.fotos && viewingAlojamento.fotos.length > 0
+          ? viewingAlojamento.fotos
+          : Array.isArray((comod as any).__fotos)
+            ? (comod as any).__fotos
+            : [];
+        const currentPhoto = rawFotos[activeViewPhotoIndex] || rawFotos[0];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-4xl max-h-[94vh] overflow-hidden flex flex-col shadow-2xl">
+              
+              {/* Header Modal */}
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-sm">
+                    <Home size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                        {viewingAlojamento.nome}
+                      </h2>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        viewingAlojamento.ativo !== false && viewingAlojamento.status !== 'Inactivo'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                      }`}>
+                        {viewingAlojamento.status || (viewingAlojamento.ativo !== false ? 'Activo' : 'Inactivo')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] font-mono font-bold px-1.5 py-0.2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded">
+                        {viewingAlojamento.codigo || 'AL-0001'}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-semibold">
+                        {viewingAlojamento.tipo_alojamento || 'Fijo'}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-medium">
+                        {viewingAlojamento.classificacao || 'Privado'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <button
-                onClick={() => setViewingAlojamento(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
 
-            {/* Content Modal */}
-            <div className="p-6 overflow-y-auto space-y-5">
-              {/* Capacidade e Quartos */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                  <span className="text-xs text-slate-400 block font-medium">Capacidade</span>
-                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.capacidade_pessoas} pessoas</span>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                  <span className="text-xs text-slate-400 block font-medium">Dormitórios</span>
-                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.dormitorios} quartos</span>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                  <span className="text-xs text-slate-400 block font-medium">Total Camas</span>
-                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.total_camas} camas</span>
-                </div>
-              </div>
-
-              {/* Detalhes do Provedor */}
-              <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-xl space-y-1">
-                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Proveedor Vinculado</span>
-                <p className="font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.provedor?.nome_razao_social || 'Proveedor não especificado'}</p>
-                {viewingAlojamento.provedor?.telefone && (
-                  <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5 pt-1">
-                    <Phone size={13} />
-                    {viewingAlojamento.provedor.telefone}
-                  </p>
-                )}
-              </div>
-
-              {/* Endereço */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Endereço Completo</span>
-                <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingAlojamento.endereco || 'Endereço não cadastrado'}</p>
-                <p className="text-slate-500 text-xs">
-                  {[
-                    viewingAlojamento.municipio,
-                    viewingAlojamento.provincia,
-                    viewingAlojamento.codigo_postal ? `CP: ${viewingAlojamento.codigo_postal}` : null,
-                    viewingAlojamento.pais
-                  ].filter(Boolean).join(' • ')}
-                </p>
-              </div>
-            </div>
-
-            {/* Footer Modal Actions */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-              <button
-                onClick={() => {
-                  const id = viewingAlojamento.id;
-                  const name = viewingAlojamento.nome;
-                  setViewingAlojamento(null);
-                  setItemToDelete({ id, name, type: 'alojamento' });
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
-              >
-                <Trash2 size={14} />
-                Excluir Alojamento
-              </button>
-
-              <div className="flex gap-2">
                 <button
                   onClick={() => setViewingAlojamento(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
-                  Fechar
-                </button>
-                <button
-                  onClick={() => {
-                    const alojId = viewingAlojamento.id;
-                    setViewingAlojamento(null);
-                    navigate(`/logistica/registros/alojamentos/editar/${alojId}`);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
-                >
-                  <Pencil size={14} />
-                  Editar Alojamento
+                  <X size={20} />
                 </button>
               </div>
+
+              {/* Content Scrollable */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                
+                {/* 1. SEÇÃO DE FOTOS DO IMÓVEL */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon size={15} className="text-blue-600" />
+                      Galeria de Fotos do Imóvel ({rawFotos.length})
+                    </span>
+                    {rawFotos.length > 0 && (
+                      <span className="text-xs text-slate-400 font-medium">
+                        Foto {activeViewPhotoIndex + 1} de {rawFotos.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {rawFotos.length > 0 ? (
+                    <div className="space-y-3">
+                      {/* Foto Principal em Destaque */}
+                      <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-800 group h-64 sm:h-80 flex items-center justify-center">
+                        <img
+                          src={currentPhoto}
+                          alt="Foto do Alojamento"
+                          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 cursor-pointer"
+                          onClick={() => setZoomPhotoUrl(currentPhoto)}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+                        
+                        <div className="absolute top-3 right-3 flex items-center gap-2">
+                          <button
+                            onClick={() => setZoomPhotoUrl(currentPhoto)}
+                            className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-colors"
+                            title="Ampliar Foto"
+                          >
+                            <Maximize2 size={16} />
+                          </button>
+                          <a
+                            href={currentPhoto}
+                            download={`alojamento-foto-${activeViewPhotoIndex + 1}.jpg`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-colors"
+                            title="Baixar Imagem"
+                          >
+                            <Download size={16} />
+                          </a>
+                        </div>
+
+                        <div className="absolute bottom-3 left-3 text-white text-xs font-semibold bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg">
+                          📸 {viewingAlojamento.nome}
+                        </div>
+                      </div>
+
+                      {/* Miniaturas */}
+                      {rawFotos.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {rawFotos.map((f, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveViewPhotoIndex(idx)}
+                              className={`relative flex-shrink-0 w-20 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                                activeViewPhotoIndex === idx
+                                  ? 'border-blue-600 ring-2 ring-blue-600/30 scale-102'
+                                  : 'border-transparent opacity-70 hover:opacity-100'
+                              }`}
+                            >
+                              <img src={f} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-center space-y-2 bg-white dark:bg-slate-900/50">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto">
+                        <ImageIcon size={24} />
+                      </div>
+                      <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Nenhuma foto anexada a este imóvel</p>
+                      <p className="text-xs text-slate-400">
+                        Você pode clicar em <strong>Editar Alojamento</strong> para carregar imagens ou colar prints com <strong>Ctrl + V</strong>.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. GRID PRINCIPAL: CAPACIDADE, LOCALIZAÇÃO & PROVEDOR */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Capacidade e Camas */}
+                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users size={15} className="text-blue-600" />
+                      Capacidade & Dormitórios
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-center">
+                        <span className="text-[10px] text-slate-400 font-bold block">Capacidade</span>
+                        <span className="text-sm font-black text-blue-700 dark:text-blue-300">{viewingAlojamento.capacidade_pessoas} pax</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl text-center">
+                        <span className="text-[10px] text-slate-400 font-bold block">Dormitórios</span>
+                        <span className="text-sm font-black text-slate-700 dark:text-slate-200">{viewingAlojamento.dormitorios || 0}</span>
+                      </div>
+                      <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-center">
+                        <span className="text-[10px] text-slate-400 font-bold block">Total Camas</span>
+                        <span className="text-sm font-black text-indigo-700 dark:text-indigo-300">{viewingAlojamento.total_camas || 0}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
+                        <span className="text-[10px] text-slate-400 block">Individuais</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_individuais || 0}</span>
+                      </div>
+                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
+                        <span className="text-[10px] text-slate-400 block">Duplas / Casal</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_duplas || 0}</span>
+                      </div>
+                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
+                        <span className="text-[10px] text-slate-400 block">Banheiros</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.banheiros || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Proveedor & Localização */}
+                  <div className="space-y-3">
+                    {/* Proveedor */}
+                    <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                          <Building size={13} />
+                          Proveedor Vinculado
+                        </span>
+                        {viewingAlojamento.provedor?.codigo && (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-purple-200 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 rounded">
+                            {viewingAlojamento.provedor.codigo}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                        {viewingAlojamento.provedor?.nome_razao_social || 'Proveedor não especificado'}
+                      </p>
+                      {viewingAlojamento.provedor?.telefone && (
+                        <a
+                          href={`https://wa.me/${viewingAlojamento.provedor.telefone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline pt-0.5"
+                        >
+                          <Phone size={13} />
+                          {viewingAlojamento.provedor.telefone}
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Localização */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-1">
+                      <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin size={13} />
+                        Localização Completa
+                      </span>
+                      <p className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+                        {viewingAlojamento.endereco || 'Endereço não cadastrado'}
+                      </p>
+                      <p className="text-slate-500 text-xs">
+                        {[
+                          viewingAlojamento.municipio,
+                          viewingAlojamento.provincia,
+                          viewingAlojamento.codigo_postal ? `CP: ${viewingAlojamento.codigo_postal}` : null,
+                          viewingAlojamento.pais || 'España'
+                        ].filter(Boolean).join(' • ')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. COMODIDADES & SUPRIMENTOS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Comodidades */}
+                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-amber-500" />
+                      Comodidades do Imóvel
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { key: 'wifi', label: 'Wi-Fi', icon: Wifi },
+                        { key: 'aire_acondicionado', label: 'Ar-Condicionado', icon: Snowflake },
+                        { key: 'parking', label: 'Parking', icon: Car },
+                        { key: 'cocina', label: 'Cozinha', icon: UtensilsCrossed },
+                        { key: 'calefaccion', label: 'Aquecimento', icon: Flame },
+                        { key: 'lavadora', label: 'Lavadora', icon: Shirt },
+                        { key: 'tv', label: 'TV', icon: Tv },
+                        { key: 'ascensor', label: 'Elevador', icon: ArrowUpCircle },
+                      ].map(item => {
+                        const active = !!comod[item.key];
+                        const Icon = item.icon;
+                        return (
+                          <span
+                            key={item.key}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              active
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60'
+                            }`}
+                          >
+                            <Icon size={13} />
+                            {item.label}
+                            {active ? '✓' : '✗'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Suprimentos */}
+                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Droplets size={14} className="text-cyan-500" />
+                      Suprimentos a Pagar / Inclusos
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { key: 'internet', label: 'Internet', icon: Globe },
+                        { key: 'agua', label: 'Água', icon: Droplets },
+                        { key: 'luz', label: 'Luz / Energia', icon: Zap },
+                        { key: 'gas', label: 'Gás', icon: Flame },
+                        { key: 'limpieza', label: 'Limpeza', icon: Shirt },
+                        { key: 'otros', label: 'Outros Gastos', icon: Info },
+                      ].map(item => {
+                        const active = !!sumin[item.key];
+                        const Icon = item.icon;
+                        return (
+                          <span
+                            key={item.key}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              active
+                                ? 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60'
+                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60'
+                            }`}
+                          >
+                            <Icon size={13} />
+                            {item.label}
+                            {active ? '✓' : '✗'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. CONTRATO & CONDIÇÕES FINANCEIRAS */}
+                <div className="p-5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-emerald-100 dark:border-emerald-900/60 pb-3">
+                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <DollarSign size={15} />
+                      Contrato & Condições Financeiras
+                    </span>
+                    {cont.codigo && (
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 rounded-md">
+                        {cont.codigo}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Modalidade</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {cont.tipo_contrato || viewingAlojamento.tipo_alojamento || 'Fijo'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Aluguel / Custo Mensal</span>
+                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                        € {(viewingAlojamento.valor_mensal || cont.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Fiança / Depósito</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {cont.tem_fianza || Number(cont.fianza_valor) > 0
+                          ? `€ ${Number(cont.fianza_valor || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${cont.fianza_meses || 1}m)`
+                          : 'Sem Fiança (Airbnb/Hotel)'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Vencimento</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Dia {cont.dia_vencimento || 5} do mês
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Vigência & Banco */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block flex items-center gap-1">
+                        <Calendar size={12} />
+                        Período de Vigência
+                      </span>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {cont.data_inicio ? `Início: ${cont.data_inicio}` : 'Data Início: Não definida'}
+                        {cont.data_fim ? ` • Término: ${cont.data_fim}` : ''}
+                      </p>
+                      {cont.renovacao_automatica && (
+                        <span className="text-[10px] text-emerald-600 font-semibold block">
+                          ✓ Renovação Automática ({cont.aviso_renovacao_dias || 5} dias aviso)
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Dados Bancários */}
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block flex items-center gap-1">
+                          <CreditCard size={12} />
+                          Dados de Pagamento
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded font-semibold text-slate-600 dark:text-slate-400">
+                          {cont.metodo_pago || viewingAlojamento.provedor?.metodo_pago || 'Transferir'}
+                        </span>
+                      </div>
+
+                      {(cont.iban || viewingAlojamento.provedor?.iban) ? (
+                        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/80 p-1.5 rounded-lg">
+                          <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {cont.iban || viewingAlojamento.provedor?.iban}
+                          </span>
+                          <button
+                            onClick={() => handleCopy(cont.iban || viewingAlojamento.provedor?.iban || '')}
+                            className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded hover:opacity-80 transition-opacity"
+                          >
+                            {copiedText === (cont.iban || viewingAlojamento.provedor?.iban) ? 'Copiado!' : 'Copiar'}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">IBAN não informado</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. OBSERVAÇÕES */}
+                {viewingAlojamento.observacoes && (
+                  <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl space-y-1">
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                      <FileText size={12} />
+                      Instruções & Observações do Imóvel
+                    </span>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                      {viewingAlojamento.observacoes}
+                    </p>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Footer Modal Actions */}
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 flex justify-between items-center">
+                <button
+                  onClick={() => {
+                    const id = viewingAlojamento.id;
+                    const name = viewingAlojamento.nome;
+                    setViewingAlojamento(null);
+                    setItemToDelete({ id, name, type: 'alojamento' });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Excluir Alojamento
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setViewingAlojamento(null)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const alojId = viewingAlojamento.id;
+                      setViewingAlojamento(null);
+                      navigate(`/logistica/registros/alojamentos/editar/${alojId}`);
+                    }}
+                    className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm"
+                  >
+                    <Pencil size={14} />
+                    Editar Alojamento
+                  </button>
+                </div>
+              </div>
+
             </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL DE ZOOM DE FOTO */}
+      {zoomPhotoUrl && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150 cursor-pointer"
+          onClick={() => setZoomPhotoUrl(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <img src={zoomPhotoUrl} alt="Zoom Preview" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
+            <button
+              onClick={() => setZoomPhotoUrl(null)}
+              className="absolute top-4 right-4 p-2.5 bg-black/70 hover:bg-black/90 text-white rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <a
+              href={zoomPhotoUrl}
+              download="alojamento-foto.jpg"
+              target="_blank"
+              rel="noreferrer"
+              className="absolute bottom-4 right-4 flex items-center gap-1.5 px-4 py-2 bg-black/70 hover:bg-black/90 text-white text-xs font-bold rounded-xl transition-colors"
+            >
+              <Download size={14} />
+              Baixar Foto Original
+            </a>
           </div>
         </div>
       )}
