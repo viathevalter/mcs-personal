@@ -259,6 +259,7 @@ export const AlojamentoForm: React.FC = () => {
 
   // Encontra o provedor selecionado atualmente e seus alojamentos vinculados
   const currentProvedor = provedores.find(p => p.id === selectedProvedorId);
+  const provAlojamentosCount = existingAlojamentos.filter(a => a.provedor_id === selectedProvedorId).length;
 
   // SMART CALC 1: Sincronização Inteligente de Camas e Capacidade
   useEffect(() => {
