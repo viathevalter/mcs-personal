@@ -67,6 +67,7 @@ export const ProvedorForm: React.FC = () => {
     control,
     setValue,
     reset,
+    watch,
     formState: { errors },
   } = useForm<ProvedorFormValues>({
     resolver: zodResolver(provedorSchema),

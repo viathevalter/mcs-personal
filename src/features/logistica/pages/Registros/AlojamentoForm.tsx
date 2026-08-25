@@ -134,6 +134,7 @@ export const AlojamentoForm: React.FC = () => {
     setValue,
     getValues,
     reset,
+    watch,
     formState: { errors },
   } = useForm<AlojamentoFormValues>({
     resolver: zodResolver(alojamentoSchema),
