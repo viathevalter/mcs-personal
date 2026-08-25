@@ -218,13 +218,21 @@ export const AlojamentoForm: React.FC = () => {
 
   // Carregar lista de provedores e alojamentos existentes para auto-cálculos
   useEffect(() => {
-    Promise.all([
-      registrosService.fetchProvedores(),
-      registrosService.fetchAlojamentos()
-    ]).then(([provData, alojData]) => {
-      setProvedores(provData as Provedor[]);
-      setExistingAlojamentos(alojData as Alojamento[]);
-    }).catch(console.error);
+    registrosService.fetchProvedores()
+      .then((provData) => {
+        if (provData && provData.length > 0) {
+          setProvedores(provData as Provedor[]);
+        }
+      })
+      .catch((err) => console.error('Erro ao buscar provedores:', err));
+
+    registrosService.fetchAlojamentos()
+      .then((alojData) => {
+        if (alojData && alojData.length > 0) {
+          setExistingAlojamentos(alojData as Alojamento[]);
+        }
+      })
+      .catch((err) => console.error('Erro ao buscar alojamentos:', err));
   }, []);
 
   // Encontra o provedor selecionado atualmente e seus alojamentos vinculados
