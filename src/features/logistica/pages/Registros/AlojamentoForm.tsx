@@ -9,29 +9,98 @@ import {
   Home,
   MapPin,
   Bed,
+  Users,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Wifi,
+  Wind,
+  Car,
+  Utensils,
+  Flame,
+  Tv,
+  Droplets,
+  Zap,
+  Sparkle,
+  Plus,
+  Trash2,
+  CreditCard,
+  FileText,
+  Calendar,
+  DollarSign,
+  Building,
+  Image as ImageIcon,
+  Check,
+  X,
+  Layers
 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import type { Provedor } from '../../services/logisticsService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 
 const alojamentoSchema = z.object({
-  nome: z.string().min(1, 'Nome do Alojamento é obrigatório'),
-  provedor_id: z.string().optional().nullable(),
+  nome: z.string().min(1, 'Nome / Título do Alojamento é obrigatório'),
+  codigo: z.string().default('AL-0001'),
+  provedor_id: z.string().min(1, 'O vínculo com o Proveedor é obrigatório'),
   tipo_alojamento: z.string().default('Fijo'),
   classificacao: z.string().default('Privado'),
+  status: z.string().default('Activo'),
+  
+  // Capacidade e Quartos
   capacidade_pessoas: z.coerce.number().min(0).default(0),
   dormitorios: z.coerce.number().min(0).default(0),
   total_camas: z.coerce.number().min(0).default(0),
   camas_individuais: z.coerce.number().min(0).default(0),
   camas_duplas: z.coerce.number().min(0).default(0),
   banheiros: z.coerce.number().min(0).default(0),
+  
+  // Localização
   endereco: z.string().optional(),
   municipio: z.string().optional(),
   provincia: z.string().optional(),
   codigo_postal: z.string().optional(),
   pais: z.string().default('España'),
+
+  // Comodidades / Alojamiento
+  wifi: z.boolean().default(false),
+  aire_acondicionado: z.boolean().default(false),
+  parking: z.boolean().default(false),
+  cocina: z.boolean().default(false),
+  calefaccion: z.boolean().default(false),
+  lavadora: z.boolean().default(false),
+  tv: z.boolean().default(false),
+  ascensor: z.boolean().default(false),
+
+  // Suministros a Pagar
+  suministro_internet: z.boolean().default(false),
+  suministro_agua: z.boolean().default(false),
+  suministro_luz: z.boolean().default(false),
+  suministro_gas: z.boolean().default(false),
+  suministro_limpieza: z.boolean().default(false),
+  suministro_otros: z.boolean().default(false),
+
+  // Observações
+  observacoes: z.string().optional(),
+
+  // Contrato & Financeiro
+  contrato_codigo: z.string().default('CT-2026/0001'),
+  contrato_status: z.string().default('Activo'),
+  renovacao_automatica: z.boolean().default(false),
+  aviso_renovacao_dias: z.coerce.number().default(5),
+  data_inicio: z.string().optional(),
+  data_fim: z.string().optional(),
+  dia_vencimento: z.coerce.number().min(1).max(31).default(5),
+  valor_mensal: z.coerce.number().default(0),
+  tipo_contrato: z.string().default('Fijo'),
+  fianza_valor: z.coerce.number().default(0),
+  fianza_meses: z.coerce.number().default(1),
+
+  // Bancários (Herdados)
+  banco: z.string().optional(),
+  iban: z.string().optional(),
+  swift: z.string().optional(),
+  titular_conta: z.string().optional(),
+  metodo_pago: z.string().default('Transferir'),
+
   ativo: z.boolean().default(true),
 });
 
@@ -46,6 +115,8 @@ export const AlojamentoForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [provedores, setProvedores] = useState<Provedor[]>([]);
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [showColabModal, setShowColabModal] = useState(false);
   const dataLoadedRef = useRef(false);
 
   const {
@@ -53,15 +124,18 @@ export const AlojamentoForm: React.FC = () => {
     handleSubmit,
     control,
     setValue,
+    getValues,
     reset,
     formState: { errors },
   } = useForm<AlojamentoFormValues>({
     resolver: zodResolver(alojamentoSchema),
     defaultValues: {
       nome: '',
+      codigo: `AL-${Math.floor(1000 + Math.random() * 9000)}`,
       provedor_id: '',
       tipo_alojamento: 'Fijo',
       classificacao: 'Privado',
+      status: 'Activo',
       capacidade_pessoas: 0,
       dormitorios: 0,
       total_camas: 0,
@@ -73,6 +147,37 @@ export const AlojamentoForm: React.FC = () => {
       provincia: '',
       codigo_postal: '',
       pais: 'España',
+      wifi: true,
+      aire_acondicionado: false,
+      parking: false,
+      cocina: true,
+      calefaccion: true,
+      lavadora: true,
+      tv: true,
+      ascensor: false,
+      suministro_internet: true,
+      suministro_agua: true,
+      suministro_luz: true,
+      suministro_gas: false,
+      suministro_limpieza: false,
+      suministro_otros: false,
+      observacoes: '',
+      contrato_codigo: `CT-2026/${Math.floor(1000 + Math.random() * 9000)}`,
+      contrato_status: 'Activo',
+      renovacao_automatica: true,
+      aviso_renovacao_dias: 5,
+      data_inicio: new Date().toISOString().split('T')[0],
+      data_fim: '',
+      dia_vencimento: 5,
+      valor_mensal: 0,
+      tipo_contrato: 'Fijo',
+      fianza_valor: 0,
+      fianza_meses: 1,
+      metodo_pago: 'Transferir',
+      banco: '',
+      iban: '',
+      swift: '',
+      titular_conta: '',
       ativo: true,
     },
   });
@@ -80,6 +185,9 @@ export const AlojamentoForm: React.FC = () => {
   const selectedProvedorId = useWatch({ control, name: 'provedor_id' });
   const watchedPais = useWatch({ control, name: 'pais' });
   const watchedProvincia = useWatch({ control, name: 'provincia' });
+  const watchedCodigo = useWatch({ control, name: 'codigo' });
+  const watchedStatus = useWatch({ control, name: 'status' });
+  const watchedRenovacao = useWatch({ control, name: 'renovacao_automatica' });
 
   // Carregar lista de provedores
   useEffect(() => {
@@ -88,19 +196,37 @@ export const AlojamentoForm: React.FC = () => {
     }).catch(console.error);
   }, []);
 
-  // Quando o usuário seleciona um provedor, auto-preenche o endereço se estiver vazio
-  useEffect(() => {
-    if (selectedProvedorId && provedores.length > 0) {
-      const prov = provedores.find(p => p.id === selectedProvedorId);
-      if (prov) {
-        if (prov.pais) setValue('pais', prov.pais, { shouldDirty: true });
-        if (prov.provincia) setValue('provincia', prov.provincia, { shouldDirty: true });
-        if (prov.municipio) setValue('municipio', prov.municipio, { shouldDirty: true });
-        if (prov.codigo_postal) setValue('codigo_postal', prov.codigo_postal, { shouldDirty: true });
-        if (prov.endereco) setValue('endereco', prov.endereco, { shouldDirty: true });
+  // Encontra o provedor selecionado atualmente
+  const currentProvedor = provedores.find(p => p.id === selectedProvedorId);
+
+  // Quando o usuário seleciona um provedor, auto-preenche o título, código, endereço e dados bancários
+  const handleProvedorChange = (provId: string) => {
+    setValue('provedor_id', provId, { shouldDirty: true });
+    const prov = provedores.find(p => p.id === provId);
+    if (prov) {
+      const codeToUse = getValues('codigo') || `AL-${Math.floor(1000 + Math.random() * 9000)}`;
+      
+      // Auto-gera Título: "[Nome do Provedor] - [Código Alojamento]"
+      if (!isEditing || !getValues('nome')) {
+        setValue('nome', `${prov.nome_razao_social} - ${codeToUse}`, { shouldDirty: true });
       }
+
+      // Auto-preenche localização a partir do endereço do Provedor
+      if (prov.endereco) setValue('endereco', prov.endereco, { shouldDirty: true });
+      if (prov.municipio) setValue('municipio', prov.municipio, { shouldDirty: true });
+      if (prov.provincia) setValue('provincia', prov.provincia, { shouldDirty: true });
+      if (prov.codigo_postal) setValue('codigo_postal', prov.codigo_postal, { shouldDirty: true });
+      if (prov.pais) setValue('pais', prov.pais, { shouldDirty: true });
+
+      // Auto-preenche dados bancários
+      const principalBanco = prov.dados_bancarios?.find(b => b.principal) || prov.dados_bancarios?.[0];
+      setValue('banco', principalBanco?.banco || prov.banco || '', { shouldDirty: true });
+      setValue('iban', principalBanco?.iban || prov.iban || '', { shouldDirty: true });
+      setValue('swift', principalBanco?.swift || prov.swift || '', { shouldDirty: true });
+      setValue('titular_conta', principalBanco?.titular_conta || prov.titular_conta || prov.nome_razao_social, { shouldDirty: true });
+      setValue('metodo_pago', principalBanco?.metodo_pago || prov.metodo_pago || 'Transferir', { shouldDirty: true });
     }
-  }, [selectedProvedorId, provedores, setValue]);
+  };
 
   // Carregar dados no modo de edição
   useEffect(() => {
@@ -109,11 +235,21 @@ export const AlojamentoForm: React.FC = () => {
       registrosService.fetchAlojamentoById(id).then((a) => {
         if (a) {
           dataLoadedRef.current = true;
+          const comod = a.comodidades || {};
+          const sumin = a.suministros || {};
+          const cont = a.contrato || {};
+
+          if (a.fotos && Array.isArray(a.fotos)) {
+            setFotos(a.fotos);
+          }
+
           reset({
             nome: a.nome || a.titulo || '',
+            codigo: a.codigo || `AL-${Math.floor(1000 + Math.random() * 9000)}`,
             provedor_id: a.provedor_id || '',
             tipo_alojamento: a.tipo_alojamento || 'Fijo',
             classificacao: a.classificacao || 'Privado',
+            status: a.status || (a.ativo === false ? 'Inactivo' : 'Activo'),
             capacidade_pessoas: a.capacidade_pessoas || 0,
             dormitorios: a.dormitorios || 0,
             total_camas: a.total_camas || 0,
@@ -125,7 +261,38 @@ export const AlojamentoForm: React.FC = () => {
             provincia: a.provincia || '',
             codigo_postal: a.codigo_postal || '',
             pais: a.pais || 'España',
-            ativo: a.ativo ?? true,
+            wifi: comod.wifi ?? true,
+            aire_acondicionado: comod.aire_acondicionado ?? false,
+            parking: comod.parking ?? false,
+            cocina: comod.cocina ?? true,
+            calefaccion: comod.calefaccion ?? true,
+            lavadora: comod.lavadora ?? true,
+            tv: comod.tv ?? true,
+            ascensor: comod.ascensor ?? false,
+            suministro_internet: sumin.internet ?? true,
+            suministro_agua: sumin.agua ?? true,
+            suministro_luz: sumin.luz ?? true,
+            suministro_gas: sumin.gas ?? false,
+            suministro_limpieza: sumin.limpieza ?? false,
+            suministro_otros: sumin.otros ?? false,
+            observacoes: a.observacoes || '',
+            contrato_codigo: cont.codigo || `CT-2026/${Math.floor(1000 + Math.random() * 9000)}`,
+            contrato_status: cont.status || 'Activo',
+            renovacao_automatica: cont.renovacao_automatica ?? true,
+            aviso_renovacao_dias: cont.aviso_renovacao_dias || 5,
+            data_inicio: cont.data_inicio || '',
+            data_fim: cont.data_fim || '',
+            dia_vencimento: cont.dia_vencimento || 5,
+            valor_mensal: a.valor_mensal || cont.valor_mensal || 0,
+            tipo_contrato: cont.tipo_contrato || 'Fijo',
+            fianza_valor: cont.fianza_valor || 0,
+            fianza_meses: cont.fianza_meses || 1,
+            metodo_pago: cont.metodo_pago || a.provedor?.metodo_pago || 'Transferir',
+            banco: cont.banco || a.provedor?.banco || '',
+            iban: cont.iban || a.provedor?.iban || '',
+            swift: cont.swift || a.provedor?.swift || '',
+            titular_conta: cont.titular || a.provedor?.titular_conta || '',
+            ativo: a.status !== 'Inactivo' && a.ativo !== false,
           });
         }
       }).catch(err => {
@@ -136,14 +303,79 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [id, reset]);
 
+  const handleAddPhoto = () => {
+    if (fotos.length >= 5) {
+      alert('O limite máximo é de 5 fotos por alojamento.');
+      return;
+    }
+    const samplePhotos = [
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&auto=format&fit=crop&q=80'
+    ];
+    const newPhoto = samplePhotos[fotos.length % samplePhotos.length];
+    setFotos(prev => [...prev, newPhoto]);
+  };
+
+  const handleRemovePhoto = (idx: number) => {
+    setFotos(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const onSubmit = async (data: AlojamentoFormValues) => {
     try {
       setIsSubmitting(true);
+
+      const comodidades = {
+        wifi: data.wifi,
+        aire_acondicionado: data.aire_acondicionado,
+        parking: data.parking,
+        cocina: data.cocina,
+        calefaccion: data.calefaccion,
+        lavadora: data.lavadora,
+        tv: data.tv,
+        ascensor: data.ascensor,
+      };
+
+      const suministros = {
+        internet: data.suministro_internet,
+        agua: data.suministro_agua,
+        luz: data.suministro_luz,
+        gas: data.suministro_gas,
+        limpieza: data.suministro_limpieza,
+        otros: data.suministro_otros,
+      };
+
+      const contrato = {
+        codigo: data.contrato_codigo,
+        status: data.contrato_status,
+        renovacao_automatica: data.renovacao_automatica,
+        aviso_renovacao_dias: data.aviso_renovacao_dias,
+        data_inicio: data.data_inicio,
+        data_fim: data.data_fim,
+        dia_vencimento: data.dia_vencimento,
+        valor_mensal: data.valor_mensal,
+        tipo_contrato: data.tipo_contrato,
+        fianza_valor: data.fianza_valor,
+        fianza_meses: data.fianza_meses,
+        metodo_pago: data.metodo_pago,
+        banco: data.banco,
+        iban: data.iban,
+        swift: data.swift,
+        titular: data.titular_conta,
+      };
+
       const payload = {
         ...data,
         titulo: data.nome,
-        provedor_id: data.provedor_id || null,
-        pais: data.pais || 'España',
+        comodidades,
+        suministros,
+        fotos,
+        contrato,
+        valor_mensal: data.valor_mensal,
+        status: data.status,
+        ativo: data.status === 'Activo'
       };
 
       if (isEditing && id) {
@@ -180,23 +412,28 @@ export const AlojamentoForm: React.FC = () => {
   }
 
   return (
-    <div className="w-full px-8 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="w-full px-6 py-5 space-y-5 bg-slate-100/70 dark:bg-slate-950 min-h-screen">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => navigate('/logistica/registros/alojamentos')}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {isEditing ? 'Editar Alojamiento' : 'Nuevo Alojamiento'}
-            </h1>
-            <p className="text-sm text-slate-500">
-              {isEditing ? 'Atualize as informações do imóvel, capacidade e localização' : 'Cadastre um novo alojamento vinculado a um proveedor'}
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
+                {isEditing ? 'Registro de Alojamiento' : 'Nuevo Alojamiento'}
+              </h1>
+              <span className="px-3 py-1 bg-blue-600 text-white font-mono font-bold text-xs rounded-lg tracking-wider shadow-xs">
+                {watchedCodigo || 'AL-0001'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gestão integral do imóvel, características, suprimentos e vínculo contratual com o fornecedor
             </p>
           </div>
         </div>
@@ -205,7 +442,7 @@ export const AlojamentoForm: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/logistica/registros/alojamentos')}
-            className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-sm font-medium transition-colors"
+            className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-semibold transition-colors"
           >
             Cancelar
           </button>
@@ -213,7 +450,7 @@ export const AlojamentoForm: React.FC = () => {
             type="button"
             onClick={handleSubmit(onSubmit, onError)}
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors shadow-xs disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
           >
             {saveSuccess ? (
               <>
@@ -228,199 +465,705 @@ export const AlojamentoForm: React.FC = () => {
             ) : (
               <>
                 <Save size={16} />
-                {isEditing ? 'Salvar Alterações' : 'Cadastrar Alojamento'}
+                Guardar
               </>
             )}
           </button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
-        {/* BLOCO 1: Informações do Alojamento & Vínculo com Provedor */}
-        <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <Home className="h-4.5 w-4.5 text-blue-600" />
-            Informações do Imóvel & Proveedor
-          </h3>
+      <form onSubmit={handleSubmit(onSubmit, onError)} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        {/* ========================================================= */}
+        {/* COLUNA 1 (ESQUERDA - 5 COLUNAS): DADOS, LOCALIZAÇÃO, FOTOS */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-5 space-y-5">
+          
+          {/* BLOCO: Datos de Alojamiento */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <Home size={15} className="text-blue-600" />
+              Datos de Alojamiento
+            </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Nome / Título do Alojamento *
-              </label>
-              <input
-                type="text"
-                {...register('nome')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Alojamiento Arbúcies Centro"
-              />
-              {errors.nome && (
-                <p className="text-red-500 text-xs mt-1">{errors.nome.message}</p>
+            <div className="space-y-3">
+              {/* Proveedor & Código Provedor */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Proveedor *
+                  </label>
+                  <select
+                    value={selectedProvedorId || ''}
+                    onChange={e => handleProvedorChange(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Selecione o Proveedor (Obrigatório)...</option>
+                    {provedores.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome_razao_social} {p.municipio ? `(${p.municipio})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.provedor_id && (
+                    <p className="text-red-500 text-[10px] mt-1">{errors.provedor_id.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Código Provedor
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={currentProvedor?.codigo || (currentProvedor ? 'PV-0001' : '')}
+                    placeholder="PV-XXXX"
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-600 dark:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Título do Alojamento */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Título de Alojamiento *
+                </label>
+                <input
+                  type="text"
+                  {...register('nome')}
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: PRUJA FORNIELES PARES SL - AL-0008"
+                />
+                {errors.nome && (
+                  <p className="text-red-500 text-[10px] mt-1">{errors.nome.message}</p>
+                )}
+              </div>
+
+              {/* Tipo e Classificação */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tipo de Alojamiento
+                  </label>
+                  <select
+                    {...register('tipo_alojamento')}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  >
+                    <option value="Fijo">Fijo</option>
+                    <option value="Temporario">Temporario</option>
+                    <option value="Propio">Propio</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Clasificación
+                  </label>
+                  <select
+                    {...register('classificacao')}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  >
+                    <option value="Privado">Privado</option>
+                    <option value="Compartilhado">Compartilhado</option>
+                    <option value="Hotel / Pensión">Hotel / Pensión</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid de Capacidade e Quartos com Ícones */}
+              <div className="pt-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  <div className="p-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-xl text-center">
+                    <Users size={14} className="mx-auto text-blue-600 mb-1" />
+                    <span className="text-[9px] font-bold text-slate-500 block">Capacidad</span>
+                    <input
+                      type="number"
+                      {...register('capacidade_pessoas')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                    <Home size={14} className="mx-auto text-slate-600 mb-1" />
+                    <span className="text-[9px] font-bold text-slate-500 block">Dormitórios</span>
+                    <input
+                      type="number"
+                      {...register('dormitorios')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                    <Bed size={14} className="mx-auto text-slate-600 mb-1" />
+                    <span className="text-[9px] font-bold text-slate-500 block">Total Camas</span>
+                    <input
+                      type="number"
+                      {...register('total_camas')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">1x</span>
+                    <span className="text-[9px] font-bold text-slate-500 block">Individuais</span>
+                    <input
+                      type="number"
+                      {...register('camas_individuais')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">2x</span>
+                    <span className="text-[9px] font-bold text-slate-500 block">Dobles</span>
+                    <input
+                      type="number"
+                      {...register('camas_duplas')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                    <Droplets size={14} className="mx-auto text-slate-600 mb-1" />
+                    <span className="text-[9px] font-bold text-slate-500 block">Baños</span>
+                    <input
+                      type="number"
+                      {...register('banheiros')}
+                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCO: Localización */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <MapPin size={15} className="text-rose-600" />
+                Localización
+              </h3>
+              {selectedProvedorId && (
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Sparkles size={11} />
+                  Sincronizado
+                </span>
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Proveedor / Proprietário Vinculado
-              </label>
-              <select
-                {...register('provedor_id')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecione um proveedor (Opcional)</option>
-                {provedores.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome_razao_social} {p.municipio ? `(${p.municipio})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Ubicación (Calle, Número, Piso)
+                  </label>
+                  <input
+                    type="text"
+                    {...register('endereco')}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    placeholder="Ex: Calle de los Álamos, 24, 2ºB"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tipo de Alojamento
-              </label>
-              <select
-                {...register('tipo_alojamento')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Fijo">Fijo (Contrato Anual / Fixo)</option>
-                <option value="Temporario">Temporario (Aluguel Curto / Temporada)</option>
-                <option value="Propio">Propio (Imóvel Próprio)</option>
-              </select>
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Municipio / Ciudad
+                  </label>
+                  <input
+                    type="text"
+                    {...register('municipio')}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    placeholder="Ex: Gijón / Arbúcies"
+                  />
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Classificação
-              </label>
-              <select
-                {...register('classificacao')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Privado">Privado</option>
-                <option value="Compartilhado">Compartilhado</option>
-                <option value="Hotel / Pensão">Hotel / Pensão</option>
-              </select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    País
+                  </label>
+                  <CountrySelector
+                    value={watchedPais || 'España'}
+                    onChange={(_id, name) => setValue('pais', name || 'España', { shouldDirty: true })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Provincia
+                  </label>
+                  <RegionSelector
+                    countryName={watchedPais || 'España'}
+                    value={watchedProvincia || null}
+                    onChange={(_id, name) => setValue('provincia', name || '', { shouldDirty: true })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Código Postal
+                  </label>
+                  <input
+                    type="text"
+                    {...register('codigo_postal')}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    placeholder="Ex: 33201 / 17401"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Capacidade e Quartos */}
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-            <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-3 flex items-center gap-1.5">
-              <Bed size={14} className="text-blue-600" />
-              Capacidade e Quartos
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Capacidade Total</label>
-                <input type="number" {...register('capacidade_pessoas')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center font-bold" />
+          {/* BLOCO: Fotos */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <ImageIcon size={15} className="text-purple-600" />
+                Fotos do Imóvel ({fotos.length}/5)
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddPhoto}
+                className="flex items-center gap-1 px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-lg text-xs font-bold transition-colors"
+              >
+                <Plus size={13} />
+                + Agregar Imágenes
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-400">Sólo puedes agregar un máximo de 5 imágenes al hosting a la vez.</p>
+
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-1">
+              {fotos.map((url, idx) => (
+                <div key={idx} className="relative group rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <img src={url} alt={`Alojamento foto ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(idx)}
+                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-xs"
+                    title="Remover Foto"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))}
+              {fotos.length === 0 && (
+                <div className="col-span-full p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center text-xs text-slate-400">
+                  Nenhuma foto adicionada. Clique em "+ Agregar Imágenes" para anexar fotos do alojamento.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* COLUNA 2 (CENTRAL - 3 COLUNAS): ESTADO, COMODIDADES, GASTOS */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-3 space-y-5">
+          
+          {/* BLOCO: Estado Alojamiento */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <CheckCircle2 size={15} className="text-emerald-600" />
+              Estado Alojamiento
+            </h3>
+            <select
+              {...register('status')}
+              className={`w-full px-3.5 py-2.5 rounded-xl font-bold text-xs border ${
+                watchedStatus === 'Activo'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              <option value="Activo">🟢 Activo</option>
+              <option value="Inactivo">🔴 Inactivo</option>
+              <option value="Mantenimiento">🟡 Mantenimiento</option>
+            </select>
+          </div>
+
+          {/* BLOCO: Alojamiento (Comodidades / Equipamentos) */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-purple-100 dark:border-purple-900/40">
+              <Sparkles size={15} className="text-purple-600" />
+              Alojamiento (Comodidades)
+            </h3>
+            
+            <div className="space-y-2.5">
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('wifi')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Wifi size={14} className="text-blue-500" />
+                <span>Wi-Fi</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('aire_acondicionado')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Wind size={14} className="text-cyan-500" />
+                <span>Aire acondicionado</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('parking')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Car size={14} className="text-amber-500" />
+                <span>Parking</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('cocina')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Utensils size={14} className="text-emerald-500" />
+                <span>Cocina</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('calefaccion')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Flame size={14} className="text-rose-500" />
+                <span>Calefacción</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('tv')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
+                <Tv size={14} className="text-indigo-500" />
+                <span>Televisión</span>
+              </label>
+            </div>
+          </div>
+
+          {/* BLOCO: Suministro a Pagar */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-amber-100 dark:border-amber-900/40">
+              <Zap size={15} className="text-amber-600" />
+              Suministro a Pagar
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-2.5">
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_internet')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Internet</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_agua')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Agua</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_luz')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Luz</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_limpieza')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Limpieza</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_gas')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Gas</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" {...register('suministro_otros')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
+                <span>Otros gastos</span>
+              </label>
+            </div>
+          </div>
+
+          {/* BLOCO: Observaciones */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <FileText size={15} className="text-blue-600" />
+              Observaciones
+            </h3>
+            <textarea
+              {...register('observacoes')}
+              rows={3}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500"
+              placeholder="Instruções de chaves, regras da casa, contatos de emergência..."
+            />
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* COLUNA 3 (DIREITA - 4 COLUNAS): CONTRATO & FINANCEIRO */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-4 space-y-5">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <CreditCard size={15} className="text-emerald-600" />
+                Contratos & Financiero
+              </h3>
+              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] font-bold rounded-full">
+                {getValues('contrato_status') || 'Activo'}
+              </span>
+            </div>
+
+            {/* Código do Contrato */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Detalles del Contrato</span>
+              <div className="flex items-center justify-between">
+                <input
+                  type="text"
+                  {...register('contrato_codigo')}
+                  className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold w-36"
+                  placeholder="CT-2026/0084"
+                />
+                <span className="text-[11px] font-semibold text-slate-500">PO-0374</span>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Dormitórios</label>
-                <input type="number" {...register('dormitorios')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center font-bold" />
+            </div>
+
+            {/* Renovação */}
+            <div className="p-3 bg-blue-50/40 dark:bg-blue-950/20 rounded-xl border border-blue-100 dark:border-blue-900/60 space-y-2">
+              <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar size={13} />
+                Renovación
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-semibold mb-1">Renovación Automática</label>
+                  <select
+                    value={watchedRenovacao ? 'Sim' : 'Nao'}
+                    onChange={e => setValue('renovacao_automatica', e.target.value === 'Sim', { shouldDirty: true })}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                  >
+                    <option value="Sim">Sí</option>
+                    <option value="Nao">No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-semibold mb-1">Aviso Renovación</label>
+                  <input
+                    type="number"
+                    {...register('aviso_renovacao_dias')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    placeholder="5 dias"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Total Camas</label>
-                <input type="number" {...register('total_camas')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center font-bold" />
+            </div>
+
+            {/* Término */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar size={13} />
+                Término
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-1">Fecha Inicio</label>
+                  <input
+                    type="date"
+                    {...register('data_inicio')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-1">Fecha Fin</label>
+                  <input
+                    type="date"
+                    {...register('data_fim')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-1">Día Vencimiento</label>
+                  <input
+                    type="number"
+                    {...register('dia_vencimento')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] text-center font-bold"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Camas Individuais</label>
-                <input type="number" {...register('camas_individuais')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center" />
+            </div>
+
+            {/* Financiero */}
+            <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/60 space-y-2">
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign size={13} />
+                Financiero
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Alquiler Mensual (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register('valor_mensal')}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                    placeholder="1350.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Tipo Contrato</label>
+                  <select
+                    {...register('tipo_contrato')}
+                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  >
+                    <option value="Fijo">Fijo</option>
+                    <option value="Por Trabajador">Por Trabajador</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Valor Fianza (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register('fianza_valor')}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                    placeholder="2700.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Meses de Fianza</label>
+                  <input
+                    type="number"
+                    {...register('fianza_meses')}
+                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center"
+                    placeholder="2"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Camas Duplas</label>
-                <input type="number" {...register('camas_duplas')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1 text-center">Banheiros</label>
-                <input type="number" {...register('banheiros')} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center" />
+            </div>
+
+            {/* Informaciones Bancarias Herdadas */}
+            <div className="p-3 bg-purple-50/40 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-900/60 space-y-2">
+              <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard size={13} />
+                Informaciones Bancarias (Proveedor)
+              </span>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-500 text-[11px]">
+                  <span>Método de Pago:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{getValues('metodo_pago') || 'Transferir'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">Banco</span>
+                  <input
+                    type="text"
+                    {...register('banco')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    placeholder="Nome do Banco"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">IBAN</span>
+                  <input
+                    type="text"
+                    {...register('iban')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                    placeholder="ES91 2100..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-semibold">SWIFT</span>
+                    <input
+                      type="text"
+                      {...register('swift')}
+                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                      placeholder="SWIFT/BIC"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-semibold">Titular</span>
+                    <input
+                      type="text"
+                      {...register('titular_conta')}
+                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Titular"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* BLOCO 2: Localização / Endereço Principal (Vinculado a Tabelas Oficiais de Países e Províncias) */}
-        <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <MapPin className="h-4.5 w-4.5 text-blue-600" />
-              Endereço Principal & Localização do Imóvel
-            </h3>
-            {selectedProvedorId && (
-              <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Sparkles size={12} />
-                Sincronizado com o Provedor
-              </span>
-            )}
-          </div>
+        {/* ========================================================= */}
+        {/* BOTTOM BAR: COLABORADORES, CANCELAR, GUARDAR */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-12 flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setShowColabModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold transition-colors"
+          >
+            <Users size={15} />
+            Colaboradores Alocados
+          </button>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                Logradouro / Endereço Completo (Rua, Número, Andar, Porta)
-              </label>
-              <input
-                type="text"
-                {...register('endereco')}
-                className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Arbúcies, Carrer Mossèn Jacint Verdaguer, núm. 21."
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  País (Tabela Oficial)
-                </label>
-                <CountrySelector
-                  value={watchedPais || 'España'}
-                  onChange={(_id, name) => {
-                    setValue('pais', name || 'España', { shouldDirty: true });
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Província (Tabela Oficial)
-                </label>
-                <RegionSelector
-                  countryName={watchedPais || 'España'}
-                  value={watchedProvincia || null}
-                  onChange={(_id, name) => {
-                    setValue('provincia', name || '', { shouldDirty: true });
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Cidade / Município
-                </label>
-                <input
-                  type="text"
-                  {...register('municipio')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Arbúcies / Sabadell"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Código Postal (Opcional)
-                </label>
-                <input
-                  type="text"
-                  {...register('codigo_postal')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: 17401 / 08001"
-                />
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/logistica/registros/alojamentos')}
+              className="flex items-center gap-1.5 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition-colors"
+            >
+              <X size={15} />
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit(onSubmit, onError)}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+            >
+              {saveSuccess ? (
+                <>
+                  <CheckCircle2 size={16} className="text-emerald-300" />
+                  Salvo com Sucesso!
+                </>
+              ) : isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Gravando...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Guardar
+                </>
+              )}
+            </button>
           </div>
         </div>
       </form>
+
+      {/* Modal de Colaboradores Alocados */}
+      {showColabModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Users className="text-blue-600" size={20} />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Colaboradores no Alojamento</h3>
+              </div>
+              <button onClick={() => setShowColabModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Este alojamento possui capacidade para <strong>{getValues('capacidade_pessoas') || 0} pessoas</strong> em <strong>{getValues('total_camas') || 0} camas</strong>.
+            </p>
+
+            <div className="p-8 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center text-xs text-slate-400">
+              Gerencie as alocações em tempo real através da aba <strong>Ocupação (Gantt)</strong> ou <strong>Demandas de Alocação</strong> no menu lateral.
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowColabModal(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-200"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

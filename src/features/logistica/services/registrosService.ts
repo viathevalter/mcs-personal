@@ -43,6 +43,25 @@ export interface Provedor {
   ativo: boolean;
 }
 
+export interface ContratoInfo {
+  codigo?: string;
+  status?: string;
+  renovacao_automatica?: boolean;
+  aviso_renovacao_dias?: number;
+  data_inicio?: string;
+  data_fim?: string;
+  dia_vencimento?: number;
+  valor_mensal?: number;
+  tipo_contrato?: string;
+  fianza_valor?: number;
+  fianza_meses?: number;
+  metodo_pago?: string;
+  banco?: string;
+  iban?: string;
+  swift?: string;
+  titular?: string;
+}
+
 export interface Alojamento {
   id: string;
   codigo?: string;
@@ -64,14 +83,42 @@ export interface Alojamento {
   codigo_postal?: string;
   country_id?: string | null;
   region_id?: string | null;
-  comodidades?: any;
-  suministros?: any;
+  comodidades?: {
+    wifi?: boolean;
+    aire_acondicionado?: boolean;
+    parking?: boolean;
+    cocina?: boolean;
+    calefaccion?: boolean;
+    lavadora?: boolean;
+    tv?: boolean;
+    ascensor?: boolean;
+    [key: string]: any;
+  };
+  suministros?: {
+    internet?: boolean;
+    agua?: boolean;
+    luz?: boolean;
+    gas?: boolean;
+    limpieza?: boolean;
+    otros?: boolean;
+    [key: string]: any;
+  };
+  fotos?: string[];
+  contrato?: ContratoInfo;
   valor_mensal?: number;
   observacoes?: string;
+  status?: string;
   ativo: boolean;
   provedor?: {
+    id?: string;
+    codigo?: string;
     nome_razao_social: string;
     telefone?: string;
+    banco?: string;
+    iban?: string;
+    swift?: string;
+    titular_conta?: string;
+    metodo_pago?: string;
   };
 }
 
@@ -92,7 +139,6 @@ const buildProvedorPayload = (input: any) => {
     region_id: input.region_id || null,
   };
 
-  // Preserva a lista de contatos do usuário e anexa metadata como objeto auxiliar no array
   const rawContatos = Array.isArray(input.contatos) ? input.contatos.filter((c: any) => !c.__meta) : [];
   const contatosComMeta = [
     ...rawContatos,
@@ -163,6 +209,12 @@ const hydrateProvedor = (p: any): Provedor => {
 };
 
 const buildAlojamentoPayload = (input: any) => {
+  const comodidadesMeta = {
+    ...(input.comodidades || {}),
+    __fotos: input.fotos || [],
+    __contrato: input.contrato || {}
+  };
+
   const payload: any = {
     nome: input.titulo || input.nome || 'Novo Alojamento',
     endereco: input.endereco || '',
@@ -178,10 +230,11 @@ const buildAlojamentoPayload = (input: any) => {
     provincia: input.provincia || '',
     pais: input.pais || 'España',
     codigo_postal: input.codigo_postal || '',
-    comodidades: input.comodidades || {},
+    comodidades: comodidadesMeta,
     suministros: input.suministros || {},
-    valor_mensal: input.valor_mensal,
-    status: input.ativo === false ? 'inativo' : 'ativo'
+    valor_mensal: input.valor_mensal || input.contrato?.valor_mensal || null,
+    observacoes: input.observacoes || '',
+    status: input.ativo === false || input.status === 'Inactivo' ? 'Inactivo' : 'Activo'
   };
 
   if (input.provedor_id) payload.provedor_id = input.provedor_id;
@@ -192,20 +245,29 @@ const buildAlojamentoPayload = (input: any) => {
 
 const hydrateAlojamento = (a: any): Alojamento => {
   if (!a) return a;
+  const comodidades = a.comodidades || {};
+  const fotos = a.fotos || comodidades.__fotos || [];
+  const contrato = a.contrato || comodidades.__contrato || {};
+
   return {
     ...a,
     titulo: a.nome || a.titulo || '',
+    nome: a.nome || a.titulo || '',
     endereco: a.endereco || '',
     municipio: a.municipio || '',
     provincia: a.provincia || '',
     pais: a.pais || 'España',
     codigo_postal: a.codigo_postal || '',
-    comodidades: a.comodidades || {},
+    comodidades: comodidades,
     suministros: a.suministros || {},
-    valor_mensal: a.valor_mensal || a.custo_mensal_total,
+    fotos: Array.isArray(fotos) ? fotos : [],
+    contrato: contrato,
+    valor_mensal: a.valor_mensal || a.custo_mensal_total || contrato.valor_mensal,
     capacidade_pessoas: a.capacidade_pessoas || a.capacidade_total || 0,
+    observacoes: a.observacoes || '',
+    status: a.status || (a.ativo === false ? 'Inactivo' : 'Activo'),
     provedor: a.provedores || a.provedor,
-    ativo: a.status !== 'inativo' && a.ativo !== false
+    ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false
   };
 };
 
@@ -223,7 +285,7 @@ export const registrosService = {
   async fetchAlojamentos(): Promise<Alojamento[]> {
     const { data, error } = await getClient()
       .from('alojamentos')
-      .select(`*, provedores(nome_razao_social, telefone)`)
+      .select(`*, provedores(id, codigo, nome_razao_social, telefone, banco, iban, swift, titular_conta, metodo_pago)`)
       .order('nome');
 
     if (error) {
@@ -304,7 +366,7 @@ export const registrosService = {
   async fetchAlojamentoById(id: string): Promise<Alojamento | null> {
     const { data, error } = await getClient()
       .from('alojamentos')
-      .select(`*, provedores(nome_razao_social, telefone)`)
+      .select(`*, provedores(id, codigo, nome_razao_social, telefone, banco, iban, swift, titular_conta, metodo_pago)`)
       .eq('id', id)
       .single();
     
