@@ -59,13 +59,17 @@ export const AlojamentosList: React.FC = () => {
     setIsLoading(true);
     try {
       const [alojRes, provRes] = await Promise.allSettled([
-        logisticsService.fetchAlojamentos(),
-        logisticsService.fetchProvedores()
+        registrosService.fetchAlojamentos(),
+        registrosService.fetchProvedores()
       ]);
-      if (alojRes.status === 'fulfilled') setAlojamentos(alojRes.value);
-      if (provRes.status === 'fulfilled') setProvedores(provRes.value);
+      if (alojRes.status === 'fulfilled' && Array.isArray(alojRes.value)) {
+        setAlojamentos(alojRes.value);
+      }
+      if (provRes.status === 'fulfilled' && Array.isArray(provRes.value)) {
+        setProvedores(provRes.value);
+      }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching data in list:', error);
     } finally {
       setIsLoading(false);
     }
