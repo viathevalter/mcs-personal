@@ -224,12 +224,60 @@ serve(async (req) => {
           await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
 
         } else {
-          const cleanLeadEmail = (lead.email || "")
+          // 1. Verificar se o lead está em quarentena (Bounce ou E-mail Inválido)
+          const leadTags = Array.isArray(lead.tags) ? lead.tags : [];
+          if (leadTags.includes("Bounce") || leadTags.includes("E-mail Inválido")) {
+            console.log(`[PULANDO] Lead ${lead.email} está em quarentena (Bounce/Inválido).`);
+            await supabase
+              .from("marketing_campaign_queue")
+              .update({
+                status: "failed",
+                error_message: "E-mail em quarentena de entrega (Bounce prévio ou Inválido)",
+              })
+              .eq("id", item.id);
+            continue;
+          }
+
+          // 2. Higienização e descolamento de sintaxe de e-mail inteligente
+          let cleanLeadEmail = (lead.email || "")
             .toLowerCase()
             .trim()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/\.+$|\s+/g, "");
+            .replace(/^mailto:/i, "")
+            .replace(/^[<"'\(\[\{]+|[>"'\)\]\}\.,;:]+$/g, "");
+
+          // Desgrudar extensões coladas
+          const tlds = ["com.es", "nom.es", "org.es", "gob.es", "edu.es", "com", "es", "pt", "it", "fr", "net", "org", "eu", "cat", "gal", "eus", "info", "biz", "co", "io"];
+          if (cleanLeadEmail.includes("@")) {
+            const [u, d] = cleanLeadEmail.split("@");
+            if (u && d) {
+              let cleanD = d;
+              for (const tld of tlds) {
+                const escaped = tld.replace(".", "\\.");
+                const regex = new RegExp(`^(.+\\.${escaped})[a-z]{3,}$`, "i");
+                if (regex.test(cleanD)) {
+                  const match = cleanD.match(regex);
+                  if (match) {
+                    cleanD = match[1];
+                    break;
+                  }
+                }
+              }
+              cleanLeadEmail = `${u}@${cleanD}`;
+            }
+          }
+
+          const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+          if (!emailRegex.test(cleanLeadEmail) || /\.(png|jpg|jpeg|avif|webp|svg|gif|bmp|ico|pdf)$/i.test(cleanLeadEmail)) {
+            console.warn(`[INVÁLIDO] E-mail com sintaxe incorreta descartado: ${lead.email}`);
+            await supabase
+              .from("marketing_campaign_queue")
+              .update({
+                status: "failed",
+                error_message: "Formato de e-mail inválido",
+              })
+              .eq("id", item.id);
+            continue;
+          }
 
           // Envio real via API do Resend com retry e delay
           let res = await fetch("https://api.resend.com/emails", {
