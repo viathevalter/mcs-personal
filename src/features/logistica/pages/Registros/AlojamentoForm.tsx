@@ -40,6 +40,7 @@ import {
 import { registrosService } from '../../services/registrosService';
 import type { Provedor, Alojamento } from '../../services/logisticsService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
+import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
 
 const alojamentoSchema = z.object({
   nome: z.string().min(1, 'Nome / Título do Alojamento é obrigatório'),
@@ -369,25 +370,7 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [id, reset]);
 
-  const handleAddPhoto = () => {
-    if (fotos.length >= 5) {
-      alert('O limite máximo é de 5 fotos por alojamento.');
-      return;
-    }
-    const samplePhotos = [
-      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&auto=format&fit=crop&q=80'
-    ];
-    const newPhoto = samplePhotos[fotos.length % samplePhotos.length];
-    setFotos(prev => [...prev, newPhoto]);
-  };
 
-  const handleRemovePhoto = (idx: number) => {
-    setFotos(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSaveInternal = async (data: AlojamentoFormValues, redirectAfter: boolean = true) => {
     try {
@@ -836,46 +819,12 @@ export const AlojamentoForm: React.FC = () => {
             </div>
           </div>
 
-          {/* BLOCO: Fotos */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <ImageIcon size={15} className="text-purple-600" />
-                Fotos do Imóvel ({fotos.length}/5)
-              </h3>
-              <button
-                type="button"
-                onClick={handleAddPhoto}
-                className="flex items-center gap-1 px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-lg text-xs font-bold transition-colors"
-              >
-                <Plus size={13} />
-                + Agregar Imágenes
-              </button>
-            </div>
-
-            <p className="text-[11px] text-slate-400">Sólo puedes agregar un máximo de 5 imágenes al hosting a la vez.</p>
-
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-1">
-              {fotos.map((url, idx) => (
-                <div key={idx} className="relative group rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <img src={url} alt={`Alojamento foto ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePhoto(idx)}
-                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-xs"
-                    title="Remover Foto"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              ))}
-              {fotos.length === 0 && (
-                <div className="col-span-full p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center text-xs text-slate-400">
-                  Nenhuma foto adicionada. Clique em "+ Agregar Imágenes" para anexar fotos do alojamento.
-                </div>
-              )}
-            </div>
-          </div>
+          {/* BLOCO: Fotos com Suporte a Upload Local, Drag & Drop, Ctrl+V e Download */}
+          <FotosAlojamentoManager
+            fotos={fotos}
+            onChange={setFotos}
+            maxFotos={5}
+          />
         </div>
 
         {/* ========================================================= */}
