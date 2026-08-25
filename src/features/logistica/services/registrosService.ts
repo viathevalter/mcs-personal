@@ -52,7 +52,9 @@ export interface ContratoInfo {
   data_fim?: string;
   dia_vencimento?: number;
   valor_mensal?: number;
+  valor_por_pessoa?: number;
   tipo_contrato?: string;
+  tem_fianza?: boolean;
   fianza_valor?: number;
   fianza_meses?: number;
   metodo_pago?: string;
@@ -204,7 +206,7 @@ const hydrateProvedor = (p: any): Provedor => {
       : (metaObj.dados_bancarios && metaObj.dados_bancarios.length > 0)
         ? metaObj.dados_bancarios
         : (p.iban ? [{ banco: p.banco, iban: p.iban, swift: p.swift, titular_conta: p.titular_conta, metodo_pago: p.metodo_pago, principal: true }] : []),
-    ativo: p.ativo !== false && p.status !== 'Inactivo'
+    ativo: p.ativo !== false && p.status !== 'Inactivo' && p.status !== 'inativo'
   };
 };
 
@@ -215,12 +217,17 @@ const buildAlojamentoPayload = (input: any) => {
     __contrato: input.contrato || {}
   };
 
+  const name = input.titulo || input.nome || 'Novo Alojamento';
+  const isInactive = input.ativo === false || (input.status || '').toLowerCase().includes('ina');
+
   const payload: any = {
-    nome: input.titulo || input.nome || 'Novo Alojamento',
+    nome: name,
+    titulo: name,
     endereco: input.endereco || '',
     tipo_alojamento: input.tipo_alojamento || 'Fijo',
     classificacao: input.classificacao || 'Privado',
-    capacidade_pessoas: Number(input.capacidade_pessoas) || 0,
+    capacidade_total: Number(input.capacidade_pessoas) || Number(input.capacidade_total) || 0,
+    capacidade_pessoas: Number(input.capacidade_pessoas) || Number(input.capacidade_total) || 0,
     dormitorios: Number(input.dormitorios) || 0,
     total_camas: Number(input.total_camas) || 0,
     camas_individuais: Number(input.camas_individuais) || 0,
@@ -233,8 +240,9 @@ const buildAlojamentoPayload = (input: any) => {
     comodidades: comodidadesMeta,
     suministros: input.suministros || {},
     valor_mensal: input.valor_mensal || input.contrato?.valor_mensal || null,
+    custo_mensal_total: input.valor_mensal || input.contrato?.valor_mensal || null,
     observacoes: input.observacoes || '',
-    status: input.ativo === false || input.status === 'Inactivo' ? 'Inactivo' : 'Activo'
+    status: isInactive ? 'inativo' : 'ativo'
   };
 
   if (input.provedor_id) payload.provedor_id = input.provedor_id;
@@ -265,7 +273,7 @@ const hydrateAlojamento = (a: any): Alojamento => {
     valor_mensal: a.valor_mensal || a.custo_mensal_total || contrato.valor_mensal,
     capacidade_pessoas: a.capacidade_pessoas || a.capacidade_total || 0,
     observacoes: a.observacoes || '',
-    status: a.status || (a.ativo === false ? 'Inactivo' : 'Activo'),
+    status: a.status === 'inativo' || a.status === 'Inactivo' ? 'Inactivo' : 'Activo',
     provedor: a.provedores || a.provedor,
     ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false
   };
@@ -321,11 +329,20 @@ export const registrosService = {
 
       if (!error) return hydrateProvedor(data);
 
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
+      if (error.message) {
+        if (error.message.includes('Could not find the')) {
+          const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+          if (missingMatch && missingMatch[1]) {
+            delete payload[missingMatch[1]];
+            continue;
+          }
+        }
+        if (error.message.includes('violates not-null constraint')) {
+          const notNullMatch = error.message.match(/column "([^"]+)"/);
+          if (notNullMatch && notNullMatch[1]) {
+            payload[notNullMatch[1]] = payload.nome_razao_social || 'Proveedor';
+            continue;
+          }
         }
       }
 
@@ -350,11 +367,20 @@ export const registrosService = {
 
       if (!error) return hydrateProvedor(data);
 
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
-          continue;
+      if (error.message) {
+        if (error.message.includes('Could not find the')) {
+          const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+          if (missingMatch && missingMatch[1]) {
+            delete payload[missingMatch[1]];
+            continue;
+          }
+        }
+        if (error.message.includes('violates not-null constraint')) {
+          const notNullMatch = error.message.match(/column "([^"]+)"/);
+          if (notNullMatch && notNullMatch[1]) {
+            payload[notNullMatch[1]] = payload.nome_razao_social || 'Proveedor';
+            continue;
+          }
         }
       }
 
@@ -393,10 +419,23 @@ export const registrosService = {
 
       if (!error) return hydrateAlojamento(data);
 
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
+      if (error.message) {
+        if (error.message.includes('Could not find the')) {
+          const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+          if (missingMatch && missingMatch[1]) {
+            delete payload[missingMatch[1]];
+            continue;
+          }
+        }
+        if (error.message.includes('violates not-null constraint')) {
+          const notNullMatch = error.message.match(/column "([^"]+)"/);
+          if (notNullMatch && notNullMatch[1]) {
+            payload[notNullMatch[1]] = payload.nome || payload.titulo || 'Alojamento';
+            continue;
+          }
+        }
+        if (error.message.includes('invalid input value for enum')) {
+          payload.status = 'ativo';
           continue;
         }
       }
@@ -422,10 +461,23 @@ export const registrosService = {
 
       if (!error) return hydrateAlojamento(data);
 
-      if (error.message && error.message.includes('Could not find the')) {
-        const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
-        if (missingMatch && missingMatch[1]) {
-          delete payload[missingMatch[1]];
+      if (error.message) {
+        if (error.message.includes('Could not find the')) {
+          const missingMatch = error.message.match(/Could not find the '([^']+)' column/);
+          if (missingMatch && missingMatch[1]) {
+            delete payload[missingMatch[1]];
+            continue;
+          }
+        }
+        if (error.message.includes('violates not-null constraint')) {
+          const notNullMatch = error.message.match(/column "([^"]+)"/);
+          if (notNullMatch && notNullMatch[1]) {
+            payload[notNullMatch[1]] = payload.nome || payload.titulo || 'Alojamento';
+            continue;
+          }
+        }
+        if (error.message.includes('invalid input value for enum')) {
+          payload.status = 'ativo';
           continue;
         }
       }
