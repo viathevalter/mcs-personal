@@ -94,10 +94,12 @@ const alojamentoSchema = z.object({
   data_inicio: z.string().optional(),
   data_fim: z.string().optional(),
   dia_vencimento: z.coerce.number().min(1).max(31).default(5),
-  valor_mensal: z.coerce.number().default(0),
   tipo_contrato: z.string().default('Fijo'),
+  valor_mensal: z.coerce.number().default(0),
+  valor_por_pessoa: z.coerce.number().default(0),
+  tem_fianza: z.boolean().default(false),
   fianza_valor: z.coerce.number().default(0),
-  fianza_meses: z.coerce.number().default(1),
+  fianza_meses: z.coerce.number().default(0),
 
   // Bancários (Herdados)
   banco: z.string().optional(),
@@ -196,6 +198,10 @@ export const AlojamentoForm: React.FC = () => {
   const watchedRenovacao = useWatch({ control, name: 'renovacao_automatica' });
   const watchedCamasIndividuais = useWatch({ control, name: 'camas_individuais' });
   const watchedCamasDuplas = useWatch({ control, name: 'camas_duplas' });
+  const watchedTipoContrato = useWatch({ control, name: 'tipo_contrato' });
+  const watchedValorPorPessoa = useWatch({ control, name: 'valor_por_pessoa' });
+  const watchedTemFianza = useWatch({ control, name: 'tem_fianza' });
+  const watchedCapacidadePessoas = useWatch({ control, name: 'capacidade_pessoas' });
   const watchedValorMensal = useWatch({ control, name: 'valor_mensal' });
   const watchedFianzaMeses = useWatch({ control, name: 'fianza_meses' });
 
@@ -253,15 +259,16 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [watchedCamasIndividuais, watchedCamasDuplas, setValue]);
 
-  // SMART CALC 2: Sincronização Inteligente de Fiança (Aluguel x Meses de Fiança)
+  // SMART CALC 2: Cálculo Dinâmico de Aluguel por Pessoa / Habitação
   useEffect(() => {
-    const valor = Number(watchedValorMensal) || 0;
-    const meses = Number(watchedFianzaMeses) || 1;
-    if (valor > 0) {
-      const fianzaCalculada = valor * meses;
-      setValue('fianza_valor', fianzaCalculada, { shouldDirty: true });
+    if (watchedTipoContrato === 'Por Trabajador / Habitación') {
+      const vpp = Number(watchedValorPorPessoa) || 0;
+      const cap = Number(watchedCapacidadePessoas) || 1;
+      if (vpp > 0) {
+        setValue('valor_mensal', vpp * cap, { shouldDirty: true });
+      }
     }
-  }, [watchedValorMensal, watchedFianzaMeses, setValue]);
+  }, [watchedTipoContrato, watchedValorPorPessoa, watchedCapacidadePessoas, setValue]);
 
   // Quando o usuário seleciona um provedor, auto-preenche o título, código, endereço e dados bancários
   const handleProvedorChange = (provId: string) => {
@@ -350,10 +357,12 @@ export const AlojamentoForm: React.FC = () => {
             data_inicio: cont.data_inicio || '',
             data_fim: cont.data_fim || '',
             dia_vencimento: cont.dia_vencimento || 5,
-            valor_mensal: a.valor_mensal || cont.valor_mensal || 0,
             tipo_contrato: cont.tipo_contrato || 'Fijo',
+            valor_mensal: a.valor_mensal || cont.valor_mensal || 0,
+            valor_por_pessoa: cont.valor_por_pessoa || 0,
+            tem_fianza: cont.tem_fianza ?? (Number(cont.fianza_valor) > 0),
             fianza_valor: cont.fianza_valor || 0,
-            fianza_meses: cont.fianza_meses || 1,
+            fianza_meses: cont.fianza_meses || 0,
             metodo_pago: cont.metodo_pago || a.provedor?.metodo_pago || 'Transferir',
             banco: cont.banco || a.provedor?.banco || '',
             iban: cont.iban || a.provedor?.iban || '',
@@ -404,10 +413,12 @@ export const AlojamentoForm: React.FC = () => {
         data_inicio: data.data_inicio,
         data_fim: data.data_fim,
         dia_vencimento: data.dia_vencimento,
-        valor_mensal: data.valor_mensal,
         tipo_contrato: data.tipo_contrato,
-        fianza_valor: data.fianza_valor,
-        fianza_meses: data.fianza_meses,
+        valor_mensal: data.valor_mensal,
+        valor_por_pessoa: data.valor_por_pessoa,
+        tem_fianza: data.tem_fianza,
+        fianza_valor: data.tem_fianza ? Number(data.fianza_valor) : 0,
+        fianza_meses: data.tem_fianza ? Number(data.fianza_meses) : 0,
         metodo_pago: data.metodo_pago,
         banco: data.banco,
         iban: data.iban,
@@ -1044,52 +1055,140 @@ export const AlojamentoForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Financiero com Cálculo de Fiança */}
-            <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/60 space-y-2">
-              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                <DollarSign size={13} />
-                Financiero (Auto-cálculo de Fiança)
-              </span>
-              <div className="grid grid-cols-2 gap-2">
+            {/* Financiero & Modalidade de Contrato */}
+            <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <DollarSign size={13} />
+                  Condições Financeiras do Contrato
+                </span>
+              </div>
+
+              {/* Tipo de Contrato */}
+              <div>
+                <label className="block text-[10px] text-slate-600 dark:text-slate-400 font-bold mb-1">
+                  Modalidade do Contrato / Locação
+                </label>
+                <select
+                  {...register('tipo_contrato')}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                >
+                  <option value="Fijo">Fijo (Piso Completo / Valor Mensal Fechado)</option>
+                  <option value="Por Trabajador / Habitación">Por Habitación / Vaga (Valor por Pessoa)</option>
+                  <option value="Temporario (Airbnb / Booking)">Temporario (Airbnb / Booking / Curto Prazo)</option>
+                  <option value="Hotel / Pensión">Hotel / Pensión (Diária / Transitório)</option>
+                </select>
+              </div>
+
+              {/* Valores baseados na modalidade */}
+              {watchedTipoContrato === 'Por Trabajador / Habitación' ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Preço / Vaga (€/pessoa)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register('valor_por_pessoa')}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                        placeholder="Ex: 400.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Total Mensal Estimado (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register('valor_mensal')}
+                        className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300"
+                        placeholder="Ex: 1600.00"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-emerald-800 dark:text-emerald-300 font-medium bg-emerald-100/60 dark:bg-emerald-950/40 p-1.5 rounded-md flex items-center gap-1">
+                    <Sparkles size={11} className="flex-shrink-0" />
+                    <span>Cálculo: {watchedCapacidadePessoas || 0} vagas × € {watchedValorPorPessoa || 0} = <strong>€ {(Number(watchedCapacidadePessoas) || 0) * (Number(watchedValorPorPessoa) || 0)} / mês</strong></span>
+                  </div>
+                </div>
+              ) : (
                 <div>
-                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Alquiler Mensual (€)</label>
+                  <label className="block text-[9px] text-slate-500 font-bold mb-1">
+                    {watchedTipoContrato?.includes('Temporario') ? 'Valor Total do Período (€)' : 'Alquiler Mensual Total (€)'}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     {...register('valor_mensal')}
                     className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                    placeholder="1350.00"
+                    placeholder="Ex: 1500.00"
                   />
                 </div>
-                <div>
-                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Tipo Contrato</label>
-                  <select
-                    {...register('tipo_contrato')}
-                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                  >
-                    <option value="Fijo">Fijo</option>
-                    <option value="Por Trabajador">Por Trabajador</option>
-                  </select>
+              )}
+
+              {/* Bloco de Fiança / Depósito com Toggle */}
+              <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                    ¿Exige Fianza / Depósito?
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setValue('tem_fianza', false, { shouldDirty: true })}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        !watchedTemFianza
+                          ? 'bg-slate-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      No
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setValue('tem_fianza', true, { shouldDirty: true })}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        watchedTemFianza
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      Sí
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Valor Fianza (€)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    {...register('fianza_valor')}
-                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                    placeholder="2700.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] text-slate-500 font-bold mb-1">Meses de Fianza</label>
-                  <input
-                    type="number"
-                    {...register('fianza_meses')}
-                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center font-bold"
-                    placeholder="2"
-                  />
-                </div>
+
+                {watchedTemFianza ? (
+                  <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Valor da Fiança (€) *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register('fianza_valor')}
+                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-800 dark:text-emerald-300"
+                          placeholder="Ex: 3000.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Meses de Referência</label>
+                        <input
+                          type="number"
+                          {...register('fianza_meses')}
+                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center"
+                          placeholder="Ex: 2"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-emerald-800 dark:text-emerald-300 leading-tight">
+                      📌 Este valor ficará registrado para controle de vistoria e devolução/estorno no encerramento da locação.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-slate-400 italic">
+                    Sem retenção de fiança (Padrão para Airbnb, Booking, hotéis e diárias).
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1100,9 +1199,18 @@ export const AlojamentoForm: React.FC = () => {
                 Informaciones Bancarias (Proveedor)
               </span>
               <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-500 text-[11px]">
-                  <span>Método de Pago:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{getValues('metodo_pago') || 'Transferir'}</span>
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-semibold mb-1">Método de Pago</label>
+                  <select
+                    {...register('metodo_pago')}
+                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  >
+                    <option value="Transferir">Transferência Bancária (Transferir)</option>
+                    <option value="Tarjeta">Tarjeta / Cartão (Airbnb / Booking)</option>
+                    <option value="Bizum">Bizum</option>
+                    <option value="Efectivo">Efectivo / Dinheiro</option>
+                    <option value="Plataforma">Plataforma Online</option>
+                  </select>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-semibold">Banco</span>
