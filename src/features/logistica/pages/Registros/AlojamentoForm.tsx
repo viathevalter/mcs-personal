@@ -20,7 +20,6 @@ import {
   Tv,
   Droplets,
   Zap,
-  Sparkle,
   Plus,
   Trash2,
   CreditCard,
@@ -31,10 +30,15 @@ import {
   Image as ImageIcon,
   Check,
   X,
-  Layers
+  PlusCircle,
+  HelpCircle,
+  ShieldCheck,
+  Wrench,
+  Bath,
+  ArrowRight
 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
-import type { Provedor } from '../../services/logisticsService';
+import type { Provedor, Alojamento } from '../../services/logisticsService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 
 const alojamentoSchema = z.object({
@@ -115,6 +119,7 @@ export const AlojamentoForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [provedores, setProvedores] = useState<Provedor[]>([]);
+  const [existingAlojamentos, setExistingAlojamentos] = useState<Alojamento[]>([]);
   const [fotos, setFotos] = useState<string[]>([]);
   const [showColabModal, setShowColabModal] = useState(false);
   const dataLoadedRef = useRef(false);
@@ -188,27 +193,80 @@ export const AlojamentoForm: React.FC = () => {
   const watchedCodigo = useWatch({ control, name: 'codigo' });
   const watchedStatus = useWatch({ control, name: 'status' });
   const watchedRenovacao = useWatch({ control, name: 'renovacao_automatica' });
+  const watchedCamasIndividuais = useWatch({ control, name: 'camas_individuais' });
+  const watchedCamasDuplas = useWatch({ control, name: 'camas_duplas' });
+  const watchedValorMensal = useWatch({ control, name: 'valor_mensal' });
+  const watchedFianzaMeses = useWatch({ control, name: 'fianza_meses' });
 
-  // Carregar lista de provedores
+  // Comodidades Watch
+  const watchedWifi = useWatch({ control, name: 'wifi' });
+  const watchedAc = useWatch({ control, name: 'aire_acondicionado' });
+  const watchedParking = useWatch({ control, name: 'parking' });
+  const watchedCocina = useWatch({ control, name: 'cocina' });
+  const watchedCalefaccion = useWatch({ control, name: 'calefaccion' });
+  const watchedLavadora = useWatch({ control, name: 'lavadora' });
+  const watchedTv = useWatch({ control, name: 'tv' });
+  const watchedAscensor = useWatch({ control, name: 'ascensor' });
+
+  // Suministros Watch
+  const watchedSuminInternet = useWatch({ control, name: 'suministro_internet' });
+  const watchedSuminAgua = useWatch({ control, name: 'suministro_agua' });
+  const watchedSuminLuz = useWatch({ control, name: 'suministro_luz' });
+  const watchedSuminGas = useWatch({ control, name: 'suministro_gas' });
+  const watchedSuminLimpieza = useWatch({ control, name: 'suministro_limpieza' });
+  const watchedSuminOtros = useWatch({ control, name: 'suministro_otros' });
+
+  // Carregar lista de provedores e alojamentos existentes para auto-cálculos
   useEffect(() => {
-    registrosService.fetchProvedores().then((data) => {
-      setProvedores(data as Provedor[]);
+    Promise.all([
+      registrosService.fetchProvedores(),
+      registrosService.fetchAlojamentos()
+    ]).then(([provData, alojData]) => {
+      setProvedores(provData as Provedor[]);
+      setExistingAlojamentos(alojData as Alojamento[]);
     }).catch(console.error);
   }, []);
 
-  // Encontra o provedor selecionado atualmente
+  // Encontra o provedor selecionado atualmente e seus alojamentos vinculados
   const currentProvedor = provedores.find(p => p.id === selectedProvedorId);
+  const provAlojamentosCount = existingAlojamentos.filter(a => a.provedor_id === selectedProvedorId).length;
+
+  // SMART CALC 1: Sincronização Inteligente de Camas e Capacidade
+  useEffect(() => {
+    const ind = Number(watchedCamasIndividuais) || 0;
+    const dup = Number(watchedCamasDuplas) || 0;
+    const totalCamasCalculado = ind + dup;
+    const capacidadeCalculada = (ind * 1) + (dup * 2);
+
+    if (ind > 0 || dup > 0) {
+      setValue('total_camas', totalCamasCalculado, { shouldDirty: true });
+      setValue('capacidade_pessoas', capacidadeCalculada, { shouldDirty: true });
+    }
+  }, [watchedCamasIndividuais, watchedCamasDuplas, setValue]);
+
+  // SMART CALC 2: Sincronização Inteligente de Fiança (Aluguel x Meses de Fiança)
+  useEffect(() => {
+    const valor = Number(watchedValorMensal) || 0;
+    const meses = Number(watchedFianzaMeses) || 1;
+    if (valor > 0) {
+      const fianzaCalculada = valor * meses;
+      setValue('fianza_valor', fianzaCalculada, { shouldDirty: true });
+    }
+  }, [watchedValorMensal, watchedFianzaMeses, setValue]);
 
   // Quando o usuário seleciona um provedor, auto-preenche o título, código, endereço e dados bancários
   const handleProvedorChange = (provId: string) => {
     setValue('provedor_id', provId, { shouldDirty: true });
     const prov = provedores.find(p => p.id === provId);
     if (prov) {
-      const codeToUse = getValues('codigo') || `AL-${Math.floor(1000 + Math.random() * 9000)}`;
-      
+      // Calcula código sequencial baseado no total de imóveis deste provedor
+      const countForProv = existingAlojamentos.filter(a => a.provedor_id === provId).length;
+      const provSeqCode = `AL-${String(countForProv + 1).padStart(4, '0')}`;
+      setValue('codigo', provSeqCode, { shouldDirty: true });
+
       // Auto-gera Título: "[Nome do Provedor] - [Código Alojamento]"
       if (!isEditing || !getValues('nome')) {
-        setValue('nome', `${prov.nome_razao_social} - ${codeToUse}`, { shouldDirty: true });
+        setValue('nome', `${prov.nome_razao_social} - ${provSeqCode}`, { shouldDirty: true });
       }
 
       // Auto-preenche localização a partir do endereço do Provedor
@@ -323,7 +381,7 @@ export const AlojamentoForm: React.FC = () => {
     setFotos(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const onSubmit = async (data: AlojamentoFormValues) => {
+  const handleSaveInternal = async (data: AlojamentoFormValues, redirectAfter: boolean = true) => {
     try {
       setIsSubmitting(true);
 
@@ -385,15 +443,41 @@ export const AlojamentoForm: React.FC = () => {
       }
 
       setSaveSuccess(true);
-      setTimeout(() => {
-        navigate('/logistica/registros/alojamentos');
-      }, 500);
+
+      if (redirectAfter) {
+        setTimeout(() => {
+          navigate('/logistica/registros/alojamentos');
+        }, 500);
+      } else {
+        // Modo "Guardar y Crear Otro Alojamiento para este Proveedor"
+        const nextCount = provAlojamentosCount + 2;
+        const nextCode = `AL-${String(nextCount).padStart(4, '0')}`;
+        setValue('codigo', nextCode, { shouldDirty: true });
+        if (currentProvedor) {
+          setValue('nome', `${currentProvedor.nome_razao_social} - ${nextCode}`, { shouldDirty: true });
+        }
+        setValue('dormitorios', 0);
+        setValue('total_camas', 0);
+        setValue('camas_individuais', 0);
+        setValue('camas_duplas', 0);
+        setValue('capacidade_pessoas', 0);
+        setFotos([]);
+        setTimeout(() => setSaveSuccess(false), 2500);
+      }
     } catch (error: any) {
       console.error('Error saving alojamento:', error);
       alert(`Erro ao salvar alojamento: ${error.message || 'Verifique os dados informados.'}`);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const onSubmit = (data: AlojamentoFormValues) => {
+    handleSaveInternal(data, true);
+  };
+
+  const onSaveAndCreateAnother = () => {
+    handleSubmit((data) => handleSaveInternal(data, false))();
   };
 
   const onError = (errs: any) => {
@@ -428,7 +512,8 @@ export const AlojamentoForm: React.FC = () => {
               <h1 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
                 {isEditing ? 'Registro de Alojamiento' : 'Nuevo Alojamiento'}
               </h1>
-              <span className="px-3 py-1 bg-blue-600 text-white font-mono font-bold text-xs rounded-lg tracking-wider shadow-xs">
+              <span className="px-3 py-1 bg-blue-600 text-white font-mono font-bold text-xs rounded-lg tracking-wider shadow-xs flex items-center gap-1.5">
+                <Home size={13} />
                 {watchedCodigo || 'AL-0001'}
               </span>
             </div>
@@ -438,7 +523,7 @@ export const AlojamentoForm: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => navigate('/logistica/registros/alojamentos')}
@@ -446,6 +531,19 @@ export const AlojamentoForm: React.FC = () => {
           >
             Cancelar
           </button>
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={onSaveAndCreateAnother}
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800"
+            >
+              <PlusCircle size={14} />
+              Guardar e Criar Outro
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleSubmit(onSubmit, onError)}
@@ -465,7 +563,7 @@ export const AlojamentoForm: React.FC = () => {
             ) : (
               <>
                 <Save size={16} />
-                Guardar
+                Guardar Alojamiento
               </>
             )}
           </button>
@@ -481,24 +579,31 @@ export const AlojamentoForm: React.FC = () => {
           
           {/* BLOCO: Datos de Alojamiento */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <Home size={15} className="text-blue-600" />
-              Datos de Alojamiento
-            </h3>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <Home size={15} className="text-blue-600" />
+                Datos de Alojamiento
+              </h3>
+              {currentProvedor && (
+                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                  {provAlojamentosCount} imóvel(is) cadastrado(s)
+                </span>
+              )}
+            </div>
 
             <div className="space-y-3">
               {/* Proveedor & Código Provedor */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Proveedor *
+                    Proveedor (Obrigatório) *
                   </label>
                   <select
                     value={selectedProvedorId || ''}
                     onChange={e => handleProvedorChange(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Selecione o Proveedor (Obrigatório)...</option>
+                    <option value="">Selecione o Proveedor...</option>
                     {provedores.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.nome_razao_social} {p.municipio ? `(${p.municipio})` : ''}
@@ -571,16 +676,22 @@ export const AlojamentoForm: React.FC = () => {
                 </div>
               </div>
 
-              {/* Grid de Capacidade e Quartos com Ícones */}
+              {/* Grid de Capacidade e Quartos com Cálculo Automático Inteligente */}
               <div className="pt-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Capacidade & Camas (Cálculo Automático)</span>
+                  <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                    <Sparkles size={11} /> Auto-soma inteligente
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  <div className="p-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-xl text-center">
+                  <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl text-center shadow-2xs">
                     <Users size={14} className="mx-auto text-blue-600 mb-1" />
-                    <span className="text-[9px] font-bold text-slate-500 block">Capacidad</span>
+                    <span className="text-[9px] font-bold text-blue-800 dark:text-blue-200 block">Capacidade</span>
                     <input
                       type="number"
                       {...register('capacidade_pessoas')}
-                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                      className="w-full bg-transparent text-center font-bold text-xs text-blue-950 dark:text-white"
                     />
                   </div>
 
@@ -594,38 +705,38 @@ export const AlojamentoForm: React.FC = () => {
                     />
                   </div>
 
-                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                    <Bed size={14} className="mx-auto text-slate-600 mb-1" />
-                    <span className="text-[9px] font-bold text-slate-500 block">Total Camas</span>
+                  <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl text-center shadow-2xs">
+                    <Bed size={14} className="mx-auto text-blue-600 mb-1" />
+                    <span className="text-[9px] font-bold text-blue-800 dark:text-blue-200 block">Total Camas</span>
                     <input
                       type="number"
                       {...register('total_camas')}
-                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                      className="w-full bg-transparent text-center font-bold text-xs text-blue-950 dark:text-white"
                     />
                   </div>
 
-                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">1x</span>
-                    <span className="text-[9px] font-bold text-slate-500 block">Individuais</span>
+                  <div className="p-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
+                    <span className="text-[10px] font-bold text-emerald-600 block mb-0.5">1x</span>
+                    <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-200 block">Individuais</span>
                     <input
                       type="number"
                       {...register('camas_individuais')}
-                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                      className="w-full bg-transparent text-center font-bold text-xs text-emerald-950 dark:text-white"
                     />
                   </div>
 
-                  <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">2x</span>
-                    <span className="text-[9px] font-bold text-slate-500 block">Dobles</span>
+                  <div className="p-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
+                    <span className="text-[10px] font-bold text-emerald-600 block mb-0.5">2x</span>
+                    <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-200 block">Dobles</span>
                     <input
                       type="number"
                       {...register('camas_duplas')}
-                      className="w-full bg-transparent text-center font-bold text-xs text-slate-800 dark:text-white"
+                      className="w-full bg-transparent text-center font-bold text-xs text-emerald-950 dark:text-white"
                     />
                   </div>
 
                   <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
-                    <Droplets size={14} className="mx-auto text-slate-600 mb-1" />
+                    <Bath size={14} className="mx-auto text-slate-600 mb-1" />
                     <span className="text-[9px] font-bold text-slate-500 block">Baños</span>
                     <input
                       type="number"
@@ -638,7 +749,7 @@ export const AlojamentoForm: React.FC = () => {
             </div>
           </div>
 
-          {/* BLOCO: Localización */}
+          {/* BLOCO: Localização */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
@@ -648,7 +759,7 @@ export const AlojamentoForm: React.FC = () => {
               {selectedProvedorId && (
                 <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Sparkles size={11} />
-                  Sincronizado
+                  Herdado do Provedor
                 </span>
               )}
             </div>
@@ -683,7 +794,7 @@ export const AlojamentoForm: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    País
+                    País (Tabela Oficial)
                   </label>
                   <CountrySelector
                     value={watchedPais || 'España'}
@@ -693,7 +804,7 @@ export const AlojamentoForm: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Provincia
+                    Provincia (Tabela Oficial)
                   </label>
                   <RegionSelector
                     countryName={watchedPais || 'España'}
@@ -784,89 +895,87 @@ export const AlojamentoForm: React.FC = () => {
             </select>
           </div>
 
-          {/* BLOCO: Alojamiento (Comodidades / Equipamentos) */}
+          {/* BLOCO: Alojamiento (Comodidades / Equipamentos com Tags Interativas) */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
             <h3 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-purple-100 dark:border-purple-900/40">
               <Sparkles size={15} className="text-purple-600" />
               Alojamiento (Comodidades)
             </h3>
             
-            <div className="space-y-2.5">
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('wifi')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Wifi size={14} className="text-blue-500" />
-                <span>Wi-Fi</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('aire_acondicionado')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Wind size={14} className="text-cyan-500" />
-                <span>Aire acondicionado</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('parking')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Car size={14} className="text-amber-500" />
-                <span>Parking</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('cocina')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Utensils size={14} className="text-emerald-500" />
-                <span>Cocina</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('calefaccion')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Flame size={14} className="text-rose-500" />
-                <span>Calefacción</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('tv')} className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4" />
-                <Tv size={14} className="text-indigo-500" />
-                <span>Televisión</span>
-              </label>
+            <div className="space-y-2">
+              {[
+                { name: 'wifi', label: 'Wi-Fi', icon: Wifi, state: watchedWifi },
+                { name: 'aire_acondicionado', label: 'Aire acondicionado', icon: Wind, state: watchedAc },
+                { name: 'parking', label: 'Parking', icon: Car, state: watchedParking },
+                { name: 'cocina', label: 'Cocina', icon: Utensils, state: watchedCocina },
+                { name: 'calefaccion', label: 'Calefacción', icon: Flame, state: watchedCalefaccion },
+                { name: 'tv', label: 'Televisión', icon: Tv, state: watchedTv },
+              ].map((item) => {
+                const IconComponent = item.icon;
+                const isChecked = !!item.state;
+                return (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setValue(item.name as any, !isChecked, { shouldDirty: true })}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                      isChecked
+                        ? 'bg-purple-50 text-purple-900 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-800 font-bold'
+                        : 'bg-slate-50 text-slate-600 border border-transparent hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <IconComponent size={14} className={isChecked ? 'text-purple-600' : 'text-slate-400'} />
+                      <span>{item.label}</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-md flex items-center justify-center border ${
+                      isChecked ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                    }`}>
+                      {isChecked && <Check size={11} />}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* BLOCO: Suministro a Pagar */}
+          {/* BLOCO: Suministro a Pagar (Chips Interativos) */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
             <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-amber-100 dark:border-amber-900/40">
               <Zap size={15} className="text-amber-600" />
               Suministro a Pagar
             </h3>
             
-            <div className="grid grid-cols-2 gap-2.5">
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_internet')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Internet</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_agua')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Agua</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_luz')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Luz</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_limpieza')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Limpieza</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_gas')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Gas</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" {...register('suministro_otros')} className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4" />
-                <span>Otros gastos</span>
-              </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { name: 'suministro_internet', label: 'Internet', state: watchedSuminInternet },
+                { name: 'suministro_agua', label: 'Agua', state: watchedSuminAgua },
+                { name: 'suministro_luz', label: 'Luz', state: watchedSuminLuz },
+                { name: 'suministro_limpieza', label: 'Limpieza', state: watchedSuminLimpieza },
+                { name: 'suministro_gas', label: 'Gas', state: watchedSuminGas },
+                { name: 'suministro_otros', label: 'Otros gastos', state: watchedSuminOtros },
+              ].map((item) => {
+                const isChecked = !!item.state;
+                return (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setValue(item.name as any, !isChecked, { shouldDirty: true })}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                      isChecked
+                        ? 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800 font-bold'
+                        : 'bg-slate-50 text-slate-600 border border-transparent hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-400'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                      isChecked ? 'bg-amber-600 border-amber-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                    }`}>
+                      {isChecked && <Check size={10} />}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -978,11 +1087,11 @@ export const AlojamentoForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Financiero */}
+            {/* Financiero com Cálculo de Fiança */}
             <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/60 space-y-2">
               <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
                 <DollarSign size={13} />
-                Financiero
+                Financiero (Auto-cálculo de Fiança)
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -999,7 +1108,7 @@ export const AlojamentoForm: React.FC = () => {
                   <label className="block text-[9px] text-slate-500 font-bold mb-1">Tipo Contrato</label>
                   <select
                     {...register('tipo_contrato')}
-                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
                   >
                     <option value="Fijo">Fijo</option>
                     <option value="Por Trabajador">Por Trabajador</option>
@@ -1020,7 +1129,7 @@ export const AlojamentoForm: React.FC = () => {
                   <input
                     type="number"
                     {...register('fianza_meses')}
-                    className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center font-bold"
                     placeholder="2"
                   />
                 </div>
@@ -1084,7 +1193,7 @@ export const AlojamentoForm: React.FC = () => {
         {/* ========================================================= */}
         {/* BOTTOM BAR: COLABORADORES, CANCELAR, GUARDAR */}
         {/* ========================================================= */}
-        <div className="lg:col-span-12 flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="lg:col-span-12 flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <button
             type="button"
             onClick={() => setShowColabModal(true)}
@@ -1094,7 +1203,7 @@ export const AlojamentoForm: React.FC = () => {
             Colaboradores Alocados
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => navigate('/logistica/registros/alojamentos')}
@@ -1103,6 +1212,19 @@ export const AlojamentoForm: React.FC = () => {
               <X size={15} />
               Cancelar
             </button>
+
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={onSaveAndCreateAnother}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800"
+              >
+                <PlusCircle size={14} />
+                Guardar e Criar Outro
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleSubmit(onSubmit, onError)}
@@ -1122,7 +1244,7 @@ export const AlojamentoForm: React.FC = () => {
               ) : (
                 <>
                   <Save size={16} />
-                  Guardar
+                  Guardar Alojamiento
                 </>
               )}
             </button>
