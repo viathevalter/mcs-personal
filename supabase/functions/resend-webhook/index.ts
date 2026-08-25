@@ -36,17 +36,42 @@ serve(async (req) => {
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      const cleanEmail = recipientEmail.toLowerCase().trim();
+      const rawEmail = recipientEmail.toLowerCase().trim();
+      const cleanEmail = rawEmail.includes("<") && rawEmail.includes(">") 
+        ? rawEmail.replace(/.*<([^>]+)>.*/, "$1").trim() 
+        : rawEmail;
 
-      // Find lead by email
-      const { data: leads } = await supabase
-        .schema("core_comercial")
-        .from("leads")
-        .select("id, stage_id, empresa_id")
-        .ilike("email", cleanEmail)
-        .limit(1);
+      const resendEmailId = body.data?.email_id;
 
-      const lead = leads && leads.length > 0 ? leads[0] : null;
+      let lead: any = null;
+
+      // 1. Busca prioritária por resend_email_id na fila da campanha
+      if (resendEmailId) {
+        const { data: queueItems } = await supabase
+          .schema("core_comercial")
+          .from("marketing_campaign_queue")
+          .select("lead_id, leads:lead_id (id, stage_id, empresa_id)")
+          .eq("resend_email_id", resendEmailId)
+          .limit(1);
+
+        if (queueItems && queueItems.length > 0 && queueItems[0].leads) {
+          lead = queueItems[0].leads;
+        }
+      }
+
+      // 2. Fallback: busca direta por e-mail na tabela de leads
+      if (!lead && cleanEmail) {
+        const { data: leads } = await supabase
+          .schema("core_comercial")
+          .from("leads")
+          .select("id, stage_id, empresa_id")
+          .ilike("email", cleanEmail)
+          .limit(1);
+
+        if (leads && leads.length > 0) {
+          lead = leads[0];
+        }
+      }
 
       if (lead && lead.empresa_id) {
         // Fetch 'E-mail Lido / Clicado' stage (order_index = 3) for this specific company

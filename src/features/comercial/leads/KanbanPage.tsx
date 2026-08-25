@@ -497,6 +497,20 @@ export function KanbanPage() {
 
                           {/* Contact Info Footer */}
                           <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            {lead.website && (
+                              <a
+                                href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
+                                title={`Abrir site: ${lead.website}`}
+                              >
+                                <Globe className="h-3 w-3 shrink-0 text-blue-500" />
+                                <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                                <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                              </a>
+                            )}
                             {lead.email && (
                               <div className="flex items-center gap-1.5 truncate">
                                 <Mail className="h-3 w-3 shrink-0 text-slate-400" />
@@ -718,6 +732,22 @@ export function KanbanPage() {
                     <p className="text-sm text-slate-400">Não informado</p>
                   )}
                 </div>
+
+                {selectedLead.website && (
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Site Oficial da Empresa</Label>
+                    <a 
+                      href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 truncate"
+                    >
+                      <Globe className="h-4 w-4 shrink-0 text-blue-500" />
+                      <span className="truncate">{selectedLead.website}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Parsed Budget Form Specifications Grid */}
