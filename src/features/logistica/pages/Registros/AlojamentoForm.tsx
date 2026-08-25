@@ -8,14 +8,13 @@ import {
   Save,
   Home,
   MapPin,
-  Building,
   Bed,
-  Users,
   CheckCircle2,
   Sparkles
 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import type { Provedor } from '../../services/logisticsService';
+import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 
 const alojamentoSchema = z.object({
   nome: z.string().min(1, 'Nome do Alojamento é obrigatório'),
@@ -79,6 +78,8 @@ export const AlojamentoForm: React.FC = () => {
   });
 
   const selectedProvedorId = useWatch({ control, name: 'provedor_id' });
+  const watchedPais = useWatch({ control, name: 'pais' });
+  const watchedProvincia = useWatch({ control, name: 'provincia' });
 
   // Carregar lista de provedores
   useEffect(() => {
@@ -339,7 +340,7 @@ export const AlojamentoForm: React.FC = () => {
           </div>
         </div>
 
-        {/* BLOCO 2: Localização / Endereço Principal */}
+        {/* BLOCO 2: Localização / Endereço Principal (Vinculado a Tabelas Oficiais de Países e Províncias) */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -370,30 +371,26 @@ export const AlojamentoForm: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  País
+                  País (Tabela Oficial)
                 </label>
-                <select
-                  {...register('pais')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="España">🇪🇸 España</option>
-                  <option value="Portugal">🇵🇹 Portugal</option>
-                  <option value="Brasil">🇧🇷 Brasil</option>
-                  <option value="Francia">🇫🇷 Francia</option>
-                  <option value="Alemania">🇩🇪 Alemania</option>
-                  <option value="Italia">🇮🇹 Italia</option>
-                </select>
+                <CountrySelector
+                  value={watchedPais || 'España'}
+                  onChange={(_id, name) => {
+                    setValue('pais', name || 'España', { shouldDirty: true });
+                  }}
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Província / Estado
+                  Província (Tabela Oficial)
                 </label>
-                <input
-                  type="text"
-                  {...register('provincia')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Girona / Barcelona / Madrid"
+                <RegionSelector
+                  countryName={watchedPais || 'España'}
+                  value={watchedProvincia || null}
+                  onChange={(_id, name) => {
+                    setValue('provincia', name || '', { shouldDirty: true });
+                  }}
                 />
               </div>
 

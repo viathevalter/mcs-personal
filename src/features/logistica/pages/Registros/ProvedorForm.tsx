@@ -3,9 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import { identifyBankFromIban, formatIban } from '@/shared/utils/ibanHelper';
+import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 
 const contatoItemSchema = z.object({
   nome: z.string().optional(),
@@ -93,6 +94,8 @@ export const ProvedorForm: React.FC = () => {
   });
 
   const watchedDadosBancarios = useWatch({ control, name: 'dados_bancarios' });
+  const watchedPais = useWatch({ control, name: 'pais' });
+  const watchedProvincia = useWatch({ control, name: 'provincia' });
 
   // Carregar dados APENAS UMA VEZ no modo de edição (quando id estiver disponível)
   useEffect(() => {
@@ -561,7 +564,7 @@ export const ProvedorForm: React.FC = () => {
           </div>
         </div>
 
-        {/* BLOCO 4: Endereço Principal & Localização Fiscal */}
+        {/* BLOCO 4: Endereço Principal & Localização Fiscal (Vinculado a Tabelas Oficiais de Países e Províncias) */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <MapPin className="h-4.5 w-4.5 text-blue-600" />
@@ -584,30 +587,26 @@ export const ProvedorForm: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  País
+                  País (Tabela Oficial)
                 </label>
-                <select
-                  {...register('pais')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="España">🇪🇸 España</option>
-                  <option value="Portugal">🇵🇹 Portugal</option>
-                  <option value="Brasil">🇧🇷 Brasil</option>
-                  <option value="Francia">🇫🇷 Francia</option>
-                  <option value="Alemania">🇩🇪 Alemania</option>
-                  <option value="Italia">🇮🇹 Italia</option>
-                </select>
+                <CountrySelector
+                  value={watchedPais || 'España'}
+                  onChange={(_id, name) => {
+                    setValue('pais', name || 'España', { shouldDirty: true });
+                  }}
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Província / Estado
+                  Província (Tabela Oficial)
                 </label>
-                <input
-                  type="text"
-                  {...register('provincia')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Girona / Barcelona / Madrid"
+                <RegionSelector
+                  countryName={watchedPais || 'España'}
+                  value={watchedProvincia || null}
+                  onChange={(_id, name) => {
+                    setValue('provincia', name || '', { shouldDirty: true });
+                  }}
                 />
               </div>
 
