@@ -3,10 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, X, Building, Contact, CreditCard, MapPin, Plus, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
-import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { useCountries, useRegions } from '@/features/master-data/locations/hooks/useLocations';
 import { identifyBankFromIban, formatIban } from '@/shared/utils/ibanHelper';
 
 const contatoItemSchema = z.object({
@@ -43,8 +41,6 @@ const provedorSchema = z.object({
   swift: z.string().optional(),
   titular_conta: z.string().optional(),
   endereco: z.string().optional(),
-  country_id: z.string().optional().nullable(),
-  region_id: z.string().optional().nullable(),
   municipio: z.string().optional(),
   provincia: z.string().optional(),
   codigo_postal: z.string().optional(),
@@ -61,16 +57,14 @@ export const ProvedorForm: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const dataLoadedRef = useRef(false);
-
-  const { data: countries = [] } = useCountries();
 
   const {
     register,
     handleSubmit,
     control,
     setValue,
-    getValues,
     reset,
     formState: { errors },
   } = useForm<ProvedorFormValues>({
@@ -98,11 +92,7 @@ export const ProvedorForm: React.FC = () => {
     },
   });
 
-  const selectedCountryId = useWatch({ control, name: 'country_id' });
-  const selectedRegionId = useWatch({ control, name: 'region_id' });
   const watchedDadosBancarios = useWatch({ control, name: 'dados_bancarios' });
-
-  const { data: regions = [] } = useRegions(selectedCountryId || undefined);
 
   // Carregar dados APENAS UMA VEZ no modo de edição (quando id estiver disponível)
   useEffect(() => {
@@ -114,9 +104,9 @@ export const ProvedorForm: React.FC = () => {
 
           const contatosCarregados = p.contatos && p.contatos.length > 0 ? p.contatos : [
             {
-              nome: p.contato_nome || (p as any).contato || '',
+              nome: p.contato_nome || '',
               cargo_tipo: 'Proprietário',
-              telefone: p.telefone || (p as any).telefono || '',
+              telefone: p.telefone || '',
               email: p.email || ''
             }
           ];
@@ -143,21 +133,15 @@ export const ProvedorForm: React.FC = () => {
             };
           });
 
-          const paisTexto = p.pais || (p as any).country || 'España';
-          const provinciaTexto = p.provincia || (p as any).estado || (p as any).regiao || '';
-          const enderecoTexto = p.endereco || (p as any).direccion || (p as any).direccion_hospedaje || (p as any).logradouro || (p as any).ubicacion_fiscal || '';
-          const municipioTexto = p.municipio || (p as any).ciudad || (p as any).cidade || '';
-          const codigoPostalTexto = p.codigo_postal || (p as any).cep || (p as any).cp || '';
-
           reset({
             nome_razao_social: p.nome_razao_social || '',
             nome_comercial: p.nome_comercial || '',
-            cif_nif: p.cif_nif || (p as any).cif || (p as any).nif || (p as any).tax_id || '',
+            cif_nif: p.cif_nif || '',
             tipo: (p.tipo as any) || 'alojamento',
             tipo_pessoa: (p.tipo_pessoa as any) || 'Persona Jurídica',
-            classificacao: p.classificacao || (p as any).tipo_provedor || 'Proveedor Alojamiento',
-            contato_nome: p.contato_nome || (p as any).contato || '',
-            telefone: p.telefone || (p as any).telefono || '',
+            classificacao: p.classificacao || 'Proveedor Alojamiento',
+            contato_nome: p.contato_nome || '',
+            telefone: p.telefone || '',
             email: p.email || '',
             contatos: contatosCarregados,
             dados_bancarios: dadosBancariosCarregados,
@@ -166,13 +150,11 @@ export const ProvedorForm: React.FC = () => {
             iban: p.iban || '',
             swift: p.swift || '',
             titular_conta: p.titular_conta || '',
-            endereco: enderecoTexto,
-            country_id: p.country_id || null,
-            region_id: p.region_id || null,
-            municipio: municipioTexto,
-            provincia: provinciaTexto,
-            codigo_postal: codigoPostalTexto,
-            pais: paisTexto,
+            endereco: p.endereco || '',
+            municipio: p.municipio || '',
+            provincia: p.provincia || '',
+            codigo_postal: p.codigo_postal || '',
+            pais: p.pais || 'España',
             ativo: p.ativo ?? true,
           });
         }
@@ -183,38 +165,6 @@ export const ProvedorForm: React.FC = () => {
       });
     }
   }, [id, reset]);
-
-  // Se o país for resolvido após o catálogo de países carregar, preenche country_id sem resetar o formulário
-  useEffect(() => {
-    const currentCountryId = getValues('country_id');
-    const currentPais = getValues('pais') || 'España';
-    if (!currentCountryId && countries.length > 0) {
-      const foundC = countries.find(c =>
-        c.name.toLowerCase().trim() === currentPais.toLowerCase().trim() ||
-        (currentPais.toLowerCase().includes('espa') && c.name.toLowerCase().includes('espa')) ||
-        (currentPais.toLowerCase().includes('port') && c.name.toLowerCase().includes('port'))
-      );
-      if (foundC) {
-        setValue('country_id', foundC.id);
-      }
-    }
-  }, [countries, getValues, setValue]);
-
-  // Se a região for resolvida após o catálogo de regiões carregar, preenche region_id
-  useEffect(() => {
-    const currentRegionId = getValues('region_id');
-    const currentProvincia = getValues('provincia');
-    if (!currentRegionId && currentProvincia && regions.length > 0) {
-      const foundR = regions.find(r =>
-        r.name.toLowerCase().trim() === currentProvincia.toLowerCase().trim() ||
-        r.name.toLowerCase().includes(currentProvincia.toLowerCase().trim()) ||
-        currentProvincia.toLowerCase().includes(r.name.toLowerCase().trim())
-      );
-      if (foundR) {
-        setValue('region_id', foundR.id);
-      }
-    }
-  }, [regions, getValues, setValue]);
 
   const { fields: contatosFields, append: appendContato, remove: removeContato } = useFieldArray({
     control,
@@ -267,10 +217,13 @@ export const ProvedorForm: React.FC = () => {
         await registrosService.createProvedor(payload as any);
       }
 
-      navigate('/logistica/registros/provedores');
+      setSaveSuccess(true);
+      setTimeout(() => {
+        navigate('/logistica/registros/provedores');
+      }, 500);
     } catch (error: any) {
       console.error('Error saving provedor:', error);
-      alert(`Erro ao salvar provedor: ${error.message || 'Verifique o console.'}`);
+      alert(`Erro ao salvar provedor: ${error.message || 'Verifique os dados informados.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -298,17 +251,17 @@ export const ProvedorForm: React.FC = () => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => navigate(-1)}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            onClick={() => navigate('/logistica/registros/provedores')}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
               {isEditing ? 'Editar Proveedor' : 'Novo Proveedor'}
             </h1>
             <p className="text-sm text-slate-500">
-              {isEditing ? 'Atualize os dados cadastrais, contatos, contas bancárias e endereço fiscal.' : 'Cadastre os dados completos do novo fornecedor para alojamentos e serviços.'}
+              {isEditing ? 'Atualize as informações cadastrais, fiscais e bancárias' : 'Cadastre um novo fornecedor de alojamentos ou serviços'}
             </p>
           </div>
         </div>
@@ -316,98 +269,110 @@ export const ProvedorForm: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-sm rounded-lg transition-colors flex items-center gap-2"
+            onClick={() => navigate('/logistica/registros/provedores')}
+            className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-sm font-medium transition-colors"
           >
-            <X size={16} />
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleSubmit(onSubmit, onError)}
             disabled={isSubmitting}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors shadow-xs disabled:opacity-50"
           >
-            <Save size={16} />
-            {isSubmitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Proveedor'}
+            {saveSuccess ? (
+              <>
+                <CheckCircle2 size={16} className="text-emerald-300" />
+                Salvo com Sucesso!
+              </>
+            ) : isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Gravando...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                {isEditing ? 'Salvar Alterações' : 'Cadastrar Proveedor'}
+              </>
+            )}
           </button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
-        {/* BLOCO 1: Identificação do Proveedor */}
+        {/* BLOCO 1: Informações Gerais & Fiscais */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <Building className="h-4.5 w-4.5 text-blue-600" />
-            Identificação do Proveedor
+            Informações Gerais & Fiscais
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nome / Razão Social *</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Nome / Razão Social *
+              </label>
               <input
                 type="text"
                 {...register('nome_razao_social')}
-                className={`w-full px-3.5 py-2 bg-white dark:bg-slate-900 border ${errors.nome_razao_social ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                placeholder="Ex: ASTUR NORTE SERVICIOS INTEGRALES, S.L."
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: PRUJA FORNIELES PARES SL"
               />
-              {errors.nome_razao_social && <span className="text-xs text-red-500 mt-1 block">{errors.nome_razao_social.message}</span>}
+              {errors.nome_razao_social && (
+                <p className="text-red-500 text-xs mt-1">{errors.nome_razao_social.message}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nome Comercial / Fantasia</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Nome Fantasia / Comercial
+              </label>
               <input
                 type="text"
                 {...register('nome_comercial')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ex: AsturNorte Servicios"
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: Agência Prujà"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Tipo de Pessoa</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                CIF / NIF / DNI
+              </label>
+              <input
+                type="text"
+                {...register('cif_nif')}
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: B12345678"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Tipo de Pessoa
+              </label>
               <select
                 {...register('tipo_pessoa')}
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               >
-                <option value="Persona Jurídica">Persona Jurídica (Empresa / S.L.)</option>
-                <option value="Persona Física">Persona Física (Proprietário Direto)</option>
+                <option value="Persona Jurídica">Persona Jurídica (Empresa / SL / SA)</option>
+                <option value="Persona Física">Persona Física (Autônomo / Particular)</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Clasificación de Proveedor</label>
-              <select
-                {...register('tipo')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="alojamento">Proveedor Alojamiento (Inmobiliaria, Hotel, Airbnb)</option>
-                <option value="padrao">Proveedor General (EPI, Energía, Serviços)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">CIF / NIF / DNI / TAX ID</label>
-              <input
-                type="text"
-                {...register('cif_nif')}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: B12345678"
-              />
             </div>
           </div>
         </div>
 
-        {/* BLOCO 2: Contatos & Telefones Múltiplos */}
+        {/* BLOCO 2: Contatos & Telefones */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <Contact className="h-4.5 w-4.5 text-blue-600" />
-              Contatos e Telefones
+              Contatos & Responsáveis
             </h3>
             <button
               type="button"
-              onClick={() => appendContato({ nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' })}
+              onClick={() => appendContato({ nome: '', cargo_tipo: 'Contato Comercial', telefone: '', email: '' })}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg text-xs font-bold transition-colors"
             >
               <Plus size={14} />
@@ -417,36 +382,53 @@ export const ProvedorForm: React.FC = () => {
 
           <div className="space-y-3">
             {contatosFields.map((field, index) => (
-              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-4 items-end shadow-xs">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Contato</label>
-                  <input
-                    type="text"
-                    {...register(`contatos.${index}.nome` as const)}
-                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Ex: Sr. Joaquim Prujà Roca"
-                  />
+              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Contato #{index + 1} {index === 0 && '(Principal)'}
+                  </span>
+                  {contatosFields.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeContato(index)}
+                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
+                      title="Remover Contato"
+                    >
+                      <Trash2 size={14} />
+                      Remover
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cargo / Tipo</label>
-                  <input
-                    type="text"
-                    {...register(`contatos.${index}.cargo_tipo` as const)}
-                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Ex: Proprietário, Imobiliária"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telefone / WhatsApp</label>
-                  <input
-                    type="text"
-                    {...register(`contatos.${index}.telefone` as const)}
-                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Ex: +34 604 49 14 91"
-                  />
-                </div>
-                <div className="flex gap-2 items-center">
-                  <div className="flex-1">
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome</label>
+                    <input
+                      type="text"
+                      {...register(`contatos.${index}.nome` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Nome do contato"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cargo / Tipo</label>
+                    <input
+                      type="text"
+                      {...register(`contatos.${index}.cargo_tipo` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ex: Proprietário, Gerente"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telefone / WhatsApp</label>
+                    <input
+                      type="text"
+                      {...register(`contatos.${index}.telefone` as const)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="+34 600 00 00 00"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Email</label>
                     <input
                       type="email"
@@ -455,16 +437,6 @@ export const ProvedorForm: React.FC = () => {
                       placeholder="email@exemplo.com"
                     />
                   </div>
-                  {contatosFields.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeContato(index)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                      title="Remover"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
                 </div>
               </div>
             ))}
@@ -598,75 +570,68 @@ export const ProvedorForm: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Logradouro / Dirección Fiscal</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                Logradouro / Direção Fiscal (Rua, Número, Andar)
+              </label>
               <input
                 type="text"
                 {...register('endereco')}
                 className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Av. da Liberdade, 123 - 4º Andar"
+                placeholder="Ex: Arbúcies, Carrer Mossèn Jacint Verdaguer, núm. 21."
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">País</label>
-                <CountrySelector
-                  value={selectedCountryId || null}
-                  onChange={(val) => {
-                    setValue('country_id', val, { shouldDirty: true });
-                    setValue('region_id', null, { shouldDirty: true });
-                    const countryObj = countries.find(c => c.id === val);
-                    if (countryObj) {
-                      setValue('pais', countryObj.name, { shouldDirty: true });
-                    }
-                  }}
-                />
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  País
+                </label>
+                <select
+                  {...register('pais')}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="España">🇪🇸 España</option>
+                  <option value="Portugal">🇵🇹 Portugal</option>
+                  <option value="Brasil">🇧🇷 Brasil</option>
+                  <option value="Francia">🇫🇷 Francia</option>
+                  <option value="Alemania">🇩🇪 Alemania</option>
+                  <option value="Italia">🇮🇹 Italia</option>
+                </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Região / Província</label>
-                <RegionSelector
-                  countryId={selectedCountryId || null}
-                  value={selectedRegionId || null}
-                  onChange={(val) => {
-                    setValue('region_id', val, { shouldDirty: true });
-                    const regionObj = regions.find(r => r.id === val);
-                    if (regionObj) {
-                      setValue('provincia', regionObj.name, { shouldDirty: true });
-                    }
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Província / Estado</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Província / Estado
+                </label>
                 <input
                   type="text"
                   {...register('provincia')}
                   className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Catalunha / Minho"
+                  placeholder="Ex: Girona / Barcelona / Madrid"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Cidade</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Cidade / Município
+                </label>
                 <input
                   type="text"
                   {...register('municipio')}
                   className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Barcelona / Braga"
+                  placeholder="Ex: Arbúcies / Sabadell"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Código Postal</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Código Postal (Opcional)
+                </label>
                 <input
                   type="text"
                   {...register('codigo_postal')}
                   className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: 08001 / 4700-001"
+                  placeholder="Ex: 17401 / 08001"
                 />
               </div>
             </div>
