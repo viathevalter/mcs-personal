@@ -1061,7 +1061,13 @@ export const AlojamentoForm: React.FC = () => {
                     }`}>
                       {isChecked && <Check size={10} />}
                     </div>
-                       {/* BLOCO: Observaciones */}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* BLOCO: Observaciones */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
             <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
               <FileText size={15} className="text-blue-600" />
