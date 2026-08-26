@@ -9,8 +9,8 @@ export function WhatsAppRedirectPage() {
 
   useEffect(() => {
     async function trackAndRedirect() {
-      // Default WhatsApp Link for salesperson Alex
-      const whatsappUrl = 'https://wa.me/34645567401?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      // Default WhatsApp Link for salesperson Alex (+34 937 37 41 80)
+      const whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
 
       if (!leadId) {
         window.location.href = whatsappUrl;
