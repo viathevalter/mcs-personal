@@ -592,7 +592,7 @@ export function CampaignsPage() {
         cargoKeyword: '',
         provinceKeyword: '',
         tagKeyword: 'Lote Manhã',
-        limit: '800',
+        limit: '',
         offset: '',
       },
       created_at: new Date().toISOString()
@@ -615,7 +615,7 @@ export function CampaignsPage() {
         cargoKeyword: '',
         provinceKeyword: '',
         tagKeyword: 'Lote Tarde',
-        limit: '800',
+        limit: '',
         offset: '',
       },
       created_at: new Date().toISOString()
@@ -623,7 +623,7 @@ export function CampaignsPage() {
     {
       id: 'aud_tier2_medias',
       name: '🏭 Médias Empresas Industriais (Tier 2)',
-      leadCount: 706,
+      leadCount: 785,
       filters: {
         stageId: '',
         origin: '',
