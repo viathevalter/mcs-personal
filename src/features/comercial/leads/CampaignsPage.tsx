@@ -554,6 +554,7 @@ export function CampaignsPage() {
     {
       id: 'aud_tier1_vip',
       name: '👑 Público VIP - Grandes Empresas (Tier 1 & EPC)',
+      leadCount: 437,
       filters: {
         stageId: '',
         origin: '',
@@ -576,6 +577,7 @@ export function CampaignsPage() {
     {
       id: 'aud_lote_manha',
       name: '☀️ Lote Manhã - Indústria & Montagens',
+      leadCount: 1525,
       filters: {
         stageId: '',
         origin: '',
@@ -598,6 +600,7 @@ export function CampaignsPage() {
     {
       id: 'aud_lote_tarde',
       name: '🌅 Lote Tarde - Tubería & Calderería',
+      leadCount: 2446,
       filters: {
         stageId: '',
         origin: '',
@@ -620,6 +623,7 @@ export function CampaignsPage() {
     {
       id: 'aud_tier2_medias',
       name: '🏭 Médias Empresas Industriais (Tier 2)',
+      leadCount: 706,
       filters: {
         stageId: '',
         origin: '',
@@ -647,13 +651,9 @@ export function CampaignsPage() {
       if (stored) {
         try {
           const userPresets = JSON.parse(stored);
-          const merged = [...defaultStrategicAudiences];
-          userPresets.forEach((up: any) => {
-            if (!merged.some(m => m.id === up.id)) {
-              merged.push(up);
-            }
-          });
-          setSavedAudiences(merged);
+          const defaultIds = new Set(defaultStrategicAudiences.map(d => d.id));
+          const customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id));
+          setSavedAudiences([...defaultStrategicAudiences, ...customOnly]);
         } catch (e) {
           console.error("Failed to parse saved audiences:", e);
           setSavedAudiences(defaultStrategicAudiences);
