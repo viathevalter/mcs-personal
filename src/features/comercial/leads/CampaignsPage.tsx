@@ -642,6 +642,29 @@ export function CampaignsPage() {
         offset: '',
       },
       created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_mailing_alex',
+      name: '🎯 Mailing Alex - Novos Contatos & Oficinas',
+      leadCount: 3097,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Mailing Alex',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
     }
   ], []);
 
