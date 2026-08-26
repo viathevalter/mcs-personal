@@ -4,10 +4,12 @@ import {
   Search,
   MapPin,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Filter,
   ArrowRight,
   Home,
+  Building,
   Building2,
   UserPlus,
   RefreshCw,
@@ -24,6 +26,7 @@ import {
   Plus,
   Trash2,
   Layers,
+  Lock,
   FileSpreadsheet
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
@@ -169,8 +172,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
         worker_id: selectedRealWorker.id?.toString(),
         worker_nome: selectedRealWorker.Nombre,
         codigo_colab: selectedRealWorker.Cod_colab || 'E-XXXX',
-        cliente_nome: directCliente,
-        obra_nome: directObra,
+        cliente_nome: selectedRealWorker.contratante || 'Luminous',
+        obra_nome: selectedRealWorker.ubicacion || 'Barcelona / Espanha',
         data_inicio: directDataInicio,
         data_fim: directDataFim,
         observacoes: directObservacoes
@@ -818,26 +821,56 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Trabalhador Selecionado */}
+                {/* Trabalhador Selecionado com Vínculo Operacional Travado */}
                 {selectedRealWorker && (
-                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-2xl flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <UserCheck size={18} className="text-blue-600" />
-                      <div>
-                        <span className="font-mono text-xs font-bold text-blue-600 block">{selectedRealWorker.Cod_colab}</span>
-                        <p className="font-black text-slate-900 dark:text-white text-xs">{selectedRealWorker.Nombre}</p>
+                  <div className="mt-2 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <UserCheck size={20} className="text-blue-600 flex-shrink-0" />
+                        <div>
+                          <span className="font-mono text-xs font-bold text-blue-600 block">{selectedRealWorker.Cod_colab}</span>
+                          <p className="font-black text-slate-900 dark:text-white text-sm">{selectedRealWorker.Nombre}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRealWorker(null);
+                          setWorkerSearchQuery('');
+                        }}
+                        className="text-xs text-slate-400 hover:text-rose-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        Trocar
+                      </button>
+                    </div>
+
+                    {/* Vínculo Operacional Obrigatório e Imutável da Operação */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-blue-100 dark:border-blue-900/40 text-[11px]">
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
+                          <Building size={11} className="text-blue-500" /> Empresa / Cliente
+                        </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                          {selectedRealWorker.contratante || 'Luminous'}
+                        </span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
+                          <MapPin size={11} className="text-emerald-500" /> Obra / Localização
+                        </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                          {selectedRealWorker.ubicacion || 'Barcelona / Espanha'}
+                        </span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
+                          <CheckCircle2 size={11} className="text-purple-500" /> Status do Ingresso
+                        </span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 block truncate">
+                          {selectedRealWorker.status_trabajador || 'Ativo'}
+                        </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRealWorker(null);
-                        setWorkerSearchQuery('');
-                      }}
-                      className="text-xs text-slate-400 hover:text-rose-600 font-bold px-2 py-1"
-                    >
-                      Trocar
-                    </button>
                   </div>
                 )}
               </div>
@@ -893,34 +926,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       <option>Selecione o alojamento primeiro</option>
                     </select>
                   )}
-                </div>
-              </div>
-
-              {/* 3. Cliente & Obra de Destino */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Cliente do Contrato:
-                  </label>
-                  <input
-                    type="text"
-                    value={directCliente}
-                    onChange={e => setDirectCliente(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Obra / Local de Trabalho:
-                  </label>
-                  <input
-                    type="text"
-                    value={directObra}
-                    onChange={e => setDirectObra(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                  />
                 </div>
               </div>
 

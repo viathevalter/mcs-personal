@@ -159,22 +159,36 @@ export interface TrabalhadorAlojado {
 const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v2';
 
 export const logisticsService = {
-  // Trabalhadores Reais do Banco
+  // Trabalhadores Reais do Banco (Apenas Ativos ou Pendentes de Ingresso)
   async searchTrabalhadores(query: string = ''): Promise<any[]> {
     try {
       let q = supabase
-        .from('trabalhadores')
-        .select('id, Cod_colab, Nombre, status_trabajador, Departamento, email, movil')
-        .order('Nombre', { ascending: true })
+        .from('colaboradores')
+        .select('id, cod_colab, nombre, status_trabajador, contratante, ubicacion, funcion, fecha_inicio, email, movil')
+        .in('status_trabajador', ['Ativo', 'ATIVO', 'Pendiente Ingresar', 'Pendente de Ingresso', 'Pendente'])
+        .order('nombre', { ascending: true })
         .limit(100);
 
       if (query && query.trim().length > 0) {
         const clean = query.trim();
-        q = q.or(`Nombre.ilike.%${clean}%,Cod_colab.ilike.%${clean}%`);
+        q = q.or(`nombre.ilike.%${clean}%,cod_colab.ilike.%${clean}%`);
       }
 
       const { data, error } = await q;
-      if (!error && data) return data;
+      if (!error && data) {
+        return data.map((w: any) => ({
+          id: w.id,
+          Cod_colab: w.cod_colab,
+          Nombre: w.nombre,
+          status_trabajador: w.status_trabajador,
+          contratante: w.contratante || 'Luminous',
+          ubicacion: w.ubicacion || 'Barcelona / Espanha',
+          funcion: w.funcion || 'Operador Especialista',
+          fecha_inicio: w.fecha_inicio || new Date().toISOString().split('T')[0],
+          email: w.email,
+          movil: w.movil
+        }));
+      }
     } catch (e) {
       console.warn('Erro ao buscar trabalhadores no banco:', e);
     }
