@@ -41,32 +41,32 @@ export function ComercialSidebar() {
             titleKey: 'comercial.sidebar.gestaoComercial',
             titleDefault: 'Gestão Comercial',
             links: [
-                { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial'] },
-                { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial'] },
+                { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial', 'rh'] },
             ]
         },
         {
             titleKey: 'comercial.sidebar.marketing',
             titleDefault: 'Marketing',
             links: [
-                { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial'] },
-                { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial'] },
-                { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial'] },
-                { to: '/comercial/campanhas', label: t('comercial.sidebar.campaigns') || 'Campanhas de Marketing', icon: Mail, roles: ['admin', 'commercial'] },
+                { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/campanhas', label: t('comercial.sidebar.campaigns') || 'Campanhas de Marketing', icon: Mail, roles: ['admin', 'commercial', 'rh'] },
             ]
         },
         {
             titleKey: 'comercial.sidebar.analises',
             titleDefault: 'Análises',
             links: [
-                { to: '/comercial/analises', label: t('comercial.sidebar.analisesItem') || 'Análises & Simulações', icon: BarChart3, roles: ['admin', 'commercial'] },
+                { to: '/comercial/analises', label: t('comercial.sidebar.analisesItem') || 'Análises & Simulações', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
             ]
         },
         {
             titleKey: 'comercial.sidebar.settings',
             titleDefault: 'Sistema',
             links: [
-                { to: '/comercial/configuracion', label: t('comercial.sidebar.settings'), icon: Sliders, roles: ['admin'] },
+                { to: '/comercial/configuracion', label: t('comercial.sidebar.settings'), icon: Sliders, roles: ['admin', 'rh'] },
             ]
         }
     ];

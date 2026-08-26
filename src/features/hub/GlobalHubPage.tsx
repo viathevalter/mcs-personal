@@ -48,7 +48,7 @@ const MODULES: ModuleDef[] = [
         path: '/comercial',
         color: 'text-yellow-500',
         bgHover: 'hover:bg-yellow-50',
-        allowedRoles: ['admin', 'commercial']
+        allowedRoles: ['admin', 'admin_rh', 'commercial', 'rh']
     },
     {
         id: 'facturacion',
@@ -149,7 +149,9 @@ export function GlobalHubPage() {
 
         // Mapeia roles globais do App para roles equivalentes nas filiais
         const mappedRoles = [...userMembershipRoles];
-        if (userRole === 'admin_rh' || userMembershipRoles.includes('rh')) {
+        if (userRole === 'admin_rh' || (userRole as string) === 'admin' || userMembershipRoles.includes('admin')) {
+            mappedRoles.push('admin');
+            mappedRoles.push('admin_rh');
             mappedRoles.push('rh');
         }
         if (userRole === 'operador' || userMembershipRoles.includes('operador')) {
