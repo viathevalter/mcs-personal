@@ -432,6 +432,7 @@ export function CampaignsPage() {
     sectorKeyword: string;
     cargoKeyword: string;
     provinceKeyword: string;
+    tagKeyword: string;
     limit: string;
     offset: string;
   }>({
@@ -447,6 +448,7 @@ export function CampaignsPage() {
     sectorKeyword: '',
     cargoKeyword: '',
     provinceKeyword: '',
+    tagKeyword: '',
     limit: '',
     offset: '',
   });
@@ -548,20 +550,119 @@ export function CampaignsPage() {
     }));
   }, [allLeads]);
 
+  const defaultStrategicAudiences = useMemo(() => [
+    {
+      id: 'aud_tier1_vip',
+      name: '👑 Público VIP - Grandes Empresas (Tier 1 & EPC)',
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Público VIP',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_lote_manha',
+      name: '☀️ Lote Manhã - Indústria & Montagens',
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Lote Manhã',
+        limit: '800',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_lote_tarde',
+      name: '🌅 Lote Tarde - Tubería & Calderería',
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Lote Tarde',
+        limit: '800',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_tier2_medias',
+      name: '🏭 Médias Empresas Industriais (Tier 2)',
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: ['Mediana Empresa (Tier 2)', 'Tier 2 (Mediana Empresa Industrial)'],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    }
+  ], []);
+
   useEffect(() => {
     if (selectedEmpresaId) {
       const stored = localStorage.getItem(`mcs_marketing_audiences_${selectedEmpresaId}`);
       if (stored) {
         try {
-          setSavedAudiences(JSON.parse(stored));
+          const userPresets = JSON.parse(stored);
+          const merged = [...defaultStrategicAudiences];
+          userPresets.forEach((up: any) => {
+            if (!merged.some(m => m.id === up.id)) {
+              merged.push(up);
+            }
+          });
+          setSavedAudiences(merged);
         } catch (e) {
           console.error("Failed to parse saved audiences:", e);
+          setSavedAudiences(defaultStrategicAudiences);
         }
       } else {
-        setSavedAudiences([]);
+        setSavedAudiences(defaultStrategicAudiences);
       }
     }
-  }, [selectedEmpresaId]);
+  }, [selectedEmpresaId, defaultStrategicAudiences]);
 
   const saveAudiencesToLocalStorage = (newAudiences: any[]) => {
     setSavedAudiences(newAudiences);
@@ -910,6 +1011,7 @@ export function CampaignsPage() {
       sectorKeyword: '',
       cargoKeyword: '',
       provinceKeyword: '',
+      tagKeyword: '',
       limit: '',
       offset: '',
     });
@@ -1014,6 +1116,18 @@ export function CampaignsPage() {
         const regionText = (l.region_id || '').toLowerCase();
         const cityText = (l.city || '').toLowerCase();
         if (!provinceText.includes(keyword) && !regionText.includes(keyword) && !cityText.includes(keyword)) {
+          return false;
+        }
+      }
+
+      // 12. Filter by Tag Keyword / Strategic Audience Tag
+      if (audienceFilters.tagKeyword) {
+        const keyword = audienceFilters.tagKeyword.toLowerCase();
+        const hasTag = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(keyword));
+        const inSector = (l.sector || '').toLowerCase().includes(keyword);
+        const inNotes = (l.notes || '').toLowerCase().includes(keyword);
+        const inSize = (l.company_size || '').toLowerCase().includes(keyword);
+        if (!hasTag && !inSector && !inNotes && !inSize) {
           return false;
         }
       }
