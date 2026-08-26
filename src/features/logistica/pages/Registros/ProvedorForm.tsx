@@ -12,7 +12,7 @@ const contatoItemSchema = z.object({
   nome: z.string().optional(),
   cargo_tipo: z.string().optional(),
   telefone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
+  email: z.string().email('Email no válido').optional().or(z.literal('')),
 });
 
 const contaBancariaItemSchema = z.object({
@@ -25,7 +25,7 @@ const contaBancariaItemSchema = z.object({
 });
 
 const provedorSchema = z.object({
-  nome_razao_social: z.string().min(1, 'Razão Social é obrigatória'),
+  nome_razao_social: z.string().min(1, 'La Razón Social es obligatoria'),
   nome_comercial: z.string().optional(),
   cif_nif: z.string().optional(),
   tipo: z.enum(['padrao', 'alojamento']),
@@ -33,7 +33,7 @@ const provedorSchema = z.object({
   classificacao: z.string().default('Proveedor Alojamiento'),
   contato_nome: z.string().optional(),
   telefone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
+  email: z.string().email('Email no válido').optional().or(z.literal('')),
   contatos: z.array(contatoItemSchema).default([]),
   dados_bancarios: z.array(contaBancariaItemSchema).default([]),
   metodo_pago: z.string().default('Transferir'),
@@ -86,7 +86,7 @@ export const ProvedorForm: React.FC = () => {
       pais: 'España',
       ativo: true,
       contatos: [
-        { nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' }
+        { nome: '', cargo_tipo: 'Propietario', telefone: '', email: '' }
       ],
       dados_bancarios: [
         { banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: true }
@@ -98,10 +98,28 @@ export const ProvedorForm: React.FC = () => {
   const watchedPais = useWatch({ control, name: 'pais' });
   const watchedProvincia = useWatch({ control, name: 'provincia' });
 
+  const {
+    fields: contatoFields,
+    append: appendContato,
+    remove: removeContato,
+  } = useFieldArray({
+    control,
+    name: 'contatos',
+  });
+
+  const {
+    fields: bancoFields,
+    append: appendBanco,
+    remove: removeBanco,
+  } = useFieldArray({
+    control,
+    name: 'dados_bancarios',
+  });
+
   // Estado para alertar sobre restauração de rascunho
   const [isDraftRestored, setIsDraftRestored] = useState<boolean>(false);
 
-  // Recuperação de Rascunho do LocalStorage (Persistência ao trocar de abas)
+  // Recuperación de borrador desde LocalStorage
   useEffect(() => {
     if (!id && !dataLoadedRef.current) {
       try {
@@ -114,12 +132,12 @@ export const ProvedorForm: React.FC = () => {
           }
         }
       } catch (e) {
-        console.warn('Erro ao carregar rascunho de provedor:', e);
+        console.warn('Error al cargar borrador de proveedor:', e);
       }
     }
   }, [id, reset]);
 
-  // Auto-Save contínuo do Rascunho no LocalStorage com debounce
+  // Auto-Save continuo del borrador en LocalStorage con debounce
   const allWatchedValues = watch();
   useEffect(() => {
     if (!isEditing) {
@@ -147,7 +165,7 @@ export const ProvedorForm: React.FC = () => {
       contato_nome: '',
       telefone: '',
       email: '',
-      contatos: [{ nome: '', cargo_tipo: 'Proprietário', telefone: '', email: '' }],
+      contatos: [{ nome: '', cargo_tipo: 'Propietario', telefone: '', email: '' }],
       dados_bancarios: [{ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: true }],
       metodo_pago: 'Transferir',
       banco: '',
@@ -164,7 +182,7 @@ export const ProvedorForm: React.FC = () => {
     setIsDraftRestored(false);
   };
 
-  // Carregar dados APENAS UMA VEZ no modo de edição (quando id estiver disponível)
+  // Cargar datos en modo de edición
   useEffect(() => {
     if (id && !dataLoadedRef.current) {
       setIsLoading(true);
@@ -175,7 +193,7 @@ export const ProvedorForm: React.FC = () => {
           const contatosCarregados = p.contatos && p.contatos.length > 0 ? p.contatos : [
             {
               nome: p.contato_nome || '',
-              cargo_tipo: 'Proprietário',
+              cargo_tipo: 'Propietario',
               telefone: p.telefone || '',
               email: p.email || ''
             }
@@ -225,44 +243,46 @@ export const ProvedorForm: React.FC = () => {
             provincia: p.provincia || '',
             codigo_postal: p.codigo_postal || '',
             pais: p.pais || 'España',
-            ativo: p.ativo ?? true,
+            ativo: p.ativo ?? (p.status !== 'Inactivo'),
           });
         }
       }).catch(err => {
-        console.error('Erro ao carregar provedor:', err);
+        console.error('Error al cargar proveedor:', err);
       }).finally(() => {
         setIsLoading(false);
       });
     }
   }, [id, reset]);
 
-  const { fields: contatosFields, append: appendContato, remove: removeContato } = useFieldArray({
-    control,
-    name: 'contatos'
-  });
-
-  const { fields: bancoFields, append: appendBanco, remove: removeBanco } = useFieldArray({
-    control,
-    name: 'dados_bancarios'
-  });
-
-  const handleIbanInputChange = (index: number, rawValue: string) => {
-    const formatted = formatIban(rawValue);
+  // Autodetectar banco ao digitar IBAN
+  const handleIbanChange = (index: number, val: string) => {
+    const formatted = formatIban(val);
     setValue(`dados_bancarios.${index}.iban`, formatted, { shouldDirty: true });
 
     const bankInfo = identifyBankFromIban(formatted);
     if (bankInfo) {
-      setValue(`dados_bancarios.${index}.banco`, bankInfo.name, { shouldDirty: true });
-      setValue(`dados_bancarios.${index}.swift`, bankInfo.bic, { shouldDirty: true });
+      if (!watch(`dados_bancarios.${index}.banco`)) {
+        setValue(`dados_bancarios.${index}.banco`, bankInfo.name, { shouldDirty: true });
+      }
+      if (!watch(`dados_bancarios.${index}.swift`)) {
+        setValue(`dados_bancarios.${index}.swift`, bankInfo.bic, { shouldDirty: true });
+      }
     }
+  };
+
+  const handleSetPrincipalBanco = (index: number) => {
+    const list = watchedDadosBancarios || [];
+    list.forEach((_, i) => {
+      setValue(`dados_bancarios.${i}.principal`, i === index, { shouldDirty: true });
+    });
   };
 
   const onSubmit = async (data: ProvedorFormValues) => {
     try {
       setIsSubmitting(true);
 
-      const principalContato = data.contatos[0];
-      const principalBanco = data.dados_bancarios.find(b => b.principal) || data.dados_bancarios[0];
+      const principalContato = data.contatos?.[0];
+      const principalBanco = data.dados_bancarios?.find(b => b.principal) || data.dados_bancarios?.[0];
 
       const payload = {
         ...data,
@@ -296,7 +316,7 @@ export const ProvedorForm: React.FC = () => {
       }, 500);
     } catch (error: any) {
       console.error('Error saving provedor:', error);
-      alert(`Erro ao salvar provedor: ${error.message || 'Verifique os dados informados.'}`);
+      alert(`Error al guardar proveedor: ${error.message || 'Compruebe los datos informados.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -305,14 +325,14 @@ export const ProvedorForm: React.FC = () => {
   const onError = (errs: any) => {
     console.error('Form Validation Errors:', errs);
     const firstKey = Object.keys(errs)[0];
-    alert(`Atenção: O campo "${firstKey}" necessita ajuste: ${errs[firstKey]?.message || 'Verifique o preenchimento.'}`);
+    alert(`Atención: El campo "${firstKey}" requiere ajuste: ${errs[firstKey]?.message || 'Compruebe el formulario.'}`);
   };
 
   if (isLoading) {
     return (
       <div className="w-full px-8 py-16 text-center text-slate-500 font-medium">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-        Carregando dados do proveedor...
+        Cargando datos del proveedor...
       </div>
     );
   }
@@ -331,10 +351,10 @@ export const ProvedorForm: React.FC = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {isEditing ? 'Editar Proveedor' : 'Novo Proveedor'}
+              {isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}
             </h1>
             <p className="text-sm text-slate-500">
-              {isEditing ? 'Atualize as informações cadastrais, fiscais e bancárias' : 'Cadastre um novo fornecedor de alojamentos ou serviços'}
+              {isEditing ? 'Actualice la información fiscal, bancaria y de contacto' : 'Registre un nuevo proveedor de alojamientos o servicios'}
             </p>
           </div>
         </div>
@@ -356,17 +376,17 @@ export const ProvedorForm: React.FC = () => {
             {saveSuccess ? (
               <>
                 <CheckCircle2 size={16} className="text-emerald-300" />
-                Salvo com Sucesso!
+                ¡Guardado con Éxito!
               </>
             ) : isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Gravando...
+                Guardando...
               </>
             ) : (
               <>
                 <Save size={16} />
-                {isEditing ? 'Salvar Alterações' : 'Cadastrar Proveedor'}
+                {isEditing ? 'Guardar Cambios' : 'Registrar Proveedor'}
               </>
             )}
           </button>
@@ -377,36 +397,36 @@ export const ProvedorForm: React.FC = () => {
         <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-5 py-3 rounded-2xl flex items-center justify-between shadow-xs animate-in fade-in duration-200">
           <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold">
             <Sparkles size={16} className="text-amber-600 flex-shrink-0" />
-            <span>Rascunho recuperado automaticamente! Seus dados cadastrais foram preservados ao alternar entre abas do navegador.</span>
+            <span>¡Borrador recuperado automáticamente! Los datos se han conservado al cambiar de pestaña.</span>
           </div>
           <button
             type="button"
             onClick={handleDiscardDraft}
             className="text-xs text-amber-700 hover:text-red-600 dark:text-amber-400 font-bold px-3 py-1 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
           >
-            Limpar Rascunho
+            Limpiar Borrador
           </button>
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
-        {/* BLOCO 1: Informações Gerais & Fiscais */}
+        {/* BLOQUE 1: Información General & Fiscal */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <Building className="h-4.5 w-4.5 text-blue-600" />
-            Informações Gerais & Fiscais
+            Información General & Fiscal
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Nome / Razão Social *
+                Nombre / Razón Social *
               </label>
               <input
                 type="text"
                 {...register('nome_razao_social')}
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: PRUJA FORNIELES PARES SL"
+                placeholder="Ej: PRUJA FORNIELES PARES SL"
               />
               {errors.nome_razao_social && (
                 <p className="text-red-500 text-xs mt-1">{errors.nome_razao_social.message}</p>
@@ -415,13 +435,13 @@ export const ProvedorForm: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Nome Fantasia / Comercial
+                Nombre Comercial / Marca
               </label>
               <input
                 type="text"
                 {...register('nome_comercial')}
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Agência Prujà"
+                placeholder="Ej: Agencia Prujà"
               />
             </div>
 
@@ -433,293 +453,243 @@ export const ProvedorForm: React.FC = () => {
                 type="text"
                 {...register('cif_nif')}
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: B12345678"
+                placeholder="Ej: B12345678"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tipo de Pessoa
+                Tipo de Persona
               </label>
               <select
                 {...register('tipo_pessoa')}
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               >
                 <option value="Persona Jurídica">Persona Jurídica (Empresa / SL / SA)</option>
-                <option value="Persona Física">Persona Física (Autônomo / Particular)</option>
+                <option value="Persona Física">Persona Física (Autónomo / Particular)</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* BLOCO 2: Contatos & Telefones */}
+        {/* BLOQUE 2: Ubicación & Dirección */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <MapPin className="h-4.5 w-4.5 text-blue-600" />
+            Ubicación & Dirección Fiscal
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Dirección / Calle / Número
+              </label>
+              <input
+                type="text"
+                {...register('endereco')}
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: Carrer Major, 12, 2º 1ª"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Código Postal
+              </label>
+              <input
+                type="text"
+                {...register('codigo_postal')}
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: 08001"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                País
+              </label>
+              <CountrySelector
+                value={watchedPais}
+                onChange={val => setValue('pais', val, { shouldDirty: true })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Provincia / Comunidad
+              </label>
+              <RegionSelector
+                countryName={watchedPais}
+                value={watchedProvincia}
+                onChange={val => setValue('provincia', val, { shouldDirty: true })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Municipio / Ciudad
+              </label>
+              <input
+                type="text"
+                {...register('municipio')}
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: Barcelona"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* BLOQUE 3: Contactos */}
+        <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <Contact className="h-4.5 w-4.5 text-blue-600" />
-              Contatos & Responsáveis
+              Contactos & Responsables
             </h3>
             <button
               type="button"
-              onClick={() => appendContato({ nome: '', cargo_tipo: 'Contato Comercial', telefone: '', email: '' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg text-xs font-bold transition-colors"
+              onClick={() => appendContato({ nome: '', cargo_tipo: 'Contacto', telefone: '', email: '' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
             >
               <Plus size={14} />
-              Adicionar Contato
+              Añadir Contacto
             </button>
           </div>
 
           <div className="space-y-3">
-            {contatosFields.map((field, index) => (
-              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Contato #{index + 1} {index === 0 && '(Principal)'}
-                  </span>
-                  {contatosFields.length > 1 && (
+            {contatoFields.map((field, index) => (
+              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-4 gap-3 relative">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Nombre Completo</label>
+                  <input
+                    type="text"
+                    {...register(`contatos.${index}.nome`)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    placeholder="Ej: Juan Pérez"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Cargo / Rol</label>
+                  <input
+                    type="text"
+                    {...register(`contatos.${index}.cargo_tipo`)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    placeholder="Ej: Propietario / Gestor"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Teléfono</label>
+                  <input
+                    type="text"
+                    {...register(`contatos.${index}.telefone`)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    placeholder="Ej: +34 612 345 678"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Email</label>
+                    <input
+                      type="email"
+                      {...register(`contatos.${index}.email`)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ej: contacto@empresa.es"
+                    />
+                  </div>
+                  {contatoFields.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeContato(index)}
-                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
-                      title="Remover Contato"
+                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                      title="Eliminar contacto"
                     >
-                      <Trash2 size={14} />
-                      Remover
+                      <Trash2 size={15} />
                     </button>
                   )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome</label>
-                    <input
-                      type="text"
-                      {...register(`contatos.${index}.nome` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Nome do contato"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cargo / Tipo</label>
-                    <input
-                      type="text"
-                      {...register(`contatos.${index}.cargo_tipo` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Ex: Proprietário, Gerente"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telefone / WhatsApp</label>
-                    <input
-                      type="text"
-                      {...register(`contatos.${index}.telefone` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="+34 600 00 00 00"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Email</label>
-                    <input
-                      type="email"
-                      {...register(`contatos.${index}.email` as const)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* BLOCO 3: Múltiplas Contas Bancárias & Reconhecimento Automático de IBAN */}
+        {/* BLOQUE 4: Cuentas Bancarias */}
         <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
-                Dados Bancários e Formas de Pagamento
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">O sistema identifica o Banco e o código SWIFT/BIC automaticamente ao digitar o IBAN.</p>
-            </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <CreditCard className="h-4.5 w-4.5 text-blue-600" />
+              Datos Bancarios para Pago de Alquiler
+            </h3>
             <button
               type="button"
-              onClick={() => appendBanco({ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: bancoFields.length === 0 })}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-xs font-bold transition-colors"
+              onClick={() => appendBanco({ banco: '', iban: '', swift: '', titular_conta: '', metodo_pago: 'Transferir', principal: false })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
             >
               <Plus size={14} />
-              Adicionar Conta Bancária
+              Añadir Cuenta Bancaria
             </button>
           </div>
 
-          <div className="space-y-4">
-            {bancoFields.map((field, index) => {
-              const currentIban = watchedDadosBancarios?.[index]?.iban || '';
-              const identifiedBank = identifyBankFromIban(currentIban);
-
-              return (
-                <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                      Conta Bancária #{index + 1}
-                      {index === 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-semibold rounded-full">Principal / Padrão</span>}
-                    </span>
+          <div className="space-y-3">
+            {bancoFields.map((field, index) => (
+              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Cuenta #{index + 1}</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="principal_banco"
+                        checked={watchedDadosBancarios?.[index]?.principal || false}
+                        onChange={() => handleSetPrincipalBanco(index)}
+                        className="text-blue-600"
+                      />
+                      Cuenta Principal
+                    </label>
                     {bancoFields.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeBanco(index)}
-                        className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors text-xs flex items-center gap-1"
-                        title="Remover Conta"
+                        className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                        title="Eliminar cuenta"
                       >
                         <Trash2 size={14} />
-                        Remover Conta
                       </button>
                     )}
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Método de Pago</label>
-                      <select
-                        {...register(`dados_bancarios.${index}.metodo_pago` as const)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      >
-                        <option value="Transferir">Transferência Bancária (Transferir)</option>
-                        <option value="Bizum">Bizum</option>
-                        <option value="Pix">Pix / Chave Instantânea</option>
-                        <option value="Efectivo">Efectivo / Dinheiro</option>
-                        <option value="Tarjeta">Tarjeta / Cartão</option>
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                        IBAN / Cuenta / Chave Pix *
-                      </label>
-                      <input
-                        type="text"
-                        value={watchedDadosBancarios?.[index]?.iban || ''}
-                        onChange={e => handleIbanInputChange(index, e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-emerald-500"
-                        placeholder="Ex: ES09 0182 7307 4202 0009 3104"
-                      />
-
-                      {identifiedBank && (
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md mt-1.5 border border-emerald-200 dark:border-emerald-800 animate-in fade-in duration-150">
-                          <Sparkles size={13} className="text-emerald-600 flex-shrink-0" />
-                          <span>
-                            Banco Reconhecido: <strong className="text-emerald-800 dark:text-emerald-200">{identifiedBank.name}</strong> • SWIFT/BIC: <strong className="font-mono text-emerald-800 dark:text-emerald-200">{identifiedBank.bic}</strong>
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nome do Banco</label>
-                      <input
-                        type="text"
-                        {...register(`dados_bancarios.${index}.banco` as const)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ex: BBVA, CaixaBank, Santander"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Código SWIFT / BIC</label>
-                      <input
-                        type="text"
-                        {...register(`dados_bancarios.${index}.swift` as const)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ex: BBVAESMMXXX"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titular da Conta Bancária</label>
-                      <input
-                        type="text"
-                        {...register(`dados_bancarios.${index}.titular_conta` as const)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ex: MERCEDES SASTRE VICENTE"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">IBAN *</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.iban`)}
+                      onChange={e => handleIbanChange(index, e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                      placeholder="ES91 2100 0418 4502 0005 1332"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Banco</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.banco`)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ej: CaixaBank"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Titular de la Cuenta</label>
+                    <input
+                      type="text"
+                      {...register(`dados_bancarios.${index}.titular_conta`)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      placeholder="Ej: PRUJA FORNIELES PARES SL"
+                    />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* BLOCO 4: Endereço Principal & Localização Fiscal (Vinculado a Tabelas Oficiais de Países e Províncias) */}
-        <div className="bg-slate-50/60 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <MapPin className="h-4.5 w-4.5 text-blue-600" />
-            Endereço Principal & Localização Fiscal
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                Logradouro / Direção Fiscal (Rua, Número, Andar)
-              </label>
-              <input
-                type="text"
-                {...register('endereco')}
-                className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                placeholder="Ex: Arbúcies, Carrer Mossèn Jacint Verdaguer, núm. 21."
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  País (Tabela Oficial)
-                </label>
-                <CountrySelector
-                  value={watchedPais || 'España'}
-                  onChange={(_id, name) => {
-                    setValue('pais', name || 'España', { shouldDirty: true });
-                  }}
-                />
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Província (Tabela Oficial)
-                </label>
-                <RegionSelector
-                  countryName={watchedPais || 'España'}
-                  value={watchedProvincia || null}
-                  onChange={(_id, name) => {
-                    setValue('provincia', name || '', { shouldDirty: true });
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Cidade / Município
-                </label>
-                <input
-                  type="text"
-                  {...register('municipio')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: Arbúcies / Sabadell"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Código Postal (Opcional)
-                </label>
-                <input
-                  type="text"
-                  {...register('codigo_postal')}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: 17401 / 08001"
-                />
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </form>

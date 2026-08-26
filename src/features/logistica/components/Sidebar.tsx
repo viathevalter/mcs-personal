@@ -44,7 +44,7 @@ export const Sidebar: React.FC = () => {
           {isSidebarOpen && (
             <div className="min-w-0">
               <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">Logística</h1>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Alojamentos & Operações</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Alojamientos & Operaciones</p>
             </div>
           )}
         </div>
@@ -62,31 +62,31 @@ export const Sidebar: React.FC = () => {
           className="w-full flex items-center gap-2 justify-center py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700"
         >
           <ArrowLeft size={16} />
-          {isSidebarOpen && "Voltar para o Hub"}
+          {isSidebarOpen && "Volver al Hub"}
         </button>
       </div>
 
       <div className="flex-1 px-3 py-2 space-y-4">
         <div>
-          <SectionLabel label="Gestão & Alocação" />
+          <SectionLabel label="Gestión & Asignación" />
           <div className="space-y-1">
-            <NavItem to="/logistica/dashboard" icon={Calendar} label="Ocupação (Gantt)" />
-            <NavItem to="/logistica/demandas" icon={Users} label="Demandas de Alocação" />
+            <NavItem to="/logistica/dashboard" icon={Calendar} label="Ocupación (Gantt)" />
+            <NavItem to="/logistica/demandas" icon={Users} label="Demandas de Asignación" />
           </div>
         </div>
 
         <div>
           <SectionLabel label="Registros" />
           <div className="space-y-1">
-            <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamentos & Provedores" />
+            <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamientos & Proveedores" />
           </div>
         </div>
 
         <div>
-          <SectionLabel label="Financeiro" />
+          <SectionLabel label="Financiero" />
           <div className="space-y-1">
-            <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianças" />
-            <NavItem to="/logistica/financeiro" icon={DollarSign} label="Ordens de Pagamento" />
+            <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianzas" />
+            <NavItem to="/logistica/financeiro" icon={DollarSign} label="Órdenes de Pago" />
           </div>
         </div>
       </div>

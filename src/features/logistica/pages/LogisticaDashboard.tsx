@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../shared/supabase/client';
 import { format, getDaysInMonth, startOfMonth, addDays, isWithinInterval, parseISO, isSameMonth } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { es } from 'date-fns/locale';
 import { Loader2, Calendar, DollarSign, Building2, Bed, Home } from 'lucide-react';
 
 interface Alojamento {
@@ -35,13 +35,11 @@ export function LogisticaDashboard() {
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => addDays(firstDayOfMonth, i));
 
   const fetchLogisticsData = async () => {
-    // Tenta primeiro no schema core_logistics, se falhar ou não retornar, pode estar no public
-    // Usa any para não ter erro de TS se o schema não estiver tipado
     const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
     
     let alojamentosRes = await client.from('alojamentos').select('*');
     if (alojamentosRes.error) {
-      console.warn("Erro ao buscar alojamentos em core_logistics, tentando public...", alojamentosRes.error);
+      console.warn("Error al buscar alojamientos en core_logistics, intentando en public...", alojamentosRes.error);
       alojamentosRes = await supabase.from('alojamentos').select('*');
     }
     
@@ -74,7 +72,7 @@ export function LogisticaDashboard() {
     queryFn: fetchLogisticsData,
   });
 
-  // Cálculo de Rateio de Custos
+  // Cálculo de Reparto de Costes
   const costApportionment = useMemo(() => {
     if (!data) return [];
     
@@ -89,13 +87,11 @@ export function LogisticaDashboard() {
 
       const dailyCost = alojamento.custo_mensal_total / alojamento.capacidade / 30;
       
-      // Contar quantos dias esta alocação ocupou no mês atual
       let daysUsedInMonth = 0;
       const start = parseISO(alocacao.data_inicio);
       const end = parseISO(alocacao.data_fim);
 
       daysArray.forEach(day => {
-        // Zera as horas para comparar corretamente apenas a data
         const dayNormalized = new Date(day.getFullYear(), day.getMonth(), day.getDate());
         const startNormalized = new Date(start.getFullYear(), start.getMonth(), start.getDate());
         const endNormalized = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59);
@@ -143,9 +139,9 @@ export function LogisticaDashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
             <Home className="h-8 w-8 text-blue-600" />
-            Logística e Alojamentos
+            Logística y Alojamientos
           </h1>
-          <p className="text-slate-500 mt-1">Gestão de ocupação de camas e rateio de custos por obra.</p>
+          <p className="text-slate-500 mt-1">Gestión de ocupación de plazas y reparto de costes por obra.</p>
         </div>
         
         <div className="flex items-center gap-4 bg-white p-2 rounded-lg border shadow-sm">
@@ -157,7 +153,7 @@ export function LogisticaDashboard() {
           </button>
           <div className="flex items-center gap-2 font-medium text-slate-700 min-w-[140px] justify-center">
             <Calendar className="h-4 w-4" />
-            <span className="capitalize">{format(currentDate, 'MMMM yyyy', { locale: ptBR })}</span>
+            <span className="capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</span>
           </div>
           <button 
             className="p-2 hover:bg-slate-100 rounded-md transition-colors"
@@ -175,7 +171,7 @@ export function LogisticaDashboard() {
           <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
             <h2 className="font-semibold text-lg flex items-center gap-2">
               <Bed className="h-5 w-5 text-indigo-500" />
-              Timeline de Ocupação
+              Timeline de Ocupación
             </h2>
           </div>
           
@@ -184,7 +180,7 @@ export function LogisticaDashboard() {
               {/* Header: Days */}
               <div className="flex border-b bg-slate-50">
                 <div className="w-64 shrink-0 p-3 font-semibold text-sm text-slate-600 border-r flex items-center">
-                  Alojamento / Cama
+                  Alojamiento / Cama
                 </div>
                 <div className="flex flex-1">
                   {daysArray.map((day, i) => (
@@ -193,7 +189,7 @@ export function LogisticaDashboard() {
                       className="w-10 shrink-0 p-2 text-center text-xs font-medium text-slate-500 border-r border-slate-100 flex flex-col items-center justify-center"
                       title={format(day, 'dd/MM/yyyy')}
                     >
-                      <span>{format(day, 'EEEEEE', { locale: ptBR })}</span>
+                      <span>{format(day, 'EEEEEE', { locale: es })}</span>
                       <span className={`text-sm ${format(day, 'MM-dd') === format(new Date(), 'MM-dd') ? 'bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center mt-1' : 'mt-1'}`}>
                         {format(day, 'dd')}
                       </span>
@@ -224,7 +220,6 @@ export function LogisticaDashboard() {
 
                     {/* Beds */}
                     {camasDoAlojamento.map(cama => {
-                      // Find allocations for this bed
                       const alocacoesDaCama = data.alocacoes.filter(a => a.cama_id === cama.id);
 
                       return (
@@ -235,7 +230,6 @@ export function LogisticaDashboard() {
                           
                           <div className="flex flex-1 relative">
                             {daysArray.map((day, i) => {
-                              // Check if day is occupied
                               const dayNormalized = new Date(day.getFullYear(), day.getMonth(), day.getDate());
                               
                               const alocacaoNoDia = alocacoesDaCama.find(aloc => {
@@ -246,13 +240,11 @@ export function LogisticaDashboard() {
 
                               const isOccupied = !!alocacaoNoDia;
 
-                              // For rendering a continuous block (optional improvement for later: render absolute positioned div over the grid)
-                              // Here we render cell by cell with a colored background
                               return (
                                 <div 
                                   key={i} 
                                   className={`w-10 shrink-0 border-r border-slate-100 ${isOccupied ? 'bg-indigo-100' : ''}`}
-                                  title={isOccupied ? `Ocupado por ${alocacaoNoDia.worker_id} na obra ${alocacaoNoDia.project_name}` : 'Livre'}
+                                  title={isOccupied ? `Ocupado por ${alocacaoNoDia.worker_id} en la obra ${alocacaoNoDia.project_name}` : 'Libre'}
                                 >
                                   {isOccupied && (
                                     <div className="w-full h-full border-y border-indigo-300 bg-indigo-200/50"></div>
@@ -270,7 +262,7 @@ export function LogisticaDashboard() {
               
               {(!data?.alojamentos || data.alojamentos.length === 0) && (
                 <div className="p-8 text-center text-slate-500">
-                  Nenhum alojamento cadastrado.
+                  Ningún alojamiento registrado.
                 </div>
               )}
             </div>
@@ -283,13 +275,13 @@ export function LogisticaDashboard() {
             <div className="p-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50 flex items-center justify-between">
               <h2 className="font-semibold text-lg flex items-center gap-2 text-emerald-800">
                 <DollarSign className="h-5 w-5 text-emerald-600" />
-                Rateio por Obra
+                Reparto por Obra
               </h2>
             </div>
             
             <div className="p-4 flex-1 flex flex-col gap-4">
               <p className="text-sm text-slate-500">
-                Custos calculados com base nos dias de ocupação de cada obra no mês de {format(currentDate, 'MMMM', { locale: ptBR })}.
+                Costes calculados según los días de ocupación de cada obra en el mes de {format(currentDate, 'MMMM', { locale: es })}.
               </p>
 
               <div className="space-y-3 mt-2">
@@ -300,13 +292,13 @@ export function LogisticaDashboard() {
                         {item.project}
                       </span>
                       <span className="font-bold text-emerald-600 whitespace-nowrap">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'EUR' }).format(item.cost)}
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.cost)}
                       </span>
                     </div>
                   ))
                 ) : (
                   <div className="text-center p-6 text-slate-400 bg-slate-50 rounded-lg border border-dashed">
-                    Nenhum custo a ratear neste mês.
+                    Ningún coste a repartir en este mes.
                   </div>
                 )}
               </div>
@@ -316,7 +308,7 @@ export function LogisticaDashboard() {
                   <div className="flex justify-between items-center text-lg">
                     <span className="font-semibold text-slate-800">Total</span>
                     <span className="font-bold text-slate-900">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'EUR' }).format(
+                      {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(
                         costApportionment.reduce((acc, curr) => acc + curr.cost, 0)
                       )}
                     </span>
@@ -354,7 +346,7 @@ export function LogisticaDashboard() {
               ))
             ) : (
               <div className="text-center p-6 text-slate-400 bg-white rounded-lg border border-dashed">
-                Nenhum adiamento ou prorrogação de prazo recente.
+                Ningún aplazamiento o prórroga de plazo reciente.
               </div>
             )}
           </div>
@@ -364,7 +356,7 @@ export function LogisticaDashboard() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 border-b pb-2">
             <Building2 className="h-5 w-5 text-indigo-500" />
-            <h3 className="font-bold text-slate-800">Solicitações Operativas (Mãe)</h3>
+            <h3 className="font-bold text-slate-800">Solicitudes Operativas (Madre)</h3>
           </div>
 
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
@@ -374,7 +366,7 @@ export function LogisticaDashboard() {
                   <div className="flex justify-between items-start gap-2">
                     <span className="text-xs font-bold text-slate-800">{sol.title}</span>
                     <span className="text-[9px] text-slate-400 whitespace-nowrap">
-                      Prazo: {sol.due_date ? new Date(sol.due_date).toLocaleDateString() : 'Sem prazo'}
+                      Plazo: {sol.due_date ? new Date(sol.due_date).toLocaleDateString() : 'Sin plazo'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500">{sol.description}</p>
@@ -384,15 +376,15 @@ export function LogisticaDashboard() {
                       sol.status === 'in_progress' ? 'bg-amber-500/10 text-amber-600' :
                       'bg-slate-500/10 text-slate-650'
                     }`}>
-                      {sol.status === 'completed' ? 'Concluída' :
-                       sol.status === 'in_progress' ? 'Em Progresso' : 'Pendente'}
+                      {sol.status === 'completed' ? 'Completada' :
+                       sol.status === 'in_progress' ? 'En Progreso' : 'Pendiente'}
                     </span>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center p-6 text-slate-400 bg-white rounded-lg border border-dashed">
-                Nenhuma solicitação mãe de mobilização ativa.
+                Ninguna solicitud madre de movilización activa.
               </div>
             )}
           </div>

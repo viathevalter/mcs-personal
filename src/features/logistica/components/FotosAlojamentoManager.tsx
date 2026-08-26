@@ -31,7 +31,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Escuta o evento de Colar (Ctrl + V) global e local para capturar prints da tela
+  // Escucha el evento Pegar (Ctrl + V) global para capturar capturas de pantalla
   useEffect(() => {
     const handlePaste = async (event: ClipboardEvent) => {
       const items = event.clipboardData?.items;
@@ -43,7 +43,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
           event.preventDefault();
           const file = item.getAsFile();
           if (file) {
-            await handleAddSingleFile(file, 'captura_printscreen');
+            await handleAddSingleFile(file, 'captura_pantalla');
           }
         }
       }
@@ -57,7 +57,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
 
   const handleAddSingleFile = async (file: File | Blob, prefix = 'foto') => {
     if (fotos.length >= maxFotos) {
-      alert(`Você já atingiu o limite de ${maxFotos} fotos por alojamento.`);
+      alert(`Ha alcanzado el límite de ${maxFotos} fotos por alojamiento.`);
       return;
     }
 
@@ -67,11 +67,11 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
       const updated = [...fotos, url];
       onChange(updated);
 
-      setPasteToast('📸 Imagem anexada com sucesso!');
+      setPasteToast('📸 ¡Imagen adjuntada con éxito!');
       setTimeout(() => setPasteToast(null), 3000);
     } catch (err: any) {
-      console.error('Erro ao processar imagem:', err);
-      alert('Erro ao anexar imagem: ' + (err.message || 'Verifique o arquivo'));
+      console.error('Error al procesar imagen:', err);
+      alert('Error al adjuntar imagen: ' + (err.message || 'Compruebe el archivo'));
     } finally {
       setIsUploading(false);
     }
@@ -83,7 +83,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
 
     const availableSlots = maxFotos - fotos.length;
     if (availableSlots <= 0) {
-      alert(`O limite máximo é de ${maxFotos} fotos.`);
+      alert(`El límite máximo es de ${maxFotos} fotos.`);
       return;
     }
 
@@ -93,13 +93,13 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
     try {
       const newUrls: string[] = [];
       for (const file of filesToUpload) {
-        const url = await uploadAlojamentoPhoto(file, 'alojamento');
+        const url = await uploadAlojamentoPhoto(file, 'alojamiento');
         newUrls.push(url);
       }
       onChange([...fotos, ...newUrls]);
     } catch (err: any) {
-      console.error('Erro ao fazer upload:', err);
-      alert('Erro ao fazer upload das fotos: ' + err.message);
+      console.error('Error al subir fotos:', err);
+      alert('Error al subir las fotos: ' + err.message);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -115,7 +115,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
 
     const availableSlots = maxFotos - fotos.length;
     if (availableSlots <= 0) {
-      alert(`O limite máximo é de ${maxFotos} fotos.`);
+      alert(`El límite máximo es de ${maxFotos} fotos.`);
       return;
     }
 
@@ -126,13 +126,13 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
     try {
       const newUrls: string[] = [];
       for (const file of filesToUpload) {
-        const url = await uploadAlojamentoPhoto(file, 'alojamento');
+        const url = await uploadAlojamentoPhoto(file, 'alojamiento');
         newUrls.push(url);
       }
       onChange([...fotos, ...newUrls]);
     } catch (err: any) {
-      console.error('Erro ao fazer upload por arrasto:', err);
-      alert('Erro ao processar imagens arrastadas.');
+      console.error('Error al subir imágenes por arrastre:', err);
+      alert('Error al procesar las imágenes.');
     } finally {
       setIsUploading(false);
     }
@@ -146,7 +146,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
 
   const handleDownload = (url: string, idx: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    downloadImage(url, `alojamento_foto_${idx + 1}.jpg`);
+    downloadImage(url, `alojamiento_foto_${idx + 1}.jpg`);
   };
 
   return (
@@ -166,7 +166,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
         <div className="flex items-center gap-2">
           <ImageIcon size={16} className="text-purple-600" />
           <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-            Fotos do Imóvel ({fotos.length}/{maxFotos})
+            Fotos del Inmueble ({fotos.length}/{maxFotos})
           </h3>
         </div>
 
@@ -180,7 +180,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
             {isUploading ? (
               <>
                 <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-purple-600"></div>
-                Enviando...
+                Subiendo...
               </>
             ) : (
               <>
@@ -207,7 +207,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
 
       {/* Dica de Usabilidade: Print Screen + Ctrl V */}
       <div className="flex items-center justify-between text-[11px] text-slate-400">
-        <span>Selecione arquivos, arraste para a área ou dê <strong>Ctrl + V</strong> para colar um print da tela.</span>
+        <span>Seleccione archivos, arrástrelos a esta zona o pulse <strong>Ctrl + V</strong> para pegar una captura de pantalla.</span>
       </div>
 
       {/* Grid de Fotos & Dropzone */}
@@ -227,7 +227,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
           >
             <img
               src={url}
-              alt={`Alojamento foto ${idx + 1}`}
+              alt={`Alojamiento foto ${idx + 1}`}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             />
 
@@ -253,7 +253,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
                 type="button"
                 onClick={(e) => handleDownload(url, idx, e)}
                 className="p-1.5 bg-white/90 hover:bg-white text-blue-600 rounded-lg shadow-xs transition-colors"
-                title="Download da Imagem"
+                title="Descargar Imagen"
               >
                 <Download size={13} />
               </button>
@@ -262,7 +262,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
                 type="button"
                 onClick={(e) => handleRemove(idx, e)}
                 className="p-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-lg shadow-xs transition-colors"
-                title="Remover Imagem"
+                title="Eliminar Imagen"
               >
                 <Trash2 size={13} />
               </button>
@@ -278,7 +278,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
             className="flex flex-col items-center justify-center gap-1 aspect-video border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/30 dark:hover:bg-purple-950/20 rounded-xl text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 transition-all text-xs font-semibold"
           >
             <Upload size={16} />
-            <span className="text-[10px]">+ Anexar / Ctrl+V</span>
+            <span className="text-[10px]">+ Adjuntar / Ctrl+V</span>
           </button>
         )}
       </div>
@@ -290,10 +290,10 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
         >
           <Upload size={22} className="mx-auto text-slate-400" />
           <p className="font-semibold text-slate-600 dark:text-slate-300">
-            Nenhuma foto anexada. Clique aqui para selecionar arquivos do computador.
+            Ninguna foto adjunta. Haga clic aquí para seleccionar archivos de su equipo.
           </p>
           <p className="text-[11px] text-slate-400">
-            Dica: Se você tirar um print da tela (Win + Shift + S), basta pressionar <strong>Ctrl + V</strong> aqui para colar diretamente!
+            Consejo: Si realiza una captura de pantalla (Win + Shift + S), pulse <strong>Ctrl + V</strong> aquí para pegarla directamente.
           </p>
         </div>
       )}
@@ -309,15 +309,15 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Visualização do Imóvel</span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Vista del Inmueble</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => downloadImage(previewImage, 'alojamento_foto.jpg')}
+                  onClick={() => downloadImage(previewImage, 'alojamiento_foto.jpg')}
                   className="flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
                 >
                   <Download size={13} />
-                  Download
+                  Descargar
                 </button>
                 <button
                   type="button"
@@ -332,7 +332,7 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
             <div className="w-full flex-1 overflow-auto flex items-center justify-center rounded-xl bg-slate-950/40 p-2">
               <img
                 src={previewImage}
-                alt="Zoom Alojamento"
+                alt="Zoom Alojamiento"
                 className="max-h-[75vh] w-auto object-contain rounded-lg shadow-lg"
               />
             </div>

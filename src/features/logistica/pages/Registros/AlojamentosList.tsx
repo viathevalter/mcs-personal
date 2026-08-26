@@ -139,8 +139,8 @@ export const AlojamentosList: React.FC = () => {
       }
       setItemToDelete(null);
     } catch (error: any) {
-      console.error('Erro ao excluir:', error);
-      alert(`Erro ao excluir: ${error.message || 'Verifique se existem dependências vinculadas.'}`);
+      console.error('Error al eliminar:', error);
+      alert(`Error al eliminar: ${error.message || 'Compruebe si existen dependencias vinculadas.'}`);
     } finally {
       setIsDeleting(false);
     }
@@ -199,9 +199,9 @@ export const AlojamentosList: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
-            Registros de Alojamentos & Proveedores
+            Registros de Alojamientos & Proveedores
           </h1>
-          <p className="text-sm text-slate-500">Gestão cadastral de imóveis, fornecedores, contas bancárias e contatos</p>
+          <p className="text-sm text-slate-500">Gestión de inmuebles, proveedores, cuentas bancarias y contactos</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -210,7 +210,7 @@ export const AlojamentosList: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-300 rounded-xl text-sm font-medium transition-colors border border-emerald-200 dark:border-emerald-800 shadow-xs"
           >
             <Upload size={16} />
-            Importar Planilha
+            Importar Plantilla
           </button>
           <button
             onClick={() => navigate('/logistica/registros/alojamentos/novo')}
@@ -243,7 +243,7 @@ export const AlojamentosList: React.FC = () => {
               }`}
             >
               <Home size={15} />
-              Alojamentos
+              Alojamientos
               <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
                 {alojamentos.length}
               </span>
@@ -268,7 +268,7 @@ export const AlojamentosList: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder={`Buscar por nome, contato, telefone, cidade, IBAN...`}
+              placeholder={`Buscar por nombre, contacto, teléfono, ciudad, IBAN...`}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -281,7 +281,7 @@ export const AlojamentosList: React.FC = () => {
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-              Carregando registros...
+              Cargando registros...
             </div>
           ) : activeTab === 'alojamentos' ? (
             <table className="w-full text-xs text-left">
@@ -289,30 +289,30 @@ export const AlojamentosList: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('nome')}>
                     <div className="flex items-center gap-1">
-                      Imóvel / Título
+                      Inmueble / Título
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
                   <th className="px-4 py-3">Proveedor</th>
-                  <th className="px-4 py-3">Contato / Telefone</th>
+                  <th className="px-4 py-3">Contacto / Teléfono</th>
                   <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('municipio')}>
                     <div className="flex items-center gap-1">
-                      Localização
+                      Ubicación
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
                   <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('capacidade_pessoas')}>
                     <div className="flex items-center gap-1">
-                      Capacidade
+                      Capacidad
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-right">Ações</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {sortedAlojamentos.length === 0 ? (
-                  <tr><td colSpan={6} className="p-12 text-center text-slate-500">Nenhum alojamento encontrado.</td></tr>
+                  <tr><td colSpan={6} className="p-12 text-center text-slate-500">Ningún alojamiento encontrado.</td></tr>
                 ) : (
                   sortedAlojamentos.map(a => (
                     <tr
@@ -372,21 +372,21 @@ export const AlojamentosList: React.FC = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setViewingAlojamento(a)}
-                            title="Visualizar Detalhes"
+                            title="Ver Detalles"
                             className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors"
                           >
                             <Eye size={15} />
                           </button>
                           <button
                             onClick={() => navigate(`/logistica/registros/alojamentos/editar/${a.id}`)}
-                            title="Editar Alojamento"
+                            title="Editar Alojamiento"
                             className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
                           >
                             <Pencil size={15} />
                           </button>
                           <button
                             onClick={() => setItemToDelete({ id: a.id, name: a.nome, type: 'alojamento' })}
-                            title="Excluir Alojamento"
+                            title="Eliminar Alojamiento"
                             className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                           >
                             <Trash2 size={15} />
@@ -404,30 +404,30 @@ export const AlojamentosList: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('nome_razao_social')}>
                     <div className="flex items-center gap-1">
-                      Proveedor / Razão Social
+                      Proveedor / Razón Social
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
-                  <th className="px-4 py-3">Responsável / Cargo</th>
-                  <th className="px-4 py-3 text-emerald-600 font-bold">Telefone / WhatsApp</th>
-                  <th className="px-4 py-3">Dados Bancários / IBAN</th>
+                  <th className="px-4 py-3">Responsable / Cargo</th>
+                  <th className="px-4 py-3 text-emerald-600 font-bold">Teléfono / WhatsApp</th>
+                  <th className="px-4 py-3">Datos Bancarios / IBAN</th>
                   <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('municipio')}>
                     <div className="flex items-center gap-1">
-                      Localização
+                      Ubicación
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-right">Ações</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {sortedProvedores.length === 0 ? (
-                  <tr><td colSpan={6} className="p-12 text-center text-slate-500">Nenhum provedor encontrado.</td></tr>
+                  <tr><td colSpan={6} className="p-12 text-center text-slate-500">Ningún proveedor encontrado.</td></tr>
                 ) : (
                   sortedProvedores.map(p => {
                     const principalContato = p.contatos?.[0];
                     const contatoNome = principalContato?.nome || p.contato_nome || '-';
-                    const contatoCargo = principalContato?.cargo_tipo || 'Proprietário';
+                    const contatoCargo = principalContato?.cargo_tipo || 'Propietario';
                     const telefone = principalContato?.telefone || p.telefone;
                     const principalBanco = p.dados_bancarios?.[0];
                     const ibanPrincipal = principalBanco?.iban || p.iban;
@@ -478,13 +478,13 @@ export const AlojamentosList: React.FC = () => {
                               rel="noreferrer"
                               onClick={e => e.stopPropagation()}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold text-xs transition-colors shadow-2xs"
-                              title="Abrir WhatsApp / Discar"
+                              title="Abrir WhatsApp / Llamar"
                             >
                               <Phone size={13} className="text-emerald-600" />
                               <span>{telefone}</span>
                             </a>
                           ) : (
-                            <span className="text-slate-400 font-normal">Sem telefone</span>
+                            <span className="text-slate-400 font-normal">Sin teléfono</span>
                           )}
                         </td>
 
@@ -493,7 +493,7 @@ export const AlojamentosList: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <div>
                                 <p className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200">{ibanPrincipal}</p>
-                                <p className="text-[10px] text-slate-400">{bancoNome || 'Banco cadastrado'}</p>
+                                <p className="text-[10px] text-slate-400">{bancoNome || 'Banco registrado'}</p>
                               </div>
                               <button
                                 onClick={e => handleCopy(ibanPrincipal, e)}
@@ -509,14 +509,14 @@ export const AlojamentosList: React.FC = () => {
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-400 font-normal">Sem conta</span>
+                            <span className="text-slate-400 font-normal">Sin cuenta</span>
                           )}
                         </td>
 
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
                           <div className="flex items-center gap-1.5">
                             <MapPin size={13} className="text-slate-400 flex-shrink-0" />
-                            <span>{p.municipio || p.provincia || 'Espanha'}</span>
+                            <span>{p.municipio || p.provincia || 'España'}</span>
                           </div>
                         </td>
 
@@ -524,21 +524,21 @@ export const AlojamentosList: React.FC = () => {
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setViewingProvedor(p)}
-                              title="Visualizar Provedor"
+                              title="Ver Proveedor"
                               className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
                             >
                               <Eye size={15} />
                             </button>
                             <button
                               onClick={() => navigate(`/logistica/registros/provedores/editar/${p.id}`)}
-                              title="Editar Provedor"
+                              title="Editar Proveedor"
                               className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
                             >
                               <Pencil size={15} />
                             </button>
                             <button
                               onClick={() => setItemToDelete({ id: p.id, name: p.nome_razao_social, type: 'provedor' })}
-                              title="Excluir Provedor"
+                              title="Eliminar Proveedor"
                               className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                             >
                               <Trash2 size={15} />
@@ -593,16 +593,16 @@ export const AlojamentosList: React.FC = () => {
               <div className="space-y-3">
                 <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <Phone size={14} className="text-blue-600" />
-                  Contatos e Telefones
+                  Contactos y Teléfonos
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(viewingProvedor.contatos && viewingProvedor.contatos.length > 0 ? viewingProvedor.contatos : [
-                    { nome: viewingProvedor.contato_nome || 'Responsável', cargo_tipo: 'Proprietário', telefone: viewingProvedor.telefone, email: viewingProvedor.email }
+                    { nome: viewingProvedor.contato_nome || 'Responsable', cargo_tipo: 'Propietario', telefone: viewingProvedor.telefone, email: viewingProvedor.email }
                   ]).map((c, i) => (
                     <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
                       <div className="flex justify-between">
-                        <span className="font-bold text-slate-800 dark:text-slate-100">{c.nome || 'Contato'}</span>
-                        <span className="text-xs text-slate-400">{c.cargo_tipo || 'Proprietário'}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{c.nome || 'Contacto'}</span>
+                        <span className="text-xs text-slate-400">{c.cargo_tipo || 'Propietario'}</span>
                       </div>
                       {c.telefone && (
                         <div className="flex items-center gap-2 text-emerald-600 font-semibold">
@@ -627,7 +627,7 @@ export const AlojamentosList: React.FC = () => {
               <div className="space-y-3">
                 <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <CreditCard size={14} className="text-emerald-600" />
-                  Contas Bancárias & Pagamentos ({viewingProvedor.dados_bancarios?.length || (viewingProvedor.iban ? 1 : 0)})
+                  Cuentas Bancarias & Pagos ({viewingProvedor.dados_bancarios?.length || (viewingProvedor.iban ? 1 : 0)})
                 </h3>
                 <div className="space-y-3">
                   {(viewingProvedor.dados_bancarios && viewingProvedor.dados_bancarios.length > 0 ? viewingProvedor.dados_bancarios : [
@@ -655,7 +655,7 @@ export const AlojamentosList: React.FC = () => {
                             className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/40 rounded-md transition-colors"
                           >
                             {copiedText === b.iban ? <Check size={14} /> : <Copy size={14} />}
-                            {copiedText === b.iban ? 'Copiado!' : 'Copiar'}
+                            {copiedText === b.iban ? '¡Copiado!' : 'Copiar'}
                           </button>
                         </div>
                       )}
@@ -673,10 +673,10 @@ export const AlojamentosList: React.FC = () => {
               <div className="space-y-3">
                 <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <MapPin size={14} className="text-rose-600" />
-                  Endereço & Localização Fiscal
+                  Dirección & Ubicación Fiscal
                 </h3>
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1">
-                  <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingProvedor.endereco || 'Logradouro não informado'}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingProvedor.endereco || 'Dirección no informada'}</p>
                   <p className="text-slate-500 text-xs">
                     {[
                       viewingProvedor.municipio,
@@ -701,7 +701,7 @@ export const AlojamentosList: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
               >
                 <Trash2 size={14} />
-                Excluir Provedor
+                Eliminar Proveedor
               </button>
 
               <div className="flex gap-2">
@@ -709,7 +709,7 @@ export const AlojamentosList: React.FC = () => {
                   onClick={() => setViewingProvedor(null)}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
                 >
-                  Fechar
+                  Cerrar
                 </button>
                 <button
                   onClick={() => {
@@ -720,7 +720,7 @@ export const AlojamentosList: React.FC = () => {
                   className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-1.5 shadow-sm"
                 >
                   <Pencil size={13} />
-                  Editar Provedor
+                  Editar Proveedor
                 </button>
               </div>
             </div>
@@ -793,7 +793,7 @@ export const AlojamentosList: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <ImageIcon size={15} className="text-blue-600" />
-                      Galeria de Fotos do Imóvel ({rawFotos.length})
+                      Galería de Fotos del Inmueble ({rawFotos.length})
                     </span>
                     {rawFotos.length > 0 && (
                       <span className="text-xs text-slate-400 font-medium">
@@ -808,7 +808,7 @@ export const AlojamentosList: React.FC = () => {
                       <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-800 group h-64 sm:h-80 flex items-center justify-center">
                         <img
                           src={currentPhoto}
-                          alt="Foto do Alojamento"
+                          alt="Foto del Alojamiento"
                           className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 cursor-pointer"
                           onClick={() => setZoomPhotoUrl(currentPhoto)}
                         />
@@ -824,11 +824,11 @@ export const AlojamentosList: React.FC = () => {
                           </button>
                           <a
                             href={currentPhoto}
-                            download={`alojamento-foto-${activeViewPhotoIndex + 1}.jpg`}
+                            download={`alojamiento-foto-${activeViewPhotoIndex + 1}.jpg`}
                             target="_blank"
                             rel="noreferrer"
                             className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-colors"
-                            title="Baixar Imagem"
+                            title="Descargar Imagen"
                           >
                             <Download size={16} />
                           </a>
@@ -863,9 +863,9 @@ export const AlojamentosList: React.FC = () => {
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto">
                         <ImageIcon size={24} />
                       </div>
-                      <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Nenhuma foto anexada a este imóvel</p>
+                      <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Ninguna foto adjunta a este inmueble</p>
                       <p className="text-xs text-slate-400">
-                        Você pode clicar em <strong>Editar Alojamento</strong> para carregar imagens ou colar prints com <strong>Ctrl + V</strong>.
+                        Puede hacer clic en <strong>Editar Alojamiento</strong> para cargar imágenes o pegar capturas con <strong>Ctrl + V</strong>.
                       </p>
                     </div>
                   )}
@@ -877,15 +877,15 @@ export const AlojamentosList: React.FC = () => {
                   <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Users size={15} className="text-blue-600" />
-                      Capacidade & Dormitórios
+                      Capacidad & Dormitorios
                     </span>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-center">
-                        <span className="text-[10px] text-slate-400 font-bold block">Capacidade</span>
+                        <span className="text-[10px] text-slate-400 font-bold block">Capacidad</span>
                         <span className="text-sm font-black text-blue-700 dark:text-blue-300">{viewingAlojamento.capacidade_pessoas} pax</span>
                       </div>
                       <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl text-center">
-                        <span className="text-[10px] text-slate-400 font-bold block">Dormitórios</span>
+                        <span className="text-[10px] text-slate-400 font-bold block">Dormitorios</span>
                         <span className="text-sm font-black text-slate-700 dark:text-slate-200">{viewingAlojamento.dormitorios || 0}</span>
                       </div>
                       <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-center">
@@ -895,15 +895,15 @@ export const AlojamentosList: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-xs pt-1">
                       <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Individuais</span>
+                        <span className="text-[10px] text-slate-400 block">Individuales</span>
                         <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_individuais || 0}</span>
                       </div>
                       <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Duplas / Casal</span>
+                        <span className="text-[10px] text-slate-400 block">Dobles</span>
                         <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_duplas || 0}</span>
                       </div>
                       <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Banheiros</span>
+                        <span className="text-[10px] text-slate-400 block">Baños</span>
                         <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.banheiros || 0}</span>
                       </div>
                     </div>
@@ -925,7 +925,7 @@ export const AlojamentosList: React.FC = () => {
                         )}
                       </div>
                       <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
-                        {viewingAlojamento.provedor?.nome_razao_social || 'Proveedor não especificado'}
+                        {viewingAlojamento.provedor?.nome_razao_social || 'Proveedor no especificado'}
                       </p>
                       {viewingAlojamento.provedor?.telefone && (
                         <a
@@ -944,10 +944,10 @@ export const AlojamentosList: React.FC = () => {
                     <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-1">
                       <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
                         <MapPin size={13} />
-                        Localização Completa
+                        Ubicación Completa
                       </span>
                       <p className="font-bold text-slate-800 dark:text-slate-100 text-xs">
-                        {viewingAlojamento.endereco || 'Endereço não cadastrado'}
+                        {viewingAlojamento.endereco || 'Dirección no registrada'}
                       </p>
                       <p className="text-slate-500 text-xs">
                         {[
@@ -967,18 +967,18 @@ export const AlojamentosList: React.FC = () => {
                   <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles size={14} className="text-amber-500" />
-                      Comodidades do Imóvel
+                      Comodidades del Inmueble
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         { key: 'wifi', label: 'Wi-Fi', icon: Wifi },
-                        { key: 'aire_acondicionado', label: 'Ar-Condicionado', icon: Snowflake },
+                        { key: 'aire_acondicionado', label: 'Aire acondicionado', icon: Snowflake },
                         { key: 'parking', label: 'Parking', icon: Car },
-                        { key: 'cocina', label: 'Cozinha', icon: UtensilsCrossed },
-                        { key: 'calefaccion', label: 'Aquecimento', icon: Flame },
+                        { key: 'cocina', label: 'Cocina', icon: UtensilsCrossed },
+                        { key: 'calefaccion', label: 'Calefacción', icon: Flame },
                         { key: 'lavadora', label: 'Lavadora', icon: Shirt },
                         { key: 'tv', label: 'TV', icon: Tv },
-                        { key: 'ascensor', label: 'Elevador', icon: ArrowUpCircle },
+                        { key: 'ascensor', label: 'Ascensor', icon: ArrowUpCircle },
                       ].map(item => {
                         const active = !!comod[item.key];
                         const Icon = item.icon;
@@ -1004,16 +1004,16 @@ export const AlojamentosList: React.FC = () => {
                   <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Droplets size={14} className="text-cyan-500" />
-                      Suprimentos a Pagar / Inclusos
+                      Suministros a Pagar / Incluidos
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         { key: 'internet', label: 'Internet', icon: Globe },
-                        { key: 'agua', label: 'Água', icon: Droplets },
-                        { key: 'luz', label: 'Luz / Energia', icon: Zap },
-                        { key: 'gas', label: 'Gás', icon: Flame },
-                        { key: 'limpieza', label: 'Limpeza', icon: Shirt },
-                        { key: 'otros', label: 'Outros Gastos', icon: Info },
+                        { key: 'agua', label: 'Agua', icon: Droplets },
+                        { key: 'luz', label: 'Luz', icon: Zap },
+                        { key: 'gas', label: 'Gas', icon: Flame },
+                        { key: 'limpieza', label: 'Limpieza', icon: Shirt },
+                        { key: 'otros', label: 'Otros Gastos', icon: Info },
                       ].map(item => {
                         const active = !!sumin[item.key];
                         const Icon = item.icon;
@@ -1041,7 +1041,7 @@ export const AlojamentosList: React.FC = () => {
                   <div className="flex items-center justify-between border-b border-emerald-100 dark:border-emerald-900/60 pb-3">
                     <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
                       <DollarSign size={15} />
-                      Contrato & Condições Financeiras
+                      Contrato & Condiciones Financieras
                     </span>
                     {cont.codigo && (
                       <span className="text-xs font-mono font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 rounded-md">
@@ -1052,32 +1052,32 @@ export const AlojamentosList: React.FC = () => {
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Modalidade</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Modalidad</span>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                         {cont.tipo_contrato || viewingAlojamento.tipo_alojamento || 'Fijo'}
                       </span>
                     </div>
 
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Aluguel / Custo Mensal</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Alquiler / Coste Mensual</span>
                       <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
                         € {(viewingAlojamento.valor_mensal || cont.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Fiança / Depósito</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Fianza / Depósito</span>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                         {cont.tem_fianza || Number(cont.fianza_valor) > 0
                           ? `€ ${Number(cont.fianza_valor || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${cont.fianza_meses || 1}m)`
-                          : 'Sem Fiança (Airbnb/Hotel)'}
+                          : 'Sin Fianza (Airbnb/Hotel)'}
                       </span>
                     </div>
 
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Vencimento</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Vencimiento</span>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Dia {cont.dia_vencimento || 5} do mês
+                        Día {cont.dia_vencimento || 5} del mes
                       </span>
                     </div>
                   </div>
@@ -1087,15 +1087,15 @@ export const AlojamentosList: React.FC = () => {
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 uppercase font-bold block flex items-center gap-1">
                         <Calendar size={12} />
-                        Período de Vigência
+                        Período de Vigencia
                       </span>
                       <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {cont.data_inicio ? `Início: ${cont.data_inicio}` : 'Data Início: Não definida'}
-                        {cont.data_fim ? ` • Término: ${cont.data_fim}` : ''}
+                        {cont.data_inicio ? `Inicio: ${cont.data_inicio}` : 'Fecha Inicio: No definida'}
+                        {cont.data_fim ? ` • Fin: ${cont.data_fim}` : ''}
                       </p>
                       {cont.renovacao_automatica && (
                         <span className="text-[10px] text-emerald-600 font-semibold block">
-                          ✓ Renovação Automática ({cont.aviso_renovacao_dias || 5} dias aviso)
+                          ✓ Renovación Automática ({cont.aviso_renovacao_dias || 5} días aviso)
                         </span>
                       )}
                     </div>
@@ -1105,7 +1105,7 @@ export const AlojamentosList: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-slate-400 uppercase font-bold block flex items-center gap-1">
                           <CreditCard size={12} />
-                          Dados de Pagamento
+                          Datos de Pago
                         </span>
                         <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded font-semibold text-slate-600 dark:text-slate-400">
                           {cont.metodo_pago || viewingAlojamento.provedor?.metodo_pago || 'Transferir'}
@@ -1121,11 +1121,11 @@ export const AlojamentosList: React.FC = () => {
                             onClick={() => handleCopy(cont.iban || viewingAlojamento.provedor?.iban || '')}
                             className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded hover:opacity-80 transition-opacity"
                           >
-                            {copiedText === (cont.iban || viewingAlojamento.provedor?.iban) ? 'Copiado!' : 'Copiar'}
+                            {copiedText === (cont.iban || viewingAlojamento.provedor?.iban) ? '¡Copiado!' : 'Copiar'}
                           </button>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-400 italic">IBAN não informado</p>
+                        <p className="text-xs text-slate-400 italic">IBAN no informado</p>
                       )}
                     </div>
                   </div>
@@ -1136,7 +1136,7 @@ export const AlojamentosList: React.FC = () => {
                   <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl space-y-1">
                     <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
                       <FileText size={12} />
-                      Instruções & Observações do Imóvel
+                      Instrucciones & Observaciones del Inmueble
                     </span>
                     <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
                       {viewingAlojamento.observacoes}
@@ -1158,7 +1158,7 @@ export const AlojamentosList: React.FC = () => {
                   className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
                 >
                   <Trash2 size={14} />
-                  Excluir Alojamento
+                  Eliminar Alojamiento
                 </button>
 
                 <div className="flex gap-2">
@@ -1166,7 +1166,7 @@ export const AlojamentosList: React.FC = () => {
                     onClick={() => setViewingAlojamento(null)}
                     className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
                   >
-                    Fechar
+                    Cerrar
                   </button>
                   <button
                     onClick={() => {
@@ -1177,7 +1177,7 @@ export const AlojamentosList: React.FC = () => {
                     className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm"
                   >
                     <Pencil size={14} />
-                    Editar Alojamento
+                    Editar Alojamiento
                   </button>
                 </div>
               </div>
@@ -1209,7 +1209,7 @@ export const AlojamentosList: React.FC = () => {
               className="absolute bottom-4 right-4 flex items-center gap-1.5 px-4 py-2 bg-black/70 hover:bg-black/90 text-white text-xs font-bold rounded-xl transition-colors"
             >
               <Download size={14} />
-              Baixar Foto Original
+              Descargar Foto Original
             </a>
           </div>
         </div>
@@ -1224,13 +1224,13 @@ export const AlojamentosList: React.FC = () => {
                 <AlertTriangle size={24} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Confirmar Exclusão</h3>
-                <p className="text-xs text-slate-500">Esta ação não poderá ser desfeita.</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Confirmar Eliminación</h3>
+                <p className="text-xs text-slate-500">Esta acción no se puede deshacer.</p>
               </div>
             </div>
 
             <p className="text-sm text-slate-700 dark:text-slate-300">
-              Tem certeza que deseja remover o {itemToDelete.type === 'provedor' ? 'fornecedor' : 'alojamento'}{' '}
+              ¿Está seguro de que desea eliminar el {itemToDelete.type === 'provedor' ? 'proveedor' : 'alojamiento'}{' '}
               <strong className="text-slate-900 dark:text-white">{itemToDelete.name}</strong>?
             </p>
 
@@ -1248,7 +1248,7 @@ export const AlojamentosList: React.FC = () => {
                 className="px-4 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 <Trash2 size={14} />
-                {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+                {isDeleting ? 'Eliminando...' : 'Sí, Eliminar'}
               </button>
             </div>
           </div>

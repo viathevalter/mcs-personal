@@ -43,9 +43,9 @@ import { CountrySelector, RegionSelector } from '@/features/master-data/location
 import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
 
 const alojamentoSchema = z.object({
-  nome: z.string().min(1, 'Nome / Título do Alojamento é obrigatório'),
+  nome: z.string().min(1, 'El nombre / título del alojamiento es obligatorio'),
   codigo: z.string().default('AL-0001'),
-  provedor_id: z.string().min(1, 'O vínculo com o Proveedor é obrigatório'),
+  provedor_id: z.string().min(1, 'El vínculo con el Proveedor es obligatorio'),
   tipo_alojamento: z.string().default('Fijo'),
   classificacao: z.string().default('Privado'),
   status: z.string().default('Activo'),
@@ -624,7 +624,7 @@ export const AlojamentoForm: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Gestão integral do imóvel, características, suprimentos e vínculo contratual com o fornecedor
+              Gestión integral del inmueble, características, suministros y vínculo contractual con el proveedor
             </p>
           </div>
         </div>
@@ -646,7 +646,7 @@ export const AlojamentoForm: React.FC = () => {
               className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800"
             >
               <PlusCircle size={14} />
-              Guardar e Criar Outro
+              Guardar y Crear Otro
             </button>
           )}
 
@@ -659,12 +659,12 @@ export const AlojamentoForm: React.FC = () => {
             {saveSuccess ? (
               <>
                 <CheckCircle2 size={16} className="text-emerald-300" />
-                Salvo com Sucesso!
+                ¡Guardado con Éxito!
               </>
             ) : isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Gravando...
+                Guardando...
               </>
             ) : (
               <>
@@ -680,14 +680,14 @@ export const AlojamentoForm: React.FC = () => {
         <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-5 py-3 rounded-2xl flex items-center justify-between shadow-xs animate-in fade-in duration-200">
           <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold">
             <Sparkles size={16} className="text-amber-600 flex-shrink-0" />
-            <span>Rascunho recuperado automaticamente! Seus dados e fotos anexadas foram preservados ao alternar entre abas do navegador.</span>
+            <span>¡Borrador recuperado automáticamente! Sus datos y fotos adjuntas se han conservado al cambiar de pestaña.</span>
           </div>
           <button
             type="button"
             onClick={handleDiscardDraft}
             className="text-xs text-amber-700 hover:text-red-600 dark:text-amber-400 font-bold px-3 py-1 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
           >
-            Limpar Rascunho
+            Limpiar Borrador
           </button>
         </div>
       )}
@@ -708,7 +708,7 @@ export const AlojamentoForm: React.FC = () => {
               </h3>
               {currentProvedor && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                  {provAlojamentosCount} imóvel(is) cadastrado(s)
+                  {provAlojamentosCount} inmueble(s) registrado(s)
                 </span>
               )}
             </div>
@@ -718,14 +718,14 @@ export const AlojamentoForm: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Proveedor (Obrigatório) *
+                    Proveedor (Obligatorio) *
                   </label>
                   <select
                     value={selectedProvedorId || ''}
                     onChange={e => handleProvedorChange(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Selecione o Proveedor...</option>
+                    <option value="">Seleccione el Proveedor...</option>
                     {provedores.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.nome_razao_social} {p.municipio ? `(${p.municipio})` : ''}
@@ -739,7 +739,7 @@ export const AlojamentoForm: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Código Provedor
+                    Código Proveedor
                   </label>
                   <input
                     type="text"
@@ -754,13 +754,13 @@ export const AlojamentoForm: React.FC = () => {
               {/* Título do Alojamento */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Título de Alojamiento *
+                  Título del Alojamiento *
                 </label>
                 <input
                   type="text"
                   {...register('nome')}
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: PRUJA FORNIELES PARES SL - AL-0008"
+                  placeholder="Ej: PRUJA FORNIELES PARES SL - AL-0008"
                 />
                 {errors.nome && (
                   <p className="text-red-500 text-[10px] mt-1">{errors.nome.message}</p>
@@ -778,7 +778,7 @@ export const AlojamentoForm: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
                   >
                     <option value="Fijo">Fijo</option>
-                    <option value="Temporario">Temporario</option>
+                    <option value="Temporario">Temporal</option>
                     <option value="Propio">Propio</option>
                   </select>
                 </div>
@@ -792,7 +792,7 @@ export const AlojamentoForm: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
                   >
                     <option value="Privado">Privado</option>
-                    <option value="Compartilhado">Compartilhado</option>
+                    <option value="Compartilhado">Compartido</option>
                     <option value="Hotel / Pensión">Hotel / Pensión</option>
                   </select>
                 </div>
@@ -801,15 +801,15 @@ export const AlojamentoForm: React.FC = () => {
               {/* Grid de Capacidade e Quartos com Cálculo Automático Inteligente */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Capacidade & Camas (Cálculo Automático)</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Capacidad & Camas (Cálculo Automático)</span>
                   <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                    <Sparkles size={11} /> Auto-soma inteligente
+                    <Sparkles size={11} /> Cálculo automático inteligente
                   </span>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl text-center shadow-2xs">
                     <Users size={14} className="mx-auto text-blue-600 mb-1" />
-                    <span className="text-[9px] font-bold text-blue-800 dark:text-blue-200 block">Capacidade</span>
+                    <span className="text-[9px] font-bold text-blue-800 dark:text-blue-200 block">Capacidad</span>
                     <input
                       type="number"
                       {...register('capacidade_pessoas')}
@@ -819,7 +819,7 @@ export const AlojamentoForm: React.FC = () => {
 
                   <div className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center">
                     <Home size={14} className="mx-auto text-slate-600 mb-1" />
-                    <span className="text-[9px] font-bold text-slate-500 block">Dormitórios</span>
+                    <span className="text-[9px] font-bold text-slate-500 block">Dormitorios</span>
                     <input
                       type="number"
                       {...register('dormitorios')}
@@ -839,7 +839,7 @@ export const AlojamentoForm: React.FC = () => {
 
                   <div className="p-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
                     <span className="text-[10px] font-bold text-emerald-600 block mb-0.5">1x</span>
-                    <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-200 block">Individuais</span>
+                    <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-200 block">Individuales</span>
                     <input
                       type="number"
                       {...register('camas_individuais')}
@@ -876,12 +876,12 @@ export const AlojamentoForm: React.FC = () => {
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
                 <MapPin size={15} className="text-rose-600" />
-                Localización
+                Ubicación
               </h3>
               {selectedProvedorId && (
                 <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Sparkles size={11} />
-                  Herdado do Provedor
+                  Heredado del Proveedor
                 </span>
               )}
             </div>
@@ -1061,13 +1061,7 @@ export const AlojamentoForm: React.FC = () => {
                     }`}>
                       {isChecked && <Check size={10} />}
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* BLOCO: Observaciones */}
+                       {/* BLOCO: Observaciones */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
             <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
               <FileText size={15} className="text-blue-600" />
@@ -1077,7 +1071,7 @@ export const AlojamentoForm: React.FC = () => {
               {...register('observacoes')}
               rows={3}
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500"
-              placeholder="Instruções de chaves, regras da casa, contatos de emergência..."
+              placeholder="Instrucciones de entrega de llaves, normas de la casa, contactos de emergencia..."
             />
           </div>
         </div>
@@ -1135,7 +1129,7 @@ export const AlojamentoForm: React.FC = () => {
                     type="number"
                     {...register('aviso_renovacao_dias')}
                     className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="5 dias"
+                    placeholder="5 días"
                   />
                 </div>
               </div>
@@ -1180,23 +1174,23 @@ export const AlojamentoForm: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
                   <DollarSign size={13} />
-                  Condições Financeiras do Contrato
+                  Condiciones Financieras del Contrato
                 </span>
               </div>
 
               {/* Tipo de Contrato */}
               <div>
                 <label className="block text-[10px] text-slate-600 dark:text-slate-400 font-bold mb-1">
-                  Modalidade do Contrato / Locação
+                  Modalidad del Contrato / Alquiler
                 </label>
                 <select
                   {...register('tipo_contrato')}
                   className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
                 >
-                  <option value="Fijo">Fijo (Piso Completo / Valor Mensal Fechado)</option>
-                  <option value="Por Trabajador / Habitación">Por Habitación / Vaga (Valor por Pessoa)</option>
-                  <option value="Temporario (Airbnb / Booking)">Temporario (Airbnb / Booking / Curto Prazo)</option>
-                  <option value="Hotel / Pensión">Hotel / Pensión (Diária / Transitório)</option>
+                  <option value="Fijo">Fijo (Piso Completo / Importe Mensual Cerrado)</option>
+                  <option value="Por Trabajador / Habitación">Por Habitación / Plaza (Importe por Persona)</option>
+                  <option value="Temporario (Airbnb / Booking)">Temporal (Airbnb / Booking / Corto Plazo)</option>
+                  <option value="Hotel / Pensión">Hotel / Pensión (Diaria / Transitorio)</option>
                 </select>
               </div>
 
@@ -1205,42 +1199,42 @@ export const AlojamentoForm: React.FC = () => {
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Preço / Vaga (€/pessoa)</label>
+                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Precio / Plaza (€/persona)</label>
                       <input
                         type="number"
                         step="0.01"
                         {...register('valor_por_pessoa')}
                         className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                        placeholder="Ex: 400.00"
+                        placeholder="Ej: 400.00"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Total Mensal Estimado (€)</label>
+                      <label className="block text-[9px] text-slate-500 font-bold mb-1">Total Mensual Estimado (€)</label>
                       <input
                         type="number"
                         step="0.01"
                         {...register('valor_mensal')}
                         className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300"
-                        placeholder="Ex: 1600.00"
+                        placeholder="Ej: 1600.00"
                       />
                     </div>
                   </div>
                   <div className="text-[10px] text-emerald-800 dark:text-emerald-300 font-medium bg-emerald-100/60 dark:bg-emerald-950/40 p-1.5 rounded-md flex items-center gap-1">
                     <Sparkles size={11} className="flex-shrink-0" />
-                    <span>Cálculo: {watchedCapacidadePessoas || 0} vagas × € {watchedValorPorPessoa || 0} = <strong>€ {(Number(watchedCapacidadePessoas) || 0) * (Number(watchedValorPorPessoa) || 0)} / mês</strong></span>
+                    <span>Cálculo: {watchedCapacidadePessoas || 0} plazas × € {watchedValorPorPessoa || 0} = <strong>€ {(Number(watchedCapacidadePessoas) || 0) * (Number(watchedValorPorPessoa) || 0)} / mes</strong></span>
                   </div>
                 </div>
               ) : (
                 <div>
                   <label className="block text-[9px] text-slate-500 font-bold mb-1">
-                    {watchedTipoContrato?.includes('Temporario') ? 'Valor Total do Período (€)' : 'Alquiler Mensual Total (€)'}
+                    {watchedTipoContrato?.includes('Temporario') ? 'Importe Total del Período (€)' : 'Alquiler Mensual Total (€)'}
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     {...register('valor_mensal')}
                     className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                    placeholder="Ex: 1500.00"
+                    placeholder="Ej: 1500.00"
                   />
                 </div>
               )}
@@ -1281,32 +1275,32 @@ export const AlojamentoForm: React.FC = () => {
                   <div className="space-y-2 pt-1 animate-in fade-in duration-150">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Valor da Fiança (€) *</label>
+                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Importe de la Fianza (€) *</label>
                         <input
                           type="number"
                           step="0.01"
                           {...register('fianza_valor')}
                           className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-800 dark:text-emerald-300"
-                          placeholder="Ex: 3000.00"
+                          placeholder="Ej: 3000.00"
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Meses de Referência</label>
+                        <label className="block text-[9px] text-slate-500 font-bold mb-1">Meses de Referencia</label>
                         <input
                           type="number"
                           {...register('fianza_meses')}
                           className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-center"
-                          placeholder="Ex: 2"
+                          placeholder="Ej: 2"
                         />
                       </div>
                     </div>
                     <p className="text-[9px] text-emerald-800 dark:text-emerald-300 leading-tight">
-                      📌 Este valor ficará registrado para controle de vistoria e devolução/estorno no encerramento da locação.
+                      📌 Este importe quedará registrado para control de inspección y devolución al finalizar el alquiler.
                     </p>
                   </div>
                 ) : (
                   <div className="text-[10px] text-slate-400 italic">
-                    Sem retenção de fiança (Padrão para Airbnb, Booking, hotéis e diárias).
+                    Sin retención de fianza (Estándar para Airbnb, Booking, hoteles y diarias).
                   </div>
                 )}
               </div>
@@ -1316,7 +1310,7 @@ export const AlojamentoForm: React.FC = () => {
             <div className="p-3 bg-purple-50/40 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-900/60 space-y-2">
               <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
                 <CreditCard size={13} />
-                Informaciones Bancarias (Proveedor)
+                Datos Bancarios (Proveedor)
               </span>
               <div className="space-y-1.5 text-xs">
                 <div>
@@ -1325,10 +1319,10 @@ export const AlojamentoForm: React.FC = () => {
                     {...register('metodo_pago')}
                     className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
                   >
-                    <option value="Transferir">Transferência Bancária (Transferir)</option>
-                    <option value="Tarjeta">Tarjeta / Cartão (Airbnb / Booking)</option>
+                    <option value="Transferir">Transferencia Bancaria</option>
+                    <option value="Tarjeta">Tarjeta (Airbnb / Booking)</option>
                     <option value="Bizum">Bizum</option>
-                    <option value="Efectivo">Efectivo / Dinheiro</option>
+                    <option value="Efectivo">Efectivo</option>
                     <option value="Plataforma">Plataforma Online</option>
                   </select>
                 </div>
@@ -1338,7 +1332,7 @@ export const AlojamentoForm: React.FC = () => {
                     type="text"
                     {...register('banco')}
                     className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Nome do Banco"
+                    placeholder="Nombre del Banco"
                   />
                 </div>
                 <div>
@@ -1385,7 +1379,7 @@ export const AlojamentoForm: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold transition-colors"
           >
             <Users size={15} />
-            Colaboradores Alocados
+            Trabajadores Asignados
           </button>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -1406,7 +1400,7 @@ export const AlojamentoForm: React.FC = () => {
                 className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800"
               >
                 <PlusCircle size={14} />
-                Guardar e Criar Outro
+                Guardar y Crear Otro
               </button>
             )}
 
@@ -1419,12 +1413,12 @@ export const AlojamentoForm: React.FC = () => {
               {saveSuccess ? (
                 <>
                   <CheckCircle2 size={16} className="text-emerald-300" />
-                  Salvo com Sucesso!
+                  ¡Guardado con Éxito!
                 </>
               ) : isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Gravando...
+                  Guardando...
                 </>
               ) : (
                 <>
@@ -1444,7 +1438,7 @@ export const AlojamentoForm: React.FC = () => {
             <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Users className="text-blue-600" size={20} />
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Colaboradores no Alojamento</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Trabajadores en el Alojamiento</h3>
               </div>
               <button onClick={() => setShowColabModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
                 <X size={18} />
@@ -1452,11 +1446,11 @@ export const AlojamentoForm: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-500">
-              Este alojamento possui capacidade para <strong>{getValues('capacidade_pessoas') || 0} pessoas</strong> em <strong>{getValues('total_camas') || 0} camas</strong>.
+              Este alojamiento tiene capacidad para <strong>{getValues('capacidade_pessoas') || 0} personas</strong> en <strong>{getValues('total_camas') || 0} camas</strong>.
             </p>
 
             <div className="p-8 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center text-xs text-slate-400">
-              Gerencie as alocações em tempo real através da aba <strong>Ocupação (Gantt)</strong> ou <strong>Demandas de Alocação</strong> no menu lateral.
+              Gestione las asignaciones en tiempo real a través de la pestaña <strong>Ocupación (Gantt)</strong> o <strong>Demandas de Asignación</strong> en el menú lateral.
             </div>
 
             <div className="flex justify-end">
@@ -1465,7 +1459,7 @@ export const AlojamentoForm: React.FC = () => {
                 onClick={() => setShowColabModal(false)}
                 className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-200"
               >
-                Fechar
+                Cerrar
               </button>
             </div>
           </div>

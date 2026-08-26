@@ -5,7 +5,7 @@ export function LogisticaTasksPage() {
   return (
     <Layout>
       <DepartmentTaskBoard 
-        title="Tarefas de Logística" 
+        title="Tareas de Logística" 
         departmentCodes={['LOGISTICA']} 
       />
     </Layout>

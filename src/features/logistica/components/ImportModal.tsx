@@ -53,7 +53,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
       setColumnMapping(autoMapped);
     } catch (err: any) {
       console.error('Error parsing file:', err);
-      setErrorMsg(err.message || 'Erro ao ler arquivo de planilha.');
+      setErrorMsg(err.message || 'Error al leer el archivo de hoja de cálculo.');
     } finally {
       setIsProcessing(false);
     }
@@ -105,7 +105,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
       }
     } catch (err: any) {
       console.error('Import error:', err);
-      setErrorMsg(err.message || 'Erro ao executar importação.');
+      setErrorMsg(err.message || 'Error al ejecutar la importación.');
     } finally {
       setIsProcessing(false);
     }
@@ -124,8 +124,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               <FileSpreadsheet size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Importação Personalizada de Planilha</h2>
-              <p className="text-xs text-slate-500">Passo {step} de 3 — Mapeamento De/Para</p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Importación Personalizada de Plantilla</h2>
+              <p className="text-xs text-slate-500">Paso {step} de 3 — Mapeo de Columnas</p>
             </div>
           </div>
           <button
@@ -140,12 +140,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
         <div className="flex items-center justify-between px-4 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs font-semibold text-slate-500">
           <span className={`flex items-center gap-1.5 ${step === 1 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`}>
             <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px]">1</span>
-            Tipo & Arquivo
+            Tipo & Archivo
           </span>
           <ArrowRight size={14} className="text-slate-300" />
           <span className={`flex items-center gap-1.5 ${step === 2 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`}>
             <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px]">2</span>
-            Mapeamento De/Para
+            Mapeo de Columnas
           </span>
           <ArrowRight size={14} className="text-slate-300" />
           <span className={`flex items-center gap-1.5 ${step === 3 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`}>
@@ -158,7 +158,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
         {step === 1 && (
           <div className="space-y-5 overflow-y-auto pr-1 flex-1">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">1. Selecione o que deseja importar:</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">1. Seleccione qué desea importar:</label>
               <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
@@ -183,7 +183,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                   }`}
                 >
                   <Home size={24} />
-                  <span className="text-xs">Alojamentos</span>
+                  <span className="text-xs">Alojamientos</span>
                 </button>
 
                 <button
@@ -202,7 +202,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">2. Selecione a planilha (.csv ou .xlsx):</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">2. Seleccione la plantilla (.csv o .xlsx):</label>
               <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 transition-colors rounded-xl p-6 text-center cursor-pointer relative bg-slate-50/50 dark:bg-slate-800/40">
                 <input
                   type="file"
@@ -212,11 +212,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                 />
                 <Upload className="mx-auto mb-2 text-slate-400" size={32} />
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {file ? file.name : 'Arraste ou clique para selecionar a planilha'}
+                  {file ? file.name : 'Arrastre o haga clic para seleccionar el archivo'}
                 </p>
                 {parsedData && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-2">
-                    ✓ {parsedData.rows.length} linhas e {parsedData.headers.length} colunas carregadas da aba "{selectedSheet}"!
+                    ✓ ¡{parsedData.rows.length} filas y {parsedData.headers.length} columnas cargadas de la hoja "{selectedSheet}"!
                   </p>
                 )}
               </div>
@@ -226,7 +226,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl space-y-1">
                 <label className="block text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                   <Layers size={14} />
-                  Selecione a Aba do Excel ({parsedData.sheetNames.length} abas disponíveis):
+                  Seleccione la Hoja de Excel ({parsedData.sheetNames.length} hojas disponibles):
                 </label>
                 <select
                   value={selectedSheet}
@@ -234,7 +234,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                   className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-white"
                 >
                   {parsedData.sheetNames.map(s => (
-                    <option key={s} value={s}>Aba: "{s}"</option>
+                    <option key={s} value={s}>Hoja: "{s}"</option>
                   ))}
                 </select>
               </div>
@@ -253,7 +253,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
         {step === 2 && parsedData && (
           <div className="space-y-4 overflow-y-auto pr-1 flex-1">
             <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-xs text-blue-700 dark:text-blue-300">
-              <span>Associe cada campo do sistema à coluna da sua planilha ({file?.name} &gt; Aba: "{selectedSheet}"):</span>
+              <span>Asocie cada campo del sistema con la columna de su archivo ({file?.name} &gt; Hoja: "{selectedSheet}"):</span>
               {parsedData.sheetNames.length > 1 && (
                 <select
                   value={selectedSheet}
@@ -261,7 +261,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                   className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-semibold text-slate-800 dark:text-white ml-2"
                 >
                   {parsedData.sheetNames.map(s => (
-                    <option key={s} value={s}>Aba: "{s}"</option>
+                    <option key={s} value={s}>Hoja: "{s}"</option>
                   ))}
                 </select>
               )}
@@ -269,8 +269,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
 
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-4 px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Campo no Sistema ({entityType})</span>
-                <span>Coluna na sua Planilha (Excel/CSV)</span>
+                <span>Campo en el Sistema ({entityType})</span>
+                <span>Columna en su Plantilla (Excel/CSV)</span>
               </div>
 
               <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
@@ -293,10 +293,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                           : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500'
                       }`}
                     >
-                      <option value="">--- Ignorar / Não Mapeado ---</option>
+                      <option value="">--- Ignorar / No Mapeado ---</option>
                       {parsedData.headers.map(header => (
                         <option key={header} value={header}>
-                          Coluna: "{header}"
+                          Columna: "{header}"
                         </option>
                       ))}
                     </select>
@@ -313,18 +313,18 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
             <div className="p-5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
                 <CheckCircle2 size={20} />
-                Importação Concluída com Sucesso!
+                ¡Importación Finalizada con Éxito!
               </div>
               <ul className="text-xs text-emerald-800 dark:text-emerald-300 space-y-1 pl-6 list-disc font-medium">
-                {result.provedoresImportados > 0 && <li>{result.provedoresImportados} provedores cadastrados com sucesso.</li>}
-                {result.alojamentosImportados > 0 && <li>{result.alojamentosImportados} alojamentos criados com estrutura de camas.</li>}
-                {result.contratosImportados > 0 && <li>{result.contratosImportados} contratos gravados.</li>}
+                {result.provedoresImportados > 0 && <li>{result.provedoresImportados} proveedores registrados con éxito.</li>}
+                {result.alojamentosImportados > 0 && <li>{result.alojamentosImportados} alojamientos creados con estructura de plazas/camas.</li>}
+                {result.contratosImportados > 0 && <li>{result.contratosImportados} contratos registrados.</li>}
               </ul>
             </div>
 
             {result.erros.length > 0 && (
               <div className="max-h-40 overflow-y-auto p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                <p className="font-bold">Avisos durante a importação:</p>
+                <p className="font-bold">Avisos durante la importación:</p>
                 {result.erros.map((err, idx) => (
                   <p key={idx}>• {err}</p>
                 ))}
@@ -342,7 +342,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
             >
               <ArrowLeft size={16} />
-              Voltar
+              Volver
             </button>
           ) : <div />}
 
@@ -352,7 +352,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               onClick={handleClose}
               className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-semibold transition-colors"
             >
-              {step === 3 ? 'Fechar' : 'Cancelar'}
+              {step === 3 ? 'Cerrar' : 'Cancelar'}
             </button>
 
             {step === 1 && (
@@ -362,7 +362,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                 onClick={() => setStep(2)}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
               >
-                Próximo: Mapear Colunas (De/Para)
+                Siguiente: Mapear Columnas
                 <ArrowRight size={16} />
               </button>
             )}

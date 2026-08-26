@@ -41,7 +41,7 @@ export const ContratosList: React.FC = () => {
       const data = await contratosLogisticsService.fetchContratos();
       setContratos(data);
     } catch (err) {
-      console.error('Erro ao carregar contratos:', err);
+      console.error('Error al cargar contratos:', err);
     } finally {
       setIsLoading(false);
     }
@@ -88,13 +88,13 @@ export const ContratosList: React.FC = () => {
         valor: Number(contrato.valor_mensal) || 0,
         data_vencimento: vencimento,
         periodo_competencia: '09/2026',
-        observacoes: `Aluguel mensal do contrato ${contrato.codigo} (${contrato.alojamento_nome})`
+        observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome})`
       });
 
-      alert(`✅ Ordem de Pagamento ${opCriada.codigo_pago} gerada com sucesso para o imóvel ${contrato.alojamento_nome}! Você já pode visualizá-la e enviá-la para aprovação na tela de Ordens de Pagamento.`);
+      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito para el inmueble ${contrato.alojamento_nome}! Puede visualizarla y enviarla a aprobación en la pantalla de Órdenes de Pago.`);
     } catch (err: any) {
-      console.error('Erro ao gerar OP:', err);
-      alert(`Aviso: ${err?.message || 'Não foi possível gerar a Ordem de Pagamento. Verifique os dados do contrato.'}`);
+      console.error('Error al generar OP:', err);
+      alert(`Aviso: ${err?.message || 'No fue posible generar la Orden de Pago. Compruebe los datos del contrato.'}`);
     } finally {
       setGeneratingOpId(null);
     }
@@ -134,10 +134,10 @@ export const ContratosList: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                Contratos de Locação & Fianças
+                Contratos de Arrendamiento & Fianzas
               </h1>
               <p className="text-xs text-slate-500">
-                Gestão contratual direta vinculada aos imóveis, acompanhamento de garantias e integração com financeiro
+                Gestión contractual directa vinculada a los inmuebles, seguimiento de garantías e integración financiera
               </p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export const ContratosList: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
             <Plus size={16} />
-            Novo Alojamento & Contrato
+            Nuevo Alojamiento & Contrato
           </button>
         </div>
       </div>
@@ -158,7 +158,7 @@ export const ContratosList: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span>Contratos Ativos</span>
+            <span>Contratos Activos</span>
             <Building size={16} className="text-blue-600" />
           </div>
           <p className="text-2xl font-black text-slate-900 dark:text-white">
@@ -166,46 +166,46 @@ export const ContratosList: React.FC = () => {
           </p>
           <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
             <CheckCircle2 size={12} />
-            100% integrados aos imóveis
+            100% integrados a los inmuebles
           </span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span>Custo Total Locação</span>
+            <span>Coste Total Arrendamiento</span>
             <DollarSign size={16} className="text-emerald-600" />
           </div>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
             € {valorTotalMensal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
           <span className="text-[11px] text-slate-400 font-medium">
-            Média de € {contratosAtivos > 0 ? (valorTotalMensal / contratosAtivos).toFixed(0) : 0}/imóvel/mês
+            Media de € {contratosAtivos > 0 ? (valorTotalMensal / contratosAtivos).toFixed(0) : 0}/inmueble/mes
           </span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span>Fianças sob Custódia</span>
+            <span>Fianzas en Custodia</span>
             <ShieldCheck size={16} className="text-amber-500" />
           </div>
           <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
             € {totalFiancasCustodia.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
           <span className="text-[11px] text-amber-600 font-semibold">
-            📌 Depósitos para devolução pós-vistoria
+            📌 Depósitos para devolución post-inspección
           </span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span>Ordens de Pagamento</span>
+            <span>Órdenes de Pago</span>
             <TrendingUp size={16} className="text-purple-600" />
           </div>
           <p className="text-2xl font-black text-slate-900 dark:text-white">
-            Pronto p/ Envio
+            Listas p/ Envío
           </p>
           <span className="text-[11px] text-purple-600 font-semibold">
-            Geração de OP em 1 clique
+            Generación de OP en 1 clic
           </span>
         </div>
       </div>
@@ -219,7 +219,7 @@ export const ContratosList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
                 type="text"
-                placeholder="Buscar por código, alojamento, fornecedor ou IBAN..."
+                placeholder="Buscar por código, alojamiento, proveedor o IBAN..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -246,7 +246,7 @@ export const ContratosList: React.FC = () => {
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-300'
               }`}
             >
-              Ativos ({contratosAtivos})
+              Activos ({contratosAtivos})
             </button>
             <button
               onClick={() => setStatusFilter('com_fianca')}
@@ -256,7 +256,7 @@ export const ContratosList: React.FC = () => {
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-300'
               }`}
             >
-              Com Fiança ({contratos.filter(c => Number(c.fianza_valor) > 0).length})
+              Con Fianza ({contratos.filter(c => Number(c.fianza_valor) > 0).length})
             </button>
           </div>
         </div>
@@ -266,26 +266,26 @@ export const ContratosList: React.FC = () => {
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-              Carregando contratos dos alojamentos...
+              Cargando contratos de alojamientos...
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-16 text-center text-slate-500 space-y-2">
               <FileText size={32} className="mx-auto text-slate-300 dark:text-slate-700" />
-              <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum contrato encontrado</p>
-              <p className="text-xs text-slate-400">Cadastre novos alojamentos para gerar os contratos de locação automaticamente.</p>
+              <p className="font-bold text-slate-700 dark:text-slate-300">Ningún contrato encontrado</p>
+              <p className="text-xs text-slate-400">Registre nuevos alojamientos para generar los contratos de arrendamiento automáticamente.</p>
             </div>
           ) : (
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="px-4 py-3">Contrato & Imóvel</th>
+                  <th className="px-4 py-3">Contrato & Inmueble</th>
                   <th className="px-4 py-3">Proveedor / Titular</th>
-                  <th className="px-4 py-3">Modalidade</th>
-                  <th className="px-4 py-3">Vigência & Vencimento</th>
-                  <th className="px-4 py-3">Aluguel Mensal</th>
-                  <th className="px-4 py-3">Fiança (Garantia)</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Ações Financeiras</th>
+                  <th className="px-4 py-3">Modalidad</th>
+                  <th className="px-4 py-3">Vigencia & Vencimiento</th>
+                  <th className="px-4 py-3">Alquiler Mensual</th>
+                  <th className="px-4 py-3">Fianza (Garantía)</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3 text-right">Acciones Financieras</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -335,7 +335,7 @@ export const ContratosList: React.FC = () => {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">Sem IBAN</span>
+                          <span className="text-[10px] text-slate-400 italic">Sin IBAN</span>
                         )}
                       </div>
                     </td>
@@ -351,11 +351,11 @@ export const ContratosList: React.FC = () => {
                     <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
                       <div className="space-y-0.5">
                         <p className="text-[11px] font-medium">
-                          {c.data_inicio ? c.data_inicio : 'Início N/D'}
+                          {c.data_inicio ? c.data_inicio : 'Inicio N/D'}
                           {c.data_fim ? ` → ${c.data_fim}` : ' (Indeterminado)'}
                         </p>
                         <span className="text-[10px] text-slate-400 font-semibold block">
-                          Vencimento: Dia {c.dia_vencimento}
+                          Vencimiento: Día {c.dia_vencimento}
                         </span>
                       </div>
                     </td>
@@ -375,11 +375,11 @@ export const ContratosList: React.FC = () => {
                             € {c.fianza_valor?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                           </span>
                           <span className="text-[10px] text-slate-400 block font-medium">
-                            {c.fianza_meses} mês(es) garantia
+                            {c.fianza_meses} mes(es) garantía
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-400 text-[11px] italic">Sem fiança</span>
+                        <span className="text-slate-400 text-[11px] italic">Sin fianza</span>
                       )}
                     </td>
 
@@ -401,16 +401,16 @@ export const ContratosList: React.FC = () => {
                           onClick={() => handleGerarOP(c)}
                           disabled={generatingOpId === c.id}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs disabled:opacity-50"
-                          title="Gerar Ordem de Pagamento no Financeiro"
+                          title="Generar Orden de Pago en Finanzas"
                         >
                           <DollarSign size={13} />
-                          {generatingOpId === c.id ? 'Gerando...' : 'Gerar OP'}
+                          {generatingOpId === c.id ? 'Generando...' : 'Generar OP'}
                         </button>
 
                         <button
                           onClick={() => navigate(`/logistica/registros/alojamentos/editar/${c.alojamento_id}`)}
                           className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="Editar Alojamento & Contrato"
+                          title="Editar Alojamiento & Contrato"
                         >
                           <Pencil size={14} />
                         </button>
@@ -457,11 +457,11 @@ export const ContratosList: React.FC = () => {
             <div className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Modalidade</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Modalidad</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{viewingContrato.tipo_contrato}</span>
                 </div>
                 <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/60">
-                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold uppercase block">Aluguel Mensal</span>
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold uppercase block">Alquiler Mensual</span>
                   <span className="font-black text-emerald-700 dark:text-emerald-300 text-base">
                     € {viewingContrato.valor_mensal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                   </span>
@@ -472,15 +472,15 @@ export const ContratosList: React.FC = () => {
               <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl space-y-1">
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
                   <ShieldCheck size={14} />
-                  Garantia / Fiança Registrada
+                  Garantía / Fianza Registrada
                 </span>
                 <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
                   {viewingContrato.fianza_valor > 0
                     ? `€ ${viewingContrato.fianza_valor.toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${viewingContrato.fianza_meses} meses)`
-                    : 'Sem exigência de fiança (Airbnb / Booking / Hotel)'}
+                    : 'Sin exigencia de fianza (Airbnb / Booking / Hotel)'}
                 </p>
                 <p className="text-[11px] text-amber-800 dark:text-amber-400">
-                  📌 Este valor fica contabilizado para controle de vistoria de check-out e devolução ao término da locação.
+                  📌 Este importe se contabiliza para control de inspección de check-out y devolución al finalizar el alquiler.
                 </p>
               </div>
 
@@ -488,7 +488,7 @@ export const ContratosList: React.FC = () => {
               <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 rounded-2xl space-y-2">
                 <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
                   <CreditCard size={14} />
-                  Dados Bancários para Pagamento do Aluguel
+                  Datos Bancarios para Pago del Alquiler
                 </span>
                 <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
                   <p><span className="text-slate-400">Proveedor:</span> <strong>{viewingContrato.provedor_nome}</strong></p>
@@ -506,7 +506,7 @@ export const ContratosList: React.FC = () => {
                       onClick={() => handleCopyIban(viewingContrato.iban_cobranca!)}
                       className="px-3 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 font-bold rounded-lg hover:opacity-80"
                     >
-                      {copiedIban === viewingContrato.iban_cobranca ? 'Copiado!' : 'Copiar'}
+                      {copiedIban === viewingContrato.iban_cobranca ? '¡Copiado!' : 'Copiar'}
                     </button>
                   </div>
                 )}
@@ -519,7 +519,7 @@ export const ContratosList: React.FC = () => {
                 onClick={() => setViewingContrato(null)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
               >
-                Fechar
+                Cerrar
               </button>
               <div className="flex gap-2">
                 <button
@@ -529,7 +529,7 @@ export const ContratosList: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
                 >
-                  Gerar OP Aluguel
+                  Generar OP Alquiler
                 </button>
                 <button
                   onClick={() => {
@@ -539,7 +539,7 @@ export const ContratosList: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs"
                 >
-                  Editar Alojamento & Contrato
+                  Editar Alojamiento & Contrato
                 </button>
               </div>
             </div>

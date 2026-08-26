@@ -47,7 +47,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
 
-  // Seleção e Alocação via Painel Lateral
+  // Selección y Asignación vía Panel Lateral
   const [selectedDemanda, setSelectedDemanda] = useState<DemandaTrabalhador | null>(null);
   const [selectedAlojamentoId, setSelectedAlojamentoId] = useState<string>('');
   const [selectedCamaId, setSelectedCamaId] = useState<string>('');
@@ -56,7 +56,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [observacoes, setObservacoes] = useState<string>('');
   const [isAllocating, setIsAllocating] = useState(false);
 
-  // Modal Alocação Direta de Trabalhador Real
+  // Modal Asignación Directa de Trabajador Real
   const [isDirectModalOpen, setIsDirectModalOpen] = useState(false);
   const [workerSearchQuery, setWorkerSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -64,15 +64,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [selectedRealWorker, setSelectedRealWorker] = useState<any | null>(null);
   const [directAlojamentoId, setDirectAlojamentoId] = useState('');
   const [directCamaId, setDirectCamaId] = useState('');
-  const [directCliente, setDirectCliente] = useState('BECK & POLLITZER IBERICA SLU');
-  const [directObra, setDirectObra] = useState('Obra Principal');
   const [directDataInicio, setDirectDataInicio] = useState(new Date().toISOString().split('T')[0]);
   const [directDataFim, setDirectDataFim] = useState('');
   const [directObservacoes, setDirectObservacoes] = useState('');
 
   // Check-out Modal
   const [checkingOutWorker, setCheckingOutWorker] = useState<TrabalhadorAlojado | null>(null);
-  const [motivoCheckout, setMotivoCheckout] = useState<string>('Término de Pedido / Fim de Obra');
+  const [motivoCheckout, setMotivoCheckout] = useState<string>('Fin de Pedido / Obra');
   const [dataSaidaEfetiva, setDataSaidaEfetiva] = useState<string>(new Date().toISOString().split('T')[0]);
   const [vistoriaOk, setVistoriaOk] = useState<boolean>(true);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -92,7 +90,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       setAlojamentos(alojData);
       setCamasDisponiveis(camasData.filter(c => c.status === 'livre'));
     } catch (err) {
-      console.error('Erro ao carregar dados de logística:', err);
+      console.error('Error al cargar datos de logística:', err);
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +100,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Busca em tempo real de trabalhadores reais no banco
+  // Búsqueda en tiempo real de trabajadores reales en la base de datos
   useEffect(() => {
     if (!isDirectModalOpen) return;
     const timer = setTimeout(async () => {
@@ -111,7 +109,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
         const res = await logisticsService.searchTrabalhadores(workerSearchQuery);
         setSearchResults(res);
       } catch (e) {
-        console.error('Erro na busca de trabalhadores:', e);
+        console.error('Error en la búsqueda de trabajadores:', e);
       } finally {
         setIsSearchingWorkers(false);
       }
@@ -119,10 +117,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [workerSearchQuery, isDirectModalOpen]);
 
-  // Alocação a partir da lista de Demandas
+  // Asignación desde la lista de Demandas
   const handleConfirmAllocation = async () => {
     if (!selectedDemanda || !selectedCamaId || !selectedAlojamentoId) {
-      alert('Selecione um trabalhador, um alojamento e uma cama disponível.');
+      alert('Seleccione un trabajador, un alojamiento y una cama disponible.');
       return;
     }
 
@@ -141,7 +139,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
         observacoes: observacoes
       });
 
-      alert(`Trabalhador ${selectedDemanda.worker_nome} alocado com sucesso!`);
+      alert(`¡Trabajador ${selectedDemanda.worker_nome} asignado con éxito!`);
       setSelectedDemanda(null);
       setSelectedCamaId('');
       setSelectedAlojamentoId('');
@@ -149,18 +147,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
       loadData();
       setActiveTab('alojados');
     } catch (err: any) {
-      console.error('Erro ao alocar:', err);
-      alert('Erro ao realizar alocação.');
+      console.error('Error al asignar:', err);
+      alert('Error al realizar la asignación.');
     } finally {
       setIsAllocating(false);
     }
   };
 
-  // Alocação Direta de Trabalhador Real
+  // Asignación Directa de Trabajador Real
   const handleDirectAllocationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRealWorker || !directAlojamentoId || !directCamaId) {
-      alert('Selecione um trabalhador, um alojamento e uma cama disponível.');
+      alert('Seleccione un trabajador, un alojamiento y una cama disponible.');
       return;
     }
 
@@ -173,13 +171,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
         worker_nome: selectedRealWorker.Nombre,
         codigo_colab: selectedRealWorker.Cod_colab || 'E-XXXX',
         cliente_nome: selectedRealWorker.contratante || 'Luminous',
-        obra_nome: selectedRealWorker.ubicacion || 'Barcelona / Espanha',
+        obra_nome: selectedRealWorker.ubicacion || 'Barcelona / España',
         data_inicio: directDataInicio,
         data_fim: directDataFim,
         observacoes: directObservacoes
       });
 
-      alert(`✅ Trabalhador ${selectedRealWorker.Nombre} alocado com sucesso no alojamento!`);
+      alert(`✅ ¡Trabajador ${selectedRealWorker.Nombre} asignado con éxito al alojamiento!`);
       setIsDirectModalOpen(false);
       setSelectedRealWorker(null);
       setDirectAlojamentoId('');
@@ -188,35 +186,35 @@ export const DemandasAlocacaoPage: React.FC = () => {
       loadData();
       setActiveTab('alojados');
     } catch (err) {
-      console.error('Erro ao alocar trabalhador real:', err);
-      alert('Erro ao realizar alocação.');
+      console.error('Error al asignar trabajador real:', err);
+      alert('Error al realizar la asignación.');
     } finally {
       setIsAllocating(false);
     }
   };
 
-  // Check-out de Trabalhador
+  // Check-out de Trabajador
   const handleConfirmCheckout = async () => {
     if (!checkingOutWorker) return;
 
     try {
       setIsProcessingCheckout(true);
       await logisticsService.checkoutTrabalhador(checkingOutWorker.alocacao_id, motivoCheckout);
-      alert(`Check-out de ${checkingOutWorker.worker_nome} concluído. Cama liberada no inventário!`);
+      alert(`Check-out de ${checkingOutWorker.worker_nome} completado. ¡Cama liberada en el inventario!`);
       setCheckingOutWorker(null);
       loadData();
     } catch (err) {
-      console.error('Erro ao realizar checkout:', err);
-      alert('Erro ao realizar checkout.');
+      console.error('Error al realizar checkout:', err);
+      alert('Error al realizar checkout.');
     } finally {
       setIsProcessingCheckout(false);
     }
   };
 
   const handleResetAlocacoes = async () => {
-    if (confirm('Deseja zerar todas as alocações para iniciar os testes do zero?')) {
+    if (confirm('¿Desea reiniciar todas las asignaciones para comenzar las pruebas desde cero?')) {
       await logisticsService.clearAllAlocacoes();
-      alert('Alocações zeradas com sucesso!');
+      alert('¡Asignaciones reiniciadas con éxito!');
       loadData();
     }
   };
@@ -244,7 +242,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     a.municipio.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Sugestor Inteligente por Proximidade
+  // Sugerencia Inteligente por Proximidad
   const targetCity = selectedDemanda?.municipio?.toLowerCase() || '';
   const sortedAlojamentos = [...alojamentos].sort((a, b) => {
     const matchA = (a.municipio || '').toLowerCase().includes(targetCity);
@@ -268,10 +266,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                Central de Demandas & Ocupação de Alojamentos
+                Central de Demandas & Ocupación de Alojamientos
               </h1>
               <p className="text-xs text-slate-500">
-                Atendimento de pedidos e reemplazos, alocação direta de trabalhadores cadastrados e gestão de check-outs
+                Atención de pedidos y reemplazos, asignación directa de colaboradores y control de check-outs
               </p>
             </div>
           </div>
@@ -283,13 +281,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
             <UserPlus size={16} />
-            Alocar Trabalhador (Busca Direta)
+            Asignar Trabajador (Búsqueda Directa)
           </button>
 
           <button
             onClick={loadData}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors shadow-xs"
-            title="Atualizar"
+            title="Actualizar"
           >
             <RefreshCw size={14} />
           </button>
@@ -307,7 +305,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
           }`}
         >
           <UserPlus size={16} />
-          <span>Aguardando Alocação (Pedidos & Reemplazos)</span>
+          <span>Pendientes de Asignación (Pedidos & Reemplazos)</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
             {demandas.length}
           </span>
@@ -322,7 +320,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
           }`}
         >
           <UserCheck size={16} />
-          <span>Trabalhadores Alojados & Check-outs</span>
+          <span>Trabajadores Alojados & Check-outs</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
             {alojados.length}
           </span>
@@ -330,11 +328,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* ABA 1: DEMANDAS & REEMPLAZOS AGUARDANDO ALOCAÇÃO                          */}
+      {/* ABA 1: DEMANDAS & REEMPLAZOS PENDIENTES DE ASIGNACIÓN                      */}
       {/* ========================================================================= */}
       {activeTab === 'demandas' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Coluna Esquerda (7 colunas): Lista de Demandas */}
+          {/* Columna Izquierda (7 columnas): Lista de Demandas */}
           <div className="lg:col-span-7 space-y-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3">
               {/* Filtros */}
@@ -343,7 +341,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                   <input
                     type="text"
-                    placeholder="Buscar por trabalhador, obra ou cidade..."
+                    placeholder="Buscar por trabajador, obra o ciudad..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -365,7 +363,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       tipoFilter === 'pedidos' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-xs' : 'text-slate-500'
                     }`}
                   >
-                    Novos Pedidos
+                    Nuevos Pedidos
                   </button>
                   <button
                     onClick={() => setTipoFilter('reemplazos')}
@@ -383,13 +381,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 {isLoading ? (
                   <div className="p-12 text-center text-slate-500">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-                    Carregando demandas operacionais...
+                    Cargando demandas operativas...
                   </div>
                 ) : filteredDemandas.length === 0 ? (
                   <div className="p-12 text-center text-slate-400 space-y-3">
                     <CheckCircle size={32} className="mx-auto text-emerald-500" />
-                    <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum trabalhador pendente de alocação nesta lista</p>
-                    <p className="text-xs">Para alocar qualquer trabalhador ativo da empresa, use o botão <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo.</p>
+                    <p className="font-bold text-slate-700 dark:text-slate-300">Ningún trabajador pendiente en esta lista</p>
+                    <p className="text-xs">Para asignar cualquier colaborador activo de la empresa, use el botón <strong>"Asignar Trabajador (Búsqueda Directa)"</strong> en la parte superior.</p>
                   </div>
                 ) : (
                   filteredDemandas.map(d => {
@@ -439,7 +437,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                   : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
                               }`}
                             >
-                              {d.tipo_solicitacao}
+                              {d.tipo_solicitacao === 'Novo Pedido' ? 'Nuevo Pedido' : d.tipo_solicitacao}
                             </span>
                             {d.urgencia === 'Crítica' && (
                               <span className="text-[10px] font-bold text-rose-600 flex items-center gap-1">
@@ -450,7 +448,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Dados da Obra & Localização */}
+                        {/* Datos de la Obra y Ubicación */}
                         <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
                           <div>
                             <span className="text-[10px] text-slate-400 font-bold uppercase block">Cliente & Obra</span>
@@ -461,14 +459,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           </div>
 
                           <div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Cidade / Início</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Ciudad / Inicio</span>
                             <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
                               <MapPin size={12} className="text-blue-500" />
                               {d.municipio}, {d.pais}
                             </span>
                             <span className="text-[11px] text-slate-500 flex items-center gap-1">
                               <Calendar size={11} className="text-slate-400" />
-                              Início: {d.data_inicio}
+                              Inicio: {d.data_inicio}
                             </span>
                           </div>
                         </div>
@@ -486,13 +484,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Coluna Direita (5 colunas): Painel de Alocação & Sugestão por Proximidade */}
+          {/* Columna Derecha (5 columnas): Panel de Asignación & Sugerencia por Proximidad */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 sticky top-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                   <Bed className="text-blue-600" size={18} />
-                  Alocar Trabalhador
+                  Asignar Trabajador
                 </h2>
                 {selectedDemanda && (
                   <span className="text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
@@ -503,19 +501,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
               {selectedDemanda ? (
                 <div className="space-y-4 text-xs">
-                  {/* Card do Trabalhador Selecionado */}
+                  {/* Card del Trabajador Seleccionado */}
                   <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-900/60 space-y-1">
-                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">Trabalhador em Foco:</p>
+                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">Trabajador Seleccionado:</p>
                     <p className="text-sm font-black text-slate-900 dark:text-white">{selectedDemanda.worker_nome}</p>
                     <p className="text-slate-600 dark:text-slate-300 text-[11px]">
                       Destino: <strong>{selectedDemanda.cliente_nome}</strong> ({selectedDemanda.municipio})
                     </p>
                   </div>
 
-                  {/* 1. Seleção de Alojamento com Sugestão de Proximidade */}
+                  {/* 1. Selección de Alojamiento con Sugerencia por Proximidad */}
                   <div className="space-y-1.5">
                     <label className="block font-bold text-slate-700 dark:text-slate-300">
-                      1. Alojamento Sugerido (Proximidade):
+                      1. Alojamiento Sugerido (Proximidad):
                     </label>
                     <select
                       value={selectedAlojamentoId}
@@ -525,28 +523,28 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       }}
                       className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
                     >
-                      <option value="">Selecione um imóvel...</option>
+                      <option value="">Seleccione un inmueble...</option>
                       {sortedAlojamentos.map(a => {
                         const isSameCity = (a.municipio || '').toLowerCase().includes(targetCity);
                         return (
                           <option key={a.id} value={a.id}>
                             {isSameCity ? '⭐ [Recomendado Próximo] ' : ''}
-                            {a.codigo} - {a.nome} ({a.municipio || 'Espanha'}) - Cap: {a.capacidade_pessoas} pax
+                            {a.codigo} - {a.nome} ({a.municipio || 'España'}) - Cap: {a.capacidade_pessoas} pax
                           </option>
                         );
                       })}
                     </select>
                   </div>
 
-                  {/* 2. Seleção de Cama / Quarto Disponível */}
+                  {/* 2. Selección de Cama / Habitación Disponible */}
                   {selectedAlojamentoId && (
                     <div className="space-y-1.5">
                       <label className="block font-bold text-slate-700 dark:text-slate-300">
-                        2. Cama / Quarto Livre:
+                        2. Cama / Habitación Libre:
                       </label>
                       {camasFiltradas.length === 0 ? (
                         <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-[11px]">
-                          ⚠️ Todas as camas deste imóvel já estão ocupadas. Selecione outro alojamento.
+                          ⚠️ Todas las camas de este inmueble están ocupadas. Seleccione otro alojamiento.
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto">
@@ -570,7 +568,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                   isCamaSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                                 }`}>
-                                  Livre
+                                  Libre
                                 </span>
                               </button>
                             );
@@ -580,11 +578,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* 3. Datas de Vigência da Locação */}
+                  {/* 3. Fechas */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        Data Check-in:
+                        Fecha Check-in:
                       </label>
                       <input
                         type="date"
@@ -595,7 +593,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        Previsão Saída:
+                        Previsión Salida:
                       </label>
                       <input
                         type="date"
@@ -606,7 +604,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Botão de Confirmação */}
+                  {/* Botón de Confirmación */}
                   <button
                     type="button"
                     onClick={handleConfirmAllocation}
@@ -614,14 +612,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <CheckCircle size={16} />
-                    {isAllocating ? 'Processando Check-in...' : 'Confirmar Check-in & Alocação'}
+                    {isAllocating ? 'Procesando Check-in...' : 'Confirmar Check-in & Asignación'}
                   </button>
                 </div>
               ) : (
                 <div className="p-10 text-center text-slate-400 text-xs space-y-3">
                   <Users size={28} className="mx-auto text-slate-300 dark:text-slate-700" />
-                  <p className="font-bold text-slate-600 dark:text-slate-300">Nenhum trabalhador selecionado</p>
-                  <p>Selecione um trabalhador da lista ao lado para ver os alojamentos sugeridos com vagas livres, ou clique em <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo.</p>
+                  <p className="font-bold text-slate-600 dark:text-slate-300">Ningún trabajador seleccionado</p>
+                  <p>Seleccione un trabajador de la lista al lado para ver los alojamientos sugeridos con plazas libres, o pulse en <strong>"Asignar Trabajador (Búsqueda Directa)"</strong> en la parte superior.</p>
                 </div>
               )}
             </div>
@@ -630,7 +628,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* ABA 2: TRABALHADORES ALOJADOS & CHECK-OUTS (OCUPAÇÃO ATUAL)               */}
+      {/* ABA 2: TRABAJADORES ALOJADOS & CHECK-OUTS (OCUPACIÓN ACTUAL)              */}
       {/* ========================================================================= */}
       {activeTab === 'alojados' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
@@ -639,7 +637,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
                 type="text"
-                placeholder="Buscar trabalhador alojado, imóvel ou cliente..."
+                placeholder="Buscar trabajador alojado, inmueble o cliente..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -655,7 +653,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   onClick={handleResetAlocacoes}
                   className="text-[11px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg transition-colors"
                 >
-                  Zerar Alocações
+                  Reiniciar Asignaciones
                 </button>
               )}
             </div>
@@ -663,31 +661,31 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           <div className="overflow-x-auto">
             {isLoading ? (
-              <div className="p-16 text-center text-slate-500">Carregando ocupação atual...</div>
+              <div className="p-16 text-center text-slate-500">Cargando ocupación actual...</div>
             ) : filteredAlojados.length === 0 ? (
               <div className="p-16 text-center text-slate-500 space-y-3">
                 <Home size={36} className="mx-auto text-slate-300 dark:text-slate-700" />
-                <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum trabalhador alojado no momento</p>
-                <p className="text-xs text-slate-400">Clique em <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo para pesquisar qualquer trabalhador do banco e vinculá-lo a um alojamento.</p>
+                <p className="font-bold text-slate-700 dark:text-slate-300">Ningún trabajador alojado en este momento</p>
+                <p className="text-xs text-slate-400">Haga clic en <strong>"Asignar Trabajador (Búsqueda Directa)"</strong> para buscar cualquier colaborador de la base de datos y vincularlo a un alojamiento.</p>
                 <button
                   onClick={() => setIsDirectModalOpen(true)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-2"
                 >
                   <UserPlus size={15} />
-                  Fazer Primeira Alocação
+                  Realizar Primera Asignación
                 </button>
               </div>
             ) : (
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800">
                   <tr>
-                    <th className="px-4 py-3">Trabalhador</th>
-                    <th className="px-4 py-3">Alojamento Vinculado</th>
-                    <th className="px-4 py-3">Cama / Quarto</th>
-                    <th className="px-4 py-3">Cliente & Obra</th>
-                    <th className="px-4 py-3">Data Check-in</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Ações Operacionais</th>
+                    <th className="px-4 py-3">Trabajador</th>
+                    <th className="px-4 py-3">Alojamiento Vinculado</th>
+                    <th className="px-4 py-3">Cama / Habitación</th>
+                    <th className="px-4 py-3">Empresa & Obra</th>
+                    <th className="px-4 py-3">Fecha Check-in</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3 text-right">Acciones Operativas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -725,7 +723,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                       <td className="px-4 py-3.5">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                          {a.status}
+                          {a.status === 'Ativo' ? 'Activo' : a.status}
                         </span>
                       </td>
 
@@ -748,7 +746,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: ALOCAÇÃO DIRETA DE TRABALHADOR REAL (BUSCA NO BANCO)              */}
+      {/* MODAL: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL (BÚSQUEDA EN BASE DE DATOS) */}
       {/* ========================================================================= */}
       {isDirectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
@@ -759,8 +757,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   <UserPlus size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">Alocar Trabalhador no Alojamento</h2>
-                  <p className="text-xs text-slate-500">Busca em tempo real entre os 800+ colaboradores reais cadastrados no banco</p>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">Asignar Trabajador al Alojamiento</h2>
+                  <p className="text-xs text-slate-500">Búsqueda en tiempo real entre los colaboradores activos de la base de datos</p>
                 </div>
               </div>
               <button
@@ -772,16 +770,16 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleDirectAllocationSubmit} className="p-6 space-y-4 text-xs">
-              {/* 1. Busca do Trabalhador */}
+              {/* 1. Búsqueda del Trabajador */}
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  1. Pesquisar Trabalhador (Nome ou Código E-XXXX):
+                  1. Buscar Trabajador (Nombre o Código E-XXXX):
                 </label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                   <input
                     type="text"
-                    placeholder="Digite para pesquisar (Ex: Carlos, Jefferson, E1407, E2054)..."
+                    placeholder="Escriba para buscar (Ej: Carlos, Jefferson, E1407, E2054)..."
                     value={workerSearchQuery}
                     onChange={e => setWorkerSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
@@ -814,14 +812,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           </span>
                         </div>
                         <span className="text-[10px] font-semibold text-slate-400">
-                          {w.status_trabajador || 'Ativo'}
+                          {w.status_trabajador || 'Activo'}
                         </span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Trabalhador Selecionado com Vínculo Operacional Travado */}
+                {/* Trabajador Seleccionado con Vínculo Operativo Bloqueado */}
                 {selectedRealWorker && (
                   <div className="mt-2 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -840,11 +838,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         }}
                         className="text-xs text-slate-400 hover:text-rose-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       >
-                        Trocar
+                        Cambiar
                       </button>
                     </div>
 
-                    {/* Vínculo Operacional Obrigatório e Imutável da Operação */}
+                    {/* Vínculo Operativo Obligatorio e Inmutable */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-blue-100 dark:border-blue-900/40 text-[11px]">
                       <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
@@ -856,18 +854,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
-                          <MapPin size={11} className="text-emerald-500" /> Obra / Localização
+                          <MapPin size={11} className="text-emerald-500" /> Obra / Ubicación
                         </span>
                         <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
-                          {selectedRealWorker.ubicacion || 'Barcelona / Espanha'}
+                          {selectedRealWorker.ubicacion || 'Barcelona / España'}
                         </span>
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] text-slate-400 font-bold uppercase block flex items-center gap-1">
-                          <CheckCircle2 size={11} className="text-purple-500" /> Status do Ingresso
+                          <CheckCircle2 size={11} className="text-purple-500" /> Estado del Ingreso
                         </span>
                         <span className="font-bold text-emerald-600 dark:text-emerald-400 block truncate">
-                          {selectedRealWorker.status_trabajador || 'Ativo'}
+                          {selectedRealWorker.status_trabajador || 'Activo'}
                         </span>
                       </div>
                     </div>
@@ -875,11 +873,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 )}
               </div>
 
-              {/* 2. Seleção de Alojamento Real */}
+              {/* 2. Selección de Alojamiento Real */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    2. Selecionar Alojamento:
+                    2. Seleccionar Alojamiento:
                   </label>
                   <select
                     value={directAlojamentoId}
@@ -890,10 +888,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     required
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
                   >
-                    <option value="">Escolha um imóvel...</option>
+                    <option value="">Elija un inmueble...</option>
                     {alojamentos.map(a => (
                       <option key={a.id} value={a.id}>
-                        {a.codigo} - {a.nome} ({a.municipio || 'Espanha'})
+                        {a.codigo} - {a.nome} ({a.municipio || 'España'})
                       </option>
                     ))}
                   </select>
@@ -901,11 +899,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    3. Cama / Vaga Livre:
+                    3. Cama / Plaza Libre:
                   </label>
                   {directAlojamentoId ? (
                     directCamasFiltradas.length === 0 ? (
-                      <div className="p-2 bg-amber-50 text-amber-800 text-[11px] rounded-lg">Sem vagas livres</div>
+                      <div className="p-2 bg-amber-50 text-amber-800 text-[11px] rounded-lg">Sin plazas libres</div>
                     ) : (
                       <select
                         value={directCamaId}
@@ -913,7 +911,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         required
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
                       >
-                        <option value="">Selecione uma cama...</option>
+                        <option value="">Seleccione una cama...</option>
                         {directCamasFiltradas.map(c => (
                           <option key={c.id} value={c.id}>
                             {c.identificador} ({c.tipo})
@@ -923,17 +921,17 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     )
                   ) : (
                     <select disabled className="w-full px-3 py-2 bg-slate-100 text-slate-400 rounded-xl text-xs">
-                      <option>Selecione o alojamento primeiro</option>
+                      <option>Seleccione el alojamiento primero</option>
                     </select>
                   )}
                 </div>
               </div>
 
-              {/* 4. Datas de Check-in */}
+              {/* 4. Fechas de Check-in */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Data Check-in (Início):
+                    Fecha Check-in (Inicio):
                   </label>
                   <input
                     type="date"
@@ -945,7 +943,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Previsão Check-out (Opcional):
+                    Previsión Salida (Opcional):
                   </label>
                   <input
                     type="date"
@@ -958,11 +956,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Observações:
+                  Observaciones:
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Trabalhador alocado para obra de montagem industrial"
+                  placeholder="Ej: Colaborador asignado para obra de montaje industrial"
                   value={directObservacoes}
                   onChange={e => setDirectObservacoes(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -982,7 +980,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   disabled={!selectedRealWorker || !directCamaId || isAllocating}
                   className="px-4 py-2.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm disabled:opacity-50"
                 >
-                  {isAllocating ? 'Alocando...' : 'Confirmar Alocação no Alojamento'}
+                  {isAllocating ? 'Asignando...' : 'Confirmar Asignación en el Alojamiento'}
                 </button>
               </div>
             </form>
@@ -991,7 +989,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL DE CHECK-OUT & LIBERAÇÃO DE VAGA                                    */}
+      {/* MODAL DE CHECK-OUT & LIBERACIÓN DE PLAZA                                  */}
       {/* ========================================================================= */}
       {checkingOutWorker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1002,8 +1000,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   <LogOut size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">Check-out de Trabalhador</h2>
-                  <p className="text-xs text-slate-500">Desalocação do imóvel e liberação de vaga no inventário</p>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">Check-out de Trabajador</h2>
+                  <p className="text-xs text-slate-500">Desasignación del inmueble y liberación de plaza en inventario</p>
                 </div>
               </div>
               <button
@@ -1016,30 +1014,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
             <div className="p-6 space-y-4 text-xs">
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Trabalhador:</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Trabajador:</p>
                 <p className="font-black text-sm text-slate-900 dark:text-white">{checkingOutWorker.worker_nome} ({checkingOutWorker.codigo_colab})</p>
-                <p className="text-slate-500 text-[11px]">Alojamento: <strong>{checkingOutWorker.alojamento_nome}</strong></p>
+                <p className="text-slate-500 text-[11px]">Alojamiento: <strong>{checkingOutWorker.alojamento_nome}</strong></p>
               </div>
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Motivo do Check-out / Baixa:
+                  Motivo del Check-out / Baja:
                 </label>
                 <select
                   value={motivoCheckout}
                   onChange={e => setMotivoCheckout(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
                 >
-                  <option value="Término de Pedido / Fim de Obra">Término de Pedido / Fim de Obra</option>
-                  <option value="Reemplazo / Substituição por outro colaborador">Reemplazo / Substituição por outro colaborador</option>
-                  <option value="Baixa Operacional / Demissão">Baixa Operacional / Demissão</option>
-                  <option value="Transferência para outro Alojamento">Transferência para outro Alojamento</option>
+                  <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
+                  <option value="Reemplazo / Sustitución por otro colaborador">Reemplazo / Sustitución por otro colaborador</option>
+                  <option value="Baja Operativa / Fin de Contrato">Baja Operativa / Fin de Contrato</option>
+                  <option value="Traslado a otro Alojamiento">Traslado a otro Alojamiento</option>
                 </select>
               </div>
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Data Efetiva de Saída:
+                  Fecha Efectiva de Salida:
                 </label>
                 <input
                   type="date"
@@ -1058,7 +1056,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   className="rounded text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="vistoriaCheck" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
-                  Chaves devolvidas e vistoria do quarto realizada sem pendências.
+                  Llaves devueltas e inspección de la habitación realizada sin incidencias.
                 </label>
               </div>
             </div>
@@ -1075,7 +1073,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 disabled={isProcessingCheckout}
                 className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm disabled:opacity-50"
               >
-                {isProcessingCheckout ? 'Processando...' : 'Confirmar Check-out & Liberar Cama'}
+                {isProcessingCheckout ? 'Procesando...' : 'Confirmar Check-out & Liberar Cama'}
               </button>
             </div>
           </div>
