@@ -145,15 +145,24 @@ export interface PedidoDemandaLogistica {
   pedido_codigo: string;
   cliente_id?: string;
   cliente_nome: string;
+  cliente_telefone?: string;
+  cliente_contato?: string;
+  empresa_id?: string;
   empresa_contratante: string;
   obra_nome: string;
   endereco_completo: string;
   cidade: string;
   provincia?: string;
   codigo_postal?: string;
+  encarregado_nome?: string;
+  encarregado_telefone?: string;
+  encarregado_email?: string;
   data_inicio: string;
+  data_inicio_diasemana?: string;
   data_fim?: string;
+  data_fim_diasemana?: string;
   dias_restantes: number;
+  duracao_texto: string;
   duracao_dias?: number;
   tipo_solicitacao: 'Nuevo Pedido' | 'Reemplazo';
   status_operacional?: string;
@@ -207,6 +216,44 @@ export interface TrabalhadorAlojado {
 }
 
 const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v2';
+
+function getWeekDayEs(dateStr: string): string {
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      return days[date.getDay()] || '';
+    }
+  } catch (e) {}
+  return '';
+}
+
+function calculateDurationText(startStr: string, endStr?: string): string {
+  if (!endStr) return 'Duración no definida';
+  try {
+    const pStart = startStr.split('-');
+    const pEnd = endStr.split('-');
+    if (pStart.length === 3 && pEnd.length === 3) {
+      const dStart = new Date(parseInt(pStart[0]), parseInt(pStart[1]) - 1, parseInt(pStart[2]));
+      const dEnd = new Date(parseInt(pEnd[0]), parseInt(pEnd[1]) - 1, parseInt(pEnd[2]));
+      const diffMs = dEnd.getTime() - dStart.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays <= 0) return '1 día';
+      if (diffDays < 30) return `${diffDays} días`;
+
+      const months = Math.floor(diffDays / 30);
+      const remainingDays = diffDays % 30;
+
+      if (remainingDays === 0) {
+        return `${months} ${months === 1 ? 'mes' : 'meses'}`;
+      }
+      return `${months} ${months === 1 ? 'mes' : 'meses'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+    }
+  } catch (e) {}
+  return 'Duración estimada';
+}
 
 export const logisticsService = {
   // Trabalhadores Reais do Banco (Apenas Ativos ou Pendentes de Ingresso)
@@ -508,14 +555,18 @@ export const logisticsService = {
       const pedidoIds = pedidos.map(p => p.id);
       const clientIds = [...new Set(pedidos.map(p => p.client_id).filter(Boolean))];
       const siteIds = [...new Set(pedidos.map(p => p.client_site_id).filter(Boolean))];
+      const empresaIds = [...new Set(pedidos.map(p => p.empresa_id).filter(Boolean))];
 
-      // 2. Buscar Clientes, Obras (Sites) e Itens dos Pedidos
-      const [clientsRes, sitesRes, itemsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+      // 2. Buscar Clientes, Obras (Sites), Empresas e Itens dos Pedidos
+      const [clientsRes, sitesRes, empresasRes, itemsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
         clientIds.length > 0
-          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
+          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, phone, email').in('id', clientIds)
           : Promise.resolve({ data: [] }),
         siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code').in('id', siteIds)
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone, contact_mobile, contact_email').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        empresaIds.length > 0
+          ? supabase.schema('core_common').from('empresas').select('id, name, trade_name').in('id', empresaIds)
           : Promise.resolve({ data: [] }),
         supabase.schema('core_comercial').from('pedido_items').select('*').in('pedido_id', pedidoIds),
         supabase
@@ -543,6 +594,7 @@ export const logisticsService = {
 
       const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
       const sitesMap = new Map((sitesRes.data || []).map((s: any) => [s.id, s]));
+      const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
       const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
       // Agrupar alocações ativas da logística por worker_id
@@ -557,11 +609,18 @@ export const logisticsService = {
       const result: PedidoDemandaLogistica[] = pedidos.map((ped: any) => {
         const client = clientsMap.get(ped.client_id) as any;
         const site = sitesMap.get(ped.client_site_id) as any;
+        const empresa = empresasMap.get(ped.empresa_id) as any;
+
         const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
+        const clienteTelefone = client?.phone || client?.mobile || '';
+        const empresaNome = empresa?.trade_name || empresa?.name || ped.empresa_nome || 'LUMINOUS';
         const obraNome = site?.name || 'Obra Principal';
         const enderecoCompleto = site?.address_line || 'Dirección no informada';
         const cidade = site?.city || 'San Sebastián';
         const codigoPostal = site?.postal_code || '';
+        const encarregadoNome = site?.contact_name || '';
+        const encarregadoTelefone = site?.contact_phone || site?.contact_mobile || '';
+        const encarregadoEmail = site?.contact_email || '';
 
         // Calcular dias restantes para início
         const dataInicioStr = ped.planned_start_date || new Date().toISOString().split('T')[0];
@@ -576,6 +635,10 @@ export const logisticsService = {
           const dataFim = new Date(dataFimStr);
           duracaoDias = Math.ceil((dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
         }
+
+        const duracaoTexto = calculateDurationText(dataInicioStr, dataFimStr);
+        const diaSemanaInicio = getWeekDayEs(dataInicioStr);
+        const diaSemanaFim = dataFimStr ? getWeekDayEs(dataFimStr) : '';
 
         // Itens e Vagas solicitadas no pedido
         const pedidoItems = (itemsRes.data || []).filter((it: any) => it.pedido_id === ped.id);
@@ -622,15 +685,23 @@ export const logisticsService = {
           pedido_codigo: ped.codigo || `PED-${ped.id.slice(0, 6)}`,
           cliente_id: ped.client_id,
           cliente_nome: clienteNome,
-          empresa_contratante: ped.empresa_nome || 'LUMINOUS',
+          cliente_telefone: clienteTelefone,
+          empresa_id: ped.empresa_id,
+          empresa_contratante: empresaNome,
           obra_nome: obraNome,
           endereco_completo: enderecoCompleto,
           cidade: cidade,
           provincia: site?.city || cidade,
           codigo_postal: codigoPostal,
+          encarregado_nome: encarregadoNome,
+          encarregado_telefone: encarregadoTelefone,
+          encarregado_email: encarregadoEmail,
           data_inicio: dataInicioStr,
+          data_inicio_diasemana: diaSemanaInicio,
           data_fim: dataFimStr,
+          data_fim_diasemana: diaSemanaFim,
           dias_restantes: diasRestantes,
+          duracao_texto: duracaoTexto,
           duracao_dias: duracaoDias,
           tipo_solicitacao: 'Nuevo Pedido',
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
@@ -650,7 +721,6 @@ export const logisticsService = {
     }
   },
 
-  // Mantido para compatibilidade de listagem legada se necessário
   async fetchDemandas(): Promise<DemandaTrabalhador[]> {
     return [];
   },

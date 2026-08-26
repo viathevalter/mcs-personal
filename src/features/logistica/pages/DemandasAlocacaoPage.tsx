@@ -30,7 +30,9 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldCheck,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Mail,
+  User
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
 import type {
@@ -124,7 +126,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Busca rápida de trabalhadores no banco para alocação direta avulsa
+  // Busca rápida de colaboradores no banco
   useEffect(() => {
     if (!isDirectModalOpen) return;
     const timer = setTimeout(async () => {
@@ -154,6 +156,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       const matchesSearch = !q || (
         p.cliente_nome.toLowerCase().includes(q) ||
         p.pedido_codigo.toLowerCase().includes(q) ||
+        p.empresa_contratante.toLowerCase().includes(q) ||
         p.obra_nome.toLowerCase().includes(q) ||
         p.cidade.toLowerCase().includes(q) ||
         p.trabalhadores.some(t => t.worker_nome.toLowerCase().includes(q) || t.codigo_colab.toLowerCase().includes(q))
@@ -239,7 +242,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
       alert('Seleccione al menos un trabajador para asignar en lote.');
       return;
     }
-    // Tenta pré-selecionar alojamento da cidade com vagas suficientes
     if (selectedPedido) {
       const matchCity = alojamentos.find(a => 
         a.municipio?.toLowerCase().includes(selectedPedido.cidade.toLowerCase())
@@ -253,7 +255,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const handleConfirmBatchAlloc = async () => {
     if (!selectedPedido || !batchAlojamentoId) return;
 
-    // Buscar camas livres no alojamento escolhido
     const camasLivresDoAloj = camasDisponiveis.filter(c => c.alojamento_id === batchAlojamentoId);
     if (camasLivresDoAloj.length < selectedWorkerIds.length) {
       alert(`El alojamiento seleccionado solo tiene ${camasLivresDoAloj.length} camas libres, pero ha seleccionado ${selectedWorkerIds.length} trabajadores.`);
@@ -392,7 +393,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Abas Principais: Demandas por Pedido vs Alojados Geral */}
+      {/* Abas Principais */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
         <div className="flex space-x-2">
           <button
@@ -446,7 +447,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   type="text"
-                  placeholder="Buscar por cliente, pedido, ciudad, obra..."
+                  placeholder="Buscar por cliente, pedido, empresa, ciudad, obra..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -475,7 +476,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
 
             {/* Lista de Cards de Pedidos */}
-            <div className="space-y-3 max-h-[720px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+            <div className="space-y-3 max-h-[740px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
               {isLoading ? (
                 <div className="p-12 text-center text-slate-500 space-y-2">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -499,17 +500,22 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         setSelectedPedidoId(pedido.pedido_id);
                         setSelectedWorkerIds([]);
                       }}
-                      className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-3 relative overflow-hidden ${
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2.5 relative overflow-hidden ${
                         isSelected
                           ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-500 shadow-sm ring-2 ring-blue-500/20'
                           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                       }`}
                     >
-                      {/* Top Bar do Card */}
+                      {/* Top Bar do Card com Código e Empresa */}
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {pedido.pedido_codigo}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {pedido.pedido_codigo}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                            {pedido.empresa_contratante}
+                          </span>
+                        </div>
 
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                           isComplete
@@ -542,7 +548,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <span className={`text-[11px] font-bold ${
                           pedido.dias_restantes <= 5 ? 'text-red-600' : 'text-slate-500'
                         }`}>
-                          {pedido.dias_restantes > 0 ? `Faltan ${pedido.dias_restantes} días` : 'Iniciado'}
+                          {pedido.dias_restantes > 0 ? `Faltan ${pedido.dias_restantes}d` : 'Iniciado'}
                         </span>
                       </div>
 
@@ -575,79 +581,144 @@ export const DemandasAlocacaoPage: React.FC = () => {
             {selectedPedido ? (
               <div className="space-y-5">
                 
-                {/* 1. OS 4 CARDS SUPERIORES PREMIUM (IDÊNTICOS AO PAINEL OPERACIONAL) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* 1. BANNER UNIFICADO DO PEDIDO (PASTEL / CLARO / DARK ADAPTATIVO COM TIMELINE) */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-5">
                   
-                  {/* Card 1: Início Previsto */}
-                  <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-1 shadow-sm relative overflow-hidden border border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1">
-                        <Calendar size={11} />
-                        Inicio Previsto
-                      </span>
-                      {selectedPedido.dias_restantes > 0 && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded">
-                          Faltan {selectedPedido.dias_restantes}d
+                  {/* Linha Superior: Código, Empresa, Cliente e Localização */}
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs font-black px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800/60">
+                          {selectedPedido.pedido_codigo}
                         </span>
+
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
+                          Empresa: {selectedPedido.empresa_contratante}
+                        </span>
+
+                        {selectedPedido.dias_restantes > 0 ? (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 flex items-center gap-1">
+                            <Clock size={12} />
+                            Faltan {selectedPedido.dias_restantes} días
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            En ejecución
+                          </span>
+                        )}
+                      </div>
+
+                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                        {selectedPedido.cliente_nome}
+                      </h2>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-rose-500 flex-shrink-0" />
+                        <strong className="text-slate-800 dark:text-slate-200">{selectedPedido.obra_nome}</strong>
+                        <span>•</span>
+                        <span>{selectedPedido.endereco_completo} ({selectedPedido.cidade}{selectedPedido.codigo_postal ? `, ${selectedPedido.codigo_postal}` : ''})</span>
+                      </p>
+                    </div>
+
+                    {/* Contatos do Encarregado e Cliente */}
+                    <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 text-xs">
+                      {selectedPedido.encarregado_nome && (
+                        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <User size={13} className="text-blue-600" />
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-bold">Encarregado de Obra</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">{selectedPedido.encarregado_nome}</span>
+                          </div>
+                          {selectedPedido.encarregado_telefone && (
+                            <a
+                              href={`https://wa.me/${selectedPedido.encarregado_telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ml-1 p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors"
+                              title="WhatsApp do Encarregado"
+                            >
+                              <Phone size={12} />
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedPedido.cliente_telefone && (
+                        <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                          <span>Tel. Cliente:</span>
+                          <a
+                            href={`tel:${selectedPedido.cliente_telefone}`}
+                            className="text-blue-600 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            <Phone size={11} />
+                            {selectedPedido.cliente_telefone}
+                          </a>
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm font-black tracking-tight">{selectedPedido.data_inicio}</p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {selectedPedido.data_fim ? `Hasta: ${selectedPedido.data_fim}` : 'Duración definida'}
-                    </p>
                   </div>
 
-                  {/* Card 2: Cliente & Contratante */}
-                  <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-1 shadow-sm relative overflow-hidden border border-slate-800">
-                    <span className="text-[10px] uppercase tracking-wider text-blue-400 font-bold flex items-center gap-1">
-                      <Building2 size={11} />
-                      Cliente & Grupo
-                    </span>
-                    <p className="text-sm font-black tracking-tight truncate" title={selectedPedido.cliente_nome}>
-                      {selectedPedido.cliente_nome}
-                    </p>
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                      <span>Contratante:</span>
-                      <span className="px-1.5 py-0.2 bg-blue-600/30 text-blue-300 font-bold rounded text-[9px]">
-                        {selectedPedido.empresa_contratante}
-                      </span>
+                  {/* Linha Inferior: Banner Timeline Pastel (Início Previsto, Duração e Fim Previsto) */}
+                  <div className="bg-slate-50/90 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    
+                    {/* Início Previsto */}
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-2xl shadow-2xs">
+                        <Calendar size={22} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                          Inicio Previsto
+                        </span>
+                        <p className="text-base font-black text-slate-900 dark:text-white">
+                          {selectedPedido.data_inicio}
+                        </p>
+                        <p className="text-xs text-slate-500 font-medium">
+                          {selectedPedido.data_inicio_diasemana || 'Fecha de inicio'}
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Duração Central */}
+                    <div className="flex-1 flex flex-col items-center justify-center px-4">
+                      <span className="px-3.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full text-xs font-bold text-slate-700 dark:text-slate-300 shadow-2xs">
+                        ⏱️ Duración: {selectedPedido.duracao_texto}
+                      </span>
+                      <div className="w-full flex items-center mt-2 max-w-xs">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-blue-200"></div>
+                        <div className="flex-1 border-t-2 border-dashed border-slate-300 dark:border-slate-700 mx-1"></div>
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 ring-2 ring-emerald-200"></div>
+                      </div>
+                    </div>
+
+                    {/* Fim Previsto */}
+                    <div className="flex items-center gap-3 justify-end text-right">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                          Fin Previsto
+                        </span>
+                        <p className="text-base font-black text-slate-900 dark:text-white">
+                          {selectedPedido.data_fim || 'No definido'}
+                        </p>
+                        <p className="text-xs text-slate-500 font-medium">
+                          {selectedPedido.data_fim_diasemana || 'Sin fecha de cierre'}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-2xl shadow-2xs">
+                        <Calendar size={22} />
+                      </div>
+                    </div>
+
                   </div>
 
-                  {/* Card 3: Local / Obra Completo */}
-                  <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-1 shadow-sm relative overflow-hidden border border-slate-800">
-                    <span className="text-[10px] uppercase tracking-wider text-rose-400 font-bold flex items-center gap-1">
-                      <MapPin size={11} />
-                      Local / Obra
-                    </span>
-                    <p className="text-sm font-black tracking-tight truncate" title={selectedPedido.obra_nome}>
-                      {selectedPedido.obra_nome}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate" title={selectedPedido.endereco_completo}>
-                      {selectedPedido.cidade} {selectedPedido.codigo_postal ? `(${selectedPedido.codigo_postal})` : ''}
-                    </p>
-                  </div>
-
-                  {/* Card 4: Pedido / Código */}
-                  <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-1 shadow-sm relative overflow-hidden border border-slate-800">
-                    <span className="text-[10px] uppercase tracking-wider text-purple-400 font-bold flex items-center gap-1">
-                      <Briefcase size={11} />
-                      Pedido / Código
-                    </span>
-                    <p className="text-sm font-mono font-black tracking-tight text-purple-300">
-                      {selectedPedido.pedido_codigo}
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      {selectedPedido.total_contratados} contratados ({selectedPedido.total_vagas_pedido} vagas)
-                    </p>
-                  </div>
                 </div>
 
                 {/* 2. TABELA DOS TRABALHADORES DO PEDIDO */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
                   
                   {/* Header da Tabela com Ações em Lote */}
-                  <div className="p-4 bg-slate-50/70 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="p-4 bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -824,7 +895,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       {/* ABA 2: TRABALHADORES ALOJADOS & CHECK-OUTS */}
       {/* ========================================================================= */}
       {activeTab === 'alojados' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
             <div>
               <h2 className="text-sm font-bold text-slate-800 dark:text-white">
@@ -923,7 +994,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0">
             
-            {/* Header Modal */}
             <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-sm">
@@ -946,9 +1016,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Conteúdo Modal */}
             <div className="p-6 space-y-4 text-xs">
-              {/* Contexto da Obra */}
               <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-2xl space-y-1">
                 <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300 block">
                   📍 Destino de la Obra
@@ -959,7 +1027,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <p className="text-slate-500 text-[11px]">{allocatingWorker.pedido.endereco_completo}</p>
               </div>
 
-              {/* Seleção do Alojamento */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block">
                   1. Seleccione el Alojamiento:
@@ -986,7 +1053,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Seleção da Cama */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block">
                   2. Cama / Habitación Disponible:
@@ -1007,7 +1073,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Datas de Entrada e Saída */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-600 dark:text-slate-400 block">Fecha Check-in:</label>
@@ -1030,7 +1095,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer Modal */}
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => setAllocatingWorker(null)}
@@ -1052,13 +1116,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: ALOCAÇÃO EM LOTE (GRUPO DE TRABALHADORES NO MESMO ALOJAMENTO) */}
+      {/* MODAL 2: ALOCAÇÃO EM LOTE */}
       {/* ========================================================================= */}
       {isBatchModalOpen && selectedPedido && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0">
             
-            {/* Header Modal */}
             <div className="p-6 bg-emerald-50/70 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-sm">
@@ -1081,13 +1144,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Conteúdo Modal */}
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-600 dark:text-slate-300">
                 Seleccione el inmueble donde se hospedarán los {selectedWorkerIds.length} trabajadores. El sistema distribuirá automáticamente las camas libres disponibles.
               </p>
 
-              {/* Lista dos Selecionados */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto space-y-1.5">
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Trabajadores a hospedar:</span>
                 {selectedWorkerIds.map(id => {
@@ -1101,7 +1162,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 })}
               </div>
 
-              {/* Seleção do Alojamento */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block">
                   Alojamiento Destino:
@@ -1134,7 +1194,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer Modal */}
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => setIsBatchModalOpen(false)}
@@ -1156,7 +1215,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL (BUSCA NO BANCO) */}
+      {/* MODAL 3: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL */}
       {/* ========================================================================= */}
       {isDirectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1186,7 +1245,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
-              {/* Busca de Colaboradores */}
               {!selectedRealWorker ? (
                 <div className="space-y-3">
                   <div className="relative">
@@ -1226,7 +1284,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Trabalhador Selecionado */}
                   <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl flex justify-between items-center">
                     <div>
                       <p className="font-black text-slate-800 dark:text-slate-100">{selectedRealWorker.Nombre || selectedRealWorker.nombre}</p>
@@ -1240,7 +1297,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Seleção de Alojamento e Cama */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="font-bold text-slate-600">Alojamiento:</label>
@@ -1277,7 +1333,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Datas */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="font-bold text-slate-600">Fecha Check-in:</label>
