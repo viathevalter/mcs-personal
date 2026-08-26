@@ -62,16 +62,25 @@ export const ContratosList: React.FC = () => {
     try {
       setGeneratingOpId(contrato.id);
       await financeLogisticsService.gerarOrdemPagamento({
-        contrato_id: contrato.id,
+        contrato_id: contrato.codigo,
         alojamento_id: contrato.alojamento_id,
+        alojamento_nome: contrato.alojamento_nome,
+        alojamento_codigo: contrato.alojamento?.codigo,
         provedor_id: contrato.provedor_id,
+        provedor_nome: contrato.provedor_nome,
+        iban_cobranca: contrato.iban_cobranca,
+        banco: contrato.banco,
+        titular: contrato.titular,
+        centro_custo_cliente: 'BECK & POLLITZER IBERICA SLU',
+        centro_custo_obra: `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
         tipo_pago: 'Aluguel',
         valor: contrato.valor_mensal || 0,
-        data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        data_vencimento: contrato.data_inicio ? `${contrato.data_inicio.slice(0, 8)}${String(contrato.dia_vencimento || 5).padStart(2, '0')}` : '2026-09-05',
+        periodo_competencia: '09/2026',
         observacoes: `Aluguel mensal do contrato ${contrato.codigo} (${contrato.alojamento_nome})`
       });
 
-      alert(`Ordem de Pagamento gerada com sucesso para o contrato ${contrato.codigo}!`);
+      alert(`Ordem de Pagamento gerada com sucesso para o contrato ${contrato.codigo}! Disponível na tela de Ordens de Pagamento.`);
     } catch (err: any) {
       console.error('Erro ao gerar OP:', err);
       alert('Erro ao gerar Ordem de Pagamento.');

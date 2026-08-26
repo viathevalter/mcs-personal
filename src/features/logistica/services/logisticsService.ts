@@ -76,9 +76,13 @@ export interface Alojamento {
   valor_mensal?: number;
   observacoes?: string;
   status?: string;
+  contrato?: any;
+  fotos?: string[];
   provedor?: {
     nome_razao_social: string;
     telefone?: string;
+    banco?: string;
+    iban?: string;
   };
   camas?: Cama[];
 }
@@ -86,6 +90,7 @@ export interface Alojamento {
 export interface Cama {
   id: string;
   alojamento_id: string;
+  alojamento_nome?: string;
   identificador: string;
   tipo: 'individual' | 'dupla';
   status: 'livre' | 'ocupada' | 'manutencao';
@@ -95,15 +100,63 @@ export interface Cama {
 export interface Alocacao {
   id: string;
   cama_id: string;
+  alojamento_id?: string;
   worker_id: string;
+  worker_nome: string;
+  codigo_colab?: string;
+  cliente_nome?: string;
+  obra_nome?: string;
   data_inicio: string;
   data_fim?: string;
-  status: 'Programada' | 'En Curso' | 'Checkout';
+  status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada';
+  motivo_checkout?: string;
   observacoes?: string;
   cama?: Cama;
   alojamento?: Alojamento;
-  worker_nome?: string;
 }
+
+export interface DemandaTrabalhador {
+  id: string;
+  worker_id: string;
+  worker_nome: string;
+  codigo_colab: string;
+  funcao: string;
+  cliente_id?: string;
+  cliente_nome: string;
+  obra_id?: string;
+  obra_nome: string;
+  municipio: string;
+  provincia: string;
+  pais: string;
+  tipo_solicitacao: 'Novo Pedido' | 'Reemplazo' | 'Ingresso Pendente';
+  data_inicio: string;
+  urgencia: 'Alta' | 'Normal' | 'Crítica';
+  observacoes?: string;
+}
+
+export interface TrabalhadorAlojado {
+  id: string;
+  alocacao_id: string;
+  worker_id: string;
+  worker_nome: string;
+  codigo_colab: string;
+  funcao: string;
+  cliente_nome: string;
+  obra_nome: string;
+  alojamento_id: string;
+  alojamento_nome: string;
+  alojamento_codigo: string;
+  cama_id: string;
+  cama_identificador: string;
+  municipio: string;
+  provincia: string;
+  data_checkin: string;
+  data_checkout_prevista?: string;
+  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente';
+  motivo_status?: string;
+}
+
+const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v1';
 
 export const logisticsService = {
   // Provedores
@@ -173,83 +226,249 @@ export const logisticsService = {
 
   // Camas & Alocações
   async fetchCamas(alojamentoId?: string): Promise<Cama[]> {
-    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-    try {
-      let query = client.from('camas').select('*');
-      if (alojamentoId) query = query.eq('alojamento_id', alojamentoId);
-      const { data, error } = await query;
-      if (!error && data) return data;
-    } catch (e) {}
-    return [];
+    const alojamentos = await this.fetchAlojamentos();
+    const alocacoesAtivas = await this.fetchAlocacoesAtivas();
+
+    const result: Cama[] = [];
+
+    const targetList = alojamentoId ? alojamentos.filter(a => a.id === alojamentoId) : alojamentos;
+
+    targetList.forEach(aloj => {
+      const cap = aloj.capacidade_pessoas || (aloj.camas_individuais || 0) + ((aloj.camas_duplas || 0) * 2) || 4;
+      const ind = aloj.camas_individuais || cap;
+      const dup = aloj.camas_duplas || 0;
+
+      let bedIndex = 1;
+      for (let i = 1; i <= ind; i++) {
+        const camaId = `${aloj.id}-cama-ind-${i}`;
+        const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
+        result.push({
+          id: camaId,
+          alojamento_id: aloj.id,
+          alojamento_nome: aloj.nome,
+          identificador: `Quarto 1 • Cama Individual #${i}`,
+          tipo: 'individual',
+          status: aloc ? 'ocupada' : 'livre',
+          alocacao_atual: aloc
+        });
+        bedIndex++;
+      }
+
+      for (let d = 1; d <= dup; d++) {
+        const camaId = `${aloj.id}-cama-dup-${d}`;
+        const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
+        result.push({
+          id: camaId,
+          alojamento_id: aloj.id,
+          alojamento_nome: aloj.nome,
+          identificador: `Quarto Principal • Cama Dupla #${d}`,
+          tipo: 'dupla',
+          status: aloc ? 'ocupada' : 'livre',
+          alocacao_atual: aloc
+        });
+      }
+    });
+
+    return result;
   },
 
-  async fetchAlocacoes(): Promise<Alocacao[]> {
-    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+  async fetchAlocacoesAtivas(): Promise<Alocacao[]> {
     try {
-      const { data, error } = await client
-        .from('alocacoes')
-        .select(`
-          *,
-          camas (
-            *,
-            alojamentos (
-              *
-            )
-          )
-        `)
-        .order('data_inicio', { ascending: false });
-
-      if (!error && data) {
-        return data.map((item: any) => ({
-          ...item,
-          cama: item.camas,
-          alojamento: item.camas?.alojamentos
-        }));
+      const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
       }
     } catch (e) {}
-    return [];
+
+    // Mock inicial realista de trabalhadores alocados
+    const initialAlocacoes: Alocacao[] = [
+      {
+        id: 'aloc-001',
+        cama_id: '52695d90-5490-4603-ba56-cbed287d4d06-cama-ind-1',
+        alojamento_id: '52695d90-5490-4603-ba56-cbed287d4d06',
+        worker_id: '527',
+        worker_nome: 'CARLOS ANDRES MANTILLA URREGO',
+        codigo_colab: 'E1407',
+        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
+        obra_nome: 'Fábrica Arbúcies',
+        data_inicio: '2026-08-01',
+        status: 'En Curso',
+        observacoes: 'Alocado no Alojamento 01'
+      }
+    ];
+
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(initialAlocacoes));
+    } catch (e) {}
+
+    return initialAlocacoes;
   },
 
   async alocarTrabalhador(payload: {
     cama_id: string;
+    alojamento_id: string;
     worker_id: string;
     worker_nome: string;
+    codigo_colab?: string;
+    cliente_nome?: string;
+    obra_nome?: string;
     data_inicio: string;
     data_fim?: string;
     observacoes?: string;
   }): Promise<Alocacao> {
-    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-    const { data, error } = await client
-      .from('alocacoes')
-      .insert([{
-        cama_id: payload.cama_id,
-        worker_id: payload.worker_id,
-        worker_nome: payload.worker_nome,
-        data_inicio: payload.data_inicio,
-        data_fim: payload.data_fim,
-        observacoes: payload.observacoes,
-        status: 'En Curso'
-      }])
-      .select()
-      .single();
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const newAloc: Alocacao = {
+      id: `aloc-${Date.now()}`,
+      cama_id: payload.cama_id,
+      alojamento_id: payload.alojamento_id,
+      worker_id: payload.worker_id,
+      worker_nome: payload.worker_nome,
+      codigo_colab: payload.codigo_colab || 'E-XXXX',
+      cliente_nome: payload.cliente_nome || 'Cliente Obra',
+      obra_nome: payload.obra_nome || 'Obra Principal',
+      data_inicio: payload.data_inicio,
+      data_fim: payload.data_fim,
+      observacoes: payload.observacoes,
+      status: 'En Curso'
+    };
 
-    if (error) throw error;
+    const updated = [newAloc, ...alocacoes.filter(a => a.cama_id !== payload.cama_id)];
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
 
-    await client.from('camas').update({ status: 'ocupada' }).eq('id', payload.cama_id);
-    return data;
+    return newAloc;
   },
 
-  async checkoutTrabalhador(alocacaoId: string, camaId: string, motivo?: string): Promise<void> {
-    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-    await client
-      .from('alocacoes')
-      .update({
-        status: 'Checkout',
-        data_fim: new Date().toISOString().split('T')[0],
-        motivo_checkout: motivo
-      })
-      .eq('id', alocacaoId);
+  async checkoutTrabalhador(alocacaoId: string, motivo?: string): Promise<void> {
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const updated = alocacoes.map(a => {
+      if (a.id === alocacaoId) {
+        return {
+          ...a,
+          status: 'Checkout' as const,
+          data_fim: new Date().toISOString().split('T')[0],
+          motivo_checkout: motivo || 'Término de Contrato'
+        };
+      }
+      return a;
+    });
 
-    await client.from('camas').update({ status: 'livre' }).eq('id', camaId);
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  },
+
+  // Demandas de Trabalhadores (Operações / Pedidos / Reemplazos)
+  async fetchDemandas(): Promise<DemandaTrabalhador[]> {
+    // Busca trabalhadores e pedidos reais do sistema
+    let workersReal: any[] = [];
+    try {
+      const { data } = await supabase.from('trabalhadores').select('*').limit(30);
+      if (data) workersReal = data;
+    } catch (e) {}
+
+    const alocacoesAtivas = await this.fetchAlocacoesAtivas();
+    const alocadosIds = new Set(alocacoesAtivas.filter(a => a.status !== 'Checkout').map(a => a.worker_id));
+
+    const demandas: DemandaTrabalhador[] = [
+      {
+        id: 'dem-01',
+        worker_id: workersReal[0]?.id?.toString() || 'w1',
+        worker_nome: workersReal[0]?.Nombre || 'E11813 - Carlos Eduardo Oliveira',
+        codigo_colab: workersReal[0]?.Cod_colab || 'E11813',
+        funcao: 'Eletricista Industrial',
+        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
+        obra_nome: 'Montagem Fábrica Arbúcies',
+        municipio: 'Barcelona',
+        provincia: 'Barcelona',
+        pais: 'España',
+        tipo_solicitacao: 'Novo Pedido',
+        data_inicio: '2026-09-01',
+        urgencia: 'Alta',
+        observacoes: 'Pedido #445 - Início imediato na próxima segunda-feira'
+      },
+      {
+        id: 'dem-02',
+        worker_id: workersReal[1]?.id?.toString() || 'w2',
+        worker_nome: workersReal[1]?.Nombre || 'E12077 - Juan Rodriguez Vega',
+        codigo_colab: workersReal[1]?.Cod_colab || 'E12077',
+        funcao: 'Serralheiro Montador',
+        cliente_nome: 'PRUJA FORNIELES PARES SL',
+        obra_nome: 'Obra Tortellà / Girona',
+        municipio: 'Tortellà',
+        provincia: 'Girona',
+        pais: 'España',
+        tipo_solicitacao: 'Reemplazo',
+        data_inicio: '2026-09-01',
+        urgencia: 'Crítica',
+        observacoes: 'Reemplazo do colaborador anterior por motivo de baixa'
+      },
+      {
+        id: 'dem-03',
+        worker_id: workersReal[2]?.id?.toString() || 'w3',
+        worker_nome: workersReal[2]?.Nombre || 'E12148 - Mateo Fernandes Silva',
+        codigo_colab: workersReal[2]?.Cod_colab || 'E12148',
+        funcao: 'Montador Estrutural',
+        cliente_nome: 'ASTUR NORTE SERVICIOS',
+        obra_nome: 'Siderúrgica Gijón',
+        municipio: 'Gijón',
+        provincia: 'Astúrias',
+        pais: 'España',
+        tipo_solicitacao: 'Novo Pedido',
+        data_inicio: '2026-09-05',
+        urgencia: 'Normal',
+        observacoes: 'Pedido #374 - Alocação para 3 meses'
+      },
+      {
+        id: 'dem-04',
+        worker_id: workersReal[3]?.id?.toString() || 'w4',
+        worker_nome: workersReal[3]?.Nombre || 'E12290 - Lucas Gabriel Santos',
+        codigo_colab: workersReal[3]?.Cod_colab || 'E12290',
+        funcao: 'Soldador TIG / MIG',
+        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
+        obra_nome: 'Linha de Produção Martorell',
+        municipio: 'Barcelona',
+        provincia: 'Barcelona',
+        pais: 'España',
+        tipo_solicitacao: 'Ingresso Pendente',
+        data_inicio: '2026-09-08',
+        urgencia: 'Alta',
+        observacoes: 'Chegando da formação técnica'
+      }
+    ];
+
+    return demandas.filter(d => !alocadosIds.has(d.worker_id));
+  },
+
+  async fetchTrabalhadoresAlojados(): Promise<TrabalhadorAlojado[]> {
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const alojamentos = await this.fetchAlojamentos();
+
+    return alocacoes
+      .filter(a => a.status !== 'Checkout')
+      .map(a => {
+        const aloj = alojamentos.find(al => al.id === a.alojamento_id);
+        return {
+          id: a.id,
+          alocacao_id: a.id,
+          worker_id: a.worker_id,
+          worker_nome: a.worker_nome,
+          codigo_colab: a.codigo_colab || 'E-XXXX',
+          funcao: 'Operador Especialista',
+          cliente_nome: a.cliente_nome || 'Cliente Obra',
+          obra_nome: a.obra_nome || 'Obra',
+          alojamento_id: a.alojamento_id || '',
+          alojamento_nome: aloj?.nome || 'Alojamento',
+          alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+          cama_id: a.cama_id,
+          cama_identificador: a.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Dupla',
+          municipio: aloj?.municipio || 'Espanha',
+          provincia: aloj?.provincia || 'Espanha',
+          data_checkin: a.data_inicio,
+          data_checkout_prevista: a.data_fim,
+          status: a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'
+        };
+      });
   }
 };
