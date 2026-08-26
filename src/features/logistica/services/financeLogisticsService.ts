@@ -27,7 +27,7 @@ export interface PagoAlojamento {
   anexo_fatura_url?: string;
 }
 
-const FINANCE_STORAGE_KEY = 'mcs_logistica_ordens_pagamento_v1';
+const FINANCE_STORAGE_KEY = 'mcs_logistica_ordens_pagamento_v2';
 
 export const financeLogisticsService = {
   async fetchPagos(): Promise<PagoAlojamento[]> {
@@ -38,45 +38,14 @@ export const financeLogisticsService = {
       }
     } catch (e) {}
 
-    // Mock inicial realista com OPs geradas dos contratos
-    const alojamentos = await registrosService.fetchAlojamentos();
-    const initialPagos: PagoAlojamento[] = (alojamentos || []).map((a, idx) => {
-      const cont = a.contrato || (a.comodidades as any)?.__contrato || {};
-      const prov = a.provedor;
-      const valor = Number(a.valor_mensal || a.custo_mensal_total || cont.valor_mensal || 1500);
+    return [];
+  },
 
-      return {
-        id: `op-init-${a.id}`,
-        codigo_pago: `OP-${String(100 + idx + 1).padStart(6, '0')}`,
-        contrato_id: cont.codigo || `CT-2026/${a.codigo ? a.codigo.replace(/[^0-9]/g, '') : '0001'}`,
-        alojamento_id: a.id,
-        alojamento_nome: a.nome || a.titulo,
-        alojamento_codigo: a.codigo || 'AL-0001',
-        provedor_id: a.provedor_id,
-        provedor_nome: prov?.nome_razao_social || 'Proveedor Alojamiento',
-        iban_cobranca: cont.iban || prov?.iban || '',
-        banco: cont.banco || prov?.banco || '',
-        titular: cont.titular || prov?.titular_conta || prov?.nome_razao_social || '',
-        centro_custo_cliente: 'BECK & POLLITZER IBERICA SLU',
-        centro_custo_obra: `Obra ${a.municipio || 'Barcelona'}`,
-        tipo_pago: 'Aluguel',
-        status_pago: idx === 0 ? 'Aguardando Aprovação' : 'Rascunho',
-        periodo_competencia: '09/2026',
-        data_emissao: new Date().toISOString().split('T')[0],
-        data_vencimento: cont.data_inicio ? `${cont.data_inicio.slice(0, 8)}${String(cont.dia_vencimento || 5).padStart(2, '0')}` : '2026-09-05',
-        valor_previsto: valor,
-        moeda: 'EUR',
-        observacoes: `Aluguel Mensal referente a 09/2026 (${a.nome || a.titulo})`
-      };
-    });
-
-    if (initialPagos.length > 0) {
-      try {
-        localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(initialPagos));
-      } catch (e) {}
-    }
-
-    return initialPagos;
+  async clearAllPagos(): Promise<void> {
+    try {
+      localStorage.removeItem(FINANCE_STORAGE_KEY);
+      localStorage.removeItem('mcs_logistica_ordens_pagamento_v1');
+    } catch (e) {}
   },
 
   async gerarOrdemPagamento(payload: {

@@ -198,6 +198,14 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     }
   };
 
+  const handleResetAllPagos = async () => {
+    if (confirm('Deseja zerar todas as Ordens de Pagamento para iniciar o controle real do zero?')) {
+      await financeLogisticsService.clearAllPagos();
+      setPagos([]);
+      alert('Ordens de Pagamento zeradas com sucesso!');
+    }
+  };
+
   return (
     <div className="w-full px-8 py-6 space-y-6">
       {/* Header */}
@@ -219,6 +227,15 @@ export const FinanceiroLogisticaPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {pagos.length > 0 && (
+            <button
+              onClick={handleResetAllPagos}
+              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold transition-colors"
+            >
+              Zerar Lista
+            </button>
+          )}
+
           <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"

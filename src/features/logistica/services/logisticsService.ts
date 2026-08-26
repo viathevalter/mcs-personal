@@ -156,9 +156,38 @@ export interface TrabalhadorAlojado {
   motivo_status?: string;
 }
 
-const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v1';
+const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v2';
 
 export const logisticsService = {
+  // Trabalhadores Reais do Banco
+  async searchTrabalhadores(query: string = ''): Promise<any[]> {
+    try {
+      let q = supabase
+        .from('trabalhadores')
+        .select('id, Cod_colab, Nombre, status_trabajador, Departamento, email, movil')
+        .order('Nombre', { ascending: true })
+        .limit(100);
+
+      if (query && query.trim().length > 0) {
+        const clean = query.trim();
+        q = q.or(`Nombre.ilike.%${clean}%,Cod_colab.ilike.%${clean}%`);
+      }
+
+      const { data, error } = await q;
+      if (!error && data) return data;
+    } catch (e) {
+      console.warn('Erro ao buscar trabalhadores no banco:', e);
+    }
+    return [];
+  },
+
+  async clearAllAlocacoes(): Promise<void> {
+    try {
+      localStorage.removeItem(ALOCACOES_STORAGE_KEY);
+      localStorage.removeItem('mcs_logistica_alocacoes_v1');
+    } catch (e) {}
+  },
+
   // Provedores
   async fetchProvedores(): Promise<Provedor[]> {
     return (await registrosService.fetchProvedores()) as Provedor[];
@@ -280,28 +309,7 @@ export const logisticsService = {
       }
     } catch (e) {}
 
-    // Mock inicial realista de trabalhadores alocados
-    const initialAlocacoes: Alocacao[] = [
-      {
-        id: 'aloc-001',
-        cama_id: '52695d90-5490-4603-ba56-cbed287d4d06-cama-ind-1',
-        alojamento_id: '52695d90-5490-4603-ba56-cbed287d4d06',
-        worker_id: '527',
-        worker_nome: 'CARLOS ANDRES MANTILLA URREGO',
-        codigo_colab: 'E1407',
-        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
-        obra_nome: 'Fábrica Arbúcies',
-        data_inicio: '2026-08-01',
-        status: 'En Curso',
-        observacoes: 'Alocado no Alojamento 01'
-      }
-    ];
-
-    try {
-      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(initialAlocacoes));
-    } catch (e) {}
-
-    return initialAlocacoes;
+    return [];
   },
 
   async alocarTrabalhador(payload: {

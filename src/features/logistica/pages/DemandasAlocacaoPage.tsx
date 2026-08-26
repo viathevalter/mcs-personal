@@ -21,6 +21,9 @@ import {
   Phone,
   Briefcase,
   X,
+  Plus,
+  Trash2,
+  Layers,
   FileSpreadsheet
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
@@ -41,7 +44,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
 
-  // Seleção e Alocação
+  // Seleção e Alocação via Painel Lateral
   const [selectedDemanda, setSelectedDemanda] = useState<DemandaTrabalhador | null>(null);
   const [selectedAlojamentoId, setSelectedAlojamentoId] = useState<string>('');
   const [selectedCamaId, setSelectedCamaId] = useState<string>('');
@@ -49,6 +52,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [dataFim, setDataFim] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
   const [isAllocating, setIsAllocating] = useState(false);
+
+  // Modal Alocação Direta de Trabalhador Real
+  const [isDirectModalOpen, setIsDirectModalOpen] = useState(false);
+  const [workerSearchQuery, setWorkerSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingWorkers, setIsSearchingWorkers] = useState(false);
+  const [selectedRealWorker, setSelectedRealWorker] = useState<any | null>(null);
+  const [directAlojamentoId, setDirectAlojamentoId] = useState('');
+  const [directCamaId, setDirectCamaId] = useState('');
+  const [directCliente, setDirectCliente] = useState('BECK & POLLITZER IBERICA SLU');
+  const [directObra, setDirectObra] = useState('Obra Principal');
+  const [directDataInicio, setDirectDataInicio] = useState(new Date().toISOString().split('T')[0]);
+  const [directDataFim, setDirectDataFim] = useState('');
+  const [directObservacoes, setDirectObservacoes] = useState('');
 
   // Check-out Modal
   const [checkingOutWorker, setCheckingOutWorker] = useState<TrabalhadorAlojado | null>(null);
@@ -82,7 +99,24 @@ export const DemandasAlocacaoPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Alocação de Trabalhador
+  // Busca em tempo real de trabalhadores reais no banco
+  useEffect(() => {
+    if (!isDirectModalOpen) return;
+    const timer = setTimeout(async () => {
+      setIsSearchingWorkers(true);
+      try {
+        const res = await logisticsService.searchTrabalhadores(workerSearchQuery);
+        setSearchResults(res);
+      } catch (e) {
+        console.error('Erro na busca de trabalhadores:', e);
+      } finally {
+        setIsSearchingWorkers(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [workerSearchQuery, isDirectModalOpen]);
+
+  // Alocação a partir da lista de Demandas
   const handleConfirmAllocation = async () => {
     if (!selectedDemanda || !selectedCamaId || !selectedAlojamentoId) {
       alert('Selecione um trabalhador, um alojamento e uma cama disponível.');
@@ -110,8 +144,48 @@ export const DemandasAlocacaoPage: React.FC = () => {
       setSelectedAlojamentoId('');
       setObservacoes('');
       loadData();
+      setActiveTab('alojados');
     } catch (err: any) {
       console.error('Erro ao alocar:', err);
+      alert('Erro ao realizar alocação.');
+    } finally {
+      setIsAllocating(false);
+    }
+  };
+
+  // Alocação Direta de Trabalhador Real
+  const handleDirectAllocationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRealWorker || !directAlojamentoId || !directCamaId) {
+      alert('Selecione um trabalhador, um alojamento e uma cama disponível.');
+      return;
+    }
+
+    try {
+      setIsAllocating(true);
+      await logisticsService.alocarTrabalhador({
+        cama_id: directCamaId,
+        alojamento_id: directAlojamentoId,
+        worker_id: selectedRealWorker.id?.toString(),
+        worker_nome: selectedRealWorker.Nombre,
+        codigo_colab: selectedRealWorker.Cod_colab || 'E-XXXX',
+        cliente_nome: directCliente,
+        obra_nome: directObra,
+        data_inicio: directDataInicio,
+        data_fim: directDataFim,
+        observacoes: directObservacoes
+      });
+
+      alert(`✅ Trabalhador ${selectedRealWorker.Nombre} alocado com sucesso no alojamento!`);
+      setIsDirectModalOpen(false);
+      setSelectedRealWorker(null);
+      setDirectAlojamentoId('');
+      setDirectCamaId('');
+      setWorkerSearchQuery('');
+      loadData();
+      setActiveTab('alojados');
+    } catch (err) {
+      console.error('Erro ao alocar trabalhador real:', err);
       alert('Erro ao realizar alocação.');
     } finally {
       setIsAllocating(false);
@@ -133,6 +207,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
       alert('Erro ao realizar checkout.');
     } finally {
       setIsProcessingCheckout(false);
+    }
+  };
+
+  const handleResetAlocacoes = async () => {
+    if (confirm('Deseja zerar todas as alocações para iniciar os testes do zero?')) {
+      await logisticsService.clearAllAlocacoes();
+      alert('Alocações zeradas com sucesso!');
+      loadData();
     }
   };
 
@@ -159,8 +241,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     a.municipio.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Sugestor Inteligente de Alojamentos:
-  // Se uma demanda foi selecionada, prioriza imóveis na mesma cidade/região da obra do cliente!
+  // Sugestor Inteligente por Proximidade
   const targetCity = selectedDemanda?.municipio?.toLowerCase() || '';
   const sortedAlojamentos = [...alojamentos].sort((a, b) => {
     const matchA = (a.municipio || '').toLowerCase().includes(targetCity);
@@ -171,6 +252,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   });
 
   const camasFiltradas = camasDisponiveis.filter(c => c.alojamento_id === selectedAlojamentoId);
+  const directCamasFiltradas = camasDisponiveis.filter(c => c.alojamento_id === directAlojamentoId);
 
   return (
     <div className="w-full px-8 py-6 space-y-6">
@@ -186,7 +268,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 Central de Demandas & Ocupação de Alojamentos
               </h1>
               <p className="text-xs text-slate-500">
-                Atendimento de pedidos e reemplazos da Operação, check-ins inteligentes por proximidade e controle de check-outs
+                Atendimento de pedidos e reemplazos, alocação direta de trabalhadores cadastrados e gestão de check-outs
               </p>
             </div>
           </div>
@@ -194,11 +276,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
         <div className="flex items-center gap-2.5">
           <button
+            onClick={() => setIsDirectModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+          >
+            <UserPlus size={16} />
+            Alocar Trabalhador (Busca Direta)
+          </button>
+
+          <button
             onClick={loadData}
-            className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors shadow-xs"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors shadow-xs"
+            title="Atualizar"
           >
             <RefreshCw size={14} />
-            Atualizar
           </button>
         </div>
       </div>
@@ -293,10 +383,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     Carregando demandas operacionais...
                   </div>
                 ) : filteredDemandas.length === 0 ? (
-                  <div className="p-12 text-center text-slate-400 space-y-2">
+                  <div className="p-12 text-center text-slate-400 space-y-3">
                     <CheckCircle size={32} className="mx-auto text-emerald-500" />
-                    <p className="font-bold text-slate-700 dark:text-slate-300">Tudo em dia!</p>
-                    <p className="text-xs">Não há trabalhadores pendentes de alojamento no momento.</p>
+                    <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum trabalhador pendente de alocação nesta lista</p>
+                    <p className="text-xs">Para alocar qualquer trabalhador ativo da empresa, use o botão <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo.</p>
                   </div>
                 ) : (
                   filteredDemandas.map(d => {
@@ -306,7 +396,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         key={d.id}
                         onClick={() => {
                           setSelectedDemanda(d);
-                          // Auto-seleciona primeiro alojamento na mesma cidade se houver
                           const matchCity = alojamentos.find(a =>
                             (a.municipio || '').toLowerCase().includes(d.municipio.toLowerCase())
                           );
@@ -526,10 +615,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div className="p-10 text-center text-slate-400 text-xs space-y-2">
+                <div className="p-10 text-center text-slate-400 text-xs space-y-3">
                   <Users size={28} className="mx-auto text-slate-300 dark:text-slate-700" />
                   <p className="font-bold text-slate-600 dark:text-slate-300">Nenhum trabalhador selecionado</p>
-                  <p>Selecione um trabalhador da lista ao lado para ver os alojamentos sugeridos com vagas livres.</p>
+                  <p>Selecione um trabalhador da lista ao lado para ver os alojamentos sugeridos com vagas livres, ou clique em <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo.</p>
                 </div>
               )}
             </div>
@@ -554,8 +643,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
               />
             </div>
 
-            <div className="text-xs font-bold text-slate-500">
-              Total: <strong>{filteredAlojados.length}</strong> colaboradores alojados
+            <div className="flex items-center gap-3">
+              <div className="text-xs font-bold text-slate-500">
+                Total: <strong>{filteredAlojados.length}</strong> colaboradores alojados
+              </div>
+              {filteredAlojados.length > 0 && (
+                <button
+                  onClick={handleResetAlocacoes}
+                  className="text-[11px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  Zerar Alocações
+                </button>
+              )}
             </div>
           </div>
 
@@ -563,10 +662,17 @@ export const DemandasAlocacaoPage: React.FC = () => {
             {isLoading ? (
               <div className="p-16 text-center text-slate-500">Carregando ocupação atual...</div>
             ) : filteredAlojados.length === 0 ? (
-              <div className="p-16 text-center text-slate-500 space-y-2">
-                <Home size={32} className="mx-auto text-slate-300 dark:text-slate-700" />
+              <div className="p-16 text-center text-slate-500 space-y-3">
+                <Home size={36} className="mx-auto text-slate-300 dark:text-slate-700" />
                 <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum trabalhador alojado no momento</p>
-                <p className="text-xs text-slate-400">Faça check-in dos trabalhadores da aba de demandas pendentes.</p>
+                <p className="text-xs text-slate-400">Clique em <strong>"Alocar Trabalhador (Busca Direta)"</strong> no topo para pesquisar qualquer trabalhador do banco e vinculá-lo a um alojamento.</p>
+                <button
+                  onClick={() => setIsDirectModalOpen(true)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-2"
+                >
+                  <UserPlus size={15} />
+                  Fazer Primeira Alocação
+                </button>
               </div>
             ) : (
               <table className="w-full text-xs text-left">
@@ -634,6 +740,247 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ALOCAÇÃO DIRETA DE TRABALHADOR REAL (BUSCA NO BANCO)              */}
+      {/* ========================================================================= */}
+      {isDirectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-sm">
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">Alocar Trabalhador no Alojamento</h2>
+                  <p className="text-xs text-slate-500">Busca em tempo real entre os 800+ colaboradores reais cadastrados no banco</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDirectModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleDirectAllocationSubmit} className="p-6 space-y-4 text-xs">
+              {/* 1. Busca do Trabalhador */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  1. Pesquisar Trabalhador (Nome ou Código E-XXXX):
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  <input
+                    type="text"
+                    placeholder="Digite para pesquisar (Ex: Carlos, Jefferson, E1407, E2054)..."
+                    value={workerSearchQuery}
+                    onChange={e => setWorkerSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  />
+                  {isSearchingWorkers && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lista de Resultados */}
+                {searchResults.length > 0 && !selectedRealWorker && (
+                  <div className="mt-2 border border-slate-200 dark:border-slate-700 rounded-2xl max-h-40 overflow-y-auto bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 shadow-sm">
+                    {searchResults.map(w => (
+                      <div
+                        key={w.id}
+                        onClick={() => {
+                          setSelectedRealWorker(w);
+                          setSearchResults([]);
+                        }}
+                        className="p-2.5 hover:bg-blue-50 dark:hover:bg-slate-800 cursor-pointer flex items-center justify-between transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                            {w.Cod_colab || 'E-XXXX'}
+                          </span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                            {w.Nombre}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {w.status_trabajador || 'Ativo'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Trabalhador Selecionado */}
+                {selectedRealWorker && (
+                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <UserCheck size={18} className="text-blue-600" />
+                      <div>
+                        <span className="font-mono text-xs font-bold text-blue-600 block">{selectedRealWorker.Cod_colab}</span>
+                        <p className="font-black text-slate-900 dark:text-white text-xs">{selectedRealWorker.Nombre}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRealWorker(null);
+                        setWorkerSearchQuery('');
+                      }}
+                      className="text-xs text-slate-400 hover:text-rose-600 font-bold px-2 py-1"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Seleção de Alojamento Real */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    2. Selecionar Alojamento:
+                  </label>
+                  <select
+                    value={directAlojamentoId}
+                    onChange={e => {
+                      setDirectAlojamentoId(e.target.value);
+                      setDirectCamaId('');
+                    }}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  >
+                    <option value="">Escolha um imóvel...</option>
+                    {alojamentos.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.codigo} - {a.nome} ({a.municipio || 'Espanha'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    3. Cama / Vaga Livre:
+                  </label>
+                  {directAlojamentoId ? (
+                    directCamasFiltradas.length === 0 ? (
+                      <div className="p-2 bg-amber-50 text-amber-800 text-[11px] rounded-lg">Sem vagas livres</div>
+                    ) : (
+                      <select
+                        value={directCamaId}
+                        onChange={e => setDirectCamaId(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                      >
+                        <option value="">Selecione uma cama...</option>
+                        {directCamasFiltradas.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.identificador} ({c.tipo})
+                          </option>
+                        ))}
+                      </select>
+                    )
+                  ) : (
+                    <select disabled className="w-full px-3 py-2 bg-slate-100 text-slate-400 rounded-xl text-xs">
+                      <option>Selecione o alojamento primeiro</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Cliente & Obra de Destino */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Cliente do Contrato:
+                  </label>
+                  <input
+                    type="text"
+                    value={directCliente}
+                    onChange={e => setDirectCliente(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Obra / Local de Trabalho:
+                  </label>
+                  <input
+                    type="text"
+                    value={directObra}
+                    onChange={e => setDirectObra(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* 4. Datas de Check-in */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Data Check-in (Início):
+                  </label>
+                  <input
+                    type="date"
+                    value={directDataInicio}
+                    onChange={e => setDirectDataInicio(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Previsão Check-out (Opcional):
+                  </label>
+                  <input
+                    type="date"
+                    value={directDataFim}
+                    onChange={e => setDirectDataFim(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Observações:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Trabalhador alocado para obra de montagem industrial"
+                  value={directObservacoes}
+                  onChange={e => setDirectObservacoes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 flex justify-between items-center -mx-6 -mb-6 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsDirectModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedRealWorker || !directCamaId || isAllocating}
+                  className="px-4 py-2.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm disabled:opacity-50"
+                >
+                  {isAllocating ? 'Alocando...' : 'Confirmar Alocação no Alojamento'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
