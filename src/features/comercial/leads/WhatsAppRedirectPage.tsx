@@ -12,50 +12,29 @@ export function WhatsAppRedirectPage() {
       // Default WhatsApp Link for salesperson Alex (+34 937 37 41 80)
       const whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
 
-      if (!leadId) {
-        window.location.href = whatsappUrl;
-        return;
-      }
-
       try {
-        // Fetch current lead data
-        const { data: lead } = await supabase
-          .schema('core_comercial')
-          .from('leads')
-          .select('empresa_id, stage_id')
-          .eq('id', leadId)
-          .single();
-
-        if (lead && lead.empresa_id) {
-          // Fetch the 'Contato Via WhatsApp' stage for this specific empresa
-          const { data: targetStages } = await supabase
+        if (leadId) {
+          // Fetch current lead data
+          const { data: lead } = await supabase
             .schema('core_comercial')
-            .from('kanban_stages')
-            .select('id, order_index')
-            .eq('empresa_id', lead.empresa_id)
-            .ilike('name', '%WhatsApp%')
-            .limit(1);
+            .from('leads')
+            .select('empresa_id, stage_id')
+            .eq('id', leadId)
+            .maybeSingle();
 
-          const targetStage = targetStages && targetStages.length > 0 ? targetStages[0] : null;
+          if (lead && lead.empresa_id) {
+            // Fetch the 'Contato Via WhatsApp' stage for this specific empresa
+            const { data: targetStages } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id, order_index')
+              .eq('empresa_id', lead.empresa_id)
+              .ilike('name', '%WhatsApp%')
+              .limit(1);
 
-          if (targetStage) {
-            // Get order index of current stage to avoid downgrading
-            let currentOrderIndex = 0;
-            if (lead.stage_id) {
-              const { data: curStages } = await supabase
-                .schema('core_comercial')
-                .from('kanban_stages')
-                .select('order_index')
-                .eq('empresa_id', lead.empresa_id)
-                .eq('id', lead.stage_id)
-                .limit(1);
-              if (curStages && curStages.length > 0) {
-                currentOrderIndex = curStages[0].order_index;
-              }
-            }
+            const targetStage = targetStages && targetStages.length > 0 ? targetStages[0] : null;
 
-            // Only update stage if the target stage order index is higher
-            if (targetStage.order_index > currentOrderIndex) {
+            if (targetStage) {
               await supabase
                 .schema('core_comercial')
                 .from('leads')
@@ -70,8 +49,10 @@ export function WhatsAppRedirectPage() {
       } catch (err) {
         console.error('Failed to track WhatsApp click:', err);
       } finally {
-        // Always redirect
-        window.location.href = whatsappUrl;
+        // Small delay to ensure Supabase connection is fully committed
+        setTimeout(() => {
+          window.location.href = whatsappUrl;
+        }, 500);
       }
     }
 
