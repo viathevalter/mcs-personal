@@ -194,6 +194,11 @@ export function FaturasPendentes() {
   } | null>(null);
 
   const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+  const [selectedAttachments, setSelectedAttachments] = useState<{ relatorio: boolean; informe: boolean; factura: boolean }>({
+    relatorio: true,
+    informe: true,
+    factura: true
+  });
   
   const getTranslatedMonthName = (monthIndex: number, lang: 'pt' | 'es' | 'en') => {
     const ptMonths = [
@@ -680,6 +685,7 @@ MCS - Gestão Comercial`;
         token: previewToken
       });
     }
+    setSelectedAttachments({ relatorio: true, informe: true, factura: true });
     setIsEmailModalOpen(true);
   };
 
@@ -1623,14 +1629,19 @@ MCS - Gestão Comercial`;
         await new Promise(resolve => setTimeout(resolve, 600)); // wait for expansion transition and layout mounting
       }
 
-      const relatorioAttachment = await generateHoursPDFAttachment(faturamento);
-      const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe');
-      const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura');
-
       const custom_attachments = [];
-      if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
-      if (informeAttachment) custom_attachments.push(informeAttachment);
-      if (facturaAttachment) custom_attachments.push(facturaAttachment);
+      if (selectedAttachments.relatorio) {
+        const relatorioAttachment = await generateHoursPDFAttachment(faturamento);
+        if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
+      }
+      if (selectedAttachments.informe) {
+        const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe');
+        if (informeAttachment) custom_attachments.push(informeAttachment);
+      }
+      if (selectedAttachments.factura) {
+        const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura');
+        if (facturaAttachment) custom_attachments.push(facturaAttachment);
+      }
 
       // Detectar URL e converter em um link HTML clicável
       const linkRegex = /(https?:\/\/[^\s]+)/g;
@@ -2033,11 +2044,29 @@ MCS - Gestão Comercial`;
   const handleExportA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
     if (type === 'factura') {
       const elementId = `${type}-sheet-${cardId}`;
-      const element = document.getElementById(elementId);
+      let element = document.getElementById(elementId);
       
+      if (!element) {
+        setExpandedClients(prev => ({ ...prev, [cardId]: true }));
+        await new Promise(resolve => setTimeout(resolve, 400));
+        element = document.getElementById(elementId);
+      }
+
       if (!element) {
         toast.error(`Não foi possível localizar o elemento visual da Fatura Pró-forma.`);
         return;
+      }
+
+      const parentWrapper = element.closest('.hidden');
+      const wasHidden = !!parentWrapper;
+
+      if (wasHidden && parentWrapper) {
+        parentWrapper.classList.remove('hidden');
+        parentWrapper.classList.add('block');
+        (parentWrapper as HTMLElement).style.position = 'absolute';
+        (parentWrapper as HTMLElement).style.left = '-9999px';
+        (parentWrapper as HTMLElement).style.top = '0';
+        (parentWrapper as HTMLElement).style.width = '800px';
       }
       
       toast.info(`Aguarde, gerando PDF da Fatura Pró-forma...`);
@@ -2062,10 +2091,19 @@ MCS - Gestão Comercial`;
         
         const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
         pdf.save(filename);
-        toast.success(`PDF do Pro-forma gerado com sucesso!`);
+        toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
       } catch (error: any) {
         console.error("Erro ao gerar PDF:", error);
         toast.error("Erro ao gerar o arquivo PDF: " + error.message);
+      } finally {
+        if (wasHidden && parentWrapper) {
+          parentWrapper.classList.remove('block');
+          parentWrapper.classList.add('hidden');
+          (parentWrapper as HTMLElement).style.position = '';
+          (parentWrapper as HTMLElement).style.left = '';
+          (parentWrapper as HTMLElement).style.top = '';
+          (parentWrapper as HTMLElement).style.width = '';
+        }
       }
       return;
     }
@@ -4315,18 +4353,68 @@ MCS - Gestão Comercial`;
                   {/* Documentos Anexados */}
                   <div className="space-y-2">
                     <h4 className="font-bold text-indigo-600 dark:text-indigo-400 border-b dark:border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Documentos Anexos (PDF)</h4>
-                    <div className="flex flex-col gap-2 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
-                        <span>Relatorio_Datas_Trabalhadas.pdf</span>
+                    <div className="flex flex-col gap-2.5 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_relatorio_pendentes"
+                          checked={selectedAttachments.relatorio}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, relatorio: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentFaturamento) handleExportHoursPDF(currentFaturamento);
+                          }}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar o Relatório de Horas"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Relatorio_Datas_Trabalhadas.pdf</span>
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
-                        <span>Informe_Facturacion.pdf</span>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_informe_pendentes"
+                          checked={selectedAttachments.informe}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, informe: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (emailData) handleExportA4PDF(emailData.cardId, emailData.clientName, 'informe');
+                          }}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar o Informe de Faturamento"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Informe_Facturacion.pdf</span>
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-350">
-                        <FileText className="w-4 h-4 text-rose-500" />
-                        <span>Factura_Pró-forma.pdf</span>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="chk_att_factura_pendentes"
+                          checked={selectedAttachments.factura}
+                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, factura: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (emailData) handleExportA4PDF(emailData.cardId, emailData.clientName, 'factura');
+                          }}
+                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                          title="Clique para visualizar/baixar a Factura Pró-forma"
+                        >
+                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>Factura_Pró-forma.pdf</span>
+                        </button>
                       </div>
                     </div>
                   </div>
