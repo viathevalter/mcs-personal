@@ -61,7 +61,18 @@ export const ContratosList: React.FC = () => {
   const handleGerarOP = async (contrato: ContratoAlojamento) => {
     try {
       setGeneratingOpId(contrato.id);
-      await financeLogisticsService.gerarOrdemPagamento({
+
+      let vencimento = '2026-09-05';
+      if (contrato.data_inicio) {
+        const cleanDate = contrato.data_inicio.replace(/\./g, '-');
+        const parts = cleanDate.split('-');
+        if (parts.length >= 2) {
+          const day = String(contrato.dia_vencimento || 5).padStart(2, '0');
+          vencimento = `${parts[0]}-${parts[1]}-${day}`;
+        }
+      }
+
+      const opCriada = await financeLogisticsService.gerarOrdemPagamento({
         contrato_id: contrato.codigo,
         alojamento_id: contrato.alojamento_id,
         alojamento_nome: contrato.alojamento_nome,
@@ -74,16 +85,16 @@ export const ContratosList: React.FC = () => {
         centro_custo_cliente: 'BECK & POLLITZER IBERICA SLU',
         centro_custo_obra: `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
         tipo_pago: 'Aluguel',
-        valor: contrato.valor_mensal || 0,
-        data_vencimento: contrato.data_inicio ? `${contrato.data_inicio.slice(0, 8)}${String(contrato.dia_vencimento || 5).padStart(2, '0')}` : '2026-09-05',
+        valor: Number(contrato.valor_mensal) || 0,
+        data_vencimento: vencimento,
         periodo_competencia: '09/2026',
         observacoes: `Aluguel mensal do contrato ${contrato.codigo} (${contrato.alojamento_nome})`
       });
 
-      alert(`Ordem de Pagamento gerada com sucesso para o contrato ${contrato.codigo}! Disponível na tela de Ordens de Pagamento.`);
+      alert(`✅ Ordem de Pagamento ${opCriada.codigo_pago} gerada com sucesso para o imóvel ${contrato.alojamento_nome}! Você já pode visualizá-la e enviá-la para aprovação na tela de Ordens de Pagamento.`);
     } catch (err: any) {
       console.error('Erro ao gerar OP:', err);
-      alert('Erro ao gerar Ordem de Pagamento.');
+      alert(`Aviso: ${err?.message || 'Não foi possível gerar a Ordem de Pagamento. Verifique os dados do contrato.'}`);
     } finally {
       setGeneratingOpId(null);
     }
