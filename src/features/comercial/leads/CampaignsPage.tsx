@@ -646,7 +646,7 @@ export function CampaignsPage() {
     {
       id: 'aud_mailing_alex',
       name: '🎯 Mailing Alex - Novos Contatos & Oficinas',
-      leadCount: 2669,
+      leadCount: 2691,
       filters: {
         stageId: '',
         origin: '',
