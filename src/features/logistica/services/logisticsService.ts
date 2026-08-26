@@ -106,6 +106,8 @@ export interface Alocacao {
   codigo_colab?: string;
   cliente_nome?: string;
   obra_nome?: string;
+  pedido_id?: string;
+  pedido_codigo?: string;
   data_inicio: string;
   data_fim?: string;
   status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada';
@@ -113,6 +115,54 @@ export interface Alocacao {
   observacoes?: string;
   cama?: Cama;
   alojamento?: Alojamento;
+}
+
+export interface TrabalhadorDemandaItem {
+  assignment_id?: string;
+  worker_id: string;
+  worker_nome: string;
+  codigo_colab: string;
+  nif?: string;
+  movil?: string;
+  funcao: string;
+  data_inicio: string;
+  data_fim?: string;
+  status_alocacao: 'pendente' | 'alocado';
+  alocacao_detalhe?: {
+    alocacao_id: string;
+    alojamento_id: string;
+    alojamento_nome: string;
+    alojamento_codigo?: string;
+    cama_id: string;
+    cama_identificador: string;
+    data_inicio: string;
+    data_fim?: string;
+  };
+}
+
+export interface PedidoDemandaLogistica {
+  pedido_id: string;
+  pedido_codigo: string;
+  cliente_id?: string;
+  cliente_nome: string;
+  empresa_contratante: string;
+  obra_nome: string;
+  endereco_completo: string;
+  cidade: string;
+  provincia?: string;
+  codigo_postal?: string;
+  data_inicio: string;
+  data_fim?: string;
+  dias_restantes: number;
+  duracao_dias?: number;
+  tipo_solicitacao: 'Nuevo Pedido' | 'Reemplazo';
+  status_operacional?: string;
+  observacoes?: string;
+  total_vagas_pedido: number;
+  total_contratados: number;
+  total_alojados: number;
+  total_pendentes_alojamento: number;
+  trabalhadores: TrabalhadorDemandaItem[];
 }
 
 export interface DemandaTrabalhador {
@@ -255,33 +305,24 @@ export const logisticsService = {
   },
 
   async fetchAlojamentoById(id: string): Promise<Alojamento | null> {
-    const res = await registrosService.fetchAlojamentoById(id);
-    if (!res) return null;
-    return {
-      ...res,
-      nome: res.titulo || res.nome || ''
-    };
+    return (await registrosService.fetchAlojamentoById(id)) as Alojamento | null;
   },
 
   async deleteAlojamento(id: string): Promise<boolean> {
     return await registrosService.deleteAlojamento(id);
   },
 
-  // Camas & Alocações
-  async fetchCamas(alojamentoId?: string): Promise<Cama[]> {
+  // Camas & Estrutura de Vagas Dinâmicas
+  async fetchCamas(): Promise<Cama[]> {
     const alojamentos = await this.fetchAlojamentos();
     const alocacoesAtivas = await this.fetchAlocacoesAtivas();
-
     const result: Cama[] = [];
 
-    const targetList = alojamentoId ? alojamentos.filter(a => a.id === alojamentoId) : alojamentos;
-
-    targetList.forEach(aloj => {
+    alojamentos.forEach(aloj => {
       const cap = aloj.capacidade_pessoas || (aloj.camas_individuais || 0) + ((aloj.camas_duplas || 0) * 2) || 4;
       const ind = aloj.camas_individuais || cap;
       const dup = aloj.camas_duplas || 0;
 
-      let bedIndex = 1;
       for (let i = 1; i <= ind; i++) {
         const camaId = `${aloj.id}-cama-ind-${i}`;
         const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
@@ -294,7 +335,6 @@ export const logisticsService = {
           status: aloc ? 'ocupada' : 'livre',
           alocacao_atual: aloc
         });
-        bedIndex++;
       }
 
       for (let d = 1; d <= dup; d++) {
@@ -334,13 +374,18 @@ export const logisticsService = {
     codigo_colab?: string;
     cliente_nome?: string;
     obra_nome?: string;
+    pedido_id?: string;
+    pedido_codigo?: string;
     data_inicio: string;
     data_fim?: string;
     observacoes?: string;
   }): Promise<Alocacao> {
     const alocacoes = await this.fetchAlocacoesAtivas();
+    const alojamentos = await this.fetchAlojamentos();
+    const aloj = alojamentos.find(a => a.id === payload.alojamento_id);
+
     const newAloc: Alocacao = {
-      id: `aloc-${Date.now()}`,
+      id: `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       cama_id: payload.cama_id,
       alojamento_id: payload.alojamento_id,
       worker_id: payload.worker_id,
@@ -348,18 +393,82 @@ export const logisticsService = {
       codigo_colab: payload.codigo_colab || 'E-XXXX',
       cliente_nome: payload.cliente_nome || 'Cliente Obra',
       obra_nome: payload.obra_nome || 'Obra Principal',
+      pedido_id: payload.pedido_id,
+      pedido_codigo: payload.pedido_codigo,
       data_inicio: payload.data_inicio,
       data_fim: payload.data_fim,
       observacoes: payload.observacoes,
-      status: 'En Curso'
+      status: 'En Curso',
+      alojamento: aloj
     };
 
-    const updated = [newAloc, ...alocacoes.filter(a => a.cama_id !== payload.cama_id)];
+    // Remove alocação prévia da mesma cama ou do mesmo trabalhador para evitar duplicidade
+    const filtered = alocacoes.filter(a => a.cama_id !== payload.cama_id && a.worker_id !== payload.worker_id);
+    const updated = [newAloc, ...filtered];
+    
     try {
       localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
 
     return newAloc;
+  },
+
+  // Alocação em Lote para Múltiplos Trabalhadores do mesmo Pedido
+  async alocarGrupoEmAlojamento(
+    items: Array<{
+      worker_id: string;
+      worker_nome: string;
+      codigo_colab?: string;
+      cama_id: string;
+    }>,
+    alojamento_id: string,
+    pedidoContext: {
+      pedido_id?: string;
+      pedido_codigo?: string;
+      cliente_nome?: string;
+      obra_nome?: string;
+      data_inicio: string;
+      data_fim?: string;
+      observacoes?: string;
+    }
+  ): Promise<Alocacao[]> {
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const alojamentos = await this.fetchAlojamentos();
+    const aloj = alojamentos.find(a => a.id === alojamento_id);
+
+    const newAllocations: Alocacao[] = [];
+    const usedCamaIds = new Set(items.map(i => i.cama_id));
+    const usedWorkerIds = new Set(items.map(i => i.worker_id));
+
+    items.forEach(item => {
+      const newAloc: Alocacao = {
+        id: `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        cama_id: item.cama_id,
+        alojamento_id: alojamento_id,
+        worker_id: item.worker_id,
+        worker_nome: item.worker_nome,
+        codigo_colab: item.codigo_colab || 'E-XXXX',
+        cliente_nome: pedidoContext.cliente_nome || 'Cliente Obra',
+        obra_nome: pedidoContext.obra_nome || 'Obra Principal',
+        pedido_id: pedidoContext.pedido_id,
+        pedido_codigo: pedidoContext.pedido_codigo,
+        data_inicio: pedidoContext.data_inicio,
+        data_fim: pedidoContext.data_fim,
+        observacoes: pedidoContext.observacoes,
+        status: 'En Curso',
+        alojamento: aloj
+      };
+      newAllocations.push(newAloc);
+    });
+
+    const filtered = alocacoes.filter(a => !usedCamaIds.has(a.cama_id) && !usedWorkerIds.has(a.worker_id));
+    const updated = [...newAllocations, ...filtered];
+
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    return newAllocations;
   },
 
   async checkoutTrabalhador(alocacaoId: string, motivo?: string): Promise<void> {
@@ -381,86 +490,169 @@ export const logisticsService = {
     } catch (e) {}
   },
 
-  // Demandas de Trabalhadores (Operações / Pedidos / Reemplazos)
-  async fetchDemandas(): Promise<DemandaTrabalhador[]> {
-    // Busca trabalhadores e pedidos reais do sistema
-    let workersReal: any[] = [];
+  // Demandas de Logística Agrupadas por Pedido Comercial Real & Trabalhadores Contratados
+  async fetchDemandasPorPedido(): Promise<PedidoDemandaLogistica[]> {
     try {
-      const { data } = await supabase.from('trabalhadores').select('*').limit(30);
-      if (data) workersReal = data;
-    } catch (e) {}
+      // 1. Buscar Pedidos Comerciais Ativos
+      const { data: pedidos, error: pedErr } = await supabase
+        .schema('core_comercial')
+        .from('pedidos')
+        .select('*')
+        .neq('operational_status', 'cancelled')
+        .order('created_at', { ascending: false });
 
-    const alocacoesAtivas = await this.fetchAlocacoesAtivas();
-    const alocadosIds = new Set(alocacoesAtivas.filter(a => a.status !== 'Checkout').map(a => a.worker_id));
-
-    const demandas: DemandaTrabalhador[] = [
-      {
-        id: 'dem-01',
-        worker_id: workersReal[0]?.id?.toString() || 'w1',
-        worker_nome: workersReal[0]?.Nombre || 'E11813 - Carlos Eduardo Oliveira',
-        codigo_colab: workersReal[0]?.Cod_colab || 'E11813',
-        funcao: 'Eletricista Industrial',
-        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
-        obra_nome: 'Montagem Fábrica Arbúcies',
-        municipio: 'Barcelona',
-        provincia: 'Barcelona',
-        pais: 'España',
-        tipo_solicitacao: 'Novo Pedido',
-        data_inicio: '2026-09-01',
-        urgencia: 'Alta',
-        observacoes: 'Pedido #445 - Início imediato na próxima segunda-feira'
-      },
-      {
-        id: 'dem-02',
-        worker_id: workersReal[1]?.id?.toString() || 'w2',
-        worker_nome: workersReal[1]?.Nombre || 'E12077 - Juan Rodriguez Vega',
-        codigo_colab: workersReal[1]?.Cod_colab || 'E12077',
-        funcao: 'Serralheiro Montador',
-        cliente_nome: 'PRUJA FORNIELES PARES SL',
-        obra_nome: 'Obra Tortellà / Girona',
-        municipio: 'Tortellà',
-        provincia: 'Girona',
-        pais: 'España',
-        tipo_solicitacao: 'Reemplazo',
-        data_inicio: '2026-09-01',
-        urgencia: 'Crítica',
-        observacoes: 'Reemplazo do colaborador anterior por motivo de baixa'
-      },
-      {
-        id: 'dem-03',
-        worker_id: workersReal[2]?.id?.toString() || 'w3',
-        worker_nome: workersReal[2]?.Nombre || 'E12148 - Mateo Fernandes Silva',
-        codigo_colab: workersReal[2]?.Cod_colab || 'E12148',
-        funcao: 'Montador Estrutural',
-        cliente_nome: 'ASTUR NORTE SERVICIOS',
-        obra_nome: 'Siderúrgica Gijón',
-        municipio: 'Gijón',
-        provincia: 'Astúrias',
-        pais: 'España',
-        tipo_solicitacao: 'Novo Pedido',
-        data_inicio: '2026-09-05',
-        urgencia: 'Normal',
-        observacoes: 'Pedido #374 - Alocação para 3 meses'
-      },
-      {
-        id: 'dem-04',
-        worker_id: workersReal[3]?.id?.toString() || 'w4',
-        worker_nome: workersReal[3]?.Nombre || 'E12290 - Lucas Gabriel Santos',
-        codigo_colab: workersReal[3]?.Cod_colab || 'E12290',
-        funcao: 'Soldador TIG / MIG',
-        cliente_nome: 'BECK & POLLITZER IBERICA SLU',
-        obra_nome: 'Linha de Produção Martorell',
-        municipio: 'Barcelona',
-        provincia: 'Barcelona',
-        pais: 'España',
-        tipo_solicitacao: 'Ingresso Pendente',
-        data_inicio: '2026-09-08',
-        urgencia: 'Alta',
-        observacoes: 'Chegando da formação técnica'
+      if (pedErr || !pedidos || pedidos.length === 0) {
+        return [];
       }
-    ];
 
-    return demandas.filter(d => !alocadosIds.has(d.worker_id));
+      const pedidoIds = pedidos.map(p => p.id);
+      const clientIds = [...new Set(pedidos.map(p => p.client_id).filter(Boolean))];
+      const siteIds = [...new Set(pedidos.map(p => p.client_site_id).filter(Boolean))];
+
+      // 2. Buscar Clientes, Obras (Sites) e Itens dos Pedidos
+      const [clientsRes, sitesRes, itemsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+        clientIds.length > 0
+          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
+          : Promise.resolve({ data: [] }),
+        siteIds.length > 0
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        supabase.schema('core_comercial').from('pedido_items').select('*').in('pedido_id', pedidoIds),
+        supabase
+          .schema('core_personal')
+          .from('worker_assignments')
+          .select(`
+            id,
+            pedido_id,
+            status,
+            planned_start_date,
+            start_date,
+            job_function_name_snapshot,
+            worker:workers(
+              id,
+              nome,
+              nif,
+              movil,
+              cod_colab
+            )
+          `)
+          .in('status', ['planned', 'active', 'paused', 'replaced', 'relocated', 'terminated']),
+        this.fetchAlocacoesAtivas(),
+        this.fetchAlojamentos()
+      ]);
+
+      const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
+      const sitesMap = new Map((sitesRes.data || []).map((s: any) => [s.id, s]));
+      const alojMap = new Map(alojamentos.map(a => [a.id, a]));
+
+      // Agrupar alocações ativas da logística por worker_id
+      const alocacoesLogisticaMap = new Map<string, Alocacao>();
+      alocacoesAtivas
+        .filter(a => a.status !== 'Checkout')
+        .forEach(a => {
+          alocacoesLogisticaMap.set(a.worker_id, a);
+        });
+
+      // 3. Montar Lista de Pedidos com seus Trabalhadores Contratados
+      const result: PedidoDemandaLogistica[] = pedidos.map((ped: any) => {
+        const client = clientsMap.get(ped.client_id) as any;
+        const site = sitesMap.get(ped.client_site_id) as any;
+        const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
+        const obraNome = site?.name || 'Obra Principal';
+        const enderecoCompleto = site?.address_line || 'Dirección no informada';
+        const cidade = site?.city || 'San Sebastián';
+        const codigoPostal = site?.postal_code || '';
+
+        // Calcular dias restantes para início
+        const dataInicioStr = ped.planned_start_date || new Date().toISOString().split('T')[0];
+        const dataFimStr = ped.planned_end_date || '';
+        const dataInicio = new Date(dataInicioStr);
+        const hoje = new Date();
+        const diffMs = dataInicio.getTime() - hoje.getTime();
+        const diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+        let duracaoDias: number | undefined;
+        if (dataFimStr) {
+          const dataFim = new Date(dataFimStr);
+          duracaoDias = Math.ceil((dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Itens e Vagas solicitadas no pedido
+        const pedidoItems = (itemsRes.data || []).filter((it: any) => it.pedido_id === ped.id);
+        const totalVagas = pedidoItems.reduce((acc: number, it: any) => acc + (it.quantity_requested || 1), 0);
+
+        // Trabalhadores contratados vinculados a este pedido
+        const pedAssignments = (assignmentsRes.data || []).filter((ass: any) => ass.pedido_id === ped.id);
+        
+        const trabalhadores: TrabalhadorDemandaItem[] = pedAssignments.map((ass: any) => {
+          const w = ass.worker || {};
+          const workerId = w.id || ass.id;
+          const alocLog = alocacoesLogisticaMap.get(workerId);
+          const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+
+          return {
+            assignment_id: ass.id,
+            worker_id: workerId,
+            worker_nome: w.nome || 'Trabalhador',
+            codigo_colab: w.cod_colab || 'E-XXXX',
+            nif: w.nif,
+            movil: w.movil,
+            funcao: ass.job_function_name_snapshot || 'Operador Especialista',
+            data_inicio: ass.planned_start_date || ass.start_date || dataInicioStr,
+            data_fim: dataFimStr,
+            status_alocacao: alocLog ? 'alocado' : 'pendente',
+            alocacao_detalhe: alocLog ? {
+              alocacao_id: alocLog.id,
+              alojamento_id: alocLog.alojamento_id || '',
+              alojamento_nome: aloj?.nome || alocLog.obra_nome || 'Alojamiento',
+              alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+              cama_id: alocLog.cama_id,
+              cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
+              data_inicio: alocLog.data_inicio,
+              data_fim: alocLog.data_fim
+            } : undefined
+          };
+        });
+
+        const totalAlojados = trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
+        const totalPendentes = trabalhadores.filter(t => t.status_alocacao === 'pendente').length;
+
+        return {
+          pedido_id: ped.id,
+          pedido_codigo: ped.codigo || `PED-${ped.id.slice(0, 6)}`,
+          cliente_id: ped.client_id,
+          cliente_nome: clienteNome,
+          empresa_contratante: ped.empresa_nome || 'LUMINOUS',
+          obra_nome: obraNome,
+          endereco_completo: enderecoCompleto,
+          cidade: cidade,
+          provincia: site?.city || cidade,
+          codigo_postal: codigoPostal,
+          data_inicio: dataInicioStr,
+          data_fim: dataFimStr,
+          dias_restantes: diasRestantes,
+          duracao_dias: duracaoDias,
+          tipo_solicitacao: 'Nuevo Pedido',
+          status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
+          observacoes: ped.notes || 'Sin observaciones generales.',
+          total_vagas_pedido: totalVagas || trabalhadores.length || 1,
+          total_contratados: trabalhadores.length,
+          total_alojados: totalAlojados,
+          total_pendentes_alojamento: totalPendentes,
+          trabalhadores: trabalhadores
+        };
+      });
+
+      return result;
+    } catch (err) {
+      console.error('Error fetching pedidos demanda logistica:', err);
+      return [];
+    }
+  },
+
+  // Mantido para compatibilidade de listagem legada se necessário
+  async fetchDemandas(): Promise<DemandaTrabalhador[]> {
+    return [];
   },
 
   async fetchTrabalhadoresAlojados(): Promise<TrabalhadorAlojado[]> {
