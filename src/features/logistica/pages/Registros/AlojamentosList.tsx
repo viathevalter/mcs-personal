@@ -676,8 +676,9 @@ export const AlojamentosList: React.FC = () => {
           ) : viewMode === 'cards' ? (
             
             /* VISTA DE FICHAS EXPANSÍVEIS (ESTILO FATURAMENTO) */
-            <div className="p-6 space-y-4">
-              <div className="flex justify-between items-center text-xs text-slate-500 pb-1">
+            <div className="overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
+              {/* Barra de Ações Rápidas Sticky */}
+              <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-6 py-2.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 shadow-2xs">
                 <span>Mostrando <strong>{sortedAlojamentos.length}</strong> alojamientos</span>
                 <div className="flex items-center gap-2">
                   <button onClick={expandAll} className="hover:text-blue-600 font-semibold transition-colors">
@@ -689,6 +690,8 @@ export const AlojamentosList: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              <div className="p-6 space-y-4">
 
               {sortedAlojamentos.length === 0 ? (
                 <div className="p-12 text-center text-slate-400 space-y-2">
@@ -1041,11 +1044,12 @@ export const AlojamentosList: React.FC = () => {
                   );
                 })
               )}
+              </div>
             </div>
           ) : viewMode === 'gallery' ? (
             
             /* VISTA DE GALERIA (FOTOS EM GRID) */
-            <div className="p-6">
+            <div className="overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] p-6 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
               {sortedAlojamentos.length === 0 ? (
                 <div className="p-12 text-center text-slate-400 space-y-2">
                   <Home size={32} className="mx-auto text-slate-300" />
@@ -1179,9 +1183,9 @@ export const AlojamentosList: React.FC = () => {
           ) : (
             
             /* VISTA DE TABELA COMPACTA */
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
                   <tr>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome')}>
                       <div className="flex items-center gap-1">
@@ -1335,9 +1339,9 @@ export const AlojamentosList: React.FC = () => {
           /* ========================================================================= */
           /* TAB DE PROVEEDORES */
           /* ========================================================================= */
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
+              <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
                 <tr>
                   <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome_razao_social')}>
                     <div className="flex items-center gap-1">
