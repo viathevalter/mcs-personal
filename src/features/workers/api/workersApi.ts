@@ -415,8 +415,21 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
         const waUpdates: any = {};
 
         if (updates.fechainiciopedido !== undefined) {
-            waUpdates.start_date = updates.fechainiciopedido || null;
-            waUpdates.planned_start_date = updates.fechainiciopedido || null;
+            const dateStr = updates.fechainiciopedido || '';
+            waUpdates.planned_start_date = dateStr || null;
+            
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (dateStr && dateStr > todayStr) {
+                waUpdates.start_date = null;
+                if (!updates.fechasalidatrabajador) {
+                    waUpdates.status = 'planned';
+                }
+            } else {
+                waUpdates.start_date = dateStr || null;
+                if (!updates.fechasalidatrabajador && dateStr) {
+                    waUpdates.status = 'active';
+                }
+            }
         }
         if (updates.fechafinpedido !== undefined) {
             waUpdates.planned_end_date = updates.fechafinpedido || null;
