@@ -82,7 +82,9 @@ const isWeekend = (day: number, year: number, month: number) => {
 export function FaturasTracking() {
   const [faturas, setFaturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem('mcs:faturamento_tracking_search') || '';
+  });
   const [selectedDispute, setSelectedDispute] = useState<any | null>(null);
   const [disputeHours, setDisputeHours] = useState<any[]>([]);
   const [loadingDisputeHours, setLoadingDisputeHours] = useState(false);
@@ -103,7 +105,26 @@ export function FaturasTracking() {
   const { selectedEmpresaId, empresas } = useEmpresa();
 
   const [pdfRenderData, setPdfRenderData] = useState<{ fatura: any, hours: any[], type: 'informe' | 'factura' } | null>(null);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return sessionStorage.getItem('mcs:faturamento_tracking_statusFilter') || 'all';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_tracking_search', searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_tracking_statusFilter', statusFilter);
+  }, [statusFilter]);
+
+  // Track and restore scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('mcs:faturamento_tracking_scroll', window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Effect to handle dynamic PDF generation in the background
   useEffect(() => {
@@ -1811,9 +1832,11 @@ export function FaturasTracking() {
     }
   };
 
-  const fetchFaturas = async () => {
+  const fetchFaturas = async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent && faturas.length === 0) {
+        setLoading(true);
+      }
       const data = await getFaturasTracking(selectedEmpresaId);
       setFaturas(data);
     } catch (error: any) {
@@ -1826,6 +1849,21 @@ export function FaturasTracking() {
   useEffect(() => {
     fetchFaturas();
   }, [selectedEmpresaId]);
+
+  // Restore scroll position after loading completes
+  useEffect(() => {
+    if (!loading && faturas.length > 0) {
+      const savedScroll = sessionStorage.getItem('mcs:faturamento_tracking_scroll');
+      if (savedScroll) {
+        const targetY = parseInt(savedScroll);
+        if (!isNaN(targetY) && targetY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: targetY, behavior: 'instant' });
+          }, 80);
+        }
+      }
+    }
+  }, [loading]);
 
   const handleCopyLink = (token: string) => {
     if (!token) {

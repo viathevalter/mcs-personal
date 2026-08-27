@@ -6,8 +6,17 @@ import { SidebarProvider } from './providers/SidebarProvider';
 import { RoleProvider } from './providers/RoleProvider';
 import { Toaster } from '@/components/ui/sonner';
 
-// Setup React Query client
-export const queryClient = new QueryClient();
+// Setup React Query client with window focus refetching disabled to prevent state resets
+export const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            staleTime: 5 * 60 * 1000, // 5 minutes
+            gcTime: 10 * 60 * 1000,    // 10 minutes
+        },
+    },
+});
 
 export function Providers({ children }: { children: React.ReactNode }) {
     return (

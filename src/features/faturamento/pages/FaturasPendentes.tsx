@@ -128,7 +128,9 @@ export function FaturasPendentes() {
   });
 
   const [expandedWorkers, setExpandedWorkers] = useState<Record<string, boolean>>({});
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem('mcs:faturamento_pendentes_search') || '';
+  });
   const { selectedEmpresaId } = useEmpresa();
 
   const [clientActiveTabs, setClientActiveTabs] = useState<Record<string, 'edicao' | 'datas_trabalhadas' | 'importe' | 'informe' | 'factura'>>(() => {
@@ -173,6 +175,19 @@ export function FaturasPendentes() {
   useEffect(() => {
     sessionStorage.setItem('mcs:clientAdjustments', JSON.stringify(clientAdjustments));
   }, [clientAdjustments]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_pendentes_search', searchQuery);
+  }, [searchQuery]);
+
+  // Track and restore scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('mcs:faturamento_pendentes_scroll', window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedFatura, setSelectedFatura] = useState<any | null>(null);
@@ -542,14 +557,26 @@ MCS - Gestão Comercial`;
     year: number;
     month: number;
   } | null>(null);
-  const [newTariffValue, setNewTariffValue] = useState('');
-  const [updatingTariff, setUpdatingTariff] = useState(false);
-  const [selectedPaymentTermFilter, setSelectedPaymentTermFilter] = useState<string>('all');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [selectedPaymentTermFilter, setSelectedPaymentTermFilter] = useState<string>(() => {
+    return sessionStorage.getItem('mcs:faturamento_pendentes_termFilter') || 'all';
+  });
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>(() => {
+    return sessionStorage.getItem('mcs:faturamento_pendentes_statusFilter') || 'all';
+  });
 
-  const fetchHoras = async () => {
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_pendentes_termFilter', selectedPaymentTermFilter);
+  }, [selectedPaymentTermFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_pendentes_statusFilter', selectedStatusFilter);
+  }, [selectedStatusFilter]);
+
+  const fetchHoras = async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent && faturamentos.length === 0) {
+        setLoading(true);
+      }
       const data = await getHorasPendentesFaturamento(selectedEmpresaId, selectedYear, selectedMonth + 1);
       setFaturamentos(data);
 
@@ -572,6 +599,21 @@ MCS - Gestão Comercial`;
   useEffect(() => {
     fetchHoras();
   }, [selectedEmpresaId, selectedYear, selectedMonth]);
+
+  // Restore scroll position after loading completes
+  useEffect(() => {
+    if (!loading && faturamentos.length > 0) {
+      const savedScroll = sessionStorage.getItem('mcs:faturamento_pendentes_scroll');
+      if (savedScroll) {
+        const targetY = parseInt(savedScroll);
+        if (!isNaN(targetY) && targetY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: targetY, behavior: 'instant' });
+          }, 80);
+        }
+      }
+    }
+  }, [loading]);
 
   const handleSolicitarAprovacao = (clientId: string, workers: any[], cardId: string) => {
     const selectedObraId = selectedObraByClient[cardId];
