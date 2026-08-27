@@ -1783,8 +1783,18 @@ export const AlojamentosList: React.FC = () => {
 
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] text-slate-400">Total Plazas: {totalPlazasProv}</span>
-                                <span>•</span>
-                                <span className="text-[10px] text-slate-400">Alquiler Total: € {totalCustoProv.toLocaleString('es-ES')}</span>
+                                {totalCustoFijo > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-[10px] text-slate-400">Alquiler Fijo: € {totalCustoFijo.toLocaleString('es-ES', { minimumFractionDigits: 2 })} / mes</span>
+                                  </>
+                                )}
+                                {temporales.length > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-[10px] text-slate-400">{temporales.length} reservas temporales</span>
+                                  </>
+                                )}
                               </div>
                             </div>
 
