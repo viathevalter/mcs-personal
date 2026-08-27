@@ -279,19 +279,48 @@ const hydrateAlojamento = (a: any): Alojamento => {
   };
 };
 
+async function fetchAllTableRows(tableName: string): Promise<any[]> {
+  const client = getClient();
+  let allRows: any[] = [];
+  let from = 0;
+  const step = 1000;
+
+  while (true) {
+    const { data, error } = await client
+      .from(tableName)
+      .select('*')
+      .range(from, from + step - 1);
+
+    if (error) {
+      console.warn(`Error fetching range ${from}-${from + step - 1} on ${tableName}:`, error);
+      if (from === 0) {
+        const fallback = await client.from(tableName).select('*');
+        return fallback.data || [];
+      }
+      break;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...data);
+
+    if (data.length < step) {
+      break;
+    }
+
+    from += step;
+  }
+
+  return allRows;
+}
+
 export const registrosService = {
   async fetchProvedores(): Promise<Provedor[]> {
     try {
-      const { data, error } = await getClient()
-        .from('provedores')
-        .select('*')
-        .order('nome_razao_social');
-
-      if (error) {
-        const basic = await getClient().from('provedores').select('*');
-        return (basic.data || []).map(hydrateProvedor);
-      }
-      return (data || []).map(hydrateProvedor);
+      const data = await fetchAllTableRows('provedores');
+      return data.map(hydrateProvedor);
     } catch (e) {
       console.warn('Erro ao buscar provedores:', e);
       return [];
@@ -299,15 +328,13 @@ export const registrosService = {
   },
 
   async fetchAlojamentos(): Promise<Alojamento[]> {
-    const client = getClient();
     try {
-      const [alojRes, provRes] = await Promise.all([
-        client.from('alojamentos').select('*'),
-        client.from('provedores').select('*')
+      const [alojData, provRaw] = await Promise.all([
+        fetchAllTableRows('alojamentos'),
+        fetchAllTableRows('provedores')
       ]);
 
-      const alojData = alojRes.data || [];
-      const provData = (provRes.data || []).map(hydrateProvedor);
+      const provData = provRaw.map(hydrateProvedor);
 
       return alojData.map((a: any) => {
         const matchingProv = provData.find(p => p.id === a.provedor_id);
@@ -319,7 +346,7 @@ export const registrosService = {
       });
     } catch (err) {
       console.warn('Erro ao buscar alojamentos:', err);
-      const basic = await client.from('alojamentos').select('*');
+      const basic = await getClient().from('alojamentos').select('*');
       return (basic.data || []).map(hydrateAlojamento);
     }
   },
