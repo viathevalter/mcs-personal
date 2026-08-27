@@ -251,6 +251,41 @@ export const AlojamentosList: React.FC = () => {
     setExpandedAlojamentoIds(new Set());
   };
 
+  // Toggle Accordion Expand para Provedores
+  const [expandedProvedorIds, setExpandedProvedorIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandProvedor = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedProvedorIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const expandAllProvedores = () => {
+    setExpandedProvedorIds(new Set(filteredProvedores.map(p => p.id)));
+  };
+
+  const collapseAllProvedores = () => {
+    setExpandedProvedorIds(new Set());
+  };
+
+  // Helper para obter alojamentos de um provedor
+  const getAlojamentosForProvedor = (prov: Provedor): Alojamento[] => {
+    return alojamentos.filter(a => {
+      if (a.provedor_id && a.provedor_id === prov.id) return true;
+      if (a.provedor?.id && a.provedor.id === prov.id) return true;
+      if (a.provedor?.nome_razao_social && prov.nome_razao_social &&
+          a.provedor.nome_razao_social.trim().toLowerCase() === prov.nome_razao_social.trim().toLowerCase()) return true;
+      return false;
+    });
+  };
+
   // Confirmar Asignación Rápida
   const handleConfirmAssign = async () => {
     if (!assigningAlojamento || !selectedAssignWorker || !assignCamaId) {
@@ -648,6 +683,35 @@ export const AlojamentosList: React.FC = () => {
                   </button>
                 </div>
               </>
+            )}
+
+            {activeTab === 'provedores' && (
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    viewMode === 'cards'
+                      ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-2xs'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                  title="Vista de Fichas Alinhadas (Accordion)"
+                >
+                  <List size={15} />
+                  <span className="hidden sm:inline">Fichas</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    viewMode === 'table'
+                      ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-2xs'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                  title="Vista de Tabla Compacta"
+                >
+                  <Table2Icon />
+                  <span className="hidden sm:inline">Tabla</span>
+                </button>
+              </div>
             )}
 
             {/* Input de Busca */}
@@ -1339,131 +1403,502 @@ export const AlojamentosList: React.FC = () => {
           /* ========================================================================= */
           /* TAB DE PROVEEDORES */
           /* ========================================================================= */
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
-                <tr>
-                  <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome_razao_social')}>
-                    <div className="flex items-center gap-1">
-                      Proveedor / Razón Social
-                      <ArrowUpDown size={12} />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3">CIF / NIF</th>
-                  <th className="px-4 py-3">Contacto / Teléfono</th>
-                  <th className="px-4 py-3">Alojamientos Vinculados</th>
-                  <th className="px-4 py-3">Ubicación</th>
-                  <th className="px-4 py-3">IBAN</th>
-                  <th className="px-4 py-3 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+          isLoading ? (
+            <div className="p-16 text-center text-slate-500 space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="text-xs font-semibold">Cargando proveedores y sus alojamientos...</p>
+            </div>
+          ) : viewMode === 'cards' ? (
+            
+            /* VISTA DE FICHAS EXPANSÍVEIS DE PROVEEDORES (ESTILO FATURAMENTO) */
+            <div className="overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
+              {/* Barra de Ações Rápidas Sticky */}
+              <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-6 py-2.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 shadow-2xs">
+                <span>Mostrando <strong>{filteredProvedores.length}</strong> proveedores</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={expandAllProvedores} className="hover:text-purple-600 font-semibold transition-colors">
+                    Expandir Todos
+                  </button>
+                  <span>•</span>
+                  <button onClick={collapseAllProvedores} className="hover:text-purple-600 font-semibold transition-colors">
+                    Recolher Todos
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
                 {filteredProvedores.length === 0 ? (
-                  <tr><td colSpan={7} className="p-12 text-center text-slate-500">Ningún proveedor encontrado.</td></tr>
+                  <div className="p-12 text-center text-slate-400 space-y-2">
+                    <Building size={32} className="mx-auto text-slate-300" />
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Ningún proveedor coincide con los filtros</p>
+                  </div>
                 ) : (
                   filteredProvedores.map(p => {
-                    const countAloj = alojamentosCountPorProvedor.get(p.id) || 0;
+                    const provAlojamentos = getAlojamentosForProvedor(p);
+                    const isExpanded = expandedProvedorIds.has(p.id);
+                    const totalPlazasProv = provAlojamentos.reduce((acc, curr) => acc + (curr.capacidade_pessoas || curr.total_camas || 0), 0);
+                    const totalCustoProv = provAlojamentos.reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0);
+
                     return (
-                      <tr
+                      <div
                         key={p.id}
-                        onClick={() => setViewingProvedor(p)}
-                        className="hover:bg-purple-50/40 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        className={`bg-white dark:bg-slate-900 rounded-3xl border transition-all shadow-xs overflow-hidden ${
+                          isExpanded
+                            ? 'border-purple-500/80 ring-2 ring-purple-500/10 shadow-md'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
                       >
-                        <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 group-hover:scale-105 transition-transform">
-                              <Building size={16} />
+                        {/* CABEÇALHO DO CARD DO PROVEDOR (CLICÁVEL PARA EXPANDIR) */}
+                        <div
+                          onClick={() => toggleExpandProvedor(p.id)}
+                          className="p-5 cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between gap-4 select-none hover:bg-purple-50/20 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          {/* LADO ESQUERDO: Ícone + Código/Nome + Badges + Contato/Localização/IBAN */}
+                          <div className="flex items-start gap-3.5 flex-1">
+                            <div className={`p-3 rounded-2xl flex-shrink-0 transition-transform ${
+                              provAlojamentos.length > 0
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            }`}>
+                              <Building size={22} />
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{p.nome_razao_social}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold">
+
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                   {p.codigo || 'PROV-XXXX'}
                                 </span>
-                                <span className="text-[10px] text-slate-400">{p.tipo_provedor || 'Inmobiliaria'}</span>
+                                <h3 className="font-black text-slate-900 dark:text-white text-base tracking-tight truncate" title={p.nome_razao_social}>
+                                  {p.nome_razao_social}
+                                </h3>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                  {p.tipo_provedor || 'Inmobiliaria'}
+                                </span>
+                                {p.tipo_pessoa && (
+                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                    {p.tipo_pessoa}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Linha de Sub-informações: Localização, Contato WhatsApp, CIF, IBAN */}
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                <div className="flex items-center gap-1">
+                                  <MapPin size={13} className="text-rose-500 flex-shrink-0" />
+                                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                                    {p.municipio || 'España'}{p.provincia ? `, ${p.provincia}` : ''}
+                                  </span>
+                                </div>
+
+                                {(p.contato_nome || p.telefone) && (
+                                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <User size={12} className="text-purple-600" />
+                                    <span className="font-semibold text-slate-700 dark:text-slate-200">{p.contato_nome || 'Contacto'}</span>
+                                    {p.telefone && (
+                                      <a
+                                        href={`https://wa.me/${p.telefone.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        className="text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 font-bold ml-1"
+                                        title="Contactar al proveedor por WhatsApp"
+                                      >
+                                        <Phone size={10} />
+                                        {p.telefone}
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+
+                                {p.cif_nif && (
+                                  <span className="text-[11px] font-mono text-slate-500">
+                                    CIF: <strong className="text-slate-700 dark:text-slate-300">{p.cif_nif}</strong>
+                                  </span>
+                                )}
+
+                                {p.iban && (
+                                  <span className="text-[11px] font-mono text-slate-500 truncate max-w-[200px]" title={p.iban}>
+                                    IBAN: {p.iban}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
-                        </td>
 
-                        <td className="px-4 py-3.5 font-mono text-slate-600 dark:text-slate-300">
-                          {p.cif_nif || '-'}
-                        </td>
+                          {/* LADO DIREITO: KPIs & Ações */}
+                          <div className="flex items-center justify-between lg:justify-end gap-6 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-800">
+                            <div className="text-left lg:text-right">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                                Inmuebles
+                              </span>
+                              <span className="text-sm font-black text-purple-600 dark:text-purple-400 flex items-center lg:justify-end gap-1">
+                                <Home size={14} />
+                                {provAlojamentos.length} vinculados
+                              </span>
+                            </div>
 
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                          <div className="space-y-0.5">
-                            <p className="font-medium">{p.contato_nome || '-'}</p>
-                            {p.telefone && (
-                              <a
-                                href={`https://wa.me/${p.telefone.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-emerald-600 hover:underline flex items-center gap-1 font-semibold text-[11px]"
+                            <div className="text-left lg:text-right">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                                Capacidad Total
+                              </span>
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                {totalPlazasProv} plazas
+                              </span>
+                            </div>
+
+                            <div className="text-left lg:text-right">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                                Alquiler Mensual
+                              </span>
+                              <span className="text-sm font-black text-slate-900 dark:text-white">
+                                € {totalCustoProv.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+
+                            {/* Ações & Chevron */}
+                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => setViewingProvedor(p)}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-purple-100 hover:text-purple-700 dark:bg-slate-800 dark:hover:bg-purple-950/40 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5"
+                                title="Ver Ficha del Proveedor"
                               >
-                                <Phone size={11} />
-                                {p.telefone}
-                              </a>
+                                <Eye size={13} />
+                                Ficha
+                              </button>
+
+                              <button
+                                onClick={() => navigate(`/logistica/registros/provedores/editar/${p.id}`)}
+                                className="p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                title="Editar Proveedor"
+                              >
+                                <Pencil size={15} />
+                              </button>
+
+                              <button
+                                onClick={() => toggleExpandProvedor(p.id)}
+                                className={`p-1.5 rounded-xl transition-all ${
+                                  isExpanded
+                                    ? 'bg-purple-600 text-white rotate-180 shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200'
+                                }`}
+                                title={isExpanded ? 'Recolher' : 'Expandir alojamientos vinculados'}
+                              >
+                                <ChevronDown size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CORPO EXPANDIDO (ACCORDION DE ALOJAMIENTOS VINCULADOS) */}
+                        {isExpanded && (
+                          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                            
+                            {/* Barra de Título do Painel Interno */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                              <div className="flex items-center gap-2">
+                                <Home size={16} className="text-purple-600" />
+                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                  Alojamientos Vinculados a este Proveedor ({provAlojamentos.length} inmuebles)
+                                </h4>
+                              </div>
+
+                              <button
+                                onClick={() => navigate(`/logistica/registros/alojamentos/novo?provedor_id=${p.id}`)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs w-fit"
+                              >
+                                <Plus size={13} />
+                                + Vincular Nuevo Alojamiento
+                              </button>
+                            </div>
+
+                            {/* TABELA DE ALOJAMIENTOS VINCULADOS */}
+                            {provAlojamentos.length === 0 ? (
+                              <div className="p-8 bg-white dark:bg-slate-800/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-2">
+                                <Building size={28} className="mx-auto text-slate-300 dark:text-slate-600" />
+                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Este proveedor no tiene alojamientos vinculados todavía.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                                <table className="w-full text-xs text-left">
+                                  <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                                    <tr>
+                                      <th className="px-4 py-2.5">Cód.</th>
+                                      <th className="px-4 py-2.5">Inmueble / Dirección Completa</th>
+                                      <th className="px-4 py-2.5">Modalidad</th>
+                                      <th className="px-4 py-2.5">Ocupación / Plazas</th>
+                                      <th className="px-4 py-2.5">Alquiler / Contrato</th>
+                                      <th className="px-4 py-2.5">Estado</th>
+                                      <th className="px-4 py-2.5 text-right">Acciones</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                                    {provAlojamentos.map(a => {
+                                      const isActivo = a.ativo !== false && a.status !== 'Inactivo';
+                                      const occupants = getOccupantsForAlojamento(a);
+                                      const totalVagas = a.capacidade_pessoas || a.total_camas || 4;
+                                      const pct = Math.round((occupants.length / totalVagas) * 100);
+
+                                      return (
+                                        <tr key={a.id} className="hover:bg-purple-50/30 dark:hover:bg-slate-700/30 transition-colors">
+                                          <td className="px-4 py-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                            {a.codigo || 'AL-XXXX'}
+                                          </td>
+
+                                          <td className="px-4 py-3">
+                                            <p className="font-bold text-slate-800 dark:text-slate-100">{a.nome}</p>
+                                            <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                              <MapPin size={11} className="text-rose-500 flex-shrink-0" />
+                                              <span>{a.endereco_completo || a.endereco || `${a.municipio || ''}, ${a.provincia || ''}`}</span>
+                                            </p>
+                                            {a.latitude && a.longitude && (
+                                              <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-mono mt-0.5"
+                                              >
+                                                <Globe size={10} />
+                                                Maps: ({Number(a.latitude).toFixed(2)}, {Number(a.longitude).toFixed(2)})
+                                              </a>
+                                            )}
+                                          </td>
+
+                                          <td className="px-4 py-3">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                              a.tipo_alojamento === 'Temporal'
+                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                            }`}>
+                                              {a.tipo_alojamento || 'Fijo'}
+                                            </span>
+                                          </td>
+
+                                          <td className="px-4 py-3">
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                <Users size={12} className="text-blue-600" />
+                                                <span>{occupants.length} / {totalVagas} ocupadas</span>
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                                  occupants.length >= totalVagas
+                                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                    : occupants.length > 0
+                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                }`}>
+                                                  {pct}%
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          <td className="px-4 py-3">
+                                            <p className="font-bold text-slate-800 dark:text-slate-200">
+                                              € {Number(a.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} / mes
+                                            </p>
+                                            {a.contrato?.fianza_valor && (
+                                              <span className="text-[10px] text-slate-400 block">
+                                                Fianza: € {Number(a.contrato.fianza_valor).toLocaleString('es-ES')}
+                                              </span>
+                                            )}
+                                          </td>
+
+                                          <td className="px-4 py-3">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                              isActivo
+                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}>
+                                              {isActivo ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                          </td>
+
+                                          <td className="px-4 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                              <button
+                                                onClick={() => setViewingAlojamento(a)}
+                                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors"
+                                                title="Ver Ficha del Alojamiento"
+                                              >
+                                                <Eye size={13} />
+                                              </button>
+                                              <button
+                                                onClick={() => navigate(`/logistica/registros/alojamentos/editar/${a.id}`)}
+                                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
+                                                title="Editar Alojamiento"
+                                              >
+                                                <Pencil size={13} />
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
                             )}
+
+                            {/* RODAPÉ DO CARD DO PROVEDOR */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-slate-500 border-t border-slate-200/80 dark:border-slate-800">
+                              <div className="flex items-center gap-3">
+                                {p.email && (
+                                  <span className="text-[11px] text-slate-500">
+                                    Email: <strong className="text-slate-700 dark:text-slate-300">{p.email}</strong>
+                                  </span>
+                                )}
+                                {p.observacoes && (
+                                  <span className="text-[11px] text-slate-400 italic truncate max-w-md">
+                                    "{p.observacoes}"
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400">Total Plazas: {totalPlazasProv}</span>
+                                <span>•</span>
+                                <span className="text-[10px] text-slate-400">Alquiler Total: € {totalCustoProv.toLocaleString('es-ES')}</span>
+                              </div>
+                            </div>
+
                           </div>
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs ${
-                            countAloj > 0
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
-                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
-                          }`}>
-                            <Home size={13} />
-                            {countAloj} inmuebles
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin size={13} className="text-slate-400" />
-                            <span>{p.municipio || 'N/A'}{p.provincia ? `, ${p.provincia}` : ''}</span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3.5 font-mono text-slate-500 dark:text-slate-400">
-                          {p.iban ? (
-                            <span className="truncate max-w-[150px] inline-block">{p.iban}</span>
-                          ) : '-'}
-                        </td>
-
-                        <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => setViewingProvedor(p)}
-                              title="Ver Ficha"
-                              className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
-                            >
-                              <Eye size={15} />
-                            </button>
-                            <button
-                              onClick={() => navigate(`/logistica/registros/provedores/editar/${p.id}`)}
-                              title="Editar"
-                              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              onClick={() => setItemToDelete({ id: p.id, name: p.nome_razao_social, type: 'provedor' })}
-                              title="Eliminar"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        )}
+                      </div>
                     );
                   })
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </div>
+          ) : (
+            
+            /* VISTA DE TABELA COMPACTA DE PROVEEDORES */
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] min-h-[480px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <tr>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome_razao_social')}>
+                      <div className="flex items-center gap-1">
+                        Proveedor / Razón Social
+                        <ArrowUpDown size={12} />
+                      </div>
+                    </th>
+                    <th className="px-4 py-3">CIF / NIF</th>
+                    <th className="px-4 py-3">Contacto / Teléfono</th>
+                    <th className="px-4 py-3">Alojamientos Vinculados</th>
+                    <th className="px-4 py-3">Ubicación</th>
+                    <th className="px-4 py-3">IBAN</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {filteredProvedores.length === 0 ? (
+                    <tr><td colSpan={7} className="p-12 text-center text-slate-500">Ningún proveedor encontrado.</td></tr>
+                  ) : (
+                    filteredProvedores.map(p => {
+                      const provAlojamentos = getAlojamentosForProvedor(p);
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setViewingProvedor(p)}
+                          className="hover:bg-purple-50/40 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        >
+                          <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 group-hover:scale-105 transition-transform">
+                                <Building size={16} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-800 dark:text-slate-100">{p.nome_razao_social}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold">
+                                    {p.codigo || 'PROV-XXXX'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">{p.tipo_provedor || 'Inmobiliaria'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5 font-mono text-slate-600 dark:text-slate-300">
+                            {p.cif_nif || '-'}
+                          </td>
+
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            <div className="space-y-0.5">
+                              <p className="font-medium">{p.contato_nome || '-'}</p>
+                              {p.telefone && (
+                                <a
+                                  href={`https://wa.me/${p.telefone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="text-emerald-600 hover:underline flex items-center gap-1 font-semibold text-[11px]"
+                                >
+                                  <Phone size={11} />
+                                  {p.telefone}
+                                </a>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs ${
+                              provAlojamentos.length > 0
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                            }`}>
+                              <Home size={13} />
+                              {provAlojamentos.length} inmuebles
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin size={13} className="text-slate-400" />
+                              <span>{p.municipio || 'N/A'}{p.provincia ? `, ${p.provincia}` : ''}</span>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5 font-mono text-slate-500 dark:text-slate-400">
+                            {p.iban ? (
+                              <span className="truncate max-w-[150px] inline-block">{p.iban}</span>
+                            ) : '-'}
+                          </td>
+
+                          <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setViewingProvedor(p)}
+                                title="Ver Ficha"
+                                className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
+                              >
+                                <Eye size={15} />
+                              </button>
+                              <button
+                                onClick={() => navigate(`/logistica/registros/provedores/editar/${p.id}`)}
+                                title="Editar"
+                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => setItemToDelete({ id: p.id, name: p.nome_razao_social, type: 'provedor' })}
+                                title="Eliminar"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
 
       </div>
