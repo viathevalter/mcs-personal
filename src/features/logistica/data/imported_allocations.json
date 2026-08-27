@@ -25,7 +25,8 @@
       "latitude": 42.10359,
       "longitude": -32.6698
     },
-    "contacto_hospedaje": "Cristina Inmobiliaria Infinity Bilbao +34 602 25 46 84"
+    "contacto_hospedaje": "Cristina Inmobiliaria Infinity Bilbao +34 602 25 46 84",
+    "worker_movil": "+34658665123"
   },
   {
     "id": "aloc-import-1-1787823440961",
@@ -53,7 +54,8 @@
       "latitude": 42.10359,
       "longitude": -32.6698
     },
-    "contacto_hospedaje": "Marìa +34 617 00 83 05"
+    "contacto_hospedaje": "Marìa +34 617 00 83 05",
+    "worker_movil": "+51 959625102"
   },
   {
     "id": "aloc-import-2-1787823440961",
@@ -81,7 +83,8 @@
       "latitude": 39.46975,
       "longitude": -37.739
     },
-    "contacto_hospedaje": "Pedro +34 647 71 99 66"
+    "contacto_hospedaje": "Pedro +34 647 71 99 66",
+    "worker_movil": "+51 947 371 486"
   },
   {
     "id": "aloc-import-3-1787823440961",
@@ -107,7 +110,8 @@
       "codigo": "PROP-001",
       "municipio": "MADRID"
     },
-    "contacto_hospedaje": "976401821"
+    "contacto_hospedaje": "976401821",
+    "worker_movil": "+34 602 34 50 25"
   },
   {
     "id": "aloc-import-4-1787823440962",
@@ -133,7 +137,8 @@
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
     },
-    "contacto_hospedaje": "Javier +34 616 09 72 05"
+    "contacto_hospedaje": "Javier +34 616 09 72 05",
+    "worker_movil": "48736343166"
   },
   {
     "id": "aloc-import-5-1787823440962",
@@ -160,7 +165,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "worker_movil": "633312048"
   },
   {
     "id": "aloc-import-6-1787823440962",
@@ -188,7 +194,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+57 317 2100002"
   },
   {
     "id": "aloc-import-7-1787823440962",
@@ -216,7 +223,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "+34 627 76 10 71"
+    "contacto_hospedaje": "+34 627 76 10 71",
+    "worker_movil": "+34 671 41 94 37"
   },
   {
     "id": "aloc-import-8-1787823440962",
@@ -244,7 +252,8 @@
       "latitude": 41.11667,
       "longitude": 125
     },
-    "contacto_hospedaje": "+34 698 70 79 86 Pascal"
+    "contacto_hospedaje": "+34 698 70 79 86 Pascal",
+    "worker_movil": "+573145412524"
   },
   {
     "id": "aloc-import-9-1787823440963",
@@ -272,7 +281,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Xavier +34658991946"
+    "contacto_hospedaje": "Xavier +34658991946",
+    "worker_movil": "+34 663 044 738"
   },
   {
     "id": "aloc-import-10-1787823440963",
@@ -299,7 +309,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "worker_movil": "+34 633 188 650"
   },
   {
     "id": "aloc-import-14-1787823440964",
@@ -327,7 +338,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "+34 925 67 00 03"
+    "contacto_hospedaje": "+34 925 67 00 03",
+    "worker_movil": "+34 617 747 889"
   },
   {
     "id": "aloc-import-15-1787823440964",
@@ -353,7 +365,8 @@
       "codigo": "PROP-001",
       "municipio": "MADRID"
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+34612288118"
   },
   {
     "id": "aloc-import-16-1787823440964",
@@ -381,7 +394,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Federica +39 339 384 5545"
+    "contacto_hospedaje": "Federica +39 339 384 5545",
+    "worker_movil": "+34 634 01 05 07"
   },
   {
     "id": "aloc-import-17-1787823440964",
@@ -409,7 +423,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Ramon 34 609 03 58 20"
+    "contacto_hospedaje": "Ramon 34 609 03 58 20",
+    "worker_movil": "34 643 722 685"
   },
   {
     "id": "aloc-import-18-1787823440965",
@@ -437,7 +452,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Ramon 34 609 03 58 20"
+    "contacto_hospedaje": "Ramon 34 609 03 58 20",
+    "worker_movil": "34 604 21 21 79"
   },
   {
     "id": "aloc-import-19-1787823440965",
@@ -465,7 +481,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Ramon 34 609 03 58 20"
+    "contacto_hospedaje": "Ramon 34 609 03 58 20",
+    "worker_movil": "34 614 684 344"
   },
   {
     "id": "aloc-import-20-1787823440965",
@@ -493,7 +510,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+51 941 604 000"
   },
   {
     "id": "aloc-import-21-1787823440965",
@@ -521,7 +539,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "+34 935621261"
+    "contacto_hospedaje": "+34 935621261",
+    "worker_movil": "51 955 924 399"
   },
   {
     "id": "aloc-import-22-1787823440965",
@@ -549,7 +568,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "María Cinta Homedes Esteve +34 609 89 12 12"
+    "contacto_hospedaje": "María Cinta Homedes Esteve +34 609 89 12 12",
+    "worker_movil": "613769765"
   },
   {
     "id": "aloc-import-23-1787823440965",
@@ -576,7 +596,8 @@
       "municipio": "TAUSTE",
       "latitude": 41.91804,
       "longitude": -125.343
-    }
+    },
+    "worker_movil": "34633105923"
   },
   {
     "id": "aloc-import-24-1787823440966",
@@ -601,7 +622,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+34 602 09 13 94"
   },
   {
     "id": "aloc-import-25-1787823440966",
@@ -629,7 +651,8 @@
       "latitude": 37.89155,
       "longitude": -47.7275
     },
-    "contacto_hospedaje": "Sra Marga +34 672 26 89 60"
+    "contacto_hospedaje": "Sra Marga +34 672 26 89 60",
+    "worker_movil": "48731013497"
   },
   {
     "id": "aloc-import-26-1787823440966",
@@ -654,7 +677,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+34 625 56 62 70"
   },
   {
     "id": "aloc-import-27-1787823440966",
@@ -680,7 +704,8 @@
       "codigo": "PROP-001",
       "municipio": "ALMERÍA"
     },
-    "contacto_hospedaje": "Begoña +34 629 47 33 54"
+    "contacto_hospedaje": "Begoña +34 629 47 33 54",
+    "worker_movil": "+57 310 274 7613"
   },
   {
     "id": "aloc-import-28-1787823440966",
@@ -705,7 +730,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "MADRID"
-    }
+    },
+    "worker_movil": "+51 985 391 744"
   },
   {
     "id": "aloc-import-29-1787823440966",
@@ -730,7 +756,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+48722018533"
   },
   {
     "id": "aloc-import-30-1787823440966",
@@ -755,7 +782,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "SEVILLA"
-    }
+    },
+    "worker_movil": "+51 927 630 089"
   },
   {
     "id": "aloc-import-31-1787823440966",
@@ -780,7 +808,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALICANTE"
-    }
+    },
+    "worker_movil": "+57 305 373 7090"
   },
   {
     "id": "aloc-import-32-1787823440967",
@@ -807,7 +836,8 @@
       "municipio": "SEVILLA",
       "latitude": 37.38283,
       "longitude": 59.7317
-    }
+    },
+    "worker_movil": "+57 310 8383856"
   },
   {
     "id": "aloc-import-33-1787823440967",
@@ -832,7 +862,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALICANTE"
-    }
+    },
+    "worker_movil": "+34 672 88 17 62"
   },
   {
     "id": "aloc-import-34-1787823440967",
@@ -859,7 +890,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "573016451681"
   },
   {
     "id": "aloc-import-35-1787823440967",
@@ -884,7 +916,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALICANTE"
-    }
+    },
+    "worker_movil": "+48 534 135 918"
   },
   {
     "id": "aloc-import-36-1787823440967",
@@ -909,7 +942,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "SEVILLA"
-    }
+    },
+    "worker_movil": "+48 576 970 545"
   },
   {
     "id": "aloc-import-37-1787823440967",
@@ -934,7 +968,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+34 613 37 47 24"
   },
   {
     "id": "aloc-import-38-1787823440967",
@@ -959,7 +994,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "34642032496"
   },
   {
     "id": "aloc-import-39-1787823440967",
@@ -986,7 +1022,8 @@
       "municipio": "CORDOBA",
       "latitude": 37.89155,
       "longitude": -47.7275
-    }
+    },
+    "worker_movil": "+57 316 745 9176"
   },
   {
     "id": "aloc-import-40-1787823440968",
@@ -1011,7 +1048,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "573174257482"
   },
   {
     "id": "aloc-import-41-1787823440968",
@@ -1039,7 +1077,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "CASA KOTRIK"
+    "contacto_hospedaje": "CASA KOTRIK",
+    "worker_movil": "+51920618473"
   },
   {
     "id": "aloc-import-42-1787823440968",
@@ -1067,7 +1106,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+51956948971"
   },
   {
     "id": "aloc-import-43-1787823440968",
@@ -1095,7 +1135,8 @@
       "latitude": 42.34106,
       "longitude": -37.0184
     },
-    "contacto_hospedaje": "Alvaro +34 613 37 29 76"
+    "contacto_hospedaje": "Alvaro +34 613 37 29 76",
+    "worker_movil": "+34 683 259 078"
   },
   {
     "id": "aloc-import-44-1787823440968",
@@ -1122,7 +1163,8 @@
       "municipio": "SEVILLA",
       "latitude": 37.38283,
       "longitude": 59.7317
-    }
+    },
+    "worker_movil": "+57 317 126 1757"
   },
   {
     "id": "aloc-import-45-1787823440968",
@@ -1147,7 +1189,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "57 321 8082277"
   },
   {
     "id": "aloc-import-46-1787823440968",
@@ -1175,7 +1218,8 @@
       "latitude": 42.34106,
       "longitude": -37.0184
     },
-    "contacto_hospedaje": "Alvaro +34 613 37 29 76"
+    "contacto_hospedaje": "Alvaro +34 613 37 29 76",
+    "worker_movil": "+34 614 437 930"
   },
   {
     "id": "aloc-import-48-1787823440969",
@@ -1203,7 +1247,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "+34 604 23 91 60 ~William Saucedo Robles"
+    "contacto_hospedaje": "+34 604 23 91 60 ~William Saucedo Robles",
+    "worker_movil": "+51 997123606"
   },
   {
     "id": "aloc-import-49-1787823440969",
@@ -1228,7 +1273,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "34613477292"
   },
   {
     "id": "aloc-import-50-1787823440969",
@@ -1253,7 +1299,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+48 575 847 291"
   },
   {
     "id": "aloc-import-51-1787823440969",
@@ -1281,7 +1328,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "Matilde 34 629 44 19 26"
+    "contacto_hospedaje": "Matilde 34 629 44 19 26",
+    "worker_movil": "+34 603 97 30 45"
   },
   {
     "id": "aloc-import-52-1787823440969",
@@ -1308,7 +1356,8 @@
       "municipio": "SEVILLA",
       "latitude": 37.38283,
       "longitude": 59.7317
-    }
+    },
+    "worker_movil": "+34 647 64 13 75"
   },
   {
     "id": "aloc-import-53-1787823440969",
@@ -1336,7 +1385,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Ramon 34 609 03 58 20"
+    "contacto_hospedaje": "Ramon 34 609 03 58 20",
+    "worker_movil": "57 312 526 2806"
   },
   {
     "id": "aloc-import-54-1787823440969",
@@ -1364,7 +1414,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "34641476996"
   },
   {
     "id": "aloc-import-55-1787823440969",
@@ -1392,7 +1443,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+57 322 7119087"
   },
   {
     "id": "aloc-import-56-1787823440969",
@@ -1417,7 +1469,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+34 624914387"
   },
   {
     "id": "aloc-import-57-1787823440970",
@@ -1445,7 +1498,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "573104429935"
   },
   {
     "id": "aloc-import-58-1787823440970",
@@ -1470,7 +1524,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "VIZCAYA"
-    }
+    },
+    "worker_movil": "34 603 29 36 38"
   },
   {
     "id": "aloc-import-59-1787823440970",
@@ -1498,7 +1553,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "+34 691 10 06 00"
+    "contacto_hospedaje": "+34 691 10 06 00",
+    "worker_movil": "34672203615"
   },
   {
     "id": "aloc-import-60-1787823440970",
@@ -1526,7 +1582,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+34 603 15 52 62"
   },
   {
     "id": "aloc-import-61-1787823440970",
@@ -1554,7 +1611,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "34692350611"
   },
   {
     "id": "aloc-import-62-1787823440970",
@@ -1579,7 +1637,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CANTABRIA"
-    }
+    },
+    "worker_movil": "+57 316 412 6067"
   },
   {
     "id": "aloc-import-63-1787823440970",
@@ -1607,7 +1666,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+34 663 48 75 44"
   },
   {
     "id": "aloc-import-64-1787823440970",
@@ -1635,7 +1695,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "51934628474"
   },
   {
     "id": "aloc-import-65-1787823440971",
@@ -1663,7 +1724,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+34 612 49 53 90"
   },
   {
     "id": "aloc-import-66-1787823440971",
@@ -1688,7 +1750,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "+34 604175887"
   },
   {
     "id": "aloc-import-67-1787823440971",
@@ -1716,7 +1779,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+51 978 019 047"
   },
   {
     "id": "aloc-import-69-1787823440971",
@@ -1744,7 +1808,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+57 300 7171 910"
   },
   {
     "id": "aloc-import-70-1787823440971",
@@ -1772,7 +1837,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Federica +39 339 384 5545"
+    "contacto_hospedaje": "Federica +39 339 384 5545",
+    "worker_movil": "+57 320 217 0849"
   },
   {
     "id": "aloc-import-71-1787823440971",
@@ -1800,7 +1866,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+51 953 970 285"
   },
   {
     "id": "aloc-import-73-1787823440972",
@@ -1828,7 +1895,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+573185408084"
   },
   {
     "id": "aloc-import-74-1787823440972",
@@ -1856,7 +1924,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "Matilde 34 629 44 19 26"
+    "contacto_hospedaje": "Matilde 34 629 44 19 26",
+    "worker_movil": "+34 634 05 99 08"
   },
   {
     "id": "aloc-import-75-1787823440972",
@@ -1881,7 +1950,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "34722447099"
   },
   {
     "id": "aloc-import-76-1787823440972",
@@ -1906,7 +1976,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+34 603 91 07 83"
   },
   {
     "id": "aloc-import-77-1787823440972",
@@ -1931,7 +2002,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+34 664 66 91 15"
   },
   {
     "id": "aloc-import-78-1787823440972",
@@ -1956,7 +2028,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+57 322 402 6511"
   },
   {
     "id": "aloc-import-79-1787823440972",
@@ -1981,7 +2054,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+57 312 4236443"
   },
   {
     "id": "aloc-import-80-1787823440972",
@@ -2006,7 +2080,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LLEIDA"
-    }
+    },
+    "worker_movil": "+507 635 37543"
   },
   {
     "id": "aloc-import-81-1787823440972",
@@ -2034,7 +2109,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+57 313 6881196"
   },
   {
     "id": "aloc-import-82-1787823440972",
@@ -2062,7 +2138,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "+351 927 651 112"
   },
   {
     "id": "aloc-import-83-1787823440973",
@@ -2090,7 +2167,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Mari +34 666 26 32 59"
+    "contacto_hospedaje": "Mari +34 666 26 32 59",
+    "worker_movil": "+34 663 13 76 29"
   },
   {
     "id": "aloc-import-84-1787823440973",
@@ -2118,7 +2196,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Federica +39 339 384 5545"
+    "contacto_hospedaje": "Federica +39 339 384 5545",
+    "worker_movil": "+51 929 232 190"
   },
   {
     "id": "aloc-import-85-1787823440973",
@@ -2146,7 +2225,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Tel. +39 346 734 3783"
+    "contacto_hospedaje": "Tel. +39 346 734 3783",
+    "worker_movil": "48516802203"
   },
   {
     "id": "aloc-import-86-1787823440973",
@@ -2174,7 +2254,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Federica +39 339 384 5545"
+    "contacto_hospedaje": "Federica +39 339 384 5545",
+    "worker_movil": "+55 11 98104-5164"
   },
   {
     "id": "aloc-import-87-1787823440973",
@@ -2202,7 +2283,8 @@
       "latitude": 44.41344,
       "longitude": 122.0121
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+34 613 20 01 58"
   },
   {
     "id": "aloc-import-88-1787823440973",
@@ -2230,7 +2312,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Pedro +34 647 71 99 66"
+    "contacto_hospedaje": "Pedro +34 647 71 99 66",
+    "worker_movil": "+57 314 4097399"
   },
   {
     "id": "aloc-import-89-1787823440973",
@@ -2258,7 +2341,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+57 310 6034106"
   },
   {
     "id": "aloc-import-90-1787823440973",
@@ -2286,7 +2370,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+57 313 76 44866"
   },
   {
     "id": "aloc-import-91-1787823440973",
@@ -2314,7 +2399,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+34 661 31 38 19"
   },
   {
     "id": "aloc-import-92-1787823440974",
@@ -2342,7 +2428,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40",
+    "worker_movil": "+51 955 869 490"
   },
   {
     "id": "aloc-import-93-1787823440974",
@@ -2367,7 +2454,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 603 726 388"
   },
   {
     "id": "aloc-import-94-1787823440974",
@@ -2395,7 +2483,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "976401821"
+    "contacto_hospedaje": "976401821",
+    "worker_movil": "603247564"
   },
   {
     "id": "aloc-import-95-1787823440974",
@@ -2420,7 +2509,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 614 77 29 86"
   },
   {
     "id": "aloc-import-96-1787823440974",
@@ -2448,7 +2538,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40",
+    "worker_movil": "+34 661 16 17 66"
   },
   {
     "id": "aloc-import-97-1787823440974",
@@ -2473,7 +2564,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+51 947862919"
   },
   {
     "id": "aloc-import-98-1787823440974",
@@ -2498,7 +2590,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GIRONA"
-    }
+    },
+    "worker_movil": "34687746033"
   },
   {
     "id": "aloc-import-99-1787823440974",
@@ -2525,7 +2618,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "573206058840"
   },
   {
     "id": "aloc-import-100-1787823440974",
@@ -2550,7 +2644,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GUIPUZCOA"
-    }
+    },
+    "worker_movil": "+34 697 65 02 02"
   },
   {
     "id": "aloc-import-101-1787823440974",
@@ -2575,7 +2670,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "573014336102"
   },
   {
     "id": "aloc-import-102-1787823440974",
@@ -2600,7 +2696,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "+57 313 813 3854"
   },
   {
     "id": "aloc-import-103-1787823440974",
@@ -2625,7 +2722,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "+34 681 283 791"
   },
   {
     "id": "aloc-import-104-1787823440974",
@@ -2650,7 +2748,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 631 506 260"
   },
   {
     "id": "aloc-import-105-1787823440975",
@@ -2675,7 +2774,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+351 920 762 889"
   },
   {
     "id": "aloc-import-106-1787823440975",
@@ -2700,7 +2800,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GUIPUZCOA"
-    }
+    },
+    "worker_movil": "34 604 24 42 39"
   },
   {
     "id": "aloc-import-107-1787823440975",
@@ -2725,7 +2826,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CASTELLON"
-    }
+    },
+    "worker_movil": "57 350 457 4845"
   },
   {
     "id": "aloc-import-108-1787823440975",
@@ -2750,7 +2852,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CASTELLON"
-    }
+    },
+    "worker_movil": "34 654 747 216"
   },
   {
     "id": "aloc-import-109-1787823440975",
@@ -2775,7 +2878,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CASTELLON"
-    }
+    },
+    "worker_movil": "57 316 410 5501"
   },
   {
     "id": "aloc-import-110-1787823440975",
@@ -2800,7 +2904,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CASTELLON"
-    }
+    },
+    "worker_movil": "+34 657 222 979"
   },
   {
     "id": "aloc-import-111-1787823440975",
@@ -2825,7 +2930,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "573012789677"
   },
   {
     "id": "aloc-import-112-1787823440975",
@@ -2850,7 +2956,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "573212499828"
   },
   {
     "id": "aloc-import-113-1787823440975",
@@ -2875,7 +2982,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "34643293552"
   },
   {
     "id": "aloc-import-114-1787823440975",
@@ -2900,7 +3008,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "34613208386"
   },
   {
     "id": "aloc-import-115-1787823440975",
@@ -2925,7 +3034,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "34634027246"
   },
   {
     "id": "aloc-import-116-1787823440975",
@@ -2950,7 +3060,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "worker_movil": "573214512725"
   },
   {
     "id": "aloc-import-117-1787823440975",
@@ -2975,7 +3086,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GUIPUZCOA"
-    }
+    },
+    "worker_movil": "34 687 14 94 28"
   },
   {
     "id": "aloc-import-118-1787823440975",
@@ -3000,7 +3112,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34642809263"
   },
   {
     "id": "aloc-import-119-1787823440975",
@@ -3025,7 +3138,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "SEVILLA"
-    }
+    },
+    "worker_movil": "+573138749435"
   },
   {
     "id": "aloc-import-120-1787823440975",
@@ -3050,7 +3164,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+573212516946"
   },
   {
     "id": "aloc-import-121-1787823440976",
@@ -3075,7 +3190,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 682 45 55 04"
   },
   {
     "id": "aloc-import-122-1787823440976",
@@ -3103,7 +3219,8 @@
       "latitude": 41.65606,
       "longitude": -87.734
     },
-    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40",
+    "worker_movil": "+51 978 194 100"
   },
   {
     "id": "aloc-import-123-1787823440976",
@@ -3128,7 +3245,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GIRONA"
-    }
+    },
+    "worker_movil": "51984364271"
   },
   {
     "id": "aloc-import-125-1787823440976",
@@ -3156,7 +3274,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 622 49 35 74"
+    "contacto_hospedaje": "David +34 622 49 35 74",
+    "worker_movil": "+57 311 6928659"
   },
   {
     "id": "aloc-import-126-1787823440976",
@@ -3181,7 +3300,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "34610792030"
   },
   {
     "id": "aloc-import-127-1787823440976",
@@ -3209,7 +3329,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Jordi +34 683 39 60 92 /+34 619 75 79 50~Jaume"
+    "contacto_hospedaje": "Jordi +34 683 39 60 92 /+34 619 75 79 50~Jaume",
+    "worker_movil": "573005341558"
   },
   {
     "id": "aloc-import-128-1787823440976",
@@ -3237,7 +3358,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Xavier +34658991946"
+    "contacto_hospedaje": "Xavier +34658991946",
+    "worker_movil": "+34 672 82 18 48"
   },
   {
     "id": "aloc-import-129-1787823440976",
@@ -3293,7 +3415,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Xavier +34658991946"
+    "contacto_hospedaje": "Xavier +34658991946",
+    "worker_movil": "+57 321 9751379"
   },
   {
     "id": "aloc-import-131-1787823440976",
@@ -3321,7 +3444,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Xavier +34658991946"
+    "contacto_hospedaje": "Xavier +34658991946",
+    "worker_movil": "+573143069873"
   },
   {
     "id": "aloc-import-132-1787823440976",
@@ -3349,7 +3473,8 @@
       "latitude": 42.96262,
       "longitude": -41.6706
     },
-    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77"
+    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77",
+    "worker_movil": "+34646836862"
   },
   {
     "id": "aloc-import-133-1787823440977",
@@ -3377,7 +3502,8 @@
       "latitude": 42.96262,
       "longitude": -41.6706
     },
-    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77"
+    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77",
+    "worker_movil": "+34 690 16 61 59"
   },
   {
     "id": "aloc-import-134-1787823440977",
@@ -3405,7 +3531,8 @@
       "latitude": 42.84998,
       "longitude": -26.7268
     },
-    "contacto_hospedaje": "YOLANDA 691573152"
+    "contacto_hospedaje": "YOLANDA 691573152",
+    "worker_movil": "34603382552"
   },
   {
     "id": "aloc-import-135-1787823440977",
@@ -3433,7 +3560,8 @@
       "latitude": 40.38884,
       "longitude": -36.8715
     },
-    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22"
+    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22",
+    "worker_movil": "+34 603 90 2997"
   },
   {
     "id": "aloc-import-136-1787823440977",
@@ -3461,7 +3589,8 @@
       "latitude": 41.91804,
       "longitude": -125.343
     },
-    "contacto_hospedaje": "Cristina  662177636"
+    "contacto_hospedaje": "Cristina  662177636",
+    "worker_movil": "34 643 197 590"
   },
   {
     "id": "aloc-import-137-1787823440977",
@@ -3489,7 +3618,8 @@
       "latitude": 41.91804,
       "longitude": -125.343
     },
-    "contacto_hospedaje": "Cristina  662177636"
+    "contacto_hospedaje": "Cristina  662177636",
+    "worker_movil": "+34 613 95 82 31"
   },
   {
     "id": "aloc-import-138-1787823440977",
@@ -3514,7 +3644,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "34610736893"
   },
   {
     "id": "aloc-import-139-1787823440977",
@@ -3539,7 +3670,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "TARRAGONA"
-    }
+    },
+    "worker_movil": "48 512 564 215"
   },
   {
     "id": "aloc-import-140-1787823440977",
@@ -3567,7 +3699,8 @@
       "latitude": 41.91804,
       "longitude": -125.343
     },
-    "contacto_hospedaje": "Cristina  662177636"
+    "contacto_hospedaje": "Cristina  662177636",
+    "worker_movil": "48 665 972 933"
   },
   {
     "id": "aloc-import-141-1787823440977",
@@ -3592,7 +3725,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "TARRAGONA"
-    }
+    },
+    "worker_movil": "57 310 638 4461"
   },
   {
     "id": "aloc-import-142-1787823440977",
@@ -3620,7 +3754,8 @@
       "latitude": 42.84998,
       "longitude": -26.7268
     },
-    "contacto_hospedaje": "YOLANDA 691573152"
+    "contacto_hospedaje": "YOLANDA 691573152",
+    "worker_movil": "+34 615 30 16 36"
   },
   {
     "id": "aloc-import-143-1787823440977",
@@ -3648,7 +3783,8 @@
       "latitude": 42.84998,
       "longitude": -26.7268
     },
-    "contacto_hospedaje": "YOLANDA 691573152"
+    "contacto_hospedaje": "YOLANDA 691573152",
+    "worker_movil": "+34 614116302"
   },
   {
     "id": "aloc-import-144-1787823440977",
@@ -3673,7 +3809,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 603769905"
   },
   {
     "id": "aloc-import-145-1787823440977",
@@ -3701,7 +3838,8 @@
       "latitude": 42.84998,
       "longitude": -26.7268
     },
-    "contacto_hospedaje": "YOLANDA 691573152"
+    "contacto_hospedaje": "YOLANDA 691573152",
+    "worker_movil": "+34 666 499623"
   },
   {
     "id": "aloc-import-146-1787823440977",
@@ -3729,7 +3867,8 @@
       "latitude": 40.38884,
       "longitude": -36.8715
     },
-    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22"
+    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22",
+    "worker_movil": "+39 327 804 2903"
   },
   {
     "id": "aloc-import-147-1787823440978",
@@ -3754,7 +3893,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALICANTE"
-    }
+    },
+    "worker_movil": "+34 643 88 06 69"
   },
   {
     "id": "aloc-import-148-1787823440978",
@@ -3779,7 +3919,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+34 632 96 75 97"
   },
   {
     "id": "aloc-import-149-1787823440978",
@@ -3807,7 +3948,8 @@
       "latitude": 38.68712,
       "longitude": -41.0734
     },
-    "contacto_hospedaje": "Enrique +34 628 92 23 53"
+    "contacto_hospedaje": "Enrique +34 628 92 23 53",
+    "worker_movil": "+51 967702961"
   },
   {
     "id": "aloc-import-150-1787823440978",
@@ -3835,7 +3977,8 @@
       "latitude": 38.68712,
       "longitude": -41.0734
     },
-    "contacto_hospedaje": "Enrique +34 628 92 23 53"
+    "contacto_hospedaje": "Enrique +34 628 92 23 53",
+    "worker_movil": "+51 986 998 375"
   },
   {
     "id": "aloc-import-151-1787823440978",
@@ -3861,7 +4004,8 @@
       "codigo": "PROP-001",
       "municipio": "PONTEVEDRA"
     },
-    "contacto_hospedaje": "+34 986592608"
+    "contacto_hospedaje": "+34 986592608",
+    "worker_movil": "+34 643 779 036"
   },
   {
     "id": "aloc-import-152-1787823440978",
@@ -3889,7 +4033,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "51 956631495"
   },
   {
     "id": "aloc-import-153-1787823440978",
@@ -3917,7 +4062,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "34 666 31 99 18"
   },
   {
     "id": "aloc-import-154-1787823440978",
@@ -3945,7 +4091,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "51 948 279 902"
   },
   {
     "id": "aloc-import-155-1787823440979",
@@ -3973,7 +4120,8 @@
       "latitude": 42.13615,
       "longitude": -40.87
     },
-    "contacto_hospedaje": "Chema +34 615 11 10 04"
+    "contacto_hospedaje": "Chema +34 615 11 10 04",
+    "worker_movil": "+34 671394730"
   },
   {
     "id": "aloc-import-156-1787823440979",
@@ -3998,7 +4146,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 662 15 89 04"
   },
   {
     "id": "aloc-import-157-1787823440979",
@@ -4024,7 +4173,8 @@
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
     },
-    "contacto_hospedaje": "CASA KOTRIK"
+    "contacto_hospedaje": "CASA KOTRIK",
+    "worker_movil": "+34643674589"
   },
   {
     "id": "aloc-import-158-1787823440979",
@@ -4052,7 +4202,8 @@
       "latitude": 42.13615,
       "longitude": -40.87
     },
-    "contacto_hospedaje": "Chema +34 615 11 10 04"
+    "contacto_hospedaje": "Chema +34 615 11 10 04",
+    "worker_movil": "+57 312 3235268"
   },
   {
     "id": "aloc-import-161-1787823440979",
@@ -4077,7 +4228,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALICANTE"
-    }
+    },
+    "worker_movil": "+57 315 8428478"
   },
   {
     "id": "aloc-import-162-1787823440979",
@@ -4133,7 +4285,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+57 321 320 7509"
   },
   {
     "id": "aloc-import-164-1787823440980",
@@ -4161,7 +4314,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+34 677 13 44 87"
   },
   {
     "id": "aloc-import-165-1787823440980",
@@ -4188,7 +4342,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "worker_movil": "+34 651 15 87 82"
   },
   {
     "id": "aloc-import-166-1787823440980",
@@ -4216,7 +4371,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "David +34 611 67 42 21"
+    "contacto_hospedaje": "David +34 611 67 42 21",
+    "worker_movil": "+51907891888"
   },
   {
     "id": "aloc-import-168-1787823440980",
@@ -4243,7 +4399,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 641 132 117"
   },
   {
     "id": "aloc-import-169-1787823440980",
@@ -4269,7 +4426,8 @@
       "codigo": "PROP-001",
       "municipio": "OURENSE"
     },
-    "contacto_hospedaje": "Emilio +34 653 87 07 05"
+    "contacto_hospedaje": "Emilio +34 653 87 07 05",
+    "worker_movil": "+34 612 274 819"
   },
   {
     "id": "aloc-import-170-1787823440980",
@@ -4296,7 +4454,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 603335073"
   },
   {
     "id": "aloc-import-171-1787823440980",
@@ -4323,7 +4482,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 651 147 454"
   },
   {
     "id": "aloc-import-172-1787823440981",
@@ -4350,7 +4510,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 634 195 921"
   },
   {
     "id": "aloc-import-173-1787823440981",
@@ -4375,7 +4536,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "MADRID"
-    }
+    },
+    "worker_movil": "+34 631 98 50 23"
   },
   {
     "id": "aloc-import-174-1787823440981",
@@ -4402,7 +4564,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+57 321 8268850"
   },
   {
     "id": "aloc-import-175-1787823440981",
@@ -4429,7 +4592,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "34614790940"
   },
   {
     "id": "aloc-import-176-1787823440981",
@@ -4457,7 +4621,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00",
+    "worker_movil": "+34603130370"
   },
   {
     "id": "aloc-import-177-1787823440981",
@@ -4484,7 +4649,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+32 468 51 95 64"
   },
   {
     "id": "aloc-import-178-1787823440981",
@@ -4512,7 +4678,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00",
+    "worker_movil": "+34641899779"
   },
   {
     "id": "aloc-import-179-1787823440981",
@@ -4539,7 +4706,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 613 55 53 39"
   },
   {
     "id": "aloc-import-180-1787823440982",
@@ -4567,7 +4735,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Agustin +34 639238889"
+    "contacto_hospedaje": "Agustin +34 639238889",
+    "worker_movil": "48780110611"
   },
   {
     "id": "aloc-import-181-1787823440982",
@@ -4594,7 +4763,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "654025785"
   },
   {
     "id": "aloc-import-182-1787823440982",
@@ -4621,7 +4791,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+50763031383"
   },
   {
     "id": "aloc-import-183-1787823440982",
@@ -4646,7 +4817,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "VIZCAYA"
-    }
+    },
+    "worker_movil": "+34 634 37 64 85"
   },
   {
     "id": "aloc-import-184-1787823440982",
@@ -4671,7 +4843,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "VIZCAYA"
-    }
+    },
+    "worker_movil": "34 613 84 68 35"
   },
   {
     "id": "aloc-import-185-1787823440982",
@@ -4696,7 +4869,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "worker_movil": "+34 610 677 434"
   },
   {
     "id": "aloc-import-188-1787823440982",
@@ -4723,7 +4897,8 @@
       "municipio": "SEVILLA",
       "latitude": 37.38283,
       "longitude": 59.7317
-    }
+    },
+    "worker_movil": "34604190430"
   },
   {
     "id": "aloc-import-190-1787823440983",
@@ -4751,7 +4926,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Agustin +34 639238889"
+    "contacto_hospedaje": "Agustin +34 639238889",
+    "worker_movil": "34613931090"
   },
   {
     "id": "aloc-import-191-1787823440983",
@@ -4778,7 +4954,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+34 672 26 12 44"
   },
   {
     "id": "aloc-import-192-1787823440983",
@@ -4805,7 +4982,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+57 313 3372549"
   },
   {
     "id": "aloc-import-193-1787823440983",
@@ -4833,7 +5011,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Agustin +34 639238889"
+    "contacto_hospedaje": "Agustin +34 639238889",
+    "worker_movil": "48515025202"
   },
   {
     "id": "aloc-import-194-1787823440984",
@@ -4861,7 +5040,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Agustin +34 639238889"
+    "contacto_hospedaje": "Agustin +34 639238889",
+    "worker_movil": "+34 653 11 69 16"
   },
   {
     "id": "aloc-import-195-1787823440984",
@@ -4887,7 +5067,8 @@
       "codigo": "PROP-001",
       "municipio": "PLASENCIA"
     },
-    "contacto_hospedaje": "+34 646 46 22 23~Yolanda"
+    "contacto_hospedaje": "+34 646 46 22 23~Yolanda",
+    "worker_movil": "+507 6645 8105"
   },
   {
     "id": "aloc-import-196-1787823440984",
@@ -4915,7 +5096,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 634469640 - +34 652261740"
+    "contacto_hospedaje": "+34 634469640 - +34 652261740",
+    "worker_movil": "+57 3001360764"
   },
   {
     "id": "aloc-import-197-1787823440984",
@@ -4940,7 +5122,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GIRONA"
-    }
+    },
+    "worker_movil": "+34 634 73 37 97"
   },
   {
     "id": "aloc-import-198-1787823440984",
@@ -4965,7 +5148,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "CORDOBA"
-    }
+    },
+    "worker_movil": "+34 663353951"
   },
   {
     "id": "aloc-import-199-1787823440984",
@@ -4993,7 +5177,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "+34 659 90 03 72 Josep"
+    "contacto_hospedaje": "+34 659 90 03 72 Josep",
+    "worker_movil": "+48 668 723 077"
   },
   {
     "id": "aloc-import-200-1787823440984",
@@ -5021,7 +5206,8 @@
       "latitude": 42.60003,
       "longitude": -55.7032
     },
-    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47",
+    "worker_movil": "+51 950 252 572"
   },
   {
     "id": "aloc-import-201-1787823440985",
@@ -5049,7 +5235,8 @@
       "latitude": 42.60003,
       "longitude": -55.7032
     },
-    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47",
+    "worker_movil": "+34 662 65 50 34"
   },
   {
     "id": "aloc-import-202-1787823440985",
@@ -5077,7 +5264,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "+34 659 90 03 72 Josep"
+    "contacto_hospedaje": "+34 659 90 03 72 Josep",
+    "worker_movil": "573186453291"
   },
   {
     "id": "aloc-import-203-1787823440985",
@@ -5104,7 +5292,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "34747855926"
   },
   {
     "id": "aloc-import-204-1787823440985",
@@ -5132,7 +5321,8 @@
       "latitude": 42.60003,
       "longitude": -55.7032
     },
-    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47",
+    "worker_movil": "+51 938 289 558"
   },
   {
     "id": "aloc-import-205-1787823440985",
@@ -5160,7 +5350,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "+34 659 90 03 72 Josep"
+    "contacto_hospedaje": "+34 659 90 03 72 Josep",
+    "worker_movil": "34 658 66 2169"
   },
   {
     "id": "aloc-import-206-1787823440985",
@@ -5185,7 +5376,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "+57 310 527 0299"
   },
   {
     "id": "aloc-import-207-1787823440985",
@@ -5213,7 +5405,8 @@
       "latitude": 42.60003,
       "longitude": -55.7032
     },
-    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47",
+    "worker_movil": "+34 742 05 77 51"
   },
   {
     "id": "aloc-import-208-1787823440985",
@@ -5241,7 +5434,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "+34 659 90 03 72 Josep"
+    "contacto_hospedaje": "+34 659 90 03 72 Josep",
+    "worker_movil": "+57 323 7515162"
   },
   {
     "id": "aloc-import-209-1787823440985",
@@ -5266,7 +5460,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ZARAGOZA"
-    }
+    },
+    "worker_movil": "+48 453 633 290"
   },
   {
     "id": "aloc-import-210-1787823440985",
@@ -5294,7 +5489,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00",
+    "worker_movil": "+57 322 3274283"
   },
   {
     "id": "aloc-import-211-1787823440986",
@@ -5322,7 +5518,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00",
+    "worker_movil": "+57 321 9822530"
   },
   {
     "id": "aloc-import-212-1787823440986",
@@ -5350,7 +5547,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00",
+    "worker_movil": "+57 313 4529618"
   },
   {
     "id": "aloc-import-213-1787823440986",
@@ -5402,7 +5600,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GIRONA"
-    }
+    },
+    "worker_movil": "51951390264"
   },
   {
     "id": "aloc-import-215-1787823440986",
@@ -5427,7 +5626,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "HUESCA"
-    }
+    },
+    "worker_movil": "57 310 262 8075"
   },
   {
     "id": "aloc-import-216-1787823440986",
@@ -5455,7 +5655,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "+34 637 469 286"
   },
   {
     "id": "aloc-import-217-1787823440986",
@@ -5483,7 +5684,8 @@
       "latitude": 41.61674,
       "longitude": 62.218
     },
-    "contacto_hospedaje": "Ramon 34 609 03 58 20"
+    "contacto_hospedaje": "Ramon 34 609 03 58 20",
+    "worker_movil": "+57 312 6018183"
   },
   {
     "id": "aloc-import-218-1787823440986",
@@ -5511,7 +5713,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "34613697358"
   },
   {
     "id": "aloc-import-219-1787823440986",
@@ -5536,7 +5739,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "VIZCAYA"
-    }
+    },
+    "worker_movil": "57 310 6307581"
   },
   {
     "id": "aloc-import-220-1787823440986",
@@ -5564,7 +5768,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "+34 612281324"
   },
   {
     "id": "aloc-import-221-1787823440986",
@@ -5620,7 +5825,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "+34 603 98 86 71"
   },
   {
     "id": "aloc-import-223-1787823440986",
@@ -5647,7 +5853,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+39 392 648 9112"
   },
   {
     "id": "aloc-import-224-1787823440986",
@@ -5675,7 +5882,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "+51973696512"
   },
   {
     "id": "aloc-import-225-1787823440986",
@@ -5703,7 +5911,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Patricia Reus 605681569"
+    "contacto_hospedaje": "Patricia Reus 605681569",
+    "worker_movil": "34635527134"
   },
   {
     "id": "aloc-import-226-1787823440987",
@@ -5728,7 +5937,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BURGOS"
-    }
+    },
+    "worker_movil": "+34 677 45 37 79"
   },
   {
     "id": "aloc-import-227-1787823440987",
@@ -5753,7 +5963,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GIRONA"
-    }
+    },
+    "worker_movil": "+34 632 47 15 57"
   },
   {
     "id": "aloc-import-228-1787823440987",
@@ -5780,7 +5991,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+57 300 8518446"
   },
   {
     "id": "aloc-import-229-1787823440987",
@@ -5807,7 +6019,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "worker_movil": "+57 321 3590992"
   },
   {
     "id": "aloc-import-230-1787823440987",
@@ -5862,7 +6075,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+34 647 59 54 36"
   },
   {
     "id": "aloc-import-232-1787823440987",
@@ -5890,7 +6104,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+34 680 22 44 47"
   },
   {
     "id": "aloc-import-233-1787823440987",
@@ -5918,7 +6133,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 631 40 33 27"
+    "contacto_hospedaje": "+34 631 40 33 27",
+    "worker_movil": "+34 631 48 64 65"
   },
   {
     "id": "aloc-import-234-1787823440987",
@@ -5946,7 +6162,8 @@
       "latitude": 42.60003,
       "longitude": -55.7032
     },
-    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47",
+    "worker_movil": "+34 607 43 29 84"
   },
   {
     "id": "aloc-import-235-1787823440987",
@@ -5974,7 +6191,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+51 947 838 217"
   },
   {
     "id": "aloc-import-236-1787823440987",
@@ -6002,7 +6220,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+51 902 130 090"
   },
   {
     "id": "aloc-import-237-1787823440988",
@@ -6030,7 +6249,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Casilda Cruz 972 209 159"
+    "contacto_hospedaje": "Casilda Cruz 972 209 159",
+    "worker_movil": "+573158075496"
   },
   {
     "id": "aloc-import-238-1787823440988",
@@ -6058,7 +6278,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73"
+    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73",
+    "worker_movil": "+57 313 2638487"
   },
   {
     "id": "aloc-import-239-1787823440988",
@@ -6086,7 +6307,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71",
+    "worker_movil": "+34 666 485 963"
   },
   {
     "id": "aloc-import-240-1787823440988",
@@ -6114,7 +6336,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73"
+    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73",
+    "worker_movil": "+34 634858727"
   },
   {
     "id": "aloc-import-241-1787823440988",
@@ -6142,7 +6365,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71",
+    "worker_movil": "+34 642119823"
   },
   {
     "id": "aloc-import-242-1787823440988",
@@ -6170,7 +6394,8 @@
       "latitude": 41.98311,
       "longitude": 28.2493
     },
-    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71",
+    "worker_movil": "+351 939 763 300"
   },
   {
     "id": "aloc-import-243-1787823440988",
@@ -6198,7 +6423,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "+57 312 8551422"
   },
   {
     "id": "aloc-import-244-1787823440988",
@@ -6226,7 +6452,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "+57 323 4683786"
   },
   {
     "id": "aloc-import-245-1787823440988",
@@ -6254,7 +6481,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "+51 916 922 837"
   },
   {
     "id": "aloc-import-246-1787823440988",
@@ -6282,7 +6510,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "+573156271902"
   },
   {
     "id": "aloc-import-247-1787823440988",
@@ -6310,7 +6539,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "573045451632"
   },
   {
     "id": "aloc-import-249-1787823440988",
@@ -6338,7 +6568,8 @@
       "latitude": 41.11667,
       "longitude": 125
     },
-    "contacto_hospedaje": "+34 661100267 Carmen"
+    "contacto_hospedaje": "+34 661100267 Carmen",
+    "worker_movil": "+57 313 4698079"
   },
   {
     "id": "aloc-import-250-1787823440988",
@@ -6366,7 +6597,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Victoria +34 608 89 24 19"
+    "contacto_hospedaje": "Victoria +34 608 89 24 19",
+    "worker_movil": "+34 630 255 071"
   },
   {
     "id": "aloc-import-251-1787823440988",
@@ -6394,7 +6626,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Victoria +34 608 89 24 19"
+    "contacto_hospedaje": "Victoria +34 608 89 24 19",
+    "worker_movil": "+34 675 222 805"
   },
   {
     "id": "aloc-import-252-1787823440989",
@@ -6422,7 +6655,8 @@
       "latitude": 41.11667,
       "longitude": 125
     },
-    "contacto_hospedaje": "+34 661100267 Carmen"
+    "contacto_hospedaje": "+34 661100267 Carmen",
+    "worker_movil": "+57 300 420 8439"
   },
   {
     "id": "aloc-import-253-1787823440989",
@@ -6450,7 +6684,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Victoria +34 608 89 24 19"
+    "contacto_hospedaje": "Victoria +34 608 89 24 19",
+    "worker_movil": "+57 3205356863"
   },
   {
     "id": "aloc-import-254-1787823440989",
@@ -6478,7 +6713,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Victoria +34 608 89 24 19"
+    "contacto_hospedaje": "Victoria +34 608 89 24 19",
+    "worker_movil": "+57 313 5607427"
   },
   {
     "id": "aloc-import-255-1787823440989",
@@ -6504,7 +6740,8 @@
       "codigo": "PROP-001",
       "municipio": "LEON"
     },
-    "contacto_hospedaje": "Contacto: +34 623 10 33 26"
+    "contacto_hospedaje": "Contacto: +34 623 10 33 26",
+    "worker_movil": "+51 933 233 472"
   },
   {
     "id": "aloc-import-258-1787823440989",
@@ -6532,7 +6769,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "34670214538"
   },
   {
     "id": "aloc-import-259-1787823440989",
@@ -6558,7 +6796,8 @@
       "codigo": "PROP-001",
       "municipio": "LEON"
     },
-    "contacto_hospedaje": "Contacto: +34 623 10 33 26"
+    "contacto_hospedaje": "Contacto: +34 623 10 33 26",
+    "worker_movil": "+34 613 49 33 77"
   },
   {
     "id": "aloc-import-260-1787823440989",
@@ -6583,7 +6822,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "HUELVA"
-    }
+    },
+    "worker_movil": "+57 302 6432724"
   },
   {
     "id": "aloc-import-262-1787823440990",
@@ -6609,7 +6849,8 @@
       "codigo": "PROP-001",
       "municipio": "HUESCA"
     },
-    "contacto_hospedaje": "Pablo +34 677461284"
+    "contacto_hospedaje": "Pablo +34 677461284",
+    "worker_movil": "+34 610 09 56 33"
   },
   {
     "id": "aloc-import-263-1787823440990",
@@ -6637,7 +6878,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 634469640 - +34 652261740"
+    "contacto_hospedaje": "+34 634469640 - +34 652261740",
+    "worker_movil": "+51 983 738 942"
   },
   {
     "id": "aloc-import-264-1787823440990",
@@ -6665,7 +6907,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 634469640 - +34 652261740"
+    "contacto_hospedaje": "+34 634469640 - +34 652261740",
+    "worker_movil": "+34 691 77 84 82"
   },
   {
     "id": "aloc-import-265-1787823440990",
@@ -6693,7 +6936,8 @@
       "latitude": 41.38879,
       "longitude": 21.5899
     },
-    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47",
+    "worker_movil": "+34 670 35 29 52"
   },
   {
     "id": "aloc-import-266-1787823440990",
@@ -6718,7 +6962,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "GUIPUZCOA"
-    }
+    },
+    "worker_movil": "34 603 41 71 54"
   },
   {
     "id": "aloc-import-267-1787823440991",
@@ -6746,7 +6991,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 634469640 - +34 652261740"
+    "contacto_hospedaje": "+34 634469640 - +34 652261740",
+    "worker_movil": "+57 317 541 0495"
   },
   {
     "id": "aloc-import-268-1787823440991",
@@ -6774,7 +7020,8 @@
       "latitude": null,
       "longitude": null
     },
-    "contacto_hospedaje": "+34 634469640 - +34 652261740"
+    "contacto_hospedaje": "+34 634469640 - +34 652261740",
+    "worker_movil": "+34 614 31 44 43"
   },
   {
     "id": "aloc-import-269-1787823440991",
@@ -6799,7 +7046,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "MADRID"
-    }
+    },
+    "worker_movil": "+34 653 24 69 39"
   },
   {
     "id": "aloc-import-270-1787823440991",
@@ -6827,7 +7075,8 @@
       "latitude": 39.07741,
       "longitude": -51.167
     },
-    "contacto_hospedaje": "Lucia +34 629 73 97 58"
+    "contacto_hospedaje": "Lucia +34 629 73 97 58",
+    "worker_movil": "+51 940 922 112"
   },
   {
     "id": "aloc-import-271-1787823440991",
@@ -6855,7 +7104,8 @@
       "latitude": 39.07741,
       "longitude": -51.167
     },
-    "contacto_hospedaje": "Lucia +34 629 73 97 58"
+    "contacto_hospedaje": "Lucia +34 629 73 97 58",
+    "worker_movil": "34 624 149 534"
   },
   {
     "id": "aloc-import-274-1787823440992",
@@ -6881,6 +7131,7 @@
       "codigo": "PROP-001",
       "municipio": "LUCCA"
     },
-    "contacto_hospedaje": "Sara  +39 378 308 1785"
+    "contacto_hospedaje": "Sara  +39 378 308 1785",
+    "worker_movil": "+34 642 75 39 40"
   }
 ]

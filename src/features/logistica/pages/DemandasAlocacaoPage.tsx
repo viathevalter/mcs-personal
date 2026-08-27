@@ -1194,7 +1194,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="px-4 py-3.5">
                           <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
-                          <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                            {aloc.worker_movil && (
+                              <a
+                                href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                title="WhatsApp del Trabajador"
+                              >
+                                <Phone size={10} />
+                                {aloc.worker_movil}
+                              </a>
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-4 py-3.5">
@@ -1330,7 +1344,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     <tr key={a.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3.5">
                         <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
-                        <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
+                          {a.worker_movil && (
+                            <a
+                              href={`https://wa.me/${a.worker_movil.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                              title="WhatsApp del Trabajador"
+                            >
+                              <Phone size={10} />
+                              {a.worker_movil}
+                            </a>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3.5">

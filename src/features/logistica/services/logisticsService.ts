@@ -122,6 +122,7 @@ export interface Alocacao {
   empresa_contratante?: string;
   custo_alojamento?: number;
   contacto_hospedaje?: string;
+  worker_movil?: string;
   cama?: Cama;
   alojamento?: Alojamento;
 }
@@ -228,6 +229,7 @@ export interface TrabalhadorAlojado {
   tipo_alojamento?: string;
   custo_alojamento?: number;
   contacto_hospedaje?: string;
+  worker_movil?: string;
   motivo_status?: string;
 }
 
@@ -842,7 +844,8 @@ export const logisticsService = {
           status: isPropio ? 'Alojamiento Propio' : (a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'),
           tipo_alojamento: isPropio ? 'Propio' : (a.tipo_alojamento || aloj?.tipo_alojamento || 'Fijo'),
           custo_alojamento: a.custo_alojamento,
-          contacto_hospedaje: a.contacto_hospedaje || aloj?.provedor?.telefone || ''
+          contacto_hospedaje: a.contacto_hospedaje || aloj?.provedor?.telefone || '',
+          worker_movil: a.worker_movil || ''
         };
       });
   }

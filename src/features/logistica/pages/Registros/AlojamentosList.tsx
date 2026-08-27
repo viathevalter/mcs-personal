@@ -927,8 +927,23 @@ export const AlojamentosList: React.FC = () => {
                                         {oc.codigo_colab || 'E-XXXX'}
                                       </td>
 
-                                      <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">
-                                        {oc.worker_nome}
+                                      <td className="px-4 py-3">
+                                        <p className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</p>
+                                        {oc.worker_movil ? (
+                                          <a
+                                            href={`https://wa.me/${oc.worker_movil.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-semibold mt-0.5"
+                                            title="Contactar al trabajador por WhatsApp"
+                                          >
+                                            <Phone size={11} />
+                                            {oc.worker_movil}
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-slate-400 block mt-0.5 font-normal">Sin teléfono móvil</span>
+                                        )}
                                       </td>
 
                                       <td className="px-4 py-3">
