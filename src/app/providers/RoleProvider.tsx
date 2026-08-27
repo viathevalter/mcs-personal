@@ -17,12 +17,17 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     const [blockedModules, setBlockedModules] = useState<string[]>([]);
     const [loadingRole, setLoadingRole] = useState(true);
 
-    const fetchRole = async () => {
+    const roleRef = React.useRef<AppRole | null>(null);
+
+    const fetchRole = async (isSilent = false) => {
         try {
-            setLoadingRole(true);
+            if (!isSilent && !roleRef.current) {
+                setLoadingRole(true);
+            }
             const { data: { session } } = await supabase.auth.getSession();
 
             if (!session?.user) {
+                roleRef.current = null;
                 setRole(null);
                 setBlockedModules([]);
                 setLoadingRole(false);
@@ -49,20 +54,24 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
                 .maybeSingle();
 
             if (roleData?.role) {
+                roleRef.current = roleData.role as AppRole;
                 setRole(roleData.role as AppRole);
                 setLoadingRole(false);
                 return;
             }
 
             if (mcsUser?.role) {
+                roleRef.current = mcsUser.role as AppRole;
                 setRole(mcsUser.role as AppRole);
                 setLoadingRole(false);
                 return;
             }
 
+            roleRef.current = 'visualizador';
             setRole('visualizador');
         } catch (err) {
             console.error("Exception fetching user role:", err);
+            roleRef.current = 'visualizador';
             setRole('visualizador');
         } finally {
             setLoadingRole(false);
@@ -70,13 +79,18 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        fetchRole();
+        fetchRole(false);
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (session?.user) {
-                fetchRole();
+                if (event === 'TOKEN_REFRESHED') {
+                    // Do not block UI on token refresh
+                    return;
+                }
+                fetchRole(true);
             } else {
+                roleRef.current = null;
                 setRole(null);
                 setBlockedModules([]);
             }

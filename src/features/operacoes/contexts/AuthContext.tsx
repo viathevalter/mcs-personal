@@ -38,13 +38,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const userRef = React.useRef<User | null>(null);
 
     useEffect(() => {
         // 1. Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             if (session?.user) {
-                // Ensure loading stays true until profile is fetched
                 fetchProfile(session.user);
             } else {
                 setLoading(false);
@@ -52,28 +52,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         // 2. Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
             if (session?.user) {
-                // Determine if we need to fetch profile (e.g. if user changed)
-                // For simplicity, fetch if we don't have a user or if ID differs
-                if (!user || user.id !== session.user.id) {
-                    setLoading(true); // BLOCK UI until profile loads
+                // If it's just a token refresh and the user is already loaded, do NOT reset loading or refetch
+                if (event === 'TOKEN_REFRESHED' && userRef.current?.id === session.user.id) {
+                    return;
+                }
+                // If user changed or not yet loaded
+                if (!userRef.current || userRef.current.id !== session.user.id) {
                     fetchProfile(session.user);
                 }
             } else {
+                userRef.current = null;
                 setUser(null);
                 setLoading(false);
             }
         });
 
         return () => subscription.unsubscribe();
-    }, []); // Removed 'user' dependency to avoid loops
+    }, []);
 
     const fetchProfile = async (authUser: AuthUser) => {
         try {
-            console.log('AuthContext: Fetching profile for', authUser.email);
-            
             // 1. Buscar do user_roles (especialmente para super_admin)
             const { data: roleData } = await supabase
                 .from('user_roles')
@@ -103,12 +104,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 isSuperAdmin: role === 'super_admin',
             };
 
-            console.log('AuthContext: Setting user:', fullUser);
+            userRef.current = fullUser;
             setUser(fullUser);
         } catch (err) {
             console.error('AuthContext: Unexpected error fetching profile:', err);
-            // Fallback
-            setUser({ ...authUser, isAdmin: false, isSuperAdmin: false });
+            const fallbackUser = { ...authUser, isAdmin: false, isSuperAdmin: false };
+            userRef.current = fallbackUser;
+            setUser(fallbackUser);
         } finally {
             setLoading(false);
         }
@@ -121,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const signOut = async () => {
         sessionStorage.clear();
         await supabase.auth.signOut();
+        userRef.current = null;
         setUser(null);
     };
 
@@ -132,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return (
         <AuthContext.Provider value={{ user, session, loading, signIn, signOut, refreshProfile }}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
