@@ -35,7 +35,9 @@ import {
   ShieldCheck,
   Wrench,
   Bath,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import { registrosService } from '../../services/registrosService';
 import type { Provedor, Alojamento } from '../../services/logisticsService';
