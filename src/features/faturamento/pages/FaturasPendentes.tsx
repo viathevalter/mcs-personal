@@ -557,6 +557,8 @@ MCS - Gestão Comercial`;
     year: number;
     month: number;
   } | null>(null);
+  const [newTariffValue, setNewTariffValue] = useState('');
+  const [updatingTariff, setUpdatingTariff] = useState(false);
   const [selectedPaymentTermFilter, setSelectedPaymentTermFilter] = useState<string>(() => {
     return sessionStorage.getItem('mcs:faturamento_pendentes_termFilter') || 'all';
   });
