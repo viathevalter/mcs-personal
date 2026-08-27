@@ -83,6 +83,8 @@ export interface Alojamento {
   provincia?: string;
   pais?: string;
   codigo_postal?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   country_id?: string | null;
   region_id?: string | null;
   comodidades?: {
@@ -245,6 +247,15 @@ const buildAlojamentoPayload = (input: any) => {
     status: isInactive ? 'inativo' : 'ativo'
   };
 
+  if (input.latitude !== undefined && input.latitude !== null && input.latitude !== '') {
+    const latNum = typeof input.latitude === 'string' ? parseFloat(input.latitude.replace(',', '.')) : input.latitude;
+    payload.latitude = !isNaN(latNum) ? latNum : null;
+  }
+  if (input.longitude !== undefined && input.longitude !== null && input.longitude !== '') {
+    const lngNum = typeof input.longitude === 'string' ? parseFloat(input.longitude.replace(',', '.')) : input.longitude;
+    payload.longitude = !isNaN(lngNum) ? lngNum : null;
+  }
+
   if (input.provedor_id) payload.provedor_id = input.provedor_id;
   if (input.codigo) payload.codigo = input.codigo;
 
@@ -266,6 +277,8 @@ const hydrateAlojamento = (a: any): Alojamento => {
     provincia: a.provincia || '',
     pais: a.pais || 'España',
     codigo_postal: a.codigo_postal || '',
+    latitude: a.latitude ?? null,
+    longitude: a.longitude ?? null,
     comodidades: comodidades,
     suministros: a.suministros || {},
     fotos: Array.isArray(fotos) ? fotos : [],

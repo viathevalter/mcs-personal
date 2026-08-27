@@ -598,6 +598,18 @@ export const AlojamentosList: React.FC = () => {
                               <MapPin size={12} className="text-rose-500 flex-shrink-0" />
                               <span className="truncate">{a.municipio || 'España'}{a.provincia ? `, ${a.provincia}` : ''}</span>
                             </p>
+                            {a.latitude && a.longitude && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-mono"
+                              >
+                                <Globe size={10} />
+                                GPS: {Number(a.latitude).toFixed(3)}, {Number(a.longitude).toFixed(3)}
+                              </a>
+                            )}
                           </div>
 
                           {/* Informações de Vagas e Provedor */}
@@ -750,6 +762,19 @@ export const AlojamentosList: React.FC = () => {
                               <MapPin size={13} className="text-slate-400 flex-shrink-0" />
                               <span>{a.municipio || 'N/A'}{a.provincia ? `, ${a.provincia}` : ''}</span>
                             </div>
+                            {a.latitude && a.longitude && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] font-mono text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+                                title="Ver ubicación en Google Maps"
+                              >
+                                <Globe size={10} />
+                                Maps ({Number(a.latitude).toFixed(2)}, {Number(a.longitude).toFixed(2)})
+                              </a>
+                            )}
                           </td>
 
                           <td className="px-4 py-3.5">
@@ -1414,6 +1439,27 @@ export const AlojamentosList: React.FC = () => {
                           viewingAlojamento.pais || 'España'
                         ].filter(Boolean).join(' • ')}
                       </p>
+
+                      {/* Coordenadas GPS & Link Google Maps */}
+                      <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                          <Globe size={13} className="text-blue-600" />
+                          <span className="font-mono font-bold text-[11px]">
+                            {viewingAlojamento.latitude && viewingAlojamento.longitude
+                              ? `${Number(viewingAlojamento.latitude).toFixed(5)}, ${Number(viewingAlojamento.longitude).toFixed(5)}`
+                              : 'Coordenadas disponibles'}
+                          </span>
+                        </div>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${viewingAlojamento.latitude || viewingAlojamento.endereco},${viewingAlojamento.longitude || viewingAlojamento.municipio}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+                        >
+                          <ExternalLink size={11} />
+                          Abrir en Maps
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

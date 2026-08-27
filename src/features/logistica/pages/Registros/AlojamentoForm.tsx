@@ -108,6 +108,9 @@ const alojamentoSchema = z.object({
   titular_conta: z.string().optional(),
   metodo_pago: z.string().default('Transferir'),
 
+  latitude: z.union([z.coerce.number(), z.string()]).optional().nullable(),
+  longitude: z.union([z.coerce.number(), z.string()]).optional().nullable(),
+
   ativo: z.boolean().default(true),
 });
 
@@ -187,6 +190,8 @@ export const AlojamentoForm: React.FC = () => {
       iban: '',
       swift: '',
       titular_conta: '',
+      latitude: '',
+      longitude: '',
       ativo: true,
     },
   });
@@ -471,6 +476,8 @@ export const AlojamentoForm: React.FC = () => {
             iban: cont.iban || a.provedor?.iban || '',
             swift: cont.swift || a.provedor?.swift || '',
             titular_conta: cont.titular || a.provedor?.titular_conta || '',
+            latitude: a.latitude !== undefined && a.latitude !== null ? String(a.latitude) : '',
+            longitude: a.longitude !== undefined && a.longitude !== null ? String(a.longitude) : '',
             ativo: a.status !== 'Inactivo' && a.ativo !== false,
           });
         }
@@ -945,6 +952,53 @@ export const AlojamentoForm: React.FC = () => {
                     className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
                     placeholder="Ex: 33201 / 17401"
                   />
+                </div>
+              </div>
+
+              {/* Coordenadas GPS (Latitud & Longitud) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                    <Globe size={13} className="text-blue-600" />
+                    Latitud GPS (Ej: 42.33669)
+                  </label>
+                  <input
+                    type="text"
+                    {...register('latitude')}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+                    placeholder="42.33669"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                    <Globe size={13} className="text-blue-600" />
+                    Longitud GPS (Ej: -78.6407)
+                  </label>
+                  <input
+                    type="text"
+                    {...register('longitude')}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+                    placeholder="-78.6407"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  {watch('latitude') && watch('longitude') ? (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${watch('latitude')},${watch('longitude')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 rounded-xl text-xs font-bold transition-colors border border-blue-200 dark:border-blue-800 shadow-2xs"
+                    >
+                      <ExternalLink size={13} />
+                      Ver en Google Maps
+                    </a>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 p-2 block leading-tight">
+                      💡 Ingrese coordenadas para abrir directamente en Google Maps
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

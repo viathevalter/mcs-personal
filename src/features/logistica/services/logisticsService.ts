@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import { registrosService } from './registrosService';
+import importedAllocations from '../data/imported_allocations.json';
 
 export interface ContatoProvedor {
   id?: string;
@@ -43,6 +44,8 @@ export interface Provedor {
   provincia?: string;
   pais?: string;
   codigo_postal?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   country_id?: string | null;
   region_id?: string | null;
   observacoes?: string;
@@ -69,6 +72,8 @@ export interface Alojamento {
   provincia?: string;
   pais?: string;
   codigo_postal?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   country_id?: string | null;
   region_id?: string | null;
   comodidades?: any;
@@ -110,9 +115,12 @@ export interface Alocacao {
   pedido_codigo?: string;
   data_inicio: string;
   data_fim?: string;
-  status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada';
+  status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada' | 'Alojamiento Propio';
   motivo_checkout?: string;
   observacoes?: string;
+  tipo_alojamento?: string;
+  empresa_contratante?: string;
+  custo_alojamento?: number;
   cama?: Cama;
   alojamento?: Alojamento;
 }
@@ -202,6 +210,8 @@ export interface TrabalhadorAlojado {
   funcao: string;
   cliente_nome: string;
   obra_nome: string;
+  pedido_codigo?: string;
+  empresa_contratante?: string;
   alojamento_id: string;
   alojamento_nome: string;
   alojamento_codigo: string;
@@ -209,9 +219,13 @@ export interface TrabalhadorAlojado {
   cama_identificador: string;
   municipio: string;
   provincia: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   data_checkin: string;
   data_checkout_prevista?: string;
-  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente';
+  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente' | 'Alojamiento Propio';
+  tipo_alojamento?: string;
+  custo_alojamento?: number;
   motivo_status?: string;
 }
 
@@ -405,12 +419,77 @@ export const logisticsService = {
   async fetchAlocacoesAtivas(): Promise<Alocacao[]> {
     try {
       const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+      let localAlocs: Alocacao[] = [];
       if (stored) {
-        return JSON.parse(stored);
+        localAlocs = JSON.parse(stored);
       }
+
+      const localWorkerIds = new Set(localAlocs.map(a => a.worker_id));
+      const initialFromSheet: Alocacao[] = (importedAllocations as any[]).filter(
+        a => !localWorkerIds.has(a.worker_id)
+      );
+
+      return [...localAlocs, ...initialFromSheet];
+    } catch (e) {
+      return (importedAllocations as any[]) || [];
+    }
+  },
+
+  async registrarAlojamentoPropio(payload: {
+    worker_id: string;
+    worker_nome: string;
+    codigo_colab?: string;
+    cliente_nome?: string;
+    obra_nome?: string;
+    pedido_id?: string;
+    pedido_codigo?: string;
+    data_inicio: string;
+    data_fim?: string;
+    observacoes?: string;
+    empresa_contratante?: string;
+    custo_alojamento?: number;
+  }): Promise<Alocacao> {
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const newAloc: Alocacao = {
+      id: `propio-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      cama_id: `propio-cama-${payload.worker_id}`,
+      alojamento_id: 'propio',
+      worker_id: payload.worker_id,
+      worker_nome: payload.worker_nome,
+      codigo_colab: payload.codigo_colab || 'E-XXXX',
+      cliente_nome: payload.cliente_nome || 'Cliente Obra',
+      obra_nome: payload.obra_nome || 'Obra Principal',
+      pedido_id: payload.pedido_id,
+      pedido_codigo: payload.pedido_codigo,
+      data_inicio: payload.data_inicio,
+      data_fim: payload.data_fim,
+      observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
+      status: 'Alojamiento Propio',
+      tipo_alojamento: 'Propio',
+      empresa_contratante: payload.empresa_contratante || 'LUMINOUS',
+      custo_alojamento: payload.custo_alojamento || 0,
+      alojamento: {
+        id: 'propio',
+        nome: 'Alojamiento Propio / Por Cuenta Propia',
+        codigo: 'PROP-001',
+        capacidade_pessoas: 1,
+        dormitorios: 1,
+        total_camas: 1,
+        camas_individuais: 1,
+        camas_duplas: 0,
+        banheiros: 1,
+        municipio: payload.obra_nome || 'España'
+      }
+    };
+
+    const filtered = alocacoes.filter(a => a.worker_id !== payload.worker_id);
+    const updated = [newAloc, ...filtered];
+
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
 
-    return [];
+    return newAloc;
   },
 
   async alocarTrabalhador(payload: {
@@ -728,11 +807,14 @@ export const logisticsService = {
   async fetchTrabalhadoresAlojados(): Promise<TrabalhadorAlojado[]> {
     const alocacoes = await this.fetchAlocacoesAtivas();
     const alojamentos = await this.fetchAlojamentos();
+    const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
     return alocacoes
       .filter(a => a.status !== 'Checkout')
       .map(a => {
-        const aloj = alojamentos.find(al => al.id === a.alojamento_id);
+        const aloj = alojMap.get(a.alojamento_id || '') || a.alojamento;
+        const isPropio = a.status === 'Alojamiento Propio' || a.tipo_alojamento === 'Propio' || a.alojamento_id === 'propio';
+
         return {
           id: a.id,
           alocacao_id: a.id,
@@ -742,16 +824,22 @@ export const logisticsService = {
           funcao: 'Operador Especialista',
           cliente_nome: a.cliente_nome || 'Cliente Obra',
           obra_nome: a.obra_nome || 'Obra',
-          alojamento_id: a.alojamento_id || '',
-          alojamento_nome: aloj?.nome || 'Alojamento',
-          alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+          pedido_codigo: a.pedido_codigo,
+          empresa_contratante: a.empresa_contratante || 'LUMINOUS',
+          alojamento_id: isPropio ? 'propio' : (a.alojamento_id || ''),
+          alojamento_nome: isPropio ? 'Alojamiento Propio / Por Cuenta Propia' : (aloj?.nome || a.obra_nome || 'Alojamiento'),
+          alojamento_codigo: isPropio ? 'PROP-001' : (aloj?.codigo || 'AL-XXXX'),
           cama_id: a.cama_id,
-          cama_identificador: a.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Dupla',
-          municipio: aloj?.municipio || 'Espanha',
-          provincia: aloj?.provincia || 'Espanha',
+          cama_identificador: isPropio ? 'Habitación Propia' : (a.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble'),
+          municipio: aloj?.municipio || a.obra_nome || 'España',
+          provincia: aloj?.provincia || 'España',
+          latitude: aloj?.latitude,
+          longitude: aloj?.longitude,
           data_checkin: a.data_inicio,
           data_checkout_prevista: a.data_fim,
-          status: a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'
+          status: isPropio ? 'Alojamiento Propio' : (a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'),
+          tipo_alojamento: isPropio ? 'Propio' : (a.tipo_alojamento || aloj?.tipo_alojamento || 'Fijo'),
+          custo_alojamento: a.custo_alojamento
         };
       });
   }

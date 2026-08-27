@@ -32,7 +32,11 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Mail,
-  User
+  User,
+  Download,
+  FileSpreadsheet,
+  Globe,
+  Tag
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
 import type {
@@ -44,17 +48,22 @@ import type {
 } from '../services/logisticsService';
 
 export const DemandasAlocacaoPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados'>('demandas');
+  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio'>('demandas');
   const [pedidos, setPedidos] = useState<PedidoDemandaLogistica[]>([]);
   const [alojados, setAlojados] = useState<TrabalhadorAlojado[]>([]);
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
   const [camasDisponiveis, setCamasDisponiveis] = useState<Cama[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filtros de Pedidos
+  // Filtros de Pedidos (Aba 1)
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'alojados'>('todos');
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
+
+  // Filtros de Trabalhadores Alojados (Aba 2 e Aba 3)
+  const [alojadosSearch, setAlojadosSearch] = useState('');
+  const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
+  const [alojadosTipoFilter, setAlojadosTipoFilter] = useState('todos');
 
   // Seleção Múltipla para Alocação em Lote
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
@@ -73,6 +82,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [singleDataFim, setSingleDataFim] = useState('');
   const [singleObservacoes, setSingleObservacoes] = useState('');
   const [isAllocatingSingle, setIsAllocatingSingle] = useState(false);
+
+  // Modal Registro de Alojamiento Propio
+  const [isPropioModalOpen, setIsPropioModalOpen] = useState(false);
+  const [propioWorkerQuery, setPropioWorkerQuery] = useState('');
+  const [propioSearchResults, setPropioSearchResults] = useState<any[]>([]);
+  const [isSearchingPropio, setIsSearchingPropio] = useState(false);
+  const [selectedPropioWorker, setSelectedPropioWorker] = useState<any | null>(null);
+  const [propioClienteNome, setPropioClienteNome] = useState('');
+  const [propioObraNome, setPropioObraNome] = useState('');
+  const [propioEmpresa, setPropioEmpresa] = useState('LUMINOUS');
+  const [propioDataInicio, setPropioDataInicio] = useState(new Date().toISOString().split('T')[0]);
+  const [propioDataFim, setPropioDataFim] = useState('');
+  const [propioObservacoes, setPropioObservacoes] = useState('Alojamiento Propio / Por cuenta propia');
 
   // Modal Asignación Directa de Trabalhador Avulso (Busca no Banco)
   const [isDirectModalOpen, setIsDirectModalOpen] = useState(false);
@@ -126,7 +148,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Busca rápida de colaboradores no banco
+  // Busca rápida de colaboradores no banco para modal direto
   useEffect(() => {
     if (!isDirectModalOpen) return;
     const timer = setTimeout(async () => {
@@ -142,6 +164,23 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }, 250);
     return () => clearTimeout(timer);
   }, [workerSearchQuery, isDirectModalOpen]);
+
+  // Busca rápida de colaboradores no banco para Alojamento Próprio
+  useEffect(() => {
+    if (!isPropioModalOpen) return;
+    const timer = setTimeout(async () => {
+      setIsSearchingPropio(true);
+      try {
+        const results = await logisticsService.searchTrabalhadores(propioWorkerQuery);
+        setPropioSearchResults(results);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsSearchingPropio(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [propioWorkerQuery, isPropioModalOpen]);
 
   // Pedido atualmente selecionado
   const selectedPedido = useMemo(() => {
@@ -170,6 +209,38 @@ export const DemandasAlocacaoPage: React.FC = () => {
     });
   }, [pedidos, searchTerm, filterStatus]);
 
+  // Trabalhadores Alojados Filtrados (Aba 2)
+  const filteredAlojados = useMemo(() => {
+    return alojados.filter(a => {
+      const q = alojadosSearch.toLowerCase().trim();
+      const matchesSearch = !q || (
+        a.worker_nome.toLowerCase().includes(q) ||
+        a.codigo_colab.toLowerCase().includes(q) ||
+        a.cliente_nome.toLowerCase().includes(q) ||
+        a.obra_nome.toLowerCase().includes(q) ||
+        a.alojamento_nome.toLowerCase().includes(q) ||
+        a.municipio.toLowerCase().includes(q) ||
+        (a.empresa_contratante && a.empresa_contratante.toLowerCase().includes(q))
+      );
+
+      if (!matchesSearch) return false;
+
+      if (alojadosEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== alojadosEmpresaFilter.toLowerCase()) {
+        return false;
+      }
+
+      if (alojadosTipoFilter === 'empresa' && a.status === 'Alojamiento Propio') return false;
+      if (alojadosTipoFilter === 'propio' && a.status !== 'Alojamiento Propio') return false;
+
+      return true;
+    });
+  }, [alojados, alojadosSearch, alojadosEmpresaFilter, alojadosTipoFilter]);
+
+  // Trabalhadores com Alojamento Próprio (Aba 3)
+  const propriosList = useMemo(() => {
+    return alojados.filter(a => a.status === 'Alojamiento Propio' || a.tipo_alojamento === 'Propio' || a.alojamento_id === 'propio');
+  }, [alojados]);
+
   // Contadores globais
   const totalPedidosPendentes = useMemo(() => {
     return pedidos.filter(p => p.total_pendentes_alojamento > 0).length;
@@ -178,6 +249,62 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const totalTrabalhadoresPendentes = useMemo(() => {
     return pedidos.reduce((acc, p) => acc + p.total_pendentes_alojamento, 0);
   }, [pedidos]);
+
+  // Empresas Únicas para Filtro
+  const empresasList = useMemo(() => {
+    const set = new Set<string>();
+    alojados.forEach(a => {
+      if (a.empresa_contratante) set.add(a.empresa_contratante);
+    });
+    return Array.from(set).sort();
+  }, [alojados]);
+
+  // Exportar Listagem para Planilha Excel (CSV com BOM)
+  const exportToExcel = (dataToExport: TrabalhadorAlojado[], filename: string) => {
+    const headers = [
+      'Código Colaborador',
+      'Nombre Trabajador',
+      'Empresa Contratante',
+      'Cliente',
+      'Obra / Ubicación',
+      'Pedido',
+      'Alojamiento',
+      'Habitación / Cama',
+      'Municipio',
+      'Provincia',
+      'Tipo Alojamiento',
+      'Estado',
+      'Fecha Inicio (Check-in)',
+      'Fecha Fin Prevista'
+    ];
+
+    const rows = dataToExport.map(a => [
+      a.codigo_colab,
+      `"${a.worker_nome.replace(/"/g, '""')}"`,
+      `"${(a.empresa_contratante || 'LUMINOUS').replace(/"/g, '""')}"`,
+      `"${(a.cliente_nome || '').replace(/"/g, '""')}"`,
+      `"${(a.obra_nome || '').replace(/"/g, '""')}"`,
+      `"${(a.pedido_codigo || '').replace(/"/g, '""')}"`,
+      `"${(a.alojamento_nome || '').replace(/"/g, '""')}"`,
+      `"${(a.cama_identificador || '').replace(/"/g, '""')}"`,
+      `"${(a.municipio || '').replace(/"/g, '""')}"`,
+      `"${(a.provincia || '').replace(/"/g, '""')}"`,
+      `"${(a.tipo_alojamento || 'Fijo').replace(/"/g, '""')}"`,
+      `"${(a.status || 'Activo').replace(/"/g, '""')}"`,
+      a.data_checkin || '',
+      a.data_checkout_prevista || ''
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Abrir modal de alocação individual
   const handleOpenSingleAlloc = (worker: TrabalhadorDemandaItem, pedido: PedidoDemandaLogistica) => {
@@ -204,7 +331,36 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   // Confirmar Alocação Individual
   const handleConfirmSingleAlloc = async () => {
-    if (!allocatingWorker || !singleAlojamentoId || !singleCamaId) {
+    if (!allocatingWorker) return;
+
+    // Opção: Alocar como Alojamento Próprio
+    if (singleAlojamentoId === 'propio') {
+      try {
+        setIsAllocatingSingle(true);
+        await logisticsService.registrarAlojamentoPropio({
+          worker_id: allocatingWorker.worker.worker_id,
+          worker_nome: allocatingWorker.worker.worker_nome,
+          codigo_colab: allocatingWorker.worker.codigo_colab,
+          cliente_nome: allocatingWorker.pedido.cliente_nome,
+          obra_nome: allocatingWorker.pedido.obra_nome,
+          pedido_id: allocatingWorker.pedido.pedido_id,
+          pedido_codigo: allocatingWorker.pedido.pedido_codigo,
+          data_inicio: singleDataInicio,
+          data_fim: singleDataFim,
+          empresa_contratante: allocatingWorker.pedido.empresa_contratante,
+          observacoes: singleObservacoes || 'Alojamiento Propio'
+        });
+        setAllocatingWorker(null);
+        await loadData();
+      } catch (err: any) {
+        alert('Error: ' + err.message);
+      } finally {
+        setIsAllocatingSingle(false);
+      }
+      return;
+    }
+
+    if (!singleAlojamentoId || !singleCamaId) {
       alert('Por favor, seleccione un alojamiento y una cama disponible.');
       return;
     }
@@ -324,6 +480,35 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
+  // Confirmar Registro de Alojamiento Propio
+  const handleConfirmPropio = async () => {
+    if (!selectedPropioWorker) {
+      alert('Por favor, seleccione un colaborador.');
+      return;
+    }
+
+    try {
+      await logisticsService.registrarAlojamentoPropio({
+        worker_id: selectedPropioWorker.id,
+        worker_nome: selectedPropioWorker.Nombre || selectedPropioWorker.nombre,
+        codigo_colab: selectedPropioWorker.Cod_colab || selectedPropioWorker.cod_colab,
+        cliente_nome: propioClienteNome || selectedPropioWorker.contratante || 'Cliente Obra',
+        obra_nome: propioObraNome || selectedPropioWorker.ubicacion || 'Obra',
+        empresa_contratante: propioEmpresa,
+        data_inicio: propioDataInicio,
+        data_fim: propioDataFim,
+        observacoes: propioObservacoes
+      });
+
+      setIsPropioModalOpen(false);
+      setSelectedPropioWorker(null);
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al registrar alojamiento propio: ' + err.message);
+    }
+  };
+
   // Confirmar Check-out
   const handleConfirmCheckout = async () => {
     if (!checkingOutWorker) return;
@@ -370,11 +555,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
             Central de Demandas por Pedido & Alojamientos
           </h1>
           <p className="text-sm text-slate-500">
-            Control de movilizaciones, asignación de plazas por pedido comercial y seguimiento de check-outs.
+            Control de movilizaciones, asignación de plazas por pedido comercial, seguimiento de check-outs y control de alojamiento propio.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => loadData()}
             className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
@@ -384,18 +569,26 @@ export const DemandasAlocacaoPage: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setIsPropioModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800 shadow-2xs"
+          >
+            <Home size={15} />
+            + Registrar Alojamiento Propio
+          </button>
+
+          <button
             onClick={() => setIsDirectModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
             <UserPlus size={15} />
-            Asignar Trabajador (Búsqueda Directa)
+            Asignar Cama Directa
           </button>
         </div>
       </div>
 
       {/* Abas Principais */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setActiveTab('demandas')}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
@@ -411,7 +604,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 ? 'bg-white/20 text-white'
                 : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
             }`}>
-              {totalTrabalhadoresPendentes} plazas pendientes
+              {totalTrabalhadoresPendentes} pendientes
             </span>
           </button>
 
@@ -424,12 +617,38 @@ export const DemandasAlocacaoPage: React.FC = () => {
             }`}
           >
             <UserCheck size={16} />
-            Trabajadores Alojados & Check-outs
+            Trabajadores Alojados ({alojados.length})
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold">
-              {alojados.length}
+              {alojados.filter(a => a.status !== 'Alojamiento Propio').length} en inmuebles
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('propio')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'propio'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Home size={16} />
+            Control de Alojamiento Propio
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 font-bold">
+              {propriosList.length} por cuenta propia
             </span>
           </button>
         </div>
+
+        {/* Botão de Exportar para Excel nas abas de Alojados e Próprio */}
+        {(activeTab === 'alojados' || activeTab === 'propio') && (
+          <button
+            onClick={() => exportToExcel(activeTab === 'propio' ? propriosList : filteredAlojados, activeTab === 'propio' ? 'Alojamiento_Propio_Control' : 'Trabajadores_Alojados_General')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
+          >
+            <Download size={14} />
+            Exportar a Excel / CSV
+          </button>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -892,90 +1111,270 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* ABA 2: TRABALHADORES ALOJADOS & CHECK-OUTS */}
+      {/* ABA 2: TRABALHADORES ALOJADOS (GERAL - 256 TRABALHADORES DA PLANILHA E SISTEMA) */}
       {/* ========================================================================= */}
       {activeTab === 'alojados' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
+          
+          {/* Header & Filtros da Aba de Alojados */}
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/70">
             <div>
-              <h2 className="text-sm font-bold text-slate-800 dark:text-white">
-                Ocupación General de Alojamientos ({alojados.length} activos)
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <UserCheck size={16} className="text-blue-600" />
+                Ocupación y Asignaciones Activas ({filteredAlojados.length} de {alojados.length})
               </h2>
-              <p className="text-xs text-slate-500">Histórico de entradas, control de llaves y gestión de salidas.</p>
+              <p className="text-xs text-slate-500">Histórico de entradas, control de plazas e inmuebles de toda la base de colaboradores.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Filtro Empresa */}
+              {empresasList.length > 0 && (
+                <select
+                  value={alojadosEmpresaFilter}
+                  onChange={e => setAlojadosEmpresaFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todas">Empresa: Todas</option>
+                  {empresasList.map(emp => (
+                    <option key={emp} value={emp}>{emp}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Filtro Tipo */}
+              <select
+                value={alojadosTipoFilter}
+                onChange={e => setAlojadosTipoFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+              >
+                <option value="todos">Tipo: Todos</option>
+                <option value="empresa">🏢 Inmuebles Empresa</option>
+                <option value="propio">🏠 Alojamiento Propio</option>
+              </select>
+
+              {/* Busca */}
+              <div className="relative w-48 sm:w-60">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Buscar trabajador, pedido, obra..."
+                  value={alojadosSearch}
+                  onChange={e => setAlojadosSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800/80 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
+              <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-4 py-3">Trabajador</th>
+                  <th className="px-4 py-3">Empresa & Pedido</th>
                   <th className="px-4 py-3">Cliente & Obra</th>
                   <th className="px-4 py-3">Alojamiento & Cama</th>
-                  <th className="px-4 py-3">Ubicación</th>
+                  <th className="px-4 py-3">Ubicación / GPS</th>
                   <th className="px-4 py-3">Check-in / Previsto</th>
                   <th className="px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {alojados.length === 0 ? (
+                {filteredAlojados.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center text-slate-400">
-                      Ningún trabajador alojado actualmente en el sistema.
+                    <td colSpan={7} className="p-12 text-center text-slate-400">
+                      Ningún trabajador encontrado con los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
-                  alojados.map(aloc => (
-                    <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
-                        <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
-                      </td>
+                  filteredAlojados.map(aloc => {
+                    const isPropio = aloc.status === 'Alojamiento Propio' || aloc.alojamento_id === 'propio';
 
-                      <td className="px-4 py-3.5">
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
-                        <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
-                      </td>
+                    return (
+                      <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="px-4 py-3.5">
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                          <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                        </td>
 
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950/40 rounded-lg">
-                            <Home size={13} />
+                        <td className="px-4 py-3.5">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
+                            {aloc.empresa_contratante || 'LUMINOUS'}
+                          </span>
+                          {aloc.pedido_codigo && (
+                            <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                              {aloc.pedido_codigo}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
+                          <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg ${
+                              isPropio
+                                ? 'bg-purple-50 text-purple-600 dark:bg-purple-950/40'
+                                : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'
+                            }`}>
+                              <Home size={13} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                              <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
-                            <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center gap-1">
+                            <MapPin size={12} className="text-slate-400" />
+                            <span>{aloc.municipio}</span>
                           </div>
-                        </div>
+                          {aloc.latitude && aloc.longitude && (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${aloc.latitude},${aloc.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-mono"
+                            >
+                              <Globe size={9} />
+                              Maps
+                            </a>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                          <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                          {aloc.data_checkout_prevista && (
+                            <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            onClick={() => {
+                              setCheckingOutWorker({
+                                alocacaoId: aloc.alocacao_id,
+                                workerNome: aloc.worker_nome,
+                                alojamentoNome: aloc.alojamento_nome
+                              });
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <LogOut size={13} />
+                            Check-out
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ABA 3: CONTROL DE ALOJAMIENTO PROPIO (POR CUENTA PROPIA) */}
+      {/* ========================================================================= */}
+      {activeTab === 'propio' && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
+          
+          <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-950/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Home size={18} className="text-purple-600" />
+                Control de Colaboradores con Alojamiento Propio ({propriosList.length})
+              </h2>
+              <p className="text-xs text-slate-500">
+                Trabajadores que disponen de vivienda particular o ayuda de manutención (no ocupan plazas de la empresa).
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsPropioModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+            >
+              <Plus size={14} />
+              Registrar Nuevo Alojamiento Propio
+            </button>
+          </div>
+
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-3">Trabajador</th>
+                  <th className="px-4 py-3">Empresa</th>
+                  <th className="px-4 py-3">Cliente & Pedido</th>
+                  <th className="px-4 py-3">Localidad / Obra</th>
+                  <th className="px-4 py-3">Modalidad</th>
+                  <th className="px-4 py-3">Período Activo</th>
+                  <th className="px-4 py-3 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {propriosList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-12 text-center text-slate-400">
+                      No hay colaboradores registrados con alojamiento propio.
+                    </td>
+                  </tr>
+                ) : (
+                  propriosList.map(a => (
+                    <tr key={a.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                        <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        <div className="flex items-center gap-1">
+                      <td className="px-4 py-3.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                          {a.empresa_contratante || 'LUMINOUS'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">{a.cliente_nome}</p>
+                        {a.pedido_codigo && <p className="text-[10px] font-mono text-slate-400">{a.pedido_codigo}</p>}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                           <MapPin size={12} className="text-slate-400" />
-                          <span>{aloc.municipio}, {aloc.provincia}</span>
+                          <span>{a.obra_nome || a.municipio}</span>
                         </div>
                       </td>
 
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                          🏠 Por Cuenta Propia
+                        </span>
+                      </td>
+
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                        {aloc.data_checkout_prevista && (
-                          <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
-                        )}
+                        <p className="font-medium">Desde: {a.data_checkin}</p>
+                        {a.data_checkout_prevista && <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>}
                       </td>
 
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => {
                             setCheckingOutWorker({
-                              alocacaoId: aloc.alocacao_id,
-                              workerNome: aloc.worker_nome,
-                              alojamentoNome: aloc.alojamento_nome
+                              alocacaoId: a.alocacao_id,
+                              workerNome: a.worker_nome,
+                              alojamentoNome: 'Alojamiento Propio'
                             });
                           }}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors inline-flex items-center gap-1"
                         >
                           <LogOut size={13} />
-                          Check-out
+                          Finalizar
                         </button>
                       </td>
                     </tr>
@@ -1029,18 +1428,23 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  1. Seleccione el Alojamiento:
+                  1. Modalidad / Alojamiento:
                 </label>
                 <select
                   value={singleAlojamentoId}
                   onChange={e => {
                     setSingleAlojamentoId(e.target.value);
-                    const firstBed = camasDisponiveis.find(c => c.alojamento_id === e.target.value);
-                    if (firstBed) setSingleCamaId(firstBed.id);
+                    if (e.target.value !== 'propio') {
+                      const firstBed = camasDisponiveis.find(c => c.alojamento_id === e.target.value);
+                      if (firstBed) setSingleCamaId(firstBed.id);
+                    } else {
+                      setSingleCamaId('propio');
+                    }
                   }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">-- Seleccionar Alojamiento --</option>
+                  <option value="propio">🏠 Alojamiento Propio / Por Cuenta Propia (Sin plaza empresa)</option>
                   {alojamentos.map(aloj => {
                     const vagasLivres = camasDisponiveis.filter(c => c.alojamento_id === aloj.id).length;
                     const isSameCity = aloj.municipio?.toLowerCase().includes(allocatingWorker.pedido.cidade.toLowerCase());
@@ -1053,25 +1457,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </select>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  2. Cama / Habitación Disponible:
-                </label>
-                <select
-                  value={singleCamaId}
-                  onChange={e => setSingleCamaId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Seleccionar Cama --</option>
-                  {camasDisponiveis
-                    .filter(c => c.alojamento_id === singleAlojamentoId)
-                    .map(cama => (
-                      <option key={cama.id} value={cama.id}>
-                        {cama.identificador} ({cama.tipo === 'dupla' ? 'Cama Doble' : 'Individual'})
-                      </option>
-                    ))}
-                </select>
-              </div>
+              {singleAlojamentoId !== 'propio' && (
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    2. Cama / Habitación Disponible:
+                  </label>
+                  <select
+                    value={singleCamaId}
+                    onChange={e => setSingleCamaId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Cama --</option>
+                    {camasDisponiveis
+                      .filter(c => c.alojamento_id === singleAlojamentoId)
+                      .map(cama => (
+                        <option key={cama.id} value={cama.id}>
+                          {cama.identificador} ({cama.tipo === 'dupla' ? 'Cama Doble' : 'Individual'})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
@@ -1103,7 +1509,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 Cancelar
               </button>
               <button
-                disabled={isAllocatingSingle || !singleCamaId}
+                disabled={isAllocatingSingle || (!singleCamaId && singleAlojamentoId !== 'propio')}
                 onClick={handleConfirmSingleAlloc}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
@@ -1215,7 +1621,195 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL */}
+      {/* MODAL 3: REGISTRO DE ALOJAMIENTO PROPIO (POR CUENTA PROPIA) */}
+      {/* ========================================================================= */}
+      {isPropioModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl space-y-0">
+            
+            <div className="p-6 bg-purple-50/70 dark:bg-purple-950/40 border-b border-purple-100 dark:border-purple-900/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-600 text-white rounded-2xl shadow-sm">
+                  <Home size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Registrar Alojamiento Propio
+                  </h3>
+                  <p className="text-xs text-slate-500">Colaborador que reside por cuenta propia o recibe compensación.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsPropioModalOpen(false);
+                  setSelectedPropioWorker(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
+              {!selectedPropioWorker ? (
+                <div className="space-y-3">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    1. Seleccione el Trabajador:
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre o código (ej: E2105)..."
+                      value={propioWorkerQuery}
+                      onChange={e => setPropioWorkerQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {isSearchingPropio ? (
+                      <div className="p-6 text-center text-slate-400">Buscando colaboradores...</div>
+                    ) : propioSearchResults.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400">Ningún colaborador encontrado.</div>
+                    ) : (
+                      propioSearchResults.map((w: any) => (
+                        <div
+                          key={w.id}
+                          onClick={() => {
+                            setSelectedPropioWorker(w);
+                            setPropioClienteNome(w.contratante || '');
+                            setPropioObraNome(w.ubicacion || '');
+                            setPropioEmpresa(w.contratante || 'LUMINOUS');
+                          }}
+                          className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/40 dark:hover:bg-purple-950/20 cursor-pointer flex justify-between items-center transition-all"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-100">{w.Nombre || w.nombre}</p>
+                            <p className="text-[11px] text-slate-400">{w.funcion || 'Especialista'} • {w.ubicacion || 'España'}</p>
+                          </div>
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-600">
+                            {w.Cod_colab || w.cod_colab}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="font-black text-slate-800 dark:text-slate-100">{selectedPropioWorker.Nombre || selectedPropioWorker.nombre}</p>
+                      <p className="text-[11px] text-purple-700 dark:text-purple-300">{selectedPropioWorker.Cod_colab || selectedPropioWorker.cod_colab}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedPropioWorker(null)}
+                      className="text-xs font-bold text-purple-600 hover:underline"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Empresa Contratante:</label>
+                      <select
+                        value={propioEmpresa}
+                        onChange={e => setPropioEmpresa(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      >
+                        <option value="LUMINOUS">LUMINOUS</option>
+                        <option value="STOCCO">STOCCO</option>
+                        <option value="WISEOWE">WISEOWE</option>
+                        <option value="KOTRIK">KOTRIK</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Cliente / Proyecto:</label>
+                      <input
+                        type="text"
+                        value={propioClienteNome}
+                        onChange={e => setPropioClienteNome(e.target.value)}
+                        placeholder="Ej: INCONAL / EUROFESA"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">Ubicación / Ciudad de la Obra:</label>
+                    <input
+                      type="text"
+                      value={propioObraNome}
+                      onChange={e => setPropioObraNome(e.target.value)}
+                      placeholder="Ej: San Sebastián / Madrid / Asturias"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Inicio:</label>
+                      <input
+                        type="date"
+                        value={propioDataInicio}
+                        onChange={e => setPropioDataInicio(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Fin Prevista:</label>
+                      <input
+                        type="date"
+                        value={propioDataFim}
+                        onChange={e => setPropioDataFim(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">Observaciones:</label>
+                    <input
+                      type="text"
+                      value={propioObservacoes}
+                      onChange={e => setPropioObservacoes(e.target.value)}
+                      placeholder="Motivo o detalle de alojamiento propio..."
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedPropioWorker && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setIsPropioModalOpen(false);
+                    setSelectedPropioWorker(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmPropio}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                >
+                  Guardar Alojamiento Propio
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL */}
       {/* ========================================================================= */}
       {isDirectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1383,7 +1977,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 4: CHECK-OUT */}
+      {/* MODAL 5: CHECK-OUT */}
       {/* ========================================================================= */}
       {checkingOutWorker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
