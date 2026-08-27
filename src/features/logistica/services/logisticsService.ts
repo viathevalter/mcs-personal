@@ -817,7 +817,28 @@ export const logisticsService = {
       .filter(a => a.status !== 'Checkout')
       .map(a => {
         const aloj = alojMap.get(a.alojamento_id || '') || a.alojamento;
-        const isPropio = a.status === 'Alojamiento Propio' || a.tipo_alojamento === 'Propio' || a.alojamento_id === 'propio';
+        const nomeAloj = (aloj?.nome || a.alojamento?.nome || '').toUpperCase();
+        const tipoOrig = (a.tipo_alojamento || '').toUpperCase().trim();
+        const obs = ((a.observacoes || '') + ' ' + (a.endereco_completo || '')).toUpperCase();
+
+        const isCliente = a.tipo_alojamento === 'Cliente' || 
+                          tipoOrig === 'CLIENTE' || 
+                          nomeAloj.includes('CUENTA DEL CLIENTE') || 
+                          nomeAloj.includes('HOTEL COGULLADA') ||
+                          obs.includes('CUENTA DEL CLIENTE');
+
+        const isPropio = !isCliente && (
+          a.status === 'Alojamiento Propio' || 
+          a.tipo_alojamento === 'Propio' || 
+          tipoOrig === 'PROPIO' || 
+          a.alojamento_id === 'propio' || 
+          nomeAloj.includes('CUENTA PROPIA') ||
+          obs.includes('CUENTA PROPIA')
+        );
+
+        let resolvedTipo: 'Empresa' | 'Propio' | 'Cliente' = 'Empresa';
+        if (isPropio) resolvedTipo = 'Propio';
+        else if (isCliente) resolvedTipo = 'Cliente';
 
         return {
           id: a.id,
@@ -830,19 +851,31 @@ export const logisticsService = {
           obra_nome: a.obra_nome || 'Obra',
           pedido_codigo: a.pedido_codigo,
           empresa_contratante: a.empresa_contratante || 'LUMINOUS',
-          alojamento_id: isPropio ? 'propio' : (a.alojamento_id || ''),
-          alojamento_nome: isPropio ? 'Alojamiento Propio / Por Cuenta Propia' : (aloj?.nome || a.obra_nome || 'Alojamiento'),
-          alojamento_codigo: isPropio ? 'PROP-001' : (aloj?.codigo || 'AL-XXXX'),
+          alojamento_id: isPropio ? 'propio' : isCliente ? 'cliente' : (a.alojamento_id || ''),
+          alojamento_nome: isPropio 
+            ? 'Alojamiento Propio / Por Cuenta Propia' 
+            : isCliente 
+            ? (aloj?.nome || 'Alojamiento Cedido por el Cliente') 
+            : (aloj?.nome || a.obra_nome || 'Alojamiento'),
+          alojamento_codigo: isPropio ? 'PROP-001' : isCliente ? 'CLI-001' : (aloj?.codigo || 'AL-XXXX'),
           cama_id: a.cama_id,
-          cama_identificador: isPropio ? 'Habitación Propia' : (a.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble'),
+          cama_identificador: isPropio 
+            ? 'Habitación Propia' 
+            : isCliente 
+            ? 'Habitación Cliente' 
+            : (a.cama_id?.includes('ind') ? 'Cama Individual' : 'Cama Doble'),
           municipio: aloj?.municipio || a.obra_nome || 'España',
           provincia: aloj?.provincia || 'España',
           latitude: aloj?.latitude,
           longitude: aloj?.longitude,
           data_checkin: a.data_inicio,
           data_checkout_prevista: a.data_fim,
-          status: isPropio ? 'Alojamiento Propio' : (a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'),
-          tipo_alojamento: isPropio ? 'Propio' : (a.tipo_alojamento || aloj?.tipo_alojamento || 'Fijo'),
+          status: isPropio 
+            ? 'Alojamiento Propio' 
+            : isCliente 
+            ? 'Alojamiento Cliente' 
+            : (a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'),
+          tipo_alojamento: resolvedTipo,
           custo_alojamento: a.custo_alojamento,
           contacto_hospedaje: a.contacto_hospedaje || aloj?.provedor?.telefone || '',
           worker_movil: a.worker_movil || ''

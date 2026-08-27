@@ -29,6 +29,7 @@ import {
   MessageSquare,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   ShieldCheck,
   SlidersHorizontal,
   Mail,
@@ -36,7 +37,10 @@ import {
   Download,
   FileSpreadsheet,
   Globe,
-  Tag
+  Tag,
+  DollarSign,
+  CalendarDays,
+  Hotel
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
 import type {
@@ -46,9 +50,15 @@ import type {
   TrabalhadorDemandaItem,
   TrabalhadorAlojado
 } from '../services/logisticsService';
+import { ExportLogisticaDialog, ExportColumnDef } from '../components/ExportLogisticaDialog';
+
+const MESES_NOMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 export const DemandasAlocacaoPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio'>('demandas');
+  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente'>('demandas');
   const [pedidos, setPedidos] = useState<PedidoDemandaLogistica[]>([]);
   const [alojados, setAlojados] = useState<TrabalhadorAlojado[]>([]);
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
@@ -60,10 +70,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'alojados'>('todos');
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
 
-  // Filtros de Trabalhadores Alojados (Aba 2 e Aba 3)
+  // Filtros de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
   const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
-  const [alojadosTipoFilter, setAlojadosTipoFilter] = useState('todos');
+
+  // Filtros e Mês de Referência para Alojamiento Propio (Aba 3)
+  const [propioYear, setPropioYear] = useState<number>(2026);
+  const [propioMonth, setPropioMonth] = useState<number>(8); // Agosto (1-12)
+  const [propioSearch, setPropioSearch] = useState('');
+  const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
+  const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
+
+  // Filtros para Alojamiento por Cliente (Aba 4)
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [clienteEmpresaFilter, setClienteEmpresaFilter] = useState('todas');
 
   // Seleção Múltipla para Alocação em Lote
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
@@ -182,6 +202,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [propioWorkerQuery, isPropioModalOpen]);
 
+  // Navegação de Mês para Alojamento Próprio
+  const handlePrevMonth = () => {
+    if (propioMonth === 1) {
+      setPropioMonth(12);
+      setPropioYear(prev => prev - 1);
+    } else {
+      setPropioMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (propioMonth === 12) {
+      setPropioMonth(1);
+      setPropioYear(prev => prev + 1);
+    } else {
+      setPropioMonth(prev => prev + 1);
+    }
+  };
+
   // Pedido atualmente selecionado
   const selectedPedido = useMemo(() => {
     if (!selectedPedidoId) return pedidos[0] || null;
@@ -209,9 +248,22 @@ export const DemandasAlocacaoPage: React.FC = () => {
     });
   }, [pedidos, searchTerm, filterStatus]);
 
-  // Trabalhadores Alojados Filtrados (Aba 2)
-  const filteredAlojados = useMemo(() => {
-    return alojados.filter(a => {
+  // Categorias de Trabalhadores Alojados
+  const empresaAlojadosRaw = useMemo(() => {
+    return alojados.filter(a => a.tipo_alojamento !== 'Propio' && a.tipo_alojamento !== 'Cliente');
+  }, [alojados]);
+
+  const propioAlojadosRaw = useMemo(() => {
+    return alojados.filter(a => a.tipo_alojamento === 'Propio' || a.status === 'Alojamiento Propio');
+  }, [alojados]);
+
+  const clienteAlojadosRaw = useMemo(() => {
+    return alojados.filter(a => a.tipo_alojamento === 'Cliente' || a.status === 'Alojamiento Cliente');
+  }, [alojados]);
+
+  // Trabalhadores Alojados em Imóveis da Empresa Filtrados (Aba 2)
+  const filteredAlojadosEmpresa = useMemo(() => {
+    return empresaAlojadosRaw.filter(a => {
       const q = alojadosSearch.toLowerCase().trim();
       const matchesSearch = !q || (
         a.worker_nome.toLowerCase().includes(q) ||
@@ -229,17 +281,112 @@ export const DemandasAlocacaoPage: React.FC = () => {
         return false;
       }
 
-      if (alojadosTipoFilter === 'empresa' && a.status === 'Alojamiento Propio') return false;
-      if (alojadosTipoFilter === 'propio' && a.status !== 'Alojamiento Propio') return false;
+      return true;
+    });
+  }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter]);
+
+  // Função para Cálculo Proporcional Mensal de Alojamento Próprio (€ 300 base)
+  const calculateProporcionalPropio = (checkinStr?: string, checkoutStr?: string, year: number = 2026, month: number = 8) => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const mStart = new Date(year, month - 1, 1);
+    const mEnd = new Date(year, month - 1, daysInMonth, 23, 59, 59);
+
+    const wStart = checkinStr ? new Date(checkinStr + 'T00:00:00') : new Date('2026-01-01T00:00:00');
+    const wEnd = checkoutStr ? new Date(checkoutStr + 'T23:59:59') : null;
+
+    // Se trabalhador começou depois do fim do mês ou terminou antes do início do mês
+    if (wStart > mEnd || (wEnd && wEnd < mStart)) {
+      return {
+        diasAtivos: 0,
+        totalDiasMes: daysInMonth,
+        valorBase: 300,
+        valorProporcional: 0,
+        isAtivoNoMes: false,
+        periodoTexto: 'Inactivo en el mes'
+      };
+    }
+
+    const effStart = wStart < mStart ? mStart : wStart;
+    const effEnd = (!wEnd || wEnd > mEnd) ? mEnd : wEnd;
+
+    const diffMs = effEnd.getTime() - effStart.getTime();
+    const diasAtivos = Math.min(daysInMonth, Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1));
+
+    let valorProporcional = 300;
+    if (diasAtivos < daysInMonth) {
+      valorProporcional = Math.round((diasAtivos / daysInMonth) * 300 * 100) / 100;
+    }
+
+    return {
+      diasAtivos,
+      totalDiasMes: daysInMonth,
+      valorBase: 300,
+      valorProporcional,
+      isAtivoNoMes: true,
+      periodoTexto: diasAtivos === daysInMonth ? `Mes Completo (${daysInMonth} d)` : `${diasAtivos} / ${daysInMonth} días`
+    };
+  };
+
+  // Trabalhadores com Alojamento Próprio com Cálculo Mensal (Aba 3)
+  const filteredPropriosCalculated = useMemo(() => {
+    return propioAlojadosRaw.map(a => {
+      const calc = calculateProporcionalPropio(a.data_checkin, a.data_checkout_prevista, propioYear, propioMonth);
+      return { ...a, calc };
+    }).filter(a => {
+      const q = propioSearch.toLowerCase().trim();
+      const matchesSearch = !q || (
+        a.worker_nome.toLowerCase().includes(q) ||
+        a.codigo_colab.toLowerCase().includes(q) ||
+        a.cliente_nome.toLowerCase().includes(q) ||
+        a.obra_nome.toLowerCase().includes(q) ||
+        a.municipio.toLowerCase().includes(q) ||
+        (a.empresa_contratante && a.empresa_contratante.toLowerCase().includes(q))
+      );
+
+      if (!matchesSearch) return false;
+
+      if (propioEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== propioEmpresaFilter.toLowerCase()) {
+        return false;
+      }
+
+      if (propioStatusFilter === 'activos' && !a.calc.isAtivoNoMes) return false;
+      if (propioStatusFilter === 'inactivos' && a.calc.isAtivoNoMes) return false;
 
       return true;
     });
-  }, [alojados, alojadosSearch, alojadosEmpresaFilter, alojadosTipoFilter]);
+  }, [propioAlojadosRaw, propioYear, propioMonth, propioSearch, propioEmpresaFilter, propioStatusFilter]);
 
-  // Trabalhadores com Alojamento Próprio (Aba 3)
-  const propriosList = useMemo(() => {
-    return alojados.filter(a => a.status === 'Alojamiento Propio' || a.tipo_alojamento === 'Propio' || a.alojamento_id === 'propio');
-  }, [alojados]);
+  // Totais do Mês para Alojamento Próprio
+  const propiosMonthTotals = useMemo(() => {
+    const totalRegistrados = propioAlojadosRaw.length;
+    const activosNoMes = filteredPropriosCalculated.filter(p => p.calc.isAtivoNoMes).length;
+    const totalAPagar = filteredPropriosCalculated.reduce((acc, p) => acc + p.calc.valorProporcional, 0);
+    return { totalRegistrados, activosNoMes, totalAPagar };
+  }, [propioAlojadosRaw, filteredPropriosCalculated]);
+
+  // Trabalhadores em Alojamento por Cliente Filtrados (Aba 4)
+  const filteredClienteAlojados = useMemo(() => {
+    return clienteAlojadosRaw.filter(a => {
+      const q = clienteSearch.toLowerCase().trim();
+      const matchesSearch = !q || (
+        a.worker_nome.toLowerCase().includes(q) ||
+        a.codigo_colab.toLowerCase().includes(q) ||
+        a.cliente_nome.toLowerCase().includes(q) ||
+        a.obra_nome.toLowerCase().includes(q) ||
+        a.alojamento_nome.toLowerCase().includes(q) ||
+        a.municipio.toLowerCase().includes(q) ||
+        (a.empresa_contratante && a.empresa_contratante.toLowerCase().includes(q))
+      );
+
+      if (!matchesSearch) return false;
+
+      if (clienteEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== clienteEmpresaFilter.toLowerCase()) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [clienteAlojadosRaw, clienteSearch, clienteEmpresaFilter]);
 
   // Contadores globais
   const totalPedidosPendentes = useMemo(() => {
@@ -258,6 +405,58 @@ export const DemandasAlocacaoPage: React.FC = () => {
     });
     return Array.from(set).sort();
   }, [alojados]);
+
+  // Colunas de Exportação para Excel (.xlsx)
+  const exportColumnsPropio: ExportColumnDef[] = [
+    { id: 'codigo_colab', label: 'Cód. Colaborador' },
+    { id: 'worker_nome', label: 'Nombre Trabajador' },
+    { id: 'worker_movil', label: 'Teléfono / Móvil' },
+    { id: 'empresa_contratante', label: 'Empresa Contratante' },
+    { id: 'cliente_nome', label: 'Cliente' },
+    { id: 'obra_nome', label: 'Obra / Ubicación' },
+    { id: 'municipio', label: 'Localidad' },
+    { id: 'mes_referencia', label: 'Mes Referencia' },
+    { id: 'data_checkin', label: 'Fecha Inicio' },
+    { id: 'data_checkout_prevista', label: 'Fecha Fin / Salida' },
+    { id: 'dias_activos', label: 'Días Activos en Mes' },
+    { id: 'total_dias_mes', label: 'Días del Mes' },
+    { id: 'valor_base', label: 'Base Mensual (€)' },
+    { id: 'valor_proporcional', label: 'Importe a Pagar (€)' },
+    { id: 'status', label: 'Estado' }
+  ];
+
+  const exportColumnsEmpresa: ExportColumnDef[] = [
+    { id: 'codigo_colab', label: 'Cód. Colaborador' },
+    { id: 'worker_nome', label: 'Nombre Trabajador' },
+    { id: 'worker_movil', label: 'Teléfono / Móvil' },
+    { id: 'empresa_contratante', label: 'Empresa Contratante' },
+    { id: 'cliente_nome', label: 'Cliente' },
+    { id: 'obra_nome', label: 'Obra / Proyecto' },
+    { id: 'pedido_codigo', label: 'Pedido Comercial' },
+    { id: 'alojamento_codigo', label: 'Cód. Alojamiento' },
+    { id: 'alojamento_nome', label: 'Nombre Alojamiento' },
+    { id: 'cama_identificador', label: 'Habitación / Cama' },
+    { id: 'municipio', label: 'Municipio' },
+    { id: 'provincia', label: 'Provincia' },
+    { id: 'tipo_alojamento', label: 'Modalidad' },
+    { id: 'data_checkin', label: 'Fecha Entrada' },
+    { id: 'data_checkout_prevista', label: 'Fecha Fin Prevista' },
+    { id: 'status', label: 'Estado' }
+  ];
+
+  const exportColumnsCliente: ExportColumnDef[] = [
+    { id: 'codigo_colab', label: 'Cód. Colaborador' },
+    { id: 'worker_nome', label: 'Nombre Trabajador' },
+    { id: 'worker_movil', label: 'Teléfono / Móvil' },
+    { id: 'empresa_contratante', label: 'Empresa Contratante' },
+    { id: 'cliente_nome', label: 'Cliente' },
+    { id: 'obra_nome', label: 'Obra / Ubicación' },
+    { id: 'alojamento_nome', label: 'Alojamiento / Hotel del Cliente' },
+    { id: 'municipio', label: 'Localidad' },
+    { id: 'data_checkin', label: 'Fecha Inicio' },
+    { id: 'data_checkout_prevista', label: 'Fecha Fin Prevista' },
+    { id: 'status', label: 'Estado' }
+  ];
 
   // Exportar Listagem para Planilha Excel (CSV com BOM)
   const exportToExcel = (dataToExport: TrabalhadorAlojado[], filename: string) => {
@@ -587,18 +786,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
       </div>
 
       {/* Abas Principais */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('demandas')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
               activeTab === 'demandas'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
             }`}
           >
-            <Building size={16} />
-            Demandas por Pedido Comercial
+            <Building size={15} />
+            Demandas por Pedido
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
               activeTab === 'demandas'
                 ? 'bg-white/20 text-white'
@@ -610,44 +809,150 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('alojados')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
               activeTab === 'alojados'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
             }`}
           >
-            <UserCheck size={16} />
-            Trabajadores Alojados ({alojados.length})
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold">
-              {alojados.filter(a => a.status !== 'Alojamiento Propio').length} en inmuebles
+            <UserCheck size={15} />
+            Alojamientos Empresa
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'alojados'
+                ? 'bg-white/20 text-white'
+                : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+            }`}>
+              {empresaAlojadosRaw.length} en inmuebles
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('propio')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
               activeTab === 'propio'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
             }`}
           >
-            <Home size={16} />
-            Control de Alojamiento Propio
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 font-bold">
-              {propriosList.length} por cuenta propia
+            <Home size={15} />
+            Alojamiento Propio (€ 300)
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'propio'
+                ? 'bg-white/20 text-white'
+                : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+            }`}>
+              {propioAlojadosRaw.length} por cuenta propia
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('cliente')}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'cliente'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Hotel size={15} />
+            Alojamiento por Cliente
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'cliente'
+                ? 'bg-white/20 text-white'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+            }`}>
+              {clienteAlojadosRaw.length} en cliente
             </span>
           </button>
         </div>
 
-        {/* Botão de Exportar para Excel nas abas de Alojados e Próprio */}
-        {(activeTab === 'alojados' || activeTab === 'propio') && (
-          <button
-            onClick={() => exportToExcel(activeTab === 'propio' ? propriosList : filteredAlojados, activeTab === 'propio' ? 'Alojamiento_Propio_Control' : 'Trabajadores_Alojados_General')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
-          >
-            <Download size={14} />
-            Exportar a Excel / CSV
-          </button>
+        {/* Modal de Exportação Excel (.xlsx) com Seleção de Colunas */}
+        {activeTab === 'propio' ? (
+          <ExportLogisticaDialog
+            trigger={
+              <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs">
+                <FileSpreadsheet size={14} />
+                Exportar Alojamiento Propio (.xlsx)
+              </button>
+            }
+            title={`Exportar Alojamiento Propio — ${MESES_NOMES[propioMonth - 1]} / ${propioYear}`}
+            filenamePrefix={`MCS_Alojamiento_Propio_${MESES_NOMES[propioMonth - 1]}_${propioYear}`}
+            availableColumns={exportColumnsPropio}
+            totalRecordsCount={filteredPropriosCalculated.length}
+            getData={() => filteredPropriosCalculated.map(p => ({
+              codigo_colab: p.codigo_colab,
+              worker_nome: p.worker_nome,
+              worker_movil: p.worker_movil || '',
+              empresa_contratante: p.empresa_contratante || 'LUMINOUS',
+              cliente_nome: p.cliente_nome || '',
+              obra_nome: p.obra_nome || '',
+              municipio: p.municipio || '',
+              mes_referencia: `${MESES_NOMES[propioMonth - 1]} / ${propioYear}`,
+              data_checkin: p.data_checkin || '',
+              data_checkout_prevista: p.data_checkout_prevista || '',
+              dias_activos: p.calc.diasAtivos,
+              total_dias_mes: p.calc.totalDiasMes,
+              valor_base: 300,
+              valor_proporcional: p.calc.valorProporcional,
+              status: p.calc.isAtivoNoMes ? 'Activo en el mes' : 'Inactivo en el mes'
+            }))}
+          />
+        ) : activeTab === 'cliente' ? (
+          <ExportLogisticaDialog
+            trigger={
+              <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs">
+                <FileSpreadsheet size={14} />
+                Exportar Alojamiento Cliente (.xlsx)
+              </button>
+            }
+            title="Exportar Alojamiento Cedido por Cliente"
+            filenamePrefix="MCS_Alojamiento_Cliente"
+            availableColumns={exportColumnsCliente}
+            totalRecordsCount={filteredClienteAlojados.length}
+            getData={() => filteredClienteAlojados.map(a => ({
+              codigo_colab: a.codigo_colab,
+              worker_nome: a.worker_nome,
+              worker_movil: a.worker_movil || '',
+              empresa_contratante: a.empresa_contratante || 'LUMINOUS',
+              cliente_nome: a.cliente_nome || '',
+              obra_nome: a.obra_nome || '',
+              alojamento_nome: a.alojamento_nome || 'Alojamiento Cedido por Cliente',
+              municipio: a.municipio || '',
+              data_checkin: a.data_checkin || '',
+              data_checkout_prevista: a.data_checkout_prevista || '',
+              status: a.status || 'Activo'
+            }))}
+          />
+        ) : (
+          <ExportLogisticaDialog
+            trigger={
+              <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs">
+                <FileSpreadsheet size={14} />
+                Exportar a Excel (.xlsx)
+              </button>
+            }
+            title="Exportar Alojamientos de la Empresa"
+            filenamePrefix="MCS_Alojamientos_Empresa"
+            availableColumns={exportColumnsEmpresa}
+            totalRecordsCount={filteredAlojadosEmpresa.length}
+            getData={() => filteredAlojadosEmpresa.map(a => ({
+              codigo_colab: a.codigo_colab,
+              worker_nome: a.worker_nome,
+              worker_movil: a.worker_movil || '',
+              empresa_contratante: a.empresa_contratante || 'LUMINOUS',
+              cliente_nome: a.cliente_nome || '',
+              obra_nome: a.obra_nome || '',
+              pedido_codigo: a.pedido_codigo || '',
+              alojamento_codigo: a.alojamento_codigo || '',
+              alojamento_nome: a.alojamento_nome || '',
+              cama_identificador: a.cama_identificador || '',
+              municipio: a.municipio || '',
+              provincia: a.provincia || '',
+              tipo_alojamento: a.tipo_alojamento || 'Fijo',
+              data_checkin: a.data_checkin || '',
+              data_checkout_prevista: a.data_checkout_prevista || '',
+              status: a.status || 'Activo'
+            }))}
+          />
         )}
       </div>
 
@@ -1111,19 +1416,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* ABA 2: TRABALHADORES ALOJADOS (GERAL - 256 TRABALHADORES DA PLANILHA E SISTEMA) */}
+      {/* ABA 2: ALOJAMIENTOS DE LA EMPRESA (INMUEBLES PROPIOS/ALQUILADOS) */}
       {/* ========================================================================= */}
       {activeTab === 'alojados' && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
           
-          {/* Header & Filtros da Aba de Alojados */}
+          {/* Header & Filtros da Aba de Alojados da Empresa */}
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/70">
             <div>
               <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <UserCheck size={16} className="text-blue-600" />
-                Ocupación y Asignaciones Activas ({filteredAlojados.length} de {alojados.length})
+                <Building size={16} className="text-blue-600" />
+                Alojamientos Gestionados por la Empresa ({filteredAlojadosEmpresa.length} de {empresaAlojadosRaw.length})
               </h2>
-              <p className="text-xs text-slate-500">Histórico de entradas, control de plazas e inmuebles de toda la base de colaboradores.</p>
+              <p className="text-xs text-slate-500">Colaboradores asignados a plazas e inmuebles contratados por la empresa.</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
@@ -1141,23 +1446,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </select>
               )}
 
-              {/* Filtro Tipo */}
-              <select
-                value={alojadosTipoFilter}
-                onChange={e => setAlojadosTipoFilter(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
-              >
-                <option value="todos">Tipo: Todos</option>
-                <option value="empresa">🏢 Inmuebles Empresa</option>
-                <option value="propio">🏠 Alojamiento Propio</option>
-              </select>
-
               {/* Busca */}
-              <div className="relative w-48 sm:w-60">
+              <div className="relative w-48 sm:w-64">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input
                   type="text"
-                  placeholder="Buscar trabajador, pedido, obra..."
+                  placeholder="Buscar trabajador, pedido, obra, ciudad..."
                   value={alojadosSearch}
                   onChange={e => setAlojadosSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -1180,112 +1474,104 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredAlojados.length === 0 ? (
+                {filteredAlojadosEmpresa.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center text-slate-400">
                       Ningún trabajador encontrado con los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
-                  filteredAlojados.map(aloc => {
-                    const isPropio = aloc.status === 'Alojamiento Propio' || aloc.alojamento_id === 'propio';
-
-                    return (
-                      <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="px-4 py-3.5">
-                          <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
-                            {aloc.worker_movil && (
-                              <a
-                                href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
-                                title="WhatsApp del Trabajador"
-                              >
-                                <Phone size={10} />
-                                {aloc.worker_movil}
-                              </a>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
-                            {aloc.empresa_contratante || 'LUMINOUS'}
-                          </span>
-                          {aloc.pedido_codigo && (
-                            <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                              {aloc.pedido_codigo}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
-                          <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg ${
-                              isPropio
-                                ? 'bg-purple-50 text-purple-600 dark:bg-purple-950/40'
-                                : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'
-                            }`}>
-                              <Home size={13} />
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
-                              <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                          <div className="flex items-center gap-1">
-                            <MapPin size={12} className="text-slate-400" />
-                            <span>{aloc.municipio}</span>
-                          </div>
-                          {aloc.latitude && aloc.longitude && (
+                  filteredAlojadosEmpresa.map(aloc => (
+                    <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                          {aloc.worker_movil && (
                             <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${aloc.latitude},${aloc.longitude}`}
+                              href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-mono"
+                              className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                              title="WhatsApp del Trabajador"
                             >
-                              <Globe size={9} />
-                              Maps
+                              <Phone size={10} />
+                              {aloc.worker_movil}
                             </a>
                           )}
-                        </td>
+                        </div>
+                      </td>
 
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                          <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                          {aloc.data_checkout_prevista && (
-                            <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
-                          )}
-                        </td>
+                      <td className="px-4 py-3.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
+                          {aloc.empresa_contratante || 'LUMINOUS'}
+                        </span>
+                        {aloc.pedido_codigo && (
+                          <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                            {aloc.pedido_codigo}
+                          </span>
+                        )}
+                      </td>
 
-                        <td className="px-4 py-3.5 text-right">
-                          <button
-                            onClick={() => {
-                              setCheckingOutWorker({
-                                alocacaoId: aloc.alocacao_id,
-                                workerNome: aloc.worker_nome,
-                                alojamentoNome: aloc.alojamento_nome
-                              });
-                            }}
-                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                      <td className="px-4 py-3.5">
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
+                        <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                            <Home size={13} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                            <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-1">
+                          <MapPin size={12} className="text-slate-400" />
+                          <span>{aloc.municipio}</span>
+                        </div>
+                        {aloc.latitude && aloc.longitude && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${aloc.latitude},${aloc.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-mono"
                           >
-                            <LogOut size={13} />
-                            Check-out
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                            <Globe size={9} />
+                            Maps
+                          </a>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                        <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                        {aloc.data_checkout_prevista && (
+                          <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          onClick={() => {
+                            setCheckingOutWorker({
+                              alocacaoId: aloc.alocacao_id,
+                              workerNome: aloc.worker_nome,
+                              alojamentoNome: aloc.alojamento_nome
+                            });
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <LogOut size={13} />
+                          Check-out
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -1294,29 +1580,348 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* ABA 3: CONTROL DE ALOJAMIENTO PROPIO (POR CUENTA PROPIA) */}
+      {/* ABA 3: CONTROL DE ALOJAMIENTO PROPIO (€ 300 / MES - PROPORCIONAL DIARIO) */}
       {/* ========================================================================= */}
       {activeTab === 'propio' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
+        <div className="space-y-4">
           
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-950/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Home size={18} className="text-purple-600" />
-                Control de Colaboradores con Alojamiento Propio ({propriosList.length})
-              </h2>
-              <p className="text-xs text-slate-500">
-                Trabajadores que disponen de vivienda particular o ayuda de manutención (no ocupan plazas de la empresa).
-              </p>
+          {/* BANNER DE CONTROLE DO MÊS DE REFERÊNCIA & KPIS DE CUSTO */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-purple-200 dark:border-purple-900/60 p-5 shadow-xs space-y-4">
+            
+            {/* Topo do Banner: Título + Seletor de Mês/Ano + Botão Novo Registro */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+                    <Home size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                      Control de Alojamiento Propio & Ayuda de Coste (€ 300 / mes)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Regla base de 300 €/mes con cálculo proporcional diario según fechas efectivas de entrada y salida en el mes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Seletor de Mês/Ano de Referência com Navegação */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={handlePrevMonth}
+                    className="p-1.5 text-slate-600 hover:text-purple-600 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-colors"
+                    title="Mes Anterior"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <div className="flex items-center gap-1.5 px-2">
+                    <CalendarDays size={14} className="text-purple-600" />
+                    <select
+                      value={propioMonth}
+                      onChange={e => setPropioMonth(Number(e.target.value))}
+                      className="bg-transparent text-xs font-black text-slate-800 dark:text-white cursor-pointer focus:outline-none"
+                    >
+                      {MESES_NOMES.map((nome, idx) => (
+                        <option key={idx + 1} value={idx + 1} className="dark:bg-slate-900">{nome}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={propioYear}
+                      onChange={e => setPropioYear(Number(e.target.value))}
+                      className="bg-transparent text-xs font-black text-slate-800 dark:text-white cursor-pointer focus:outline-none"
+                    >
+                      <option value={2025} className="dark:bg-slate-900">2025</option>
+                      <option value={2026} className="dark:bg-slate-900">2026</option>
+                      <option value={2027} className="dark:bg-slate-900">2027</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleNextMonth}
+                    className="p-1.5 text-slate-600 hover:text-purple-600 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-colors"
+                    title="Mes Siguiente"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setIsPropioModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
+                >
+                  <Plus size={14} />
+                  + Registrar Alojamiento Propio
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={() => setIsPropioModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-            >
-              <Plus size={14} />
-              Registrar Nuevo Alojamiento Propio
-            </button>
+            {/* Grid de KPIs do Mês de Referência */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 bg-purple-50/50 dark:bg-purple-950/20 rounded-2xl border border-purple-100 dark:border-purple-900/30 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                  Colaboradores Registrados
+                </span>
+                <p className="text-xl font-black text-slate-800 dark:text-slate-100">
+                  {propiosMonthTotals.totalRegistrados}
+                </p>
+                <span className="text-[10px] text-purple-600 font-semibold block">
+                  Base total por cuenta propia
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                  Activos en {MESES_NOMES[propioMonth - 1]}
+                </span>
+                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                  {propiosMonthTotals.activosNoMes}
+                </p>
+                <span className="text-[10px] text-emerald-600 font-semibold block">
+                  Con derecho a ayuda este mes
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-100 dark:border-amber-900/30 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                  Regla de Ayuda Base
+                </span>
+                <p className="text-xl font-black text-slate-800 dark:text-slate-100">
+                  € 300,00 <span className="text-xs font-normal text-slate-400">/ mes</span>
+                </p>
+                <span className="text-[10px] text-amber-600 font-semibold block">
+                  Día = € {(300 / new Date(propioYear, propioMonth, 0).getDate()).toFixed(2)}/día ({new Date(propioYear, propioMonth, 0).getDate()} d)
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-purple-600 text-white rounded-2xl shadow-sm space-y-1">
+                <span className="text-[10px] uppercase font-bold text-purple-100 block">
+                  Total a Pagar en {MESES_NOMES[propioMonth - 1]}
+                </span>
+                <p className="text-2xl font-black tracking-tight">
+                  € {propiosMonthTotals.totalAPagar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <span className="text-[10px] text-purple-100 font-medium block">
+                  Cálculo proporcional mensual
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de Filtros Internos da Tabela */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {empresasList.length > 0 && (
+                  <select
+                    value={propioEmpresaFilter}
+                    onChange={e => setPropioEmpresaFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  >
+                    <option value="todas">Empresa: Todas</option>
+                    {empresasList.map(emp => (
+                      <option key={emp} value={emp}>{emp}</option>
+                    ))}
+                  </select>
+                )}
+
+                <select
+                  value={propioStatusFilter}
+                  onChange={e => setPropioStatusFilter(e.target.value as any)}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todos">Estado Mes: Todos ({filteredPropriosCalculated.length})</option>
+                  <option value="activos">Solo Activos en {MESES_NOMES[propioMonth - 1]} ({propiosMonthTotals.activosNoMes})</option>
+                  <option value="inactivos">Inactivos / Fuera de este Mes</option>
+                </select>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Buscar colaborador, cliente, ciudad..."
+                  value={propioSearch}
+                  onChange={e => setPropioSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* TABELA DETALHADA COM CÁLCULO PROPORCIONAL */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <tr>
+                    <th className="px-4 py-3">Trabajador</th>
+                    <th className="px-4 py-3">Empresa</th>
+                    <th className="px-4 py-3">Cliente & Pedido</th>
+                    <th className="px-4 py-3">Localidad / Obra</th>
+                    <th className="px-4 py-3">Período Activo</th>
+                    <th className="px-4 py-3">Días en {MESES_NOMES[propioMonth - 1]}</th>
+                    <th className="px-4 py-3">Base</th>
+                    <th className="px-4 py-3">A Pagar ({MESES_NOMES[propioMonth - 1]})</th>
+                    <th className="px-4 py-3 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredPropriosCalculated.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-12 text-center text-slate-400">
+                        No hay colaboradores con alojamiento propio que coincidan con los filtros.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPropriosCalculated.map(a => {
+                      const isFullMonth = a.calc.diasAtivos === a.calc.totalDiasMes;
+                      const isZero = a.calc.diasAtivos === 0;
+
+                      return (
+                        <tr key={a.id} className="hover:bg-purple-50/20 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="px-4 py-3.5">
+                            <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
+                              {a.worker_movil && (
+                                <a
+                                  href={`https://wa.me/${a.worker_movil.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                  title="WhatsApp del Trabajador"
+                                >
+                                  <Phone size={10} />
+                                  {a.worker_movil}
+                                </a>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              {a.empresa_contratante || 'LUMINOUS'}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <p className="font-semibold text-slate-700 dark:text-slate-300">{a.cliente_nome}</p>
+                            {a.pedido_codigo && <p className="text-[10px] font-mono text-slate-400">{a.pedido_codigo}</p>}
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                              <MapPin size={12} className="text-slate-400" />
+                              <span>{a.obra_nome || a.municipio}</span>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                            <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
+                            {a.data_checkout_prevista && <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>}
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isZero
+                                ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                : isFullMonth
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                            }`}>
+                              {a.calc.periodoTexto}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5 font-bold text-slate-600 dark:text-slate-400">
+                            € 300,00
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-black px-2.5 py-1 rounded-xl inline-block ${
+                              isZero
+                                ? 'text-slate-400 bg-slate-50 dark:bg-slate-800'
+                                : isFullMonth
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                            }`}>
+                              € {a.calc.valorProporcional.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              onClick={() => {
+                                setCheckingOutWorker({
+                                  alocacaoId: a.alocacao_id,
+                                  workerNome: a.worker_nome,
+                                  alojamentoNome: 'Alojamiento Propio'
+                                });
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1"
+                            >
+                              <LogOut size={13} />
+                              Finalizar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ABA 4: ALOJAMIENTOS CEDIDOS POR CLIENTE (SIN COSTE PARA MCS) */}
+      {/* ========================================================================= */}
+      {activeTab === 'cliente' && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
+          
+          {/* Header & Filtros da Aba de Alojamento por Cliente */}
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-amber-50/50 dark:bg-amber-950/20">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Hotel size={16} className="text-amber-600" />
+                Alojamientos Cedidos por el Cliente ({filteredClienteAlojados.length} de {clienteAlojadosRaw.length})
+              </h2>
+              <p className="text-xs text-slate-500">Colaboradores hospedados en instalaciones provistas directamente por el cliente de la obra.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Filtro Empresa */}
+              {empresasList.length > 0 && (
+                <select
+                  value={clienteEmpresaFilter}
+                  onChange={e => setClienteEmpresaFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todas">Empresa: Todas</option>
+                  {empresasList.map(emp => (
+                    <option key={emp} value={emp}>{emp}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Busca */}
+              <div className="relative w-48 sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Buscar colaborador, cliente, hotel, ciudad..."
+                  value={clienteSearch}
+                  onChange={e => setClienteSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
@@ -1324,85 +1929,95 @@ export const DemandasAlocacaoPage: React.FC = () => {
               <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-4 py-3">Trabajador</th>
-                  <th className="px-4 py-3">Empresa</th>
-                  <th className="px-4 py-3">Cliente & Pedido</th>
-                  <th className="px-4 py-3">Localidad / Obra</th>
-                  <th className="px-4 py-3">Modalidad</th>
-                  <th className="px-4 py-3">Período Activo</th>
+                  <th className="px-4 py-3">Empresa Contratante</th>
+                  <th className="px-4 py-3">Cliente & Obra</th>
+                  <th className="px-4 py-3">Alojamiento / Hotel del Cliente</th>
+                  <th className="px-4 py-3">Ubicación</th>
+                  <th className="px-4 py-3">Período</th>
                   <th className="px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {propriosList.length === 0 ? (
+                {filteredClienteAlojados.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center text-slate-400">
-                      No hay colaboradores registrados con alojamiento propio.
+                      Ningún trabajador en alojamiento cedido por cliente encontrado.
                     </td>
                   </tr>
                 ) : (
-                  propriosList.map(a => (
-                    <tr key={a.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  filteredClienteAlojados.map(aloc => (
+                    <tr key={aloc.id} className="hover:bg-amber-50/20 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
-                          {a.worker_movil && (
+                          <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                          {aloc.worker_movil && (
                             <a
-                              href={`https://wa.me/${a.worker_movil.replace(/\D/g, '')}`}
+                              href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
                               title="WhatsApp del Trabajador"
                             >
                               <Phone size={10} />
-                              {a.worker_movil}
+                              {aloc.worker_movil}
                             </a>
                           )}
                         </div>
                       </td>
 
                       <td className="px-4 py-3.5">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                          {a.empresa_contratante || 'LUMINOUS'}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
+                          {aloc.empresa_contratante || 'LUMINOUS'}
                         </span>
                       </td>
 
                       <td className="px-4 py-3.5">
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">{a.cliente_nome}</p>
-                        {a.pedido_codigo && <p className="text-[10px] font-mono text-slate-400">{a.pedido_codigo}</p>}
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
+                        <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
                       </td>
 
                       <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                          <MapPin size={12} className="text-slate-400" />
-                          <span>{a.obra_nome || a.municipio}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40">
+                            <Hotel size={13} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+                              Cedido por el Cliente (Sin coste MCS)
+                            </span>
+                          </div>
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
-                          🏠 Por Cuenta Propia
-                        </span>
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-1">
+                          <MapPin size={12} className="text-slate-400" />
+                          <span>{aloc.municipio}</span>
+                        </div>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        <p className="font-medium">Desde: {a.data_checkin}</p>
-                        {a.data_checkout_prevista && <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>}
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                        <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                        {aloc.data_checkout_prevista && (
+                          <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => {
                             setCheckingOutWorker({
-                              alocacaoId: a.alocacao_id,
-                              workerNome: a.worker_nome,
-                              alojamentoNome: 'Alojamiento Propio'
+                              alocacaoId: aloc.alocacao_id,
+                              workerNome: aloc.worker_nome,
+                              alojamentoNome: aloc.alojamento_nome
                             });
                           }}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors inline-flex items-center gap-1"
+                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
                         >
                           <LogOut size={13} />
-                          Finalizar
+                          Check-out
                         </button>
                       </td>
                     </tr>
