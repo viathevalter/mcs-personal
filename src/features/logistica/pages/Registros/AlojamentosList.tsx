@@ -347,12 +347,16 @@ export const AlojamentosList: React.FC = () => {
   const kpis = useMemo(() => {
     const totalAlojamentos = alojamentos.length;
     const activos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo').length;
-    const totalPlazas = alojamentos.reduce((acc, a) => acc + (a.capacidade_pessoas || a.total_camas || 0), 0);
-    const totalAlquiler = alojamentos.reduce((acc, a) => acc + (Number(a.valor_mensal) || 0), 0);
+    const alojamentosActivos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo');
+    const totalPlazas = alojamentosActivos.reduce((acc, a) => acc + (a.capacidade_pessoas || a.total_camas || 0), 0);
+    // Somente contratos fixos de arrendamento ativo
+    const totalAlquilerFijo = alojamentosActivos
+      .filter(a => a.tipo_alojamento !== 'Temporal')
+      .reduce((acc, a) => acc + Math.max(0, Number(a.valor_mensal) || 0), 0);
     const totalProveedores = provedores.length;
     const totalOcupantes = alocacoes.filter(a => a.status !== 'Checkout' && a.status !== 'Alojamiento Propio').length;
 
-    return { totalAlojamentos, activos, totalPlazas, totalAlquiler, totalProveedores, totalOcupantes };
+    return { totalAlojamentos, activos, totalPlazas, totalAlquiler: totalAlquilerFijo, totalProveedores, totalOcupantes };
   }, [alojamentos, provedores, alocacoes]);
 
   // Contagem de Alojamientos por Provedor
@@ -528,14 +532,14 @@ export const AlojamentosList: React.FC = () => {
 
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Alquiler Mensual Total</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Alquiler Fijo Mensual</span>
             <DollarSign size={16} className="text-amber-500" />
           </div>
           <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
             € {kpis.totalAlquiler.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            Coste base de arrendamiento
+            Contratos fijos activos
           </span>
         </div>
 
@@ -1438,7 +1442,14 @@ export const AlojamentosList: React.FC = () => {
                     const provAlojamentos = getAlojamentosForProvedor(p);
                     const isExpanded = expandedProvedorIds.has(p.id);
                     const totalPlazasProv = provAlojamentos.reduce((acc, curr) => acc + (curr.capacidade_pessoas || curr.total_camas || 0), 0);
-                    const totalCustoProv = provAlojamentos.reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0);
+                    
+                    const fijos = provAlojamentos.filter(a => a.tipo_alojamento !== 'Temporal');
+                    const temporales = provAlojamentos.filter(a => a.tipo_alojamento === 'Temporal');
+                    const totalCustoFijo = fijos.reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0);
+                    const isPlataforma = p.nome_razao_social?.toLowerCase().includes('airbnb') || 
+                                         p.nome_razao_social?.toLowerCase().includes('booking') || 
+                                         p.nome_razao_social?.toLowerCase().includes('idealista') ||
+                                         (temporales.length > 0 && fijos.length === 0);
 
                     return (
                       <div
@@ -1473,9 +1484,9 @@ export const AlojamentosList: React.FC = () => {
                                   {p.nome_razao_social}
                                 </h3>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                  {p.tipo_provedor || 'Inmobiliaria'}
+                                  {isPlataforma ? 'Plataforma / Temporal' : (p.tipo_provedor || 'Inmobiliaria')}
                                 </span>
-                                {p.tipo_pessoa && (
+                                {p.tipo_pessoa && p.tipo_pessoa !== p.tipo_provedor && (
                                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                                     {p.tipo_pessoa}
                                   </span>
@@ -1549,11 +1560,25 @@ export const AlojamentosList: React.FC = () => {
 
                             <div className="text-left lg:text-right">
                               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                                Alquiler Mensual
+                                {isPlataforma || (fijos.length === 0 && temporales.length > 0) ? 'Modalidad' : 'Alquiler Fijo'}
                               </span>
-                              <span className="text-sm font-black text-slate-900 dark:text-white">
-                                € {totalCustoProv.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
+                              {isPlataforma || (fijos.length === 0 && temporales.length > 0) ? (
+                                <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 inline-block mt-0.5">
+                                  Reservas Temporales
+                                </span>
+                              ) : fijos.length > 0 && temporales.length > 0 ? (
+                                <span className="text-sm font-black text-slate-900 dark:text-white">
+                                  € {totalCustoFijo.toLocaleString('es-ES', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-slate-400">/ mes (+{temporales.length} temp.)</span>
+                                </span>
+                              ) : fijos.length > 0 ? (
+                                <span className="text-sm font-black text-slate-900 dark:text-white">
+                                  € {totalCustoFijo.toLocaleString('es-ES', { minimumFractionDigits: 2 })} <span className="text-[11px] font-normal opacity-80">/ mes</span>
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-medium">
+                                  Sin inmuebles
+                                </span>
+                              )}
                             </div>
 
                             {/* Ações & Chevron */}
@@ -1844,14 +1869,27 @@ export const AlojamentosList: React.FC = () => {
                           </td>
 
                           <td className="px-4 py-3.5">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs ${
-                              provAlojamentos.length > 0
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
-                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
-                            }`}>
-                              <Home size={13} />
-                              {provAlojamentos.length} inmuebles
-                            </span>
+                            <div className="space-y-1">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-bold text-xs ${
+                                provAlojamentos.length > 0
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
+                                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                              }`}>
+                                <Home size={13} />
+                                {provAlojamentos.length} inmuebles
+                              </span>
+                              {provAlojamentos.length > 0 && (
+                                provAlojamentos.every(a => a.tipo_alojamento === 'Temporal') || p.nome_razao_social?.toLowerCase().includes('airbnb') || p.nome_razao_social?.toLowerCase().includes('booking') ? (
+                                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+                                    Reservas Temporales
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">
+                                    € {provAlojamentos.filter(a => a.tipo_alojamento !== 'Temporal').reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} / mes
+                                  </span>
+                                )
+                              )}
+                            </div>
                           </td>
 
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
