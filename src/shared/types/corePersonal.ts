@@ -85,6 +85,8 @@ export interface SeguridadeStatus {
     origem_contratante?: string;
     data_solicitacao: string;
     data_efetiva?: string;
+    data_alvo_execucao?: string;
+    lembrete_postit?: string | null;
     observacoes?: string;
     created_at: string;
     updated_at: string;

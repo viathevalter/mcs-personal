@@ -55,3 +55,24 @@ export async function fetchVidaLaboralByWorker(workerId: string): Promise<Seguri
 
     return data as SeguridadeStatus[];
 }
+
+export async function updateSeguridadePostit(
+    id: string,
+    lembretePostit: string | null
+): Promise<SeguridadeStatus> {
+    const { data, error } = await supabase
+        .schema('core_personal')
+        .from('seguridade_status')
+        .update({ lembrete_postit: lembretePostit, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    return data as SeguridadeStatus;
+}
+
+

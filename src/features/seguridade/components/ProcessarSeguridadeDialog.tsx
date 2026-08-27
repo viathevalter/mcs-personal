@@ -137,23 +137,29 @@ export function ProcessarSeguridadeDialog({ isOpen, onClose, item }: ProcessarSe
                                 value={item.worker.fecha_nacimiento ? new Date(item.worker.fecha_nacimiento).toLocaleDateString('pt-BR') : null} 
                             />
                             <CopyableField label="Função" value={item.worker.funcion} />
-                            <CopyableField 
-                                label="Contratação" 
-                                value={item.worker.data_ingresso ? new Date(item.worker.data_ingresso).toLocaleDateString('pt-BR') : null} 
-                            />
-                            <CopyableField 
-                                label="Data Baixa" 
-                                value={item.worker.data_baixa ? new Date(item.worker.data_baixa).toLocaleDateString('pt-BR') : null} 
-                            />
                             <CopyableField label="Contratante" value={item.origem_contratante || item.worker.contratante} />
-                            <div className="sm:col-span-2">
-                                <CopyableField label="Cliente" value={item.origem_cliente_nome} />
-                            </div>
+                            <CopyableField label="Cliente" value={item.origem_cliente_nome} />
+                            <CopyableField 
+                                label={isAlta ? "Data Início (Efetivação)" : "Data Saída (Efetivação)"} 
+                                value={item.data_alvo_execucao ? new Date(item.data_alvo_execucao).toLocaleDateString('pt-BR') : (item.worker.data_ingresso ? new Date(item.worker.data_ingresso).toLocaleDateString('pt-BR') : null)} 
+                            />
                         </div>
+
+                        {/* Lembrete Post-it se houver */}
+                        {item.lembrete_postit && (
+                            <div className="border border-amber-300 dark:border-amber-800 bg-amber-50/90 dark:bg-amber-950/40 rounded p-2.5 mt-1 text-xs">
+                                <p className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5 mb-1">
+                                    <span>📌 Lembrete / Post-it da Tarefa:</span>
+                                </p>
+                                <p className="text-amber-950 dark:text-amber-100 whitespace-pre-wrap">
+                                    {item.lembrete_postit}
+                                </p>
+                            </div>
+                        )}
 
                         {/* Histórico da Inativação / Alta */}
                         {(item.hist_data_efetiva || item.hist_observacoes || item.observacoes) && (
-                            <div className="border border-border/50 bg-background/50 rounded p-2.5 mt-2 space-y-2">
+                            <div className="border border-border/50 bg-background/50 rounded p-2.5 mt-1 space-y-2">
                                 <p className="text-xs font-semibold text-foreground/80 border-b border-border/50 pb-1 flex justify-between items-center">
                                     <span>Histórico de {isAlta ? 'Alta' : 'Baixa'} (Trabalhador)</span>
                                     {item.autor_inativacao && (
