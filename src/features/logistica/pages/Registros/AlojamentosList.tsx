@@ -8,6 +8,7 @@ import {
   Upload,
   Home,
   Building,
+  Building2,
   Eye,
   Pencil,
   Trash2,
