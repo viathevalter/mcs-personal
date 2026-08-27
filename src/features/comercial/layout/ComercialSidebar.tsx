@@ -10,7 +10,8 @@ import {
     Kanban,
     Mail,
     Zap,
-    BarChart3
+    BarChart3,
+    Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -42,6 +43,7 @@ export function ComercialSidebar() {
             titleDefault: 'Gestão Comercial',
             links: [
                 { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/portfolio', label: 'Portfólio & Referências', icon: Award, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial', 'rh'] },
             ]
         },
