@@ -40,7 +40,10 @@ import {
   Tag,
   DollarSign,
   CalendarDays,
-  Hotel
+  Hotel,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
 import type {
@@ -65,25 +68,37 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [camasDisponiveis, setCamasDisponiveis] = useState<Cama[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filtros de Pedidos (Aba 1)
+  // Filtros e Ordenação de Pedidos (Aba 1)
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'alojados'>('todos');
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
+  const [pedidosSortField, setPedidosSortField] = useState<'cliente' | 'empresa' | 'obra' | 'cidade' | 'pendentes' | 'data'>('pendentes');
+  const [pedidosSortOrder, setPedidosSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Filtros de Alojamientos de la Empresa (Aba 2)
+  // Ordenação dos Trabalhadores do Pedido Selecionado (Aba 1)
+  const [pedidoWorkersSortField, setPedidoWorkersSortField] = useState<'nome' | 'codigo' | 'funcao' | 'status'>('status');
+  const [pedidoWorkersSortOrder, setPedidoWorkersSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Filtros e Ordenação de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
   const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
+  const [empresaSortField, setEmpresaSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'data_checkin'>('cliente');
+  const [empresaSortOrder, setEmpresaSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Filtros e Mês de Referência para Alojamiento Propio (Aba 3)
+  // Filtros, Mês de Referência e Ordenação para Alojamiento Propio (Aba 3)
   const [propioYear, setPropioYear] = useState<number>(2026);
   const [propioMonth, setPropioMonth] = useState<number>(8); // Agosto (1-12)
   const [propioSearch, setPropioSearch] = useState('');
   const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
   const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
+  const [propioSortField, setPropioSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'municipio' | 'periodo' | 'dias' | 'valor'>('cliente');
+  const [propioSortOrder, setPropioSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Filtros para Alojamiento por Cliente (Aba 4)
+  // Filtros e Ordenação para Alojamiento por Cliente (Aba 4)
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteEmpresaFilter, setClienteEmpresaFilter] = useState('todas');
+  const [clienteSortField, setClienteSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'periodo'>('cliente');
+  const [clienteSortOrder, setClienteSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Seleção Múltipla para Alocação em Lote
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
@@ -387,6 +402,112 @@ export const DemandasAlocacaoPage: React.FC = () => {
       return true;
     });
   }, [clienteAlojadosRaw, clienteSearch, clienteEmpresaFilter]);
+
+  // Helpers de Comparação e Ordenação
+  const compareValues = (a: any, b: any, direction: 'asc' | 'desc') => {
+    if (a === b) return 0;
+    if (a == null || a === '') return direction === 'asc' ? 1 : -1;
+    if (b == null || b === '') return direction === 'asc' ? -1 : 1;
+
+    if (typeof a === 'number' && typeof b === 'number') {
+      return direction === 'asc' ? a - b : b - a;
+    }
+
+    const strA = String(a).toLowerCase().trim();
+    const strB = String(b).toLowerCase().trim();
+    const comp = strA.localeCompare(strB, 'es', { sensitivity: 'base', numeric: true });
+    return direction === 'asc' ? comp : -comp;
+  };
+
+  const renderSortIcon = (currentField: string, activeField: string, activeOrder: 'asc' | 'desc') => {
+    if (currentField !== activeField) {
+      return <ArrowUpDown size={11} className="text-slate-300 dark:text-slate-600 opacity-60 group-hover:opacity-100 transition-opacity ml-1 inline-block" />;
+    }
+    return activeOrder === 'asc'
+      ? <ArrowUp size={11} className="text-blue-600 dark:text-blue-400 font-black ml-1 inline-block" />
+      : <ArrowDown size={11} className="text-blue-600 dark:text-blue-400 font-black ml-1 inline-block" />;
+  };
+
+  // 1. Pedidos Ordenados (Aba 1)
+  const sortedPedidos = useMemo(() => {
+    return [...filteredPedidos].sort((a, b) => {
+      switch (pedidosSortField) {
+        case 'cliente': return compareValues(a.cliente_nome, b.cliente_nome, pedidosSortOrder);
+        case 'empresa': return compareValues(a.empresa_contratante, b.empresa_contratante, pedidosSortOrder);
+        case 'obra': return compareValues(a.obra_nome, b.obra_nome, pedidosSortOrder);
+        case 'cidade': return compareValues(a.cidade, b.cidade, pedidosSortOrder);
+        case 'pendentes': return compareValues(a.total_pendentes_alojamento, b.total_pendentes_alojamento, pedidosSortOrder);
+        case 'data': return compareValues(a.data_inicio, b.data_inicio, pedidosSortOrder);
+        default: return 0;
+      }
+    });
+  }, [filteredPedidos, pedidosSortField, pedidosSortOrder]);
+
+  // 2. Trabalhadores do Pedido Selecionado Ordenados (Aba 1)
+  const sortedPedidoWorkers = useMemo(() => {
+    if (!selectedPedido) return [];
+    return [...selectedPedido.trabalhadores].sort((a, b) => {
+      switch (pedidoWorkersSortField) {
+        case 'nome': return compareValues(a.worker_nome, b.worker_nome, pedidoWorkersSortOrder);
+        case 'codigo': return compareValues(a.codigo_colab, b.codigo_colab, pedidoWorkersSortOrder);
+        case 'funcao': return compareValues(a.funcao, b.funcao, pedidoWorkersSortOrder);
+        case 'status': return compareValues(a.status_alocacao, b.status_alocacao, pedidoWorkersSortOrder);
+        default: return 0;
+      }
+    });
+  }, [selectedPedido, pedidoWorkersSortField, pedidoWorkersSortOrder]);
+
+  // 3. Alojamientos Empresa Ordenados (Aba 2)
+  const sortedAlojadosEmpresa = useMemo(() => {
+    return [...filteredAlojadosEmpresa].sort((a, b) => {
+      switch (empresaSortField) {
+        case 'worker': return compareValues(a.worker_nome, b.worker_nome, empresaSortOrder);
+        case 'codigo': return compareValues(a.codigo_colab, b.codigo_colab, empresaSortOrder);
+        case 'empresa': return compareValues(a.empresa_contratante, b.empresa_contratante, empresaSortOrder);
+        case 'cliente': return compareValues(a.cliente_nome, b.cliente_nome, empresaSortOrder);
+        case 'obra': return compareValues(a.obra_nome, b.obra_nome, empresaSortOrder);
+        case 'alojamento': return compareValues(a.alojamento_nome, b.alojamento_nome, empresaSortOrder);
+        case 'municipio': return compareValues(a.municipio, b.municipio, empresaSortOrder);
+        case 'data_checkin': return compareValues(a.data_checkin, b.data_checkin, empresaSortOrder);
+        default: return 0;
+      }
+    });
+  }, [filteredAlojadosEmpresa, empresaSortField, empresaSortOrder]);
+
+  // 4. Alojamiento Propio Ordenados (Aba 3)
+  const sortedPropriosCalculated = useMemo(() => {
+    return [...filteredPropriosCalculated].sort((a, b) => {
+      switch (propioSortField) {
+        case 'worker': return compareValues(a.worker_nome, b.worker_nome, propioSortOrder);
+        case 'codigo': return compareValues(a.codigo_colab, b.codigo_colab, propioSortOrder);
+        case 'empresa': return compareValues(a.empresa_contratante, b.empresa_contratante, propioSortOrder);
+        case 'cliente': return compareValues(a.cliente_nome, b.cliente_nome, propioSortOrder);
+        case 'obra': return compareValues(a.obra_nome, b.obra_nome, propioSortOrder);
+        case 'municipio': return compareValues(a.municipio, b.municipio, propioSortOrder);
+        case 'periodo': return compareValues(a.data_checkin, b.data_checkin, propioSortOrder);
+        case 'dias': return compareValues(a.calc.diasAtivos, b.calc.diasAtivos, propioSortOrder);
+        case 'valor': return compareValues(a.calc.valorProporcional, b.calc.valorProporcional, propioSortOrder);
+        default: return 0;
+      }
+    });
+  }, [filteredPropriosCalculated, propioSortField, propioSortOrder]);
+
+  // 5. Alojamiento por Cliente Ordenados (Aba 4)
+  const sortedClienteAlojados = useMemo(() => {
+    return [...filteredClienteAlojados].sort((a, b) => {
+      switch (clienteSortField) {
+        case 'worker': return compareValues(a.worker_nome, b.worker_nome, clienteSortOrder);
+        case 'codigo': return compareValues(a.codigo_colab, b.codigo_colab, clienteSortOrder);
+        case 'empresa': return compareValues(a.empresa_contratante, b.empresa_contratante, clienteSortOrder);
+        case 'cliente': return compareValues(a.cliente_nome, b.cliente_nome, clienteSortOrder);
+        case 'obra': return compareValues(a.obra_nome, b.obra_nome, clienteSortOrder);
+        case 'alojamento': return compareValues(a.alojamento_nome, b.alojamento_nome, clienteSortOrder);
+        case 'municipio': return compareValues(a.municipio, b.municipio, clienteSortOrder);
+        case 'periodo': return compareValues(a.data_checkin, b.data_checkin, clienteSortOrder);
+        default: return 0;
+      }
+    });
+  }, [filteredClienteAlojados, clienteSortField, clienteSortOrder]);
 
   // Contadores globais
   const totalPedidosPendentes = useMemo(() => {
@@ -965,7 +1086,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
           {/* COLUNA ESQUERDA (5 COLUNAS): LISTA DE PEDIDOS */}
           <div className="lg:col-span-5 space-y-4">
             
-            {/* Barra de Busca e Filtros de Pedidos */}
+            {/* Barra de Busca, Filtros e Ordenação de Pedidos */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -978,24 +1099,49 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
-                {[
-                  { key: 'todos', label: 'Todos' },
-                  { key: 'pendentes', label: `Pendientes (${totalPedidosPendentes})` },
-                  { key: 'alojados', label: 'Completos' }
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setFilterStatus(tab.key as any)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                      filterStatus === tab.key
-                        ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                    }`}
+              <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+                <div className="flex gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto flex-1">
+                  {[
+                    { key: 'todos', label: 'Todos' },
+                    { key: 'pendentes', label: `Pendientes (${totalPedidosPendentes})` },
+                    { key: 'alojados', label: 'Completos' }
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setFilterStatus(tab.key as any)}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        filterStatus === tab.key
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Seletor de Ordenação de Pedidos */}
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <select
+                    value={`${pedidosSortField}_${pedidosSortOrder}`}
+                    onChange={e => {
+                      const [field, order] = e.target.value.split('_');
+                      setPedidosSortField(field as any);
+                      setPedidosSortOrder(order as any);
+                    }}
+                    className="w-full sm:w-auto px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300"
                   >
-                    {tab.label}
-                  </button>
-                ))}
+                    <option value="pendentes_desc">Ordenar: Más Pendientes</option>
+                    <option value="cliente_asc">Cliente (A-Z)</option>
+                    <option value="cliente_desc">Cliente (Z-A)</option>
+                    <option value="empresa_asc">Empresa (A-Z)</option>
+                    <option value="empresa_desc">Empresa (Z-A)</option>
+                    <option value="cidade_asc">Localidad (A-Z)</option>
+                    <option value="cidade_desc">Localidad (Z-A)</option>
+                    <option value="data_asc">Fecha de Inicio (Próximos)</option>
+                    <option value="data_desc">Fecha de Inicio (Recientes)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1006,14 +1152,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                   <p className="text-xs font-semibold">Cargando pedidos de la operación...</p>
                 </div>
-              ) : filteredPedidos.length === 0 ? (
+              ) : sortedPedidos.length === 0 ? (
                 <div className="p-8 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-2">
                   <Building size={28} className="mx-auto text-slate-400" />
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Ningún pedido encontrado</p>
                   <p className="text-xs text-slate-400">Pruebe ajustando los filtros de búsqueda.</p>
                 </div>
               ) : (
-                filteredPedidos.map(pedido => {
+                sortedPedidos.map(pedido => {
                   const isSelected = selectedPedido?.pedido_id === pedido.pedido_id;
                   const isComplete = pedido.total_pendentes_alojamento === 0 && pedido.total_alojados > 0;
 
@@ -1105,7 +1251,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
             {selectedPedido ? (
               <div className="space-y-5">
                 
-                {/* 1. BANNER UNIFICADO DO PEDIDO (PASTEL / CLARO / DARK ADAPTATIVO COM TIMELINE) */}
+                {/* 1. BANNER UNIFICADO DO PEDIDO */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-5">
                   
                   {/* Linha Superior: Código, Empresa, Cliente e Localização */}
@@ -1183,7 +1329,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Linha Inferior: Banner Timeline Pastel (Início Previsto, Duração e Fim Previsto) */}
+                  {/* Linha Inferior: Banner Timeline Pastel */}
                   <div className="bg-slate-50/90 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     
                     {/* Início Previsto */}
@@ -1275,27 +1421,72 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Tabela de Trabalhadores */}
+                  {/* Tabela de Trabalhadores com Ordenação nos Cabeçalhos */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-slate-50 dark:bg-slate-800/50 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                         <tr>
                           <th className="w-8 px-4 py-3"></th>
-                          <th className="px-4 py-3">Trabajador</th>
-                          <th className="px-4 py-3">Función / Cargo</th>
-                          <th className="px-4 py-3">Alojamiento & Cama</th>
+                          <th className="px-4 py-3">
+                            <button
+                              onClick={() => {
+                                if (pedidoWorkersSortField === 'nome') {
+                                  setPedidoWorkersSortOrder(pedidoWorkersSortOrder === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                  setPedidoWorkersSortField('nome');
+                                  setPedidoWorkersSortOrder('asc');
+                                }
+                              }}
+                              className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                            >
+                              Trabajador
+                              {renderSortIcon('nome', pedidoWorkersSortField, pedidoWorkersSortOrder)}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3">
+                            <button
+                              onClick={() => {
+                                if (pedidoWorkersSortField === 'funcao') {
+                                  setPedidoWorkersSortOrder(pedidoWorkersSortOrder === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                  setPedidoWorkersSortField('funcao');
+                                  setPedidoWorkersSortOrder('asc');
+                                }
+                              }}
+                              className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                            >
+                              Función / Cargo
+                              {renderSortIcon('funcao', pedidoWorkersSortField, pedidoWorkersSortOrder)}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3">
+                            <button
+                              onClick={() => {
+                                if (pedidoWorkersSortField === 'status') {
+                                  setPedidoWorkersSortOrder(pedidoWorkersSortOrder === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                  setPedidoWorkersSortField('status');
+                                  setPedidoWorkersSortOrder('asc');
+                                }
+                              }}
+                              className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                            >
+                              Alojamiento & Cama
+                              {renderSortIcon('status', pedidoWorkersSortField, pedidoWorkersSortOrder)}
+                            </button>
+                          </th>
                           <th className="px-4 py-3 text-right">Acción</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {selectedPedido.trabalhadores.length === 0 ? (
+                        {sortedPedidoWorkers.length === 0 ? (
                           <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-400">
                               Aún no hay trabajadores asignados a este pedido en la Contratación.
                             </td>
                           </tr>
                         ) : (
-                          selectedPedido.trabalhadores.map(worker => {
+                          sortedPedidoWorkers.map(worker => {
                             const isSelected = selectedWorkerIds.includes(worker.worker_id);
                             const isAllocated = worker.status_alocacao === 'alocado';
 
@@ -1464,24 +1655,120 @@ export const DemandasAlocacaoPage: React.FC = () => {
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="px-4 py-3">Trabajador</th>
-                  <th className="px-4 py-3">Empresa & Pedido</th>
-                  <th className="px-4 py-3">Cliente & Obra</th>
-                  <th className="px-4 py-3">Alojamiento & Cama</th>
-                  <th className="px-4 py-3">Ubicación / GPS</th>
-                  <th className="px-4 py-3">Check-in / Previsto</th>
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'worker') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('worker');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Trabajador
+                      {renderSortIcon('worker', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'empresa') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('empresa');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Empresa & Pedido
+                      {renderSortIcon('empresa', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'cliente') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('cliente');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Cliente & Obra
+                      {renderSortIcon('cliente', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'alojamento') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('alojamento');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Alojamiento & Cama
+                      {renderSortIcon('alojamento', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'municipio') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('municipio');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Ubicación / GPS
+                      {renderSortIcon('municipio', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (empresaSortField === 'data_checkin') {
+                          setEmpresaSortOrder(empresaSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setEmpresaSortField('data_checkin');
+                          setEmpresaSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Check-in / Previsto
+                      {renderSortIcon('data_checkin', empresaSortField, empresaSortOrder)}
+                    </button>
+                  </th>
+
                   <th className="px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredAlojadosEmpresa.length === 0 ? (
+                {sortedAlojadosEmpresa.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center text-slate-400">
                       Ningún trabajador encontrado con los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
-                  filteredAlojadosEmpresa.map(aloc => (
+                  sortedAlojadosEmpresa.map(aloc => (
                     <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3.5">
                         <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
@@ -1757,26 +2044,139 @@ export const DemandasAlocacaoPage: React.FC = () => {
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
                   <tr>
-                    <th className="px-4 py-3">Trabajador</th>
-                    <th className="px-4 py-3">Empresa</th>
-                    <th className="px-4 py-3">Cliente & Pedido</th>
-                    <th className="px-4 py-3">Localidad / Obra</th>
-                    <th className="px-4 py-3">Período Activo</th>
-                    <th className="px-4 py-3">Días en {MESES_NOMES[propioMonth - 1]}</th>
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'worker') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('worker');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Trabajador
+                        {renderSortIcon('worker', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'empresa') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('empresa');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Empresa
+                        {renderSortIcon('empresa', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'cliente') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('cliente');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Cliente & Pedido
+                        {renderSortIcon('cliente', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'municipio') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('municipio');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Localidad / Obra
+                        {renderSortIcon('municipio', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'periodo') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('periodo');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Período Activo
+                        {renderSortIcon('periodo', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'dias') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('dias');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        Días en {MESES_NOMES[propioMonth - 1]}
+                        {renderSortIcon('dias', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
                     <th className="px-4 py-3">Base</th>
-                    <th className="px-4 py-3">A Pagar ({MESES_NOMES[propioMonth - 1]})</th>
+
+                    <th className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (propioSortField === 'valor') {
+                            setPropioSortOrder(propioSortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setPropioSortField('valor');
+                            setPropioSortOrder('asc');
+                          }
+                        }}
+                        className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        A Pagar ({MESES_NOMES[propioMonth - 1]})
+                        {renderSortIcon('valor', propioSortField, propioSortOrder)}
+                      </button>
+                    </th>
+
                     <th className="px-4 py-3 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredPropriosCalculated.length === 0 ? (
+                  {sortedPropriosCalculated.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-12 text-center text-slate-400">
                         No hay colaboradores con alojamiento propio que coincidan con los filtros.
                       </td>
                     </tr>
                   ) : (
-                    filteredPropriosCalculated.map(a => {
+                    sortedPropriosCalculated.map(a => {
                       const isFullMonth = a.calc.diasAtivos === a.calc.totalDiasMes;
                       const isZero = a.calc.diasAtivos === 0;
 
@@ -1928,24 +2328,120 @@ export const DemandasAlocacaoPage: React.FC = () => {
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="px-4 py-3">Trabajador</th>
-                  <th className="px-4 py-3">Empresa Contratante</th>
-                  <th className="px-4 py-3">Cliente & Obra</th>
-                  <th className="px-4 py-3">Alojamiento / Hotel del Cliente</th>
-                  <th className="px-4 py-3">Ubicación</th>
-                  <th className="px-4 py-3">Período</th>
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'worker') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('worker');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Trabajador
+                      {renderSortIcon('worker', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'empresa') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('empresa');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Empresa Contratante
+                      {renderSortIcon('empresa', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'cliente') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('cliente');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Cliente & Obra
+                      {renderSortIcon('cliente', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'alojamento') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('alojamento');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Alojamiento / Hotel del Cliente
+                      {renderSortIcon('alojamento', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'municipio') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('municipio');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Ubicación
+                      {renderSortIcon('municipio', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3">
+                    <button
+                      onClick={() => {
+                        if (clienteSortField === 'periodo') {
+                          setClienteSortOrder(clienteSortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setClienteSortField('periodo');
+                          setClienteSortOrder('asc');
+                        }
+                      }}
+                      className="flex items-center gap-1 font-bold group hover:text-slate-700 dark:hover:text-slate-200"
+                    >
+                      Período
+                      {renderSortIcon('periodo', clienteSortField, clienteSortOrder)}
+                    </button>
+                  </th>
+
                   <th className="px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredClienteAlojados.length === 0 ? (
+                {sortedClienteAlojados.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center text-slate-400">
                       Ningún trabajador en alojamiento cedido por cliente encontrado.
                     </td>
                   </tr>
                 ) : (
-                  filteredClienteAlojados.map(aloc => (
+                  sortedClienteAlojados.map(aloc => (
                     <tr key={aloc.id} className="hover:bg-amber-50/20 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3.5">
                         <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>

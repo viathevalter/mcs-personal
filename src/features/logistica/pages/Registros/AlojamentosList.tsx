@@ -431,7 +431,7 @@ export const AlojamentosList: React.FC = () => {
     });
   }, [filteredAlojamentos, sortField, sortOrder]);
 
-  // Filtros de Proveedores
+  // Filtros e Ordenação de Proveedores
   const filteredProvedores = useMemo(() => {
     return provedores.filter(p => {
       const q = searchTerm.toLowerCase().trim();
@@ -443,8 +443,21 @@ export const AlojamentosList: React.FC = () => {
         (p.iban && p.iban.toLowerCase().includes(q))
       );
       return matchesSearch;
+    }).sort((a, b) => {
+      let valA: any = a[sortField as keyof Provedor];
+      let valB: any = b[sortField as keyof Provedor];
+
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+
+      if (typeof valA === 'string') {
+        return sortOrder === 'asc' 
+          ? valA.localeCompare(valB, 'es', { sensitivity: 'base' }) 
+          : valB.localeCompare(valA, 'es', { sensitivity: 'base' });
+      }
+      return sortOrder === 'asc' ? valA - valB : valB - valA;
     });
-  }, [provedores, searchTerm]);
+  }, [provedores, searchTerm, sortField, sortOrder]);
 
   return (
     <div className="w-full px-8 py-6 space-y-6">
@@ -1257,28 +1270,33 @@ export const AlojamentosList: React.FC = () => {
                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
                   <tr>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome')}>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
                         Inmueble / Título
-                        <ArrowUpDown size={12} />
+                        <ArrowUpDown size={12} className={sortField === 'nome' ? 'text-blue-600' : 'text-slate-400'} />
                       </div>
                     </th>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('tipo_alojamento')}>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
                         Modalidad
-                        <ArrowUpDown size={12} />
+                        <ArrowUpDown size={12} className={sortField === 'tipo_alojamento' ? 'text-blue-600' : 'text-slate-400'} />
                       </div>
                     </th>
-                    <th className="px-4 py-3">Alquiler / Coste</th>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('valor_mensal')}>
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+                        Alquiler / Coste
+                        <ArrowUpDown size={12} className={sortField === 'valor_mensal' ? 'text-blue-600' : 'text-slate-400'} />
+                      </div>
+                    </th>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('capacidade_pessoas')}>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
                         Ocupación / Capacidad
-                        <ArrowUpDown size={12} />
+                        <ArrowUpDown size={12} className={sortField === 'capacidade_pessoas' ? 'text-blue-600' : 'text-slate-400'} />
                       </div>
                     </th>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('municipio')}>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
                         Ubicación
-                        <ArrowUpDown size={12} />
+                        <ArrowUpDown size={12} className={sortField === 'municipio' ? 'text-blue-600' : 'text-slate-400'} />
                       </div>
                     </th>
                     <th className="px-4 py-3">Proveedor</th>
@@ -1814,15 +1832,25 @@ export const AlojamentosList: React.FC = () => {
                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
                   <tr>
                     <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome_razao_social')}>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
                         Proveedor / Razón Social
-                        <ArrowUpDown size={12} />
+                        <ArrowUpDown size={12} className={sortField === 'nome_razao_social' ? 'text-purple-600' : 'text-slate-400'} />
                       </div>
                     </th>
-                    <th className="px-4 py-3">CIF / NIF</th>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('cif_nif')}>
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+                        CIF / NIF
+                        <ArrowUpDown size={12} className={sortField === 'cif_nif' ? 'text-purple-600' : 'text-slate-400'} />
+                      </div>
+                    </th>
                     <th className="px-4 py-3">Contacto / Teléfono</th>
                     <th className="px-4 py-3">Alojamientos Vinculados</th>
-                    <th className="px-4 py-3">Ubicación</th>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('municipio')}>
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+                        Ubicación
+                        <ArrowUpDown size={12} className={sortField === 'municipio' ? 'text-purple-600' : 'text-slate-400'} />
+                      </div>
+                    </th>
                     <th className="px-4 py-3">IBAN</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
