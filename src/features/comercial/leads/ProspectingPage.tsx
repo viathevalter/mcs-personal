@@ -249,10 +249,10 @@ export function ProspectingPage() {
           stepResult.processed > 0 ? 'success' : 'warn'
         );
 
-        if (stepResult.completed || (consecutiveEmptyBatches >= 2 && currentMetric >= 30)) {
+        if (stepResult.completed || consecutiveEmptyBatches >= 2) {
           await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
           addLog(
-            `Missão "${currentJob.title}" concluída com saturação máxima (${currentMetric} empresas reais verificadas). Avançando para a próxima da fila...`,
+            `Missão "${currentJob.title}" finalizada (${currentMetric} empresas verificadas). Avançando automaticamente para a próxima missão da fila...`,
             'success'
           );
           shouldContinue = false;
