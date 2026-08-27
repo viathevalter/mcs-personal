@@ -24,7 +24,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.10359,
       "longitude": -32.6698
-    }
+    },
+    "contacto_hospedaje": "Cristina Inmobiliaria Infinity Bilbao +34 602 25 46 84"
   },
   {
     "id": "aloc-import-1-1787823440961",
@@ -51,7 +52,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.10359,
       "longitude": -32.6698
-    }
+    },
+    "contacto_hospedaje": "Marìa +34 617 00 83 05"
   },
   {
     "id": "aloc-import-2-1787823440961",
@@ -78,7 +80,8 @@
       "municipio": "VALENCIA",
       "latitude": 39.46975,
       "longitude": -37.739
-    }
+    },
+    "contacto_hospedaje": "Pedro +34 647 71 99 66"
   },
   {
     "id": "aloc-import-3-1787823440961",
@@ -103,7 +106,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "MADRID"
-    }
+    },
+    "contacto_hospedaje": "976401821"
   },
   {
     "id": "aloc-import-4-1787823440962",
@@ -128,7 +132,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ASTURIAS"
-    }
+    },
+    "contacto_hospedaje": "Javier +34 616 09 72 05"
   },
   {
     "id": "aloc-import-5-1787823440962",
@@ -182,7 +187,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-7-1787823440962",
@@ -209,7 +215,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "+34 627 76 10 71"
   },
   {
     "id": "aloc-import-8-1787823440962",
@@ -236,7 +243,8 @@
       "municipio": "TARRAGONA",
       "latitude": 41.11667,
       "longitude": 125
-    }
+    },
+    "contacto_hospedaje": "+34 698 70 79 86 Pascal"
   },
   {
     "id": "aloc-import-9-1787823440963",
@@ -263,7 +271,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Xavier +34658991946"
   },
   {
     "id": "aloc-import-10-1787823440963",
@@ -317,7 +326,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "+34 925 67 00 03"
   },
   {
     "id": "aloc-import-15-1787823440964",
@@ -342,7 +352,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "MADRID"
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-16-1787823440964",
@@ -369,7 +380,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Federica +39 339 384 5545"
   },
   {
     "id": "aloc-import-17-1787823440964",
@@ -396,7 +408,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-18-1787823440965",
@@ -423,7 +436,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-19-1787823440965",
@@ -450,7 +464,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-20-1787823440965",
@@ -477,7 +492,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-21-1787823440965",
@@ -504,7 +520,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "+34 935621261"
   },
   {
     "id": "aloc-import-22-1787823440965",
@@ -531,7 +548,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "María Cinta Homedes Esteve +34 609 89 12 12"
   },
   {
     "id": "aloc-import-23-1787823440965",
@@ -610,7 +628,8 @@
       "municipio": "CORDOBA",
       "latitude": 37.89155,
       "longitude": -47.7275
-    }
+    },
+    "contacto_hospedaje": "Sra Marga +34 672 26 89 60"
   },
   {
     "id": "aloc-import-26-1787823440966",
@@ -660,7 +679,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "ALMERÍA"
-    }
+    },
+    "contacto_hospedaje": "Begoña +34 629 47 33 54"
   },
   {
     "id": "aloc-import-28-1787823440966",
@@ -1018,7 +1038,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "CASA KOTRIK"
   },
   {
     "id": "aloc-import-42-1787823440968",
@@ -1045,7 +1066,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-43-1787823440968",
@@ -1072,7 +1094,8 @@
       "municipio": "BURGOS",
       "latitude": 42.34106,
       "longitude": -37.0184
-    }
+    },
+    "contacto_hospedaje": "Alvaro +34 613 37 29 76"
   },
   {
     "id": "aloc-import-44-1787823440968",
@@ -1151,7 +1174,8 @@
       "municipio": "BURGOS",
       "latitude": 42.34106,
       "longitude": -37.0184
-    }
+    },
+    "contacto_hospedaje": "Alvaro +34 613 37 29 76"
   },
   {
     "id": "aloc-import-48-1787823440969",
@@ -1178,7 +1202,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "+34 604 23 91 60 ~William Saucedo Robles"
   },
   {
     "id": "aloc-import-49-1787823440969",
@@ -1255,7 +1280,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "Matilde 34 629 44 19 26"
   },
   {
     "id": "aloc-import-52-1787823440969",
@@ -1309,7 +1335,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-54-1787823440969",
@@ -1336,7 +1363,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-55-1787823440969",
@@ -1363,7 +1391,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-56-1787823440969",
@@ -1415,7 +1444,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-58-1787823440970",
@@ -1467,7 +1497,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "+34 691 10 06 00"
   },
   {
     "id": "aloc-import-60-1787823440970",
@@ -1494,7 +1525,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-61-1787823440970",
@@ -1521,7 +1553,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-62-1787823440970",
@@ -1573,7 +1606,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-64-1787823440970",
@@ -1600,7 +1634,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-65-1787823440971",
@@ -1627,7 +1662,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-66-1787823440971",
@@ -1679,7 +1715,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-69-1787823440971",
@@ -1706,7 +1743,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-70-1787823440971",
@@ -1733,7 +1771,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Federica +39 339 384 5545"
   },
   {
     "id": "aloc-import-71-1787823440971",
@@ -1760,7 +1799,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-73-1787823440972",
@@ -1787,7 +1827,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-74-1787823440972",
@@ -1814,7 +1855,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "Matilde 34 629 44 19 26"
   },
   {
     "id": "aloc-import-75-1787823440972",
@@ -1991,7 +2033,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-82-1787823440972",
@@ -2018,7 +2061,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-83-1787823440973",
@@ -2045,7 +2089,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Mari +34 666 26 32 59"
   },
   {
     "id": "aloc-import-84-1787823440973",
@@ -2072,7 +2117,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Federica +39 339 384 5545"
   },
   {
     "id": "aloc-import-85-1787823440973",
@@ -2099,7 +2145,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Tel. +39 346 734 3783"
   },
   {
     "id": "aloc-import-86-1787823440973",
@@ -2126,7 +2173,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Federica +39 339 384 5545"
   },
   {
     "id": "aloc-import-87-1787823440973",
@@ -2153,7 +2201,8 @@
       "municipio": "RAVENNA",
       "latitude": 44.41344,
       "longitude": 122.0121
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-88-1787823440973",
@@ -2180,7 +2229,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Pedro +34 647 71 99 66"
   },
   {
     "id": "aloc-import-89-1787823440973",
@@ -2207,7 +2257,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-90-1787823440973",
@@ -2234,7 +2285,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-91-1787823440973",
@@ -2261,7 +2313,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-92-1787823440974",
@@ -2288,7 +2341,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
   },
   {
     "id": "aloc-import-93-1787823440974",
@@ -2340,7 +2394,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "976401821"
   },
   {
     "id": "aloc-import-95-1787823440974",
@@ -2392,7 +2447,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
   },
   {
     "id": "aloc-import-97-1787823440974",
@@ -3046,7 +3102,8 @@
       "municipio": "ZARAGOZA",
       "latitude": 41.65606,
       "longitude": -87.734
-    }
+    },
+    "contacto_hospedaje": "JOAQUINA +34 628 66 51 40"
   },
   {
     "id": "aloc-import-123-1787823440976",
@@ -3098,7 +3155,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 622 49 35 74"
   },
   {
     "id": "aloc-import-126-1787823440976",
@@ -3150,7 +3208,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Jordi +34 683 39 60 92 /+34 619 75 79 50~Jaume"
   },
   {
     "id": "aloc-import-128-1787823440976",
@@ -3177,7 +3236,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Xavier +34658991946"
   },
   {
     "id": "aloc-import-129-1787823440976",
@@ -3204,7 +3264,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Xavier +34658991946"
   },
   {
     "id": "aloc-import-130-1787823440976",
@@ -3231,7 +3292,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Xavier +34658991946"
   },
   {
     "id": "aloc-import-131-1787823440976",
@@ -3258,7 +3320,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Xavier +34658991946"
   },
   {
     "id": "aloc-import-132-1787823440976",
@@ -3285,7 +3348,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.96262,
       "longitude": -41.6706
-    }
+    },
+    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77"
   },
   {
     "id": "aloc-import-133-1787823440977",
@@ -3312,7 +3376,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.96262,
       "longitude": -41.6706
-    }
+    },
+    "contacto_hospedaje": "Luis Piso Maliaño +34 630 74 80 77"
   },
   {
     "id": "aloc-import-134-1787823440977",
@@ -3339,7 +3404,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.84998,
       "longitude": -26.7268
-    }
+    },
+    "contacto_hospedaje": "YOLANDA 691573152"
   },
   {
     "id": "aloc-import-135-1787823440977",
@@ -3366,7 +3432,8 @@
       "municipio": "LEGAZPI",
       "latitude": 40.38884,
       "longitude": -36.8715
-    }
+    },
+    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22"
   },
   {
     "id": "aloc-import-136-1787823440977",
@@ -3393,7 +3460,8 @@
       "municipio": "TAUSTE",
       "latitude": 41.91804,
       "longitude": -125.343
-    }
+    },
+    "contacto_hospedaje": "Cristina  662177636"
   },
   {
     "id": "aloc-import-137-1787823440977",
@@ -3420,7 +3488,8 @@
       "municipio": "TAUSTE",
       "latitude": 41.91804,
       "longitude": -125.343
-    }
+    },
+    "contacto_hospedaje": "Cristina  662177636"
   },
   {
     "id": "aloc-import-138-1787823440977",
@@ -3497,7 +3566,8 @@
       "municipio": "TAUSTE",
       "latitude": 41.91804,
       "longitude": -125.343
-    }
+    },
+    "contacto_hospedaje": "Cristina  662177636"
   },
   {
     "id": "aloc-import-141-1787823440977",
@@ -3549,7 +3619,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.84998,
       "longitude": -26.7268
-    }
+    },
+    "contacto_hospedaje": "YOLANDA 691573152"
   },
   {
     "id": "aloc-import-143-1787823440977",
@@ -3576,7 +3647,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.84998,
       "longitude": -26.7268
-    }
+    },
+    "contacto_hospedaje": "YOLANDA 691573152"
   },
   {
     "id": "aloc-import-144-1787823440977",
@@ -3628,7 +3700,8 @@
       "municipio": "VIZCAYA",
       "latitude": 42.84998,
       "longitude": -26.7268
-    }
+    },
+    "contacto_hospedaje": "YOLANDA 691573152"
   },
   {
     "id": "aloc-import-146-1787823440977",
@@ -3655,7 +3728,8 @@
       "municipio": "LEGAZPI",
       "latitude": 40.38884,
       "longitude": -36.8715
-    }
+    },
+    "contacto_hospedaje": "Antonia Pensión Zelai  +34 670 26 49 22"
   },
   {
     "id": "aloc-import-147-1787823440978",
@@ -3732,7 +3806,8 @@
       "municipio": "PUERTOLLANO",
       "latitude": 38.68712,
       "longitude": -41.0734
-    }
+    },
+    "contacto_hospedaje": "Enrique +34 628 92 23 53"
   },
   {
     "id": "aloc-import-150-1787823440978",
@@ -3759,7 +3834,8 @@
       "municipio": "PUERTOLLANO",
       "latitude": 38.68712,
       "longitude": -41.0734
-    }
+    },
+    "contacto_hospedaje": "Enrique +34 628 92 23 53"
   },
   {
     "id": "aloc-import-151-1787823440978",
@@ -3784,7 +3860,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "PONTEVEDRA"
-    }
+    },
+    "contacto_hospedaje": "+34 986592608"
   },
   {
     "id": "aloc-import-152-1787823440978",
@@ -3811,7 +3888,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-153-1787823440978",
@@ -3838,7 +3916,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-154-1787823440978",
@@ -3865,7 +3944,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-155-1787823440979",
@@ -3892,7 +3972,8 @@
       "municipio": "HUESCA",
       "latitude": 42.13615,
       "longitude": -40.87
-    }
+    },
+    "contacto_hospedaje": "Chema +34 615 11 10 04"
   },
   {
     "id": "aloc-import-156-1787823440979",
@@ -3942,7 +4023,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "BARCELONA"
-    }
+    },
+    "contacto_hospedaje": "CASA KOTRIK"
   },
   {
     "id": "aloc-import-158-1787823440979",
@@ -3969,7 +4051,8 @@
       "municipio": "HUESCA",
       "latitude": 42.13615,
       "longitude": -40.87
-    }
+    },
+    "contacto_hospedaje": "Chema +34 615 11 10 04"
   },
   {
     "id": "aloc-import-161-1787823440979",
@@ -4021,7 +4104,8 @@
       "municipio": "HUESCA",
       "latitude": 42.13615,
       "longitude": -40.87
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-163-1787823440979",
@@ -4048,7 +4132,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-164-1787823440980",
@@ -4075,7 +4160,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-165-1787823440980",
@@ -4129,7 +4215,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "David +34 611 67 42 21"
   },
   {
     "id": "aloc-import-168-1787823440980",
@@ -4181,7 +4268,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "OURENSE"
-    }
+    },
+    "contacto_hospedaje": "Emilio +34 653 87 07 05"
   },
   {
     "id": "aloc-import-170-1787823440980",
@@ -4368,7 +4456,8 @@
       "municipio": "MADRID",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
   },
   {
     "id": "aloc-import-177-1787823440981",
@@ -4422,7 +4511,8 @@
       "municipio": "MADRID",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
   },
   {
     "id": "aloc-import-179-1787823440981",
@@ -4476,7 +4566,8 @@
       "municipio": "GUIPUZCOA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Agustin +34 639238889"
   },
   {
     "id": "aloc-import-181-1787823440982",
@@ -4659,7 +4750,8 @@
       "municipio": "GUIPUZCOA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Agustin +34 639238889"
   },
   {
     "id": "aloc-import-191-1787823440983",
@@ -4740,7 +4832,8 @@
       "municipio": "GUIPUZCOA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Agustin +34 639238889"
   },
   {
     "id": "aloc-import-194-1787823440984",
@@ -4767,7 +4860,8 @@
       "municipio": "GUIPUZCOA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Agustin +34 639238889"
   },
   {
     "id": "aloc-import-195-1787823440984",
@@ -4792,7 +4886,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "PLASENCIA"
-    }
+    },
+    "contacto_hospedaje": "+34 646 46 22 23~Yolanda"
   },
   {
     "id": "aloc-import-196-1787823440984",
@@ -4819,7 +4914,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 634469640 - +34 652261740"
   },
   {
     "id": "aloc-import-197-1787823440984",
@@ -4896,7 +4992,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "+34 659 90 03 72 Josep"
   },
   {
     "id": "aloc-import-200-1787823440984",
@@ -4923,7 +5020,8 @@
       "municipio": "LEON",
       "latitude": 42.60003,
       "longitude": -55.7032
-    }
+    },
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
   },
   {
     "id": "aloc-import-201-1787823440985",
@@ -4950,7 +5048,8 @@
       "municipio": "LEON",
       "latitude": 42.60003,
       "longitude": -55.7032
-    }
+    },
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
   },
   {
     "id": "aloc-import-202-1787823440985",
@@ -4977,7 +5076,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "+34 659 90 03 72 Josep"
   },
   {
     "id": "aloc-import-203-1787823440985",
@@ -5031,7 +5131,8 @@
       "municipio": "LEON",
       "latitude": 42.60003,
       "longitude": -55.7032
-    }
+    },
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
   },
   {
     "id": "aloc-import-205-1787823440985",
@@ -5058,7 +5159,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "+34 659 90 03 72 Josep"
   },
   {
     "id": "aloc-import-206-1787823440985",
@@ -5110,7 +5212,8 @@
       "municipio": "LEON",
       "latitude": 42.60003,
       "longitude": -55.7032
-    }
+    },
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
   },
   {
     "id": "aloc-import-208-1787823440985",
@@ -5137,7 +5240,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "+34 659 90 03 72 Josep"
   },
   {
     "id": "aloc-import-209-1787823440985",
@@ -5189,7 +5293,8 @@
       "municipio": "MADRID",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
   },
   {
     "id": "aloc-import-211-1787823440986",
@@ -5216,7 +5321,8 @@
       "municipio": "MADRID",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
   },
   {
     "id": "aloc-import-212-1787823440986",
@@ -5243,7 +5349,8 @@
       "municipio": "MADRID",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Rooms Salomons +34 658 13 23 00"
   },
   {
     "id": "aloc-import-213-1787823440986",
@@ -5347,7 +5454,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-217-1787823440986",
@@ -5374,7 +5482,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-218-1787823440986",
@@ -5401,7 +5510,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-219-1787823440986",
@@ -5453,7 +5563,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-221-1787823440986",
@@ -5480,7 +5591,8 @@
       "municipio": "LLEIDA",
       "latitude": 41.61674,
       "longitude": 62.218
-    }
+    },
+    "contacto_hospedaje": "Ramon 34 609 03 58 20"
   },
   {
     "id": "aloc-import-222-1787823440986",
@@ -5507,7 +5619,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-223-1787823440986",
@@ -5561,7 +5674,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-225-1787823440986",
@@ -5588,7 +5702,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Patricia Reus 605681569"
   },
   {
     "id": "aloc-import-226-1787823440987",
@@ -5746,7 +5861,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-232-1787823440987",
@@ -5773,7 +5889,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-233-1787823440987",
@@ -5800,7 +5917,8 @@
       "municipio": "ELGOIBAR",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 631 40 33 27"
   },
   {
     "id": "aloc-import-234-1787823440987",
@@ -5827,7 +5945,8 @@
       "municipio": "LEON",
       "latitude": 42.60003,
       "longitude": -55.7032
-    }
+    },
+    "contacto_hospedaje": "casa puri+34 681 95 21 93 / +34 680 38 45 47"
   },
   {
     "id": "aloc-import-235-1787823440987",
@@ -5854,7 +5973,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-236-1787823440987",
@@ -5881,7 +6001,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-237-1787823440988",
@@ -5908,7 +6029,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Casilda Cruz 972 209 159"
   },
   {
     "id": "aloc-import-238-1787823440988",
@@ -5935,7 +6057,8 @@
       "municipio": "BARCELONA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73"
   },
   {
     "id": "aloc-import-239-1787823440988",
@@ -5962,7 +6085,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
   },
   {
     "id": "aloc-import-240-1787823440988",
@@ -5989,7 +6113,8 @@
       "municipio": "BARCELONA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "Francesc Majoral +34 610 27 75 73"
   },
   {
     "id": "aloc-import-241-1787823440988",
@@ -6016,7 +6141,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
   },
   {
     "id": "aloc-import-242-1787823440988",
@@ -6043,7 +6169,8 @@
       "municipio": "GIRONA",
       "latitude": 41.98311,
       "longitude": 28.2493
-    }
+    },
+    "contacto_hospedaje": "Alla Maksimova +34 682 80 68 71"
   },
   {
     "id": "aloc-import-243-1787823440988",
@@ -6070,7 +6197,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-244-1787823440988",
@@ -6097,7 +6225,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-245-1787823440988",
@@ -6124,7 +6253,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-246-1787823440988",
@@ -6151,7 +6281,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-247-1787823440988",
@@ -6178,7 +6309,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-249-1787823440988",
@@ -6205,7 +6337,8 @@
       "municipio": "TARRAGONA",
       "latitude": 41.11667,
       "longitude": 125
-    }
+    },
+    "contacto_hospedaje": "+34 661100267 Carmen"
   },
   {
     "id": "aloc-import-250-1787823440988",
@@ -6232,7 +6365,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Victoria +34 608 89 24 19"
   },
   {
     "id": "aloc-import-251-1787823440988",
@@ -6259,7 +6393,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Victoria +34 608 89 24 19"
   },
   {
     "id": "aloc-import-252-1787823440989",
@@ -6286,7 +6421,8 @@
       "municipio": "TARRAGONA",
       "latitude": 41.11667,
       "longitude": 125
-    }
+    },
+    "contacto_hospedaje": "+34 661100267 Carmen"
   },
   {
     "id": "aloc-import-253-1787823440989",
@@ -6313,7 +6449,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Victoria +34 608 89 24 19"
   },
   {
     "id": "aloc-import-254-1787823440989",
@@ -6340,7 +6477,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Victoria +34 608 89 24 19"
   },
   {
     "id": "aloc-import-255-1787823440989",
@@ -6365,7 +6503,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LEON"
-    }
+    },
+    "contacto_hospedaje": "Contacto: +34 623 10 33 26"
   },
   {
     "id": "aloc-import-258-1787823440989",
@@ -6392,7 +6531,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-259-1787823440989",
@@ -6417,7 +6557,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LEON"
-    }
+    },
+    "contacto_hospedaje": "Contacto: +34 623 10 33 26"
   },
   {
     "id": "aloc-import-260-1787823440989",
@@ -6467,7 +6608,8 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "HUESCA"
-    }
+    },
+    "contacto_hospedaje": "Pablo +34 677461284"
   },
   {
     "id": "aloc-import-263-1787823440990",
@@ -6494,7 +6636,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 634469640 - +34 652261740"
   },
   {
     "id": "aloc-import-264-1787823440990",
@@ -6521,7 +6664,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 634469640 - +34 652261740"
   },
   {
     "id": "aloc-import-265-1787823440990",
@@ -6548,7 +6692,8 @@
       "municipio": "BARCELONA",
       "latitude": 41.38879,
       "longitude": 21.5899
-    }
+    },
+    "contacto_hospedaje": "Inmobiliaia Gerbru Marga +34 696 87 52 47"
   },
   {
     "id": "aloc-import-266-1787823440990",
@@ -6600,7 +6745,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 634469640 - +34 652261740"
   },
   {
     "id": "aloc-import-268-1787823440991",
@@ -6627,7 +6773,8 @@
       "municipio": "LA RIOJA",
       "latitude": null,
       "longitude": null
-    }
+    },
+    "contacto_hospedaje": "+34 634469640 - +34 652261740"
   },
   {
     "id": "aloc-import-269-1787823440991",
@@ -6679,7 +6826,8 @@
       "municipio": "CASTELLON",
       "latitude": 39.07741,
       "longitude": -51.167
-    }
+    },
+    "contacto_hospedaje": "Lucia +34 629 73 97 58"
   },
   {
     "id": "aloc-import-271-1787823440991",
@@ -6706,7 +6854,8 @@
       "municipio": "CASTELLON",
       "latitude": 39.07741,
       "longitude": -51.167
-    }
+    },
+    "contacto_hospedaje": "Lucia +34 629 73 97 58"
   },
   {
     "id": "aloc-import-274-1787823440992",
@@ -6731,6 +6880,7 @@
       "nome": "Alojamiento Propio / Por Cuenta Propia",
       "codigo": "PROP-001",
       "municipio": "LUCCA"
-    }
+    },
+    "contacto_hospedaje": "Sara  +39 378 308 1785"
   }
 ]

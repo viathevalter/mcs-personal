@@ -47,12 +47,16 @@ import {
   List,
   Filter,
   Tag,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  LogOut,
+  UserPlus
 } from 'lucide-react';
 import { useLanguage } from '@/features/operacoes/i18n';
 import { logisticsService } from '../../services/logisticsService';
 import { registrosService } from '../../services/registrosService';
-import type { Alojamento, Provedor } from '../../services/logisticsService';
+import type { Alojamento, Provedor, Alocacao, Cama } from '../../services/logisticsService';
 import { ImportModal } from '../../components/ImportModal';
 
 export const AlojamentosList: React.FC = () => {
@@ -65,16 +69,22 @@ export const AlojamentosList: React.FC = () => {
 
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
   const [provedores, setProvedores] = useState<Provedor[]>([]);
+  const [alocacoes, setAlocacoes] = useState<Alocacao[]>([]);
+  const [camas, setCamas] = useState<Cama[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  // Modo de Exibição: Tabela vs Galeria
-  const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table');
+  // Modo de Exibição: Cards Alinhados (Estilo Faturamento) vs Tabela vs Galeria
+  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'gallery'>('cards');
+
+  // Controle de Cards Expandidos (Accordion)
+  const [expandedAlojamentoIds, setExpandedAlojamentoIds] = useState<Set<string>>(new Set());
 
   // Filtros Avançados
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
+  const [ocupacaoFilter, setOcupacaoFilter] = useState<'todos' | 'ocupados' | 'libres'>('todos');
   const [selectedMunicipio, setSelectedMunicipio] = useState<string>('todos');
   const [selectedProvincia, setSelectedProvincia] = useState<string>('todos');
 
@@ -87,6 +97,27 @@ export const AlojamentosList: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Modal de Asignación Rápida
+  const [assigningAlojamento, setAssigningAlojamento] = useState<Alojamento | null>(null);
+  const [assignWorkerQuery, setAssignWorkerQuery] = useState('');
+  const [assignSearchResults, setAssignSearchResults] = useState<any[]>([]);
+  const [isSearchingAssign, setIsSearchingAssign] = useState(false);
+  const [selectedAssignWorker, setSelectedAssignWorker] = useState<any | null>(null);
+  const [assignCamaId, setAssignCamaId] = useState('');
+  const [assignDataInicio, setAssignDataInicio] = useState(new Date().toISOString().split('T')[0]);
+  const [assignDataFim, setAssignDataFim] = useState('');
+  const [assignObservacoes, setAssignObservacoes] = useState('');
+  const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
+
+  // Modal de Check-out
+  const [checkingOutWorker, setCheckingOutWorker] = useState<{
+    alocacaoId: string;
+    workerNome: string;
+    alojamentoNome: string;
+  } | null>(null);
+  const [motivoCheckout, setMotivoCheckout] = useState('Fin de Pedido / Obra');
+  const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
+
   // Ordenação
   const [sortField, setSortField] = useState<string>('nome');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -94,15 +125,24 @@ export const AlojamentosList: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [alojRes, provRes] = await Promise.allSettled([
+      const [alojRes, provRes, alocRes, camasRes] = await Promise.allSettled([
         registrosService.fetchAlojamentos(),
-        registrosService.fetchProvedores()
+        registrosService.fetchProvedores(),
+        logisticsService.fetchAlocacoesAtivas(),
+        logisticsService.fetchCamas()
       ]);
+
       if (alojRes.status === 'fulfilled' && Array.isArray(alojRes.value)) {
         setAlojamentos(alojRes.value);
       }
       if (provRes.status === 'fulfilled' && Array.isArray(provRes.value)) {
         setProvedores(provRes.value);
+      }
+      if (alocRes.status === 'fulfilled' && Array.isArray(alocRes.value)) {
+        setAlocacoes(alocRes.value);
+      }
+      if (camasRes.status === 'fulfilled' && Array.isArray(camasRes.value)) {
+        setCamas(camasRes.value);
       }
     } catch (error) {
       console.error('Error fetching data in list:', error);
@@ -122,6 +162,23 @@ export const AlojamentosList: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Busca rápida de colaboradores para o modal de designação
+  useEffect(() => {
+    if (!assigningAlojamento) return;
+    const timer = setTimeout(async () => {
+      setIsSearchingAssign(true);
+      try {
+        const results = await logisticsService.searchTrabalhadores(assignWorkerQuery);
+        setAssignSearchResults(results);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsSearchingAssign(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [assignWorkerQuery, assigningAlojamento]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -161,222 +218,293 @@ export const AlojamentosList: React.FC = () => {
     }
   };
 
-  // Mapeamento de Contagem de Alojamentos por Provedor
-  const alojamentosPorProvedorMap = useMemo(() => {
-    const map = new Map<string, Alojamento[]>();
+  // Helper para obter ocupantes de um alojamento
+  const getOccupantsForAlojamento = (aloj: Alojamento): Alocacao[] => {
+    return alocacoes.filter(a => {
+      if (a.status === 'Checkout') return false;
+      if (a.alojamento_id === aloj.id) return true;
+      if (a.alojamento?.codigo && aloj.codigo && a.alojamento.codigo === aloj.codigo) return true;
+      if (a.alojamento?.nome && aloj.nome && a.alojamento.nome.toLowerCase().trim() === aloj.nome.toLowerCase().trim()) return true;
+      return false;
+    });
+  };
+
+  // Toggle Accordion Expand
+  const toggleExpandAlojamento = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedAlojamentoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedAlojamentoIds(new Set(sortedAlojamentos.map(a => a.id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedAlojamentoIds(new Set());
+  };
+
+  // Confirmar Asignación Rápida
+  const handleConfirmAssign = async () => {
+    if (!assigningAlojamento || !selectedAssignWorker || !assignCamaId) {
+      alert('Por favor, seleccione el colaborador y la cama.');
+      return;
+    }
+
+    try {
+      setIsSubmittingAssign(true);
+      await logisticsService.alocarTrabalhador({
+        cama_id: assignCamaId,
+        alojamento_id: assigningAlojamento.id,
+        worker_id: selectedAssignWorker.id,
+        worker_nome: selectedAssignWorker.Nombre || selectedAssignWorker.nombre,
+        codigo_colab: selectedAssignWorker.Cod_colab || selectedAssignWorker.cod_colab,
+        cliente_nome: selectedAssignWorker.contratante || 'Cliente Principal',
+        obra_nome: selectedAssignWorker.ubicacion || assigningAlojamento.municipio || 'Obra',
+        data_inicio: assignDataInicio,
+        data_fim: assignDataFim,
+        observacoes: assignObservacoes || `Asignado en ${assigningAlojamento.nome}`
+      });
+
+      setAssigningAlojamento(null);
+      setSelectedAssignWorker(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSubmittingAssign(false);
+    }
+  };
+
+  // Confirmar Check-out
+  const handleConfirmCheckout = async () => {
+    if (!checkingOutWorker) return;
+    try {
+      setIsSubmittingCheckout(true);
+      await logisticsService.checkoutTrabalhador(checkingOutWorker.alocacaoId, motivoCheckout);
+      setCheckingOutWorker(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSubmittingCheckout(false);
+    }
+  };
+
+  // Listas Únicas para Filtros
+  const municipiosList = useMemo(() => {
+    const list = new Set<string>();
+    alojamentos.forEach(a => { if (a.municipio) list.add(a.municipio.trim()); });
+    return Array.from(list).sort();
+  }, [alojamentos]);
+
+  // KPIs de Topo
+  const kpis = useMemo(() => {
+    const totalAlojamentos = alojamentos.length;
+    const activos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo').length;
+    const totalPlazas = alojamentos.reduce((acc, a) => acc + (a.capacidade_pessoas || a.total_camas || 0), 0);
+    const totalAlquiler = alojamentos.reduce((acc, a) => acc + (Number(a.valor_mensal) || 0), 0);
+    const totalProveedores = provedores.length;
+    const totalOcupantes = alocacoes.filter(a => a.status !== 'Checkout' && a.status !== 'Alojamiento Propio').length;
+
+    return { totalAlojamentos, activos, totalPlazas, totalAlquiler, totalProveedores, totalOcupantes };
+  }, [alojamentos, provedores, alocacoes]);
+
+  // Contagem de Alojamientos por Provedor
+  const alojamentosCountPorProvedor = useMemo(() => {
+    const map = new Map<string, number>();
     alojamentos.forEach(a => {
       if (a.provedor_id) {
-        const list = map.get(a.provedor_id) || [];
-        list.push(a);
-        map.set(a.provedor_id, list);
+        map.set(a.provedor_id, (map.get(a.provedor_id) || 0) + 1);
       }
     });
     return map;
   }, [alojamentos]);
 
-  // Lista de Municípios Únicos para Filtro
-  const municipiosList = useMemo(() => {
-    const set = new Set<string>();
-    alojamentos.forEach(a => {
-      if (a.municipio && a.municipio.trim().length > 0) {
-        set.add(a.municipio.trim());
+  // Filtros de Alojamentos
+  const filteredAlojamentos = useMemo(() => {
+    return alojamentos.filter(a => {
+      const q = searchTerm.toLowerCase().trim();
+      const occupants = getOccupantsForAlojamento(a);
+      
+      const matchesSearch = !q || (
+        a.nome.toLowerCase().includes(q) ||
+        (a.codigo && a.codigo.toLowerCase().includes(q)) ||
+        (a.municipio && a.municipio.toLowerCase().includes(q)) ||
+        (a.provincia && a.provincia.toLowerCase().includes(q)) ||
+        (a.endereco && a.endereco.toLowerCase().includes(q)) ||
+        (a.provedor?.nome_razao_social && a.provedor.nome_razao_social.toLowerCase().includes(q)) ||
+        occupants.some(o => o.worker_nome.toLowerCase().includes(q) || o.codigo_colab?.toLowerCase().includes(q))
+      );
+
+      if (!matchesSearch) return false;
+
+      // Status
+      const isActivo = a.ativo !== false && a.status !== 'Inactivo';
+      if (statusFilter === 'activos' && !isActivo) return false;
+      if (statusFilter === 'inactivos' && isActivo) return false;
+
+      // Modalidade
+      if (tipoFilter !== 'todos') {
+        const tipo = (a.tipo_alojamento || 'Fijo').toLowerCase();
+        if (tipoFilter === 'fijo' && !tipo.includes('fijo')) return false;
+        if (tipoFilter === 'temporal' && !tipo.includes('temporal') && !tipo.includes('airbnb') && !tipo.includes('hotel')) return false;
       }
+
+      // Ocupação
+      if (ocupacaoFilter === 'ocupados' && occupants.length === 0) return false;
+      if (ocupacaoFilter === 'libres' && occupants.length > 0) return false;
+
+      // Cidade
+      if (selectedMunicipio !== 'todos' && a.municipio !== selectedMunicipio) return false;
+
+      return true;
     });
-    return Array.from(set).sort();
-  }, [alojamentos]);
+  }, [alojamentos, searchTerm, statusFilter, tipoFilter, ocupacaoFilter, selectedMunicipio, alocacoes]);
 
-  // KPIs
-  const kpis = useMemo(() => {
-    const totalAlojamentos = alojamentos.length;
-    const activosAlojamentos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo').length;
-    const totalCapacidade = alojamentos.reduce((acc, a) => acc + (a.capacidade_pessoas || 0), 0);
-    const totalCustoMensal = alojamentos.reduce((acc, a) => acc + (Number(a.valor_mensal) || 0), 0);
-    const totalProveedores = provedores.length;
-
-    return {
-      totalAlojamentos,
-      activosAlojamentos,
-      totalCapacidade,
-      totalCustoMensal,
-      totalProveedores
-    };
-  }, [alojamentos, provedores]);
-
-  // Filtragem e Ordenação com Activos primeiro
+  // Ordenação de Alojamentos (Activos e com ocupantes primeiro)
   const sortedAlojamentos = useMemo(() => {
-    return [...alojamentos]
-      .filter(a => {
-        const search = (searchTerm || '').toLowerCase();
-        const matchesSearch = !search || (
-          (a.nome || a.titulo || '').toLowerCase().includes(search) ||
-          (a.codigo || '').toLowerCase().includes(search) ||
-          (a.endereco || '').toLowerCase().includes(search) ||
-          (a.municipio || '').toLowerCase().includes(search) ||
-          (a.provincia || '').toLowerCase().includes(search) ||
-          (a.provedor?.nome_razao_social || '').toLowerCase().includes(search)
-        );
+    return [...filteredAlojamentos].sort((a, b) => {
+      const isActivoA = a.ativo !== false && a.status !== 'Inactivo';
+      const isActivoB = b.ativo !== false && b.status !== 'Inactivo';
+      if (isActivoA !== isActivoB) return isActivoA ? -1 : 1;
 
-        if (!matchesSearch) return false;
+      let valA: any = a[sortField as keyof Alojamento];
+      let valB: any = b[sortField as keyof Alojamento];
 
-        const isActivo = a.ativo !== false && a.status !== 'Inactivo';
-        if (statusFilter === 'activos' && !isActivo) return false;
-        if (statusFilter === 'inactivos' && isActivo) return false;
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
 
-        if (tipoFilter !== 'todos') {
-          const tAloj = (a.tipo_alojamento || 'Fijo').toLowerCase();
-          if (tipoFilter === 'fijo' && !tAloj.includes('fij')) return false;
-          if (tipoFilter === 'temporal' && !tAloj.includes('temp') && !tAloj.includes('air') && !tAloj.includes('hot')) return false;
-        }
+      if (typeof valA === 'string') {
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortOrder === 'asc' ? valA - valB : valB - valA;
+    });
+  }, [filteredAlojamentos, sortField, sortOrder]);
 
-        if (selectedMunicipio !== 'todos' && a.municipio !== selectedMunicipio) {
-          return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        // Regra: Activos primeiro
-        const aActivo = a.ativo !== false && a.status !== 'Inactivo';
-        const bActivo = b.ativo !== false && b.status !== 'Inactivo';
-        if (aActivo && !bActivo) return -1;
-        if (!aActivo && bActivo) return 1;
-
-        let aVal = (a as any)[sortField] || '';
-        let bVal = (b as any)[sortField] || '';
-        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-        return 0;
-      });
-  }, [alojamentos, searchTerm, statusFilter, tipoFilter, selectedMunicipio, sortField, sortOrder]);
-
-  const sortedProvedores = useMemo(() => {
-    return [...provedores]
-      .filter(p => {
-        const search = (searchTerm || '').toLowerCase();
-        if (!search) return true;
-        return (
-          (p.nome_razao_social || '').toLowerCase().includes(search) ||
-          (p.nome_comercial || '').toLowerCase().includes(search) ||
-          (p.contato_nome || '').toLowerCase().includes(search) ||
-          (p.telefone || '').toLowerCase().includes(search) ||
-          (p.iban || '').toLowerCase().includes(search) ||
-          (p.municipio || '').toLowerCase().includes(search) ||
-          (p.provincia || '').toLowerCase().includes(search)
-        );
-      })
-      .sort((a, b) => {
-        let aVal = (a as any)[sortField] || '';
-        let bVal = (b as any)[sortField] || '';
-        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-        return 0;
-      });
-  }, [provedores, searchTerm, sortField, sortOrder]);
+  // Filtros de Proveedores
+  const filteredProvedores = useMemo(() => {
+    return provedores.filter(p => {
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || (
+        p.nome_razao_social.toLowerCase().includes(q) ||
+        (p.cif_nif && p.cif_nif.toLowerCase().includes(q)) ||
+        (p.municipio && p.municipio.toLowerCase().includes(q)) ||
+        (p.provincia && p.provincia.toLowerCase().includes(q)) ||
+        (p.iban && p.iban.toLowerCase().includes(q))
+      );
+      return matchesSearch;
+    });
+  }, [provedores, searchTerm]);
 
   return (
     <div className="w-full px-8 py-6 space-y-6">
       
-      {/* Header Superior */}
+      {/* Header Superior com Título e Ações */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-3">
             <Building2 className="text-blue-600" size={26} />
             Registros de Alojamientos & Proveedores
           </h1>
-          <p className="text-sm text-slate-500">Gestión completa de inmuebles, modalidades de alquiler, plazas y proveedores</p>
+          <p className="text-sm text-slate-500">
+            Gestión completa de inmuebles, modalidades de alquiler, plazas, ocupación de trabajadores y proveedores.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 rounded-xl text-xs font-bold transition-colors border border-emerald-200 dark:border-emerald-800 shadow-2xs"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-xl text-xs font-bold transition-colors border border-emerald-200 dark:border-emerald-800 shadow-2xs"
           >
-            <Upload size={15} />
+            <Upload size={14} />
             Importar Plantilla
           </button>
+
           <button
             onClick={() => navigate('/logistica/registros/alojamentos/novo')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 rounded-xl text-xs font-bold transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
             <Plus size={15} />
-            Nuevo Alojamiento
+            + Nuevo Alojamiento
           </button>
+
           <button
             onClick={() => navigate('/logistica/registros/provedores/novo')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-xs font-bold transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
             <Plus size={15} />
-            Nuevo Proveedor
+            + Nuevo Proveedor
           </button>
         </div>
       </div>
 
-      {/* KPIS NO TOPO */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* Grid de KPIs de Topo */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         
-        {/* KPI 1: Total Alojamientos */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Total Alojamientos</span>
             <Home size={16} className="text-blue-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 dark:text-white">
+          <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
             {kpis.totalAlojamentos}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            {kpis.activosAlojamentos} activos en curso
+            {kpis.activos} activos en curso
           </span>
         </div>
 
-        {/* KPI 2: Alojamientos Activos */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Activos / En Curso</span>
-            <CheckCircle2 size={16} className="text-emerald-600" />
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Trabajadores Alojados</span>
+            <Users size={16} className="text-emerald-600" />
           </div>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-            {kpis.activosAlojamentos}
+            {kpis.totalOcupantes}
           </p>
-          <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium block">
-            {kpis.totalAlojamentos > 0 ? Math.round((kpis.activosAlojamentos / kpis.totalAlojamentos) * 100) : 0}% de operatividad
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block">
+            {Math.round((kpis.totalOcupantes / (kpis.totalPlazas || 1)) * 100)}% de ocupación
           </span>
         </div>
 
-        {/* KPI 3: Capacidad Total */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Capacidad Total</span>
-            <Users size={16} className="text-indigo-600" />
+            <Bed size={16} className="text-indigo-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 dark:text-white">
-            {kpis.totalCapacidade} <span className="text-xs font-bold text-slate-400">plazas</span>
+          <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
+            {kpis.totalPlazas} <span className="text-xs font-semibold text-slate-400">plazas</span>
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            Camas individuales & dobles
+            {kpis.totalPlazas - kpis.totalOcupantes} plazas libres
           </span>
         </div>
 
-        {/* KPI 4: Coste Mensual Total */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Alquiler Mensual Total</span>
             <DollarSign size={16} className="text-amber-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 dark:text-white">
-            € {kpis.totalCustoMensal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+          <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
+            € {kpis.totalAlquiler.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
             Coste base de arrendamiento
           </span>
         </div>
 
-        {/* KPI 5: Proveedores */}
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1 col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-slate-500">
             <span className="text-[11px] font-bold uppercase tracking-wider">Proveedores</span>
             <Building size={16} className="text-purple-600" />
           </div>
@@ -444,7 +572,18 @@ export const AlojamentosList: React.FC = () => {
                   <option value="inactivos">⚪ Inactivos</option>
                 </select>
 
-                {/* Filtro Modalidad */}
+                {/* Filtro Ocupação */}
+                <select
+                  value={ocupacaoFilter}
+                  onChange={e => setOcupacaoFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+                >
+                  <option value="todos">Ocupación: Todas</option>
+                  <option value="ocupados">👥 Con Trabajadores Alojados</option>
+                  <option value="libres">🚪 Totalmente Libres</option>
+                </select>
+
+                {/* Filtro Modalidade */}
                 <select
                   value={tipoFilter}
                   onChange={e => setTipoFilter(e.target.value)}
@@ -469,29 +608,43 @@ export const AlojamentosList: React.FC = () => {
                   </select>
                 )}
 
-                {/* Toggle Tabela / Galeria */}
+                {/* Toggle Modos de Visualização (Cards Alinhados / Tabela / Galeria) */}
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                   <button
+                    onClick={() => setViewMode('cards')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      viewMode === 'cards'
+                        ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="Vista de Fichas Alinhadas (Accordion)"
+                  >
+                    <List size={15} />
+                    <span className="hidden sm:inline">Fichas</span>
+                  </button>
+                  <button
                     onClick={() => setViewMode('table')}
-                    className={`p-1.5 rounded-lg transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                       viewMode === 'table'
                         ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-2xs'
                         : 'text-slate-400 hover:text-slate-600'
                     }`}
-                    title="Vista de Tabla"
+                    title="Vista de Tabla Compacta"
                   >
-                    <List size={16} />
+                    <Table2Icon />
+                    <span className="hidden sm:inline">Tabla</span>
                   </button>
                   <button
                     onClick={() => setViewMode('gallery')}
-                    className={`p-1.5 rounded-lg transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                       viewMode === 'gallery'
                         ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-2xs'
                         : 'text-slate-400 hover:text-slate-600'
                     }`}
-                    title="Vista de Galería"
+                    title="Vista de Galería de Fotos"
                   >
-                    <LayoutGrid size={16} />
+                    <LayoutGrid size={15} />
+                    <span className="hidden sm:inline">Fotos</span>
                   </button>
                 </div>
               </>
@@ -502,7 +655,7 @@ export const AlojamentosList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
                 type="text"
-                placeholder="Buscar nombre, ciudad, IBAN..."
+                placeholder="Buscar nombre, trabajador, ciudad..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -512,17 +665,371 @@ export const AlojamentosList: React.FC = () => {
         </div>
 
         {/* ========================================================================= */}
-        {/* CORPO DA LISTA DE ALOJAMIENTOS: TABELA OU GALERIA */}
+        {/* CORPO: VISTA DE FICHAS ACCORDION (ESTILO FATURAMENTO) */}
         {/* ========================================================================= */}
         {activeTab === 'alojamentos' ? (
           isLoading ? (
             <div className="p-16 text-center text-slate-500 space-y-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-xs font-semibold">Cargando todos los alojamientos del sistema...</p>
+              <p className="text-xs font-semibold">Cargando todos los alojamientos y ocupantes...</p>
+            </div>
+          ) : viewMode === 'cards' ? (
+            
+            /* VISTA DE FICHAS EXPANSÍVEIS (ESTILO FATURAMENTO) */
+            <div className="p-6 space-y-4">
+              <div className="flex justify-between items-center text-xs text-slate-500 pb-1">
+                <span>Mostrando <strong>{sortedAlojamentos.length}</strong> alojamientos</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={expandAll} className="hover:text-blue-600 font-semibold transition-colors">
+                    Expandir Todos
+                  </button>
+                  <span>•</span>
+                  <button onClick={collapseAll} className="hover:text-blue-600 font-semibold transition-colors">
+                    Recolher Todos
+                  </button>
+                </div>
+              </div>
+
+              {sortedAlojamentos.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 space-y-2">
+                  <Home size={32} className="mx-auto text-slate-300" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Ningún alojamiento coincide con los filtros</p>
+                </div>
+              ) : (
+                sortedAlojamentos.map(a => {
+                  const isActivo = a.ativo !== false && a.status !== 'Inactivo';
+                  const occupants = getOccupantsForAlojamento(a);
+                  const isExpanded = expandedAlojamentoIds.has(a.id);
+                  const totalVagas = a.capacidade_pessoas || a.total_camas || 4;
+                  const vagasLibres = Math.max(0, totalVagas - occupants.length);
+
+                  return (
+                    <div
+                      key={a.id}
+                      className={`bg-white dark:bg-slate-900 rounded-3xl border transition-all shadow-xs overflow-hidden ${
+                        isExpanded
+                          ? 'border-blue-500/80 ring-2 ring-blue-500/10 shadow-md'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      {/* CABEÇALHO DO CARD (CLICÁVEL PARA EXPANDIR) */}
+                      <div
+                        onClick={() => toggleExpandAlojamento(a.id)}
+                        className="p-5 cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between gap-4 select-none hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        {/* LADO ESQUERDO: Ícone + Título + Badges + Localização */}
+                        <div className="flex items-start gap-3.5 flex-1">
+                          <div className={`p-3 rounded-2xl flex-shrink-0 transition-transform ${
+                            occupants.length > 0
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                          }`}>
+                            <Home size={22} />
+                          </div>
+
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {a.codigo || 'AL-XXXX'}
+                              </span>
+
+                              <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight truncate max-w-lg" title={a.nome}>
+                                {a.nome}
+                              </h3>
+
+                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                isActivo
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                {isActivo ? 'Activo' : 'Inactivo'}
+                              </span>
+
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                {a.tipo_alojamento || 'Fijo'}
+                              </span>
+                            </div>
+
+                            {/* Linha 2: Localização, GPS e Provedor */}
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                              <div className="flex items-center gap-1">
+                                <MapPin size={13} className="text-rose-500 flex-shrink-0" />
+                                <span className="truncate max-w-xs">{a.municipio || 'España'}{a.provincia ? `, ${a.provincia}` : ''}</span>
+                              </div>
+
+                              {a.latitude && a.longitude && (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                                  title="Ver en Google Maps"
+                                >
+                                  <Globe size={11} />
+                                  Maps ({Number(a.latitude).toFixed(2)}, {Number(a.longitude).toFixed(2)})
+                                </a>
+                              )}
+
+                              {a.provedor?.nome_razao_social && (
+                                <div className="flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-3">
+                                  <Building size={12} className="text-purple-500" />
+                                  <span className="text-slate-700 dark:text-slate-300 font-semibold">{a.provedor.nome_razao_social}</span>
+                                  {a.provedor.telefone && (
+                                    <a
+                                      href={`https://wa.me/${a.provedor.telefone.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className="text-emerald-600 hover:underline inline-flex items-center gap-0.5 ml-1 font-semibold"
+                                    >
+                                      <Phone size={10} />
+                                      {a.provedor.telefone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CENTRO / DIREITA: KPIs DE CAPACIDADE, OCUPAÇÃO E ALUGUEL */}
+                        <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-xs justify-between lg:justify-end">
+                          
+                          {/* Capacidad & Vagas */}
+                          <div className="space-y-0.5 text-left lg:text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Capacidad</span>
+                            <span className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                              <Users size={13} className="text-blue-600" />
+                              {totalVagas} plazas • {a.total_camas || totalVagas} camas
+                            </span>
+                          </div>
+
+                          {/* Ocupação Atual */}
+                          <div className="space-y-0.5 text-left lg:text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Ocupación Actual</span>
+                            {occupants.length > 0 ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                <CheckCircle2 size={12} />
+                                {occupants.length} / {totalVagas} ocupadas
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                Totalmente libre
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Custo / Aluguel Mensal */}
+                          <div className="space-y-0.5 text-left lg:text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Alquiler Mensual</span>
+                            <span className="font-mono text-sm font-black text-emerald-600 dark:text-emerald-400">
+                              € {Number(a.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* Ações & Chevron */}
+                          <div className="flex items-center gap-2 pt-2 lg:pt-0" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => setViewingAlojamento(a)}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5"
+                              title="Ver Ficha Completa con fotos y contrato"
+                            >
+                              <Eye size={13} />
+                              Ficha
+                            </button>
+
+                            <button
+                              onClick={() => navigate(`/logistica/registros/alojamentos/editar/${a.id}`)}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                              title="Editar Alojamiento"
+                            >
+                              <Pencil size={15} />
+                            </button>
+
+                            <button
+                              onClick={() => toggleExpandAlojamento(a.id)}
+                              className={`p-1.5 rounded-xl transition-all ${
+                                isExpanded
+                                  ? 'bg-blue-600 text-white rotate-180 shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200'
+                              }`}
+                              title={isExpanded ? 'Recolher' : 'Expandir trabajadores alojados'}
+                            >
+                              <ChevronDown size={16} />
+                            </button>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* CORPO EXPANDIDO (ACCORDION DE TRABALHADORES) */}
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                          
+                          {/* Barra de Título do Painel Interno */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-2">
+                              <Users size={16} className="text-blue-600" />
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                Trabajadores Alojados Actualmente ({occupants.length} personas)
+                              </h4>
+                              {vagasLibres > 0 && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                  {vagasLibres} camas disponibles
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setAssigningAlojamento(a);
+                                const firstFreeBed = camas.find(c => c.alojamento_id === a.id && c.status === 'livre');
+                                if (firstFreeBed) setAssignCamaId(firstFreeBed.id);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs w-fit"
+                            >
+                              <UserPlus size={13} />
+                              + Asignar Trabajador a este Alojamiento
+                            </button>
+                          </div>
+
+                          {/* TABELA DE TRABALHADORES HOSPEDADOS */}
+                          {occupants.length === 0 ? (
+                            <div className="p-8 bg-white dark:bg-slate-800/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-2">
+                              <Bed size={28} className="mx-auto text-slate-300 dark:text-slate-600" />
+                              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                No hay trabajadores alojados actualmente en este inmueble.
+                              </p>
+                              <p className="text-[11px] text-slate-400">
+                                Este inmueble dispone de {totalVagas} plazas libres listas para ser asignadas.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                              <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                                  <tr>
+                                    <th className="px-4 py-2.5">Cód.</th>
+                                    <th className="px-4 py-2.5">Trabajador</th>
+                                    <th className="px-4 py-2.5">Empresa</th>
+                                    <th className="px-4 py-2.5">Cliente & Pedido</th>
+                                    <th className="px-4 py-2.5">Cama / Habitación</th>
+                                    <th className="px-4 py-2.5">Período</th>
+                                    <th className="px-4 py-2.5">Contacto Hospedaje</th>
+                                    <th className="px-4 py-2.5 text-right">Acción</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                                  {occupants.map(oc => (
+                                    <tr key={oc.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-700/30 transition-colors">
+                                      <td className="px-4 py-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                        {oc.codigo_colab || 'E-XXXX'}
+                                      </td>
+
+                                      <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">
+                                        {oc.worker_nome}
+                                      </td>
+
+                                      <td className="px-4 py-3">
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                          {oc.empresa_contratante || 'STOCCO, LDA'}
+                                        </span>
+                                      </td>
+
+                                      <td className="px-4 py-3">
+                                        <p className="font-semibold text-slate-700 dark:text-slate-300">{oc.cliente_nome}</p>
+                                        {oc.pedido_codigo && (
+                                          <span className="text-[10px] font-mono text-slate-400 block">{oc.pedido_codigo}</span>
+                                        )}
+                                      </td>
+
+                                      <td className="px-4 py-3">
+                                        <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+                                          <Bed size={12} className="text-blue-500" />
+                                          {oc.cama_identificador || (oc.cama_id?.includes('dup') ? 'Cama Doble' : 'Cama Individual')}
+                                        </span>
+                                      </td>
+
+                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                        <p className="font-medium">Desde: {oc.data_inicio}</p>
+                                        {oc.data_fim && <p className="text-[10px] text-slate-400">Hasta: {oc.data_fim}</p>}
+                                      </td>
+
+                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                        {oc.contacto_hospedaje ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-semibold text-[11px]">{oc.contacto_hospedaje}</span>
+                                            {oc.contacto_hospedaje.replace(/\D/g, '').length >= 9 && (
+                                              <a
+                                                href={`https://wa.me/${oc.contacto_hospedaje.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors"
+                                                title="WhatsApp"
+                                              >
+                                                <Phone size={11} />
+                                              </a>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-400 text-[10px]">No registrado</span>
+                                        )}
+                                      </td>
+
+                                      <td className="px-4 py-3 text-right">
+                                        <button
+                                          onClick={() => {
+                                            setCheckingOutWorker({
+                                              alocacaoId: oc.id,
+                                              workerNome: oc.worker_nome,
+                                              alojamentoNome: a.nome
+                                            });
+                                          }}
+                                          className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1"
+                                        >
+                                          <LogOut size={12} />
+                                          Check-out
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* CHIPS DE COMODIDADES E SERVIÇOS NO RODAPÉ DO CARD */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-slate-500 border-t border-slate-200/80 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Servicios:</span>
+                              {a.comodidades?.wifi !== false && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">Wi-Fi</span>}
+                              {a.comodidades?.cocina !== false && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">Cocina</span>}
+                              {a.comodidades?.calefaccion !== false && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">Calefacción</span>}
+                              {a.comodidades?.lavadora !== false && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">Lavadora</span>}
+                              {a.comodidades?.aire_acondicionado && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">A/C</span>}
+                              {a.comodidades?.parking && <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px]">Parking</span>}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400">Fianza: € {Number(a.contrato?.fianza_valor || 0).toLocaleString('es-ES')}</span>
+                              <span>•</span>
+                              <span className="text-[10px] text-slate-400">Dormitorios: {a.dormitorios || 2}</span>
+                              <span>•</span>
+                              <span className="text-[10px] text-slate-400">Baños: {a.banheiros || 1}</span>
+                            </div>
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           ) : viewMode === 'gallery' ? (
             
-            /* VISTA DE GALERIA (CARDS) */
+            /* VISTA DE GALERIA (FOTOS EM GRID) */
             <div className="p-6">
               {sortedAlojamentos.length === 0 ? (
                 <div className="p-12 text-center text-slate-400 space-y-2">
@@ -535,6 +1042,7 @@ export const AlojamentosList: React.FC = () => {
                     const rawFotos = a.fotos && a.fotos.length > 0 ? a.fotos : [];
                     const capaFoto = rawFotos[0];
                     const isActivo = a.ativo !== false && a.status !== 'Inactivo';
+                    const occupants = getOccupantsForAlojamento(a);
 
                     return (
                       <div
@@ -542,7 +1050,6 @@ export const AlojamentosList: React.FC = () => {
                         onClick={() => setViewingAlojamento(a)}
                         className="group bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80 overflow-hidden hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
                       >
-                        {/* Imagem de Capa do Imóvel */}
                         <div className="relative h-44 bg-slate-900 overflow-hidden flex items-center justify-center">
                           {capaFoto ? (
                             <img
@@ -558,7 +1065,6 @@ export const AlojamentosList: React.FC = () => {
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 pointer-events-none" />
 
-                          {/* Badges Flutuantes */}
                           <div className="absolute top-3 left-3 flex items-center gap-1.5">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               isActivo
@@ -572,14 +1078,12 @@ export const AlojamentosList: React.FC = () => {
                             </span>
                           </div>
 
-                          {/* Modalidade */}
                           <div className="absolute top-3 right-3">
                             <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-600/90 text-white rounded-md backdrop-blur-md">
                               {a.tipo_alojamento || 'Fijo'}
                             </span>
                           </div>
 
-                          {/* Preço Mensal no Canto Inferior */}
                           <div className="absolute bottom-3 left-3 text-white">
                             <p className="text-base font-black">
                               € {Number(a.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 0 })}
@@ -588,7 +1092,6 @@ export const AlojamentosList: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Corpo do Card */}
                         <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
                           <div className="space-y-1">
                             <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1" title={a.nome}>
@@ -612,12 +1115,11 @@ export const AlojamentosList: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Informações de Vagas e Provedor */}
                           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
                             <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
                               <span className="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400">
                                 <Users size={13} />
-                                {a.capacidade_pessoas} pax • {a.total_camas} camas
+                                {occupants.length} / {a.capacidade_pessoas} ocupadas
                               </span>
                               <span className="text-slate-400 text-[11px] truncate max-w-[120px]" title={a.provedor?.nome_razao_social}>
                                 {a.provedor?.nome_razao_social || 'Sin proveedor'}
@@ -625,7 +1127,6 @@ export const AlojamentosList: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Ações do Card */}
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60" onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => setViewingAlojamento(a)}
@@ -662,36 +1163,31 @@ export const AlojamentosList: React.FC = () => {
             </div>
           ) : (
             
-            /* VISTA DE TABELA DETALHADA */
-            <div className="overflow-x-auto overflow-y-auto max-h-[640px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+            /* VISTA DE TABELA COMPACTA */
+            <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                   <tr>
-                    <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('nome')}>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome')}>
                       <div className="flex items-center gap-1">
                         Inmueble / Título
                         <ArrowUpDown size={12} />
                       </div>
                     </th>
-                    <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('tipo_alojamento')}>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('tipo_alojamento')}>
                       <div className="flex items-center gap-1">
                         Modalidad
                         <ArrowUpDown size={12} />
                       </div>
                     </th>
-                    <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('valor_mensal')}>
+                    <th className="px-4 py-3">Alquiler / Coste</th>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('capacidade_pessoas')}>
                       <div className="flex items-center gap-1">
-                        Alquiler / Coste
+                        Ocupación / Capacidad
                         <ArrowUpDown size={12} />
                       </div>
                     </th>
-                    <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('capacidade_pessoas')}>
-                      <div className="flex items-center gap-1">
-                        Capacidad
-                        <ArrowUpDown size={12} />
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('municipio')}>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('municipio')}>
                       <div className="flex items-center gap-1">
                         Ubicación
                         <ArrowUpDown size={12} />
@@ -707,11 +1203,12 @@ export const AlojamentosList: React.FC = () => {
                   ) : (
                     sortedAlojamentos.map(a => {
                       const isActivo = a.ativo !== false && a.status !== 'Inactivo';
+                      const occupants = getOccupantsForAlojamento(a);
 
                       return (
                         <tr
                           key={a.id}
-                          onClick={() => setViewingAlojamento(a)}
+                          onClick={() => toggleExpandAlojamento(a.id)}
                           className="hover:bg-blue-50/40 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
                         >
                           <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
@@ -751,9 +1248,13 @@ export const AlojamentosList: React.FC = () => {
                           </td>
 
                           <td className="px-4 py-3.5">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-bold text-xs">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs ${
+                              occupants.length > 0
+                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            }`}>
                               <Users size={13} />
-                              {a.capacidade_pessoas} pax / {a.total_camas} camas
+                              {occupants.length} / {a.capacidade_pessoas} pax
                             </span>
                           </td>
 
@@ -792,15 +1293,15 @@ export const AlojamentosList: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => navigate(`/logistica/registros/alojamentos/editar/${a.id}`)}
-                                title="Editar Alojamiento"
+                                title="Editar"
                                 className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
                               >
                                 <Pencil size={15} />
                               </button>
                               <button
                                 onClick={() => setItemToDelete({ id: a.id, name: a.nome, type: 'alojamento' })}
-                                title="Eliminar Alojamiento"
-                                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+                                title="Eliminar"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
                               >
                                 <Trash2 size={15} />
                               </button>
@@ -817,46 +1318,32 @@ export const AlojamentosList: React.FC = () => {
         ) : (
           
           /* ========================================================================= */
-          /* ABA DE PROVEEDORES (COM CONTAGEM DE ALOJAMIENTOS VINCULADOS) */
+          /* TAB DE PROVEEDORES */
           /* ========================================================================= */
-          <div className="overflow-x-auto overflow-y-auto max-h-[640px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+          <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+              <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('nome_razao_social')}>
+                  <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('nome_razao_social')}>
                     <div className="flex items-center gap-1">
                       Proveedor / Razón Social
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
+                  <th className="px-4 py-3">CIF / NIF</th>
+                  <th className="px-4 py-3">Contacto / Teléfono</th>
                   <th className="px-4 py-3">Alojamientos Vinculados</th>
-                  <th className="px-4 py-3">Responsable / Cargo</th>
-                  <th className="px-4 py-3 text-emerald-600 font-bold">Teléfono / WhatsApp</th>
-                  <th className="px-4 py-3">Datos Bancarios / IBAN</th>
-                  <th className="px-4 py-3 cursor-pointer select-none hover:text-blue-600" onClick={() => handleSort('municipio')}>
-                    <div className="flex items-center gap-1">
-                      Ubicación
-                      <ArrowUpDown size={12} />
-                    </div>
-                  </th>
+                  <th className="px-4 py-3">Ubicación</th>
+                  <th className="px-4 py-3">IBAN</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {sortedProvedores.length === 0 ? (
+                {filteredProvedores.length === 0 ? (
                   <tr><td colSpan={7} className="p-12 text-center text-slate-500">Ningún proveedor encontrado.</td></tr>
                 ) : (
-                  sortedProvedores.map(p => {
-                    const principalContato = p.contatos?.[0];
-                    const contatoNome = principalContato?.nome || p.contato_nome || '-';
-                    const contatoCargo = principalContato?.cargo_tipo || 'Propietario';
-                    const telefone = principalContato?.telefone || p.telefone;
-                    const principalBanco = p.dados_bancarios?.[0];
-                    const ibanPrincipal = principalBanco?.iban || p.iban;
-                    const bancoNome = principalBanco?.banco || p.banco;
-                    const qtdContas = p.dados_bancarios?.length || (p.iban ? 1 : 0);
-                    const alojList = alojamentosPorProvedorMap.get(p.id) || [];
-
+                  filteredProvedores.map(p => {
+                    const countAloj = alojamentosCountPorProvedor.get(p.id) || 0;
                     return (
                       <tr
                         key={p.id}
@@ -871,109 +1358,81 @@ export const AlojamentosList: React.FC = () => {
                             <div>
                               <p className="font-bold text-slate-800 dark:text-slate-100">{p.nome_razao_social}</p>
                               <div className="flex items-center gap-2 mt-0.5">
-                                {p.cif_nif && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold uppercase">
-                                    {p.cif_nif}
-                                  </span>
-                                )}
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                                  p.tipo_pessoa === 'Persona Física'
-                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                    : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                                }`}>
-                                  {p.tipo_pessoa || 'Persona Jurídica'}
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold">
+                                  {p.codigo || 'PROV-XXXX'}
                                 </span>
+                                <span className="text-[10px] text-slate-400">{p.tipo_provedor || 'Inmobiliaria'}</span>
                               </div>
                             </div>
                           </div>
                         </td>
 
+                        <td className="px-4 py-3.5 font-mono text-slate-600 dark:text-slate-300">
+                          {p.cif_nif || '-'}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                          <div className="space-y-0.5">
+                            <p className="font-medium">{p.contato_nome || '-'}</p>
+                            {p.telefone && (
+                              <a
+                                href={`https://wa.me/${p.telefone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-emerald-600 hover:underline flex items-center gap-1 font-semibold text-[11px]"
+                              >
+                                <Phone size={11} />
+                                {p.telefone}
+                              </a>
+                            )}
+                          </div>
+                        </td>
+
                         <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
-                            alojList.length > 0
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                              : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-xs ${
+                            countAloj > 0
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
                           }`}>
                             <Home size={13} />
-                            {alojList.length} {alojList.length === 1 ? 'inmueble' : 'inmuebles'}
+                            {countAloj} inmuebles
                           </span>
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <p className="font-semibold text-slate-700 dark:text-slate-200">{contatoNome}</p>
-                          <p className="text-[11px] text-slate-400">{contatoCargo}</p>
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          {telefone ? (
-                            <a
-                              href={`https://wa.me/${telefone.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold text-xs transition-colors shadow-2xs"
-                              title="Abrir WhatsApp / Llamar"
-                            >
-                              <Phone size={13} className="text-emerald-600" />
-                              <span>{telefone}</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 font-normal">Sin teléfono</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          {ibanPrincipal ? (
-                            <div className="flex items-center gap-2">
-                              <div>
-                                <p className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200">{ibanPrincipal}</p>
-                                <p className="text-[10px] text-slate-400">{bancoNome || 'Banco registrado'}</p>
-                              </div>
-                              <button
-                                onClick={e => handleCopy(ibanPrincipal, e)}
-                                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded transition-colors"
-                                title="Copiar IBAN"
-                              >
-                                {copiedText === ibanPrincipal ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                              </button>
-                              {qtdContas > 1 && (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                  +{qtdContas - 1}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 font-normal">Sin cuenta</span>
-                          )}
                         </td>
 
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
                           <div className="flex items-center gap-1.5">
-                            <MapPin size={13} className="text-slate-400 flex-shrink-0" />
-                            <span>{p.municipio || p.provincia || 'España'}</span>
+                            <MapPin size={13} className="text-slate-400" />
+                            <span>{p.municipio || 'N/A'}{p.provincia ? `, ${p.provincia}` : ''}</span>
                           </div>
+                        </td>
+
+                        <td className="px-4 py-3.5 font-mono text-slate-500 dark:text-slate-400">
+                          {p.iban ? (
+                            <span className="truncate max-w-[150px] inline-block">{p.iban}</span>
+                          ) : '-'}
                         </td>
 
                         <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setViewingProvedor(p)}
-                              title="Ver Proveedor"
+                              title="Ver Ficha"
                               className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
                             >
                               <Eye size={15} />
                             </button>
                             <button
                               onClick={() => navigate(`/logistica/registros/provedores/editar/${p.id}`)}
-                              title="Editar Proveedor"
+                              title="Editar"
                               className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
                             >
                               <Pencil size={15} />
                             </button>
                             <button
                               onClick={() => setItemToDelete({ id: p.id, name: p.nome_razao_social, type: 'provedor' })}
-                              title="Eliminar Proveedor"
-                              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+                              title="Eliminar"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
                             >
                               <Trash2 size={15} />
                             </button>
@@ -991,719 +1450,472 @@ export const AlojamentosList: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL DE VISUALIZAÇÃO COMPLETA DE PROVEEDOR (COM SEUS ALOJAMIENTOS) */}
+      {/* MODAL 1: ASIGNAR TRABAJADOR A ESTE ALOJAMIENTO */}
       {/* ========================================================================= */}
-      {viewingProvedor && (() => {
-        const provAlojamentos = alojamentosPorProvedorMap.get(viewingProvedor.id) || [];
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-              
-              {/* Header Modal */}
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 rounded-2xl">
-                    <Building size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">{viewingProvedor.nome_razao_social}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      {viewingProvedor.cif_nif && (
-                        <span className="text-xs font-mono font-bold px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded">
-                          {viewingProvedor.cif_nif}
-                        </span>
-                      )}
-                      <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 rounded-full font-semibold">
-                        {viewingProvedor.tipo_pessoa || 'Persona Jurídica'}
-                      </span>
-                    </div>
-                  </div>
+      {assigningAlojamento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl space-y-0">
+            
+            <div className="p-6 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-sm">
+                  <UserPlus size={22} />
                 </div>
-                <button
-                  onClick={() => setViewingProvedor(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Asignar Trabajador al Alojamiento
+                  </h3>
+                  <p className="text-xs text-slate-500 truncate max-w-sm">
+                    {assigningAlojamento.nome} ({assigningAlojamento.municipio})
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setAssigningAlojamento(null);
+                  setSelectedAssignWorker(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              {/* Content Scrollable */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm">
-                
-                {/* 1. SEÇÃO DE ALOJAMIENTOS VINCULADOS A ESTE PROVEEDOR */}
+            <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
+              {!selectedAssignWorker ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                      <Home size={14} className="text-blue-600" />
-                      Inmuebles Vinculados a este Proveedor ({provAlojamentos.length})
-                    </h3>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    1. Seleccione el Trabajador a Hospedar:
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Buscar colaborador por nombre o código (ej: E1497)..."
+                      value={assignWorkerQuery}
+                      onChange={e => setAssignWorkerQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
-                  {provAlojamentos.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {provAlojamentos.map(aloj => (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {isSearchingAssign ? (
+                      <div className="p-8 text-center text-slate-400">Buscando en la base de datos...</div>
+                    ) : assignSearchResults.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400">Ningún colaborador encontrado.</div>
+                    ) : (
+                      assignSearchResults.map((w: any) => (
                         <div
-                          key={aloj.id}
-                          onClick={() => {
-                            setViewingProvedor(null);
-                            setViewingAlojamento(aloj);
-                          }}
-                          className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-blue-500 cursor-pointer transition-all flex justify-between items-center group"
+                          key={w.id}
+                          onClick={() => setSelectedAssignWorker(w)}
+                          className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 cursor-pointer flex justify-between items-center transition-all"
                         >
-                          <div className="space-y-1">
-                            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs group-hover:text-blue-600 transition-colors">
-                              {aloj.nome}
-                            </p>
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                              <MapPin size={11} className="text-rose-500" />
-                              {aloj.municipio || 'España'} • {aloj.capacidade_pessoas} plazas
-                            </p>
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-100">{w.Nombre || w.nombre}</p>
+                            <p className="text-[11px] text-slate-400">{w.contratante || 'Empresa'} • {w.ubicacion || 'Obra'}</p>
                           </div>
-                          <div className="text-right">
-                            <span className="font-mono text-xs font-bold text-emerald-600 block">
-                              € {Number(aloj.valor_mensal || 0).toLocaleString('es-ES')}
-                            </span>
-                            <ChevronRight size={14} className="text-slate-400 ml-auto group-hover:translate-x-0.5 transition-transform" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700">
-                      No hay alojamientos asignados a este proveedor todavía.
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Contatos */}
-                <div className="space-y-3">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                    <Phone size={14} className="text-blue-600" />
-                    Contactos y Teléfonos
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(viewingProvedor.contatos && viewingProvedor.contatos.length > 0 ? viewingProvedor.contatos : [
-                      { nome: viewingProvedor.contato_nome || 'Responsable', cargo_tipo: 'Propietario', telefone: viewingProvedor.telefone, email: viewingProvedor.email }
-                    ]).map((c, i) => (
-                      <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
-                        <div className="flex justify-between">
-                          <span className="font-bold text-slate-800 dark:text-slate-100">{c.nome || 'Contacto'}</span>
-                          <span className="text-xs text-slate-400">{c.cargo_tipo || 'Propietario'}</span>
-                        </div>
-                        {c.telefone && (
-                          <div className="flex items-center gap-2 text-emerald-600 font-semibold">
-                            <Phone size={13} />
-                            <a href={`https://wa.me/${c.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="hover:underline">
-                              {c.telefone}
-                            </a>
-                          </div>
-                        )}
-                        {c.email && (
-                          <div className="flex items-center gap-2 text-slate-500">
-                            <Mail size={13} />
-                            <a href={`mailto:${c.email}`} className="hover:underline">{c.email}</a>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 3. Contas Bancárias */}
-                <div className="space-y-3">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                    <CreditCard size={14} className="text-emerald-600" />
-                    Cuentas Bancarias & Pagos ({viewingProvedor.dados_bancarios?.length || (viewingProvedor.iban ? 1 : 0)})
-                  </h3>
-                  <div className="space-y-3">
-                    {(viewingProvedor.dados_bancarios && viewingProvedor.dados_bancarios.length > 0 ? viewingProvedor.dados_bancarios : [
-                      { banco: viewingProvedor.banco, iban: viewingProvedor.iban, swift: viewingProvedor.swift, titular_conta: viewingProvedor.titular_conta, metodo_pago: viewingProvedor.metodo_pago, principal: true }
-                    ]).map((b, i) => (
-                      <div key={i} className="p-4 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            {b.banco || 'Banco Principal'}
-                            {i === 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">Principal</span>}
-                          </span>
-                          <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded">
-                            {b.metodo_pago || 'Transferir'}
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-600">
+                            {w.Cod_colab || w.cod_colab}
                           </span>
                         </div>
-
-                        {b.iban && (
-                          <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                            <div>
-                              <span className="text-[10px] text-slate-400 uppercase font-bold block">IBAN / Cuenta</span>
-                              <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">{b.iban}</span>
-                            </div>
-                            <button
-                              onClick={() => handleCopy(b.iban!)}
-                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/40 rounded-md transition-colors"
-                            >
-                              {copiedText === b.iban ? <Check size={14} /> : <Copy size={14} />}
-                              {copiedText === b.iban ? '¡Copiado!' : 'Copiar'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="font-black text-slate-800 dark:text-slate-100">{selectedAssignWorker.Nombre || selectedAssignWorker.nombre}</p>
+                      <p className="text-[11px] text-blue-700 dark:text-blue-300">{selectedAssignWorker.Cod_colab || selectedAssignWorker.cod_colab} • {selectedAssignWorker.contratante}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedAssignWorker(null)}
+                      className="text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
 
-                {/* 4. Endereço */}
-                <div className="space-y-2">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                    <MapPin size={14} className="text-rose-600" />
-                    Dirección & Ubicación Fiscal
-                  </h3>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1">
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">{viewingProvedor.endereco || 'Dirección no informada'}</p>
-                    <p className="text-slate-500 text-xs">
-                      {[
-                        viewingProvedor.municipio,
-                        viewingProvedor.provincia,
-                        viewingProvedor.codigo_postal ? `CP: ${viewingProvedor.codigo_postal}` : null,
-                        viewingProvedor.pais
-                      ].filter(Boolean).join(' • ')}
-                    </p>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600 block">Cama / Habitación:</label>
+                    <select
+                      value={assignCamaId}
+                      onChange={e => setAssignCamaId(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Seleccionar Cama --</option>
+                      {camas
+                        .filter(c => c.alojamento_id === assigningAlojamento.id)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.identificador} ({c.tipo === 'dupla' ? 'Cama Doble' : 'Cama Individual'}) - {c.status === 'ocupada' ? '⚠ Ocupada' : '✓ Libre'}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Check-in:</label>
+                      <input
+                        type="date"
+                        value={assignDataInicio}
+                        onChange={e => setAssignDataInicio(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Fin Prevista:</label>
+                      <input
+                        type="date"
+                        value={assignDataFim}
+                        onChange={e => setAssignDataFim(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">Observaciones:</label>
+                    <input
+                      type="text"
+                      value={assignObservacoes}
+                      onChange={e => setAssignObservacoes(e.target.value)}
+                      placeholder="Detalles de llegada o notas..."
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                    />
                   </div>
                 </div>
+              )}
+            </div>
 
-              </div>
-
-              {/* Footer Modal Actions */}
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
+            {selectedAssignWorker && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t flex justify-end gap-2">
                 <button
                   onClick={() => {
-                    const id = viewingProvedor.id;
-                    const name = viewingProvedor.nome_razao_social;
-                    setViewingProvedor(null);
-                    setItemToDelete({ id, name, type: 'provedor' });
+                    setAssigningAlojamento(null);
+                    setSelectedAssignWorker(null);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
                 >
-                  <Trash2 size={14} />
-                  Eliminar Proveedor
+                  Cancelar
                 </button>
+                <button
+                  disabled={!assignCamaId || isSubmittingAssign}
+                  onClick={handleConfirmAssign}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm disabled:opacity-50"
+                >
+                  {isSubmittingAssign ? 'Asignando...' : 'Confirmar Asignación'}
+                </button>
+              </div>
+            )}
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setViewingProvedor(null)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    onClick={() => {
-                      const id = viewingProvedor.id;
-                      setViewingProvedor(null);
-                      navigate(`/logistica/registros/provedores/editar/${id}`);
-                    }}
-                    className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Pencil size={13} />
-                    Editar Proveedor
-                  </button>
-                </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: CHECK-OUT DE TRABAJADOR */}
+      {/* ========================================================================= */}
+      {checkingOutWorker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
+                <LogOut size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Procesar Check-out</h3>
+                <p className="text-xs text-slate-500">Liberación de plaza e inspección de salida.</p>
               </div>
             </div>
+
+            <p className="text-xs text-slate-700 dark:text-slate-300">
+              ¿Desea registrar la salida de <strong className="text-slate-900 dark:text-white">{checkingOutWorker.workerNome}</strong> del alojamiento <strong className="text-slate-900 dark:text-white">{checkingOutWorker.alojamentoNome}</strong>? La plaza quedará libre inmediatamente.
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Motivo del Check-out:</label>
+                <select
+                  value={motivoCheckout}
+                  onChange={e => setMotivoCheckout(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold"
+                >
+                  <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
+                  <option value="Reemplazo por Baja">Reemplazo por Baja Médica / Renuncia</option>
+                  <option value="Cambio de Alojamiento">Cambio de Alojamiento / Reubicación</option>
+                  <option value="Cancelación de Pedido">Cancelación de Pedido</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                disabled={isSubmittingCheckout}
+                onClick={() => setCheckingOutWorker(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={isSubmittingCheckout}
+                onClick={handleConfirmCheckout}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2"
+              >
+                <LogOut size={13} />
+                {isSubmittingCheckout ? 'Procesando...' : 'Confirmar Salida'}
+              </button>
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
-      {/* ========================================================================= */}
-      {/* MODAL DE VISUALIZAÇÃO COMPLETA DE ALOJAMIENTO */}
-      {/* ========================================================================= */}
-      {viewingAlojamento && (() => {
-        const comod = viewingAlojamento.comodidades || {};
-        const sumin = viewingAlojamento.suministros || {};
-        const cont = viewingAlojamento.contrato || (comod as any).__contrato || {};
-        const rawFotos: string[] = viewingAlojamento.fotos && viewingAlojamento.fotos.length > 0
-          ? viewingAlojamento.fotos
-          : Array.isArray((comod as any).__fotos)
-            ? (comod as any).__fotos
-            : [];
-        const currentPhoto = rawFotos[activeViewPhotoIndex] || rawFotos[0];
+      {/* MODAL DE IMPORTAÇÃO */}
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportSuccess={() => fetchData()}
+      />
 
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-4xl max-h-[94vh] overflow-hidden flex flex-col shadow-2xl">
-              
-              {/* Header Modal */}
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-sm">
-                    <Home size={22} />
+      {/* MODAL VIEW ALOJAMIENTO COMPLETO */}
+      {viewingAlojamento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            
+            <div className="p-6 bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-2xl">
+                  <Home size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-slate-700 dark:text-slate-300">
+                      {viewingAlojamento.codigo || 'AL-XXXX'}
+                    </span>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                      {viewingAlojamento.nome}
+                    </h2>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                        {viewingAlojamento.nome}
-                      </h2>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        viewingAlojamento.ativo !== false && viewingAlojamento.status !== 'Inactivo'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                      }`}>
-                        {viewingAlojamento.status || (viewingAlojamento.ativo !== false ? 'Activo' : 'Inactivo')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] font-mono font-bold px-1.5 py-0.2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded">
-                        {viewingAlojamento.codigo || 'AL-0001'}
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-semibold">
-                        {viewingAlojamento.tipo_alojamento || 'Fijo'}
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-medium">
-                        {viewingAlojamento.classificacao || 'Privado'}
-                      </span>
-                    </div>
+                  <p className="text-xs text-slate-500">{viewingAlojamento.endereco || 'Dirección registrada'}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setViewingAlojamento(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+              
+              {/* Galeria de Fotos */}
+              {viewingAlojamento.fotos && viewingAlojamento.fotos.length > 0 && (
+                <div className="space-y-2">
+                  <div className="relative h-64 bg-slate-950 rounded-2xl overflow-hidden">
+                    <img
+                      src={viewingAlojamento.fotos[activeViewPhotoIndex] || viewingAlojamento.fotos[0]}
+                      alt="Alojamiento"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {viewingAlojamento.fotos.map((url, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveViewPhotoIndex(idx)}
+                        className={`w-16 h-12 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                          activeViewPhotoIndex === idx ? 'border-blue-600 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
                   </div>
                 </div>
+              )}
 
+              {/* Informações Gerais */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Capacidad Total</span>
+                  <span className="text-base font-black text-slate-800 dark:text-slate-100">{viewingAlojamento.capacidade_pessoas} personas</span>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Camas Individual / Doble</span>
+                  <span className="text-base font-black text-slate-800 dark:text-slate-100">{viewingAlojamento.camas_individuais || 0} ind. / {viewingAlojamento.camas_duplas || 0} dob.</span>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Alquiler Mensual</span>
+                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400">€ {Number(viewingAlojamento.valor_mensal || 0).toLocaleString('es-ES')}</span>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Modalidad</span>
+                  <span className="text-base font-black text-blue-600">{viewingAlojamento.tipo_alojamento || 'Fijo'}</span>
+                </div>
+              </div>
+
+              {/* Localização & GPS */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin size={14} className="text-rose-500" />
+                  Dirección & Ubicación GPS
+                </span>
+                <p className="font-bold text-slate-800 dark:text-slate-100">{viewingAlojamento.endereco || 'Dirección registrada'}</p>
+                <p className="text-slate-500">{viewingAlojamento.municipio}, {viewingAlojamento.provincia} • CP: {viewingAlojamento.codigo_postal || 'N/A'}</p>
+                
+                {viewingAlojamento.latitude && viewingAlojamento.longitude && (
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
+                    <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
+                      Coordenadas: {viewingAlojamento.latitude}, {viewingAlojamento.longitude}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${viewingAlojamento.latitude},${viewingAlojamento.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-2xs"
+                    >
+                      <ExternalLink size={12} />
+                      Abrir en Google Maps
+                    </a>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  const id = viewingAlojamento.id;
+                  const name = viewingAlojamento.nome;
+                  setViewingAlojamento(null);
+                  setItemToDelete({ id, name, type: 'alojamento' });
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+              >
+                Eliminar Inmueble
+              </button>
+
+              <div className="flex gap-2">
                 <button
                   onClick={() => setViewingAlojamento(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
                 >
-                  <X size={20} />
+                  Cerrar
                 </button>
-              </div>
-
-              {/* Content Scrollable */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
-                
-                {/* 1. SEÇÃO DE FOTOS DO IMÓVEL */}
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <ImageIcon size={15} className="text-blue-600" />
-                      Galería de Fotos del Inmueble ({rawFotos.length})
-                    </span>
-                    {rawFotos.length > 0 && (
-                      <span className="text-xs text-slate-400 font-medium">
-                        Foto {activeViewPhotoIndex + 1} de {rawFotos.length}
-                      </span>
-                    )}
-                  </div>
-
-                  {rawFotos.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-800 group h-64 sm:h-80 flex items-center justify-center">
-                        <img
-                          src={currentPhoto}
-                          alt="Foto del Alojamiento"
-                          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 cursor-pointer"
-                          onClick={() => setZoomPhotoUrl(currentPhoto)}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
-                        
-                        <div className="absolute top-3 right-3 flex items-center gap-2">
-                          <button
-                            onClick={() => setZoomPhotoUrl(currentPhoto)}
-                            className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-colors"
-                            title="Ampliar Foto"
-                          >
-                            <Maximize2 size={16} />
-                          </button>
-                          <a
-                            href={currentPhoto}
-                            download={`alojamiento-foto-${activeViewPhotoIndex + 1}.jpg`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-colors"
-                            title="Descargar Imagen"
-                          >
-                            <Download size={16} />
-                          </a>
-                        </div>
-
-                        <div className="absolute bottom-3 left-3 text-white text-xs font-semibold bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg">
-                          📸 {viewingAlojamento.nome}
-                        </div>
-                      </div>
-
-                      {rawFotos.length > 1 && (
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {rawFotos.map((f, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setActiveViewPhotoIndex(idx)}
-                              className={`relative flex-shrink-0 w-20 h-16 rounded-xl overflow-hidden border-2 transition-all ${
-                                activeViewPhotoIndex === idx
-                                  ? 'border-blue-600 ring-2 ring-blue-600/30 scale-102'
-                                  : 'border-transparent opacity-70 hover:opacity-100'
-                              }`}
-                            >
-                              <img src={f} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-center space-y-2 bg-white dark:bg-slate-900/50">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto">
-                        <ImageIcon size={24} />
-                      </div>
-                      <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Ninguna foto adjunta a este inmueble</p>
-                      <p className="text-xs text-slate-400">
-                        Puede hacer clic en <strong>Editar Alojamiento</strong> para cargar imágenes o pegar capturas con <strong>Ctrl + V</strong>.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. GRID PRINCIPAL: CAPACIDADE, LOCALIZAÇÃO & PROVEDOR */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Capacidade e Camas */}
-                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Users size={15} className="text-blue-600" />
-                      Capacidad & Dormitorios
-                    </span>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-center">
-                        <span className="text-[10px] text-slate-400 font-bold block">Capacidad</span>
-                        <span className="text-sm font-black text-blue-700 dark:text-blue-300">{viewingAlojamento.capacidade_pessoas} pax</span>
-                      </div>
-                      <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl text-center">
-                        <span className="text-[10px] text-slate-400 font-bold block">Dormitorios</span>
-                        <span className="text-sm font-black text-slate-700 dark:text-slate-200">{viewingAlojamento.dormitorios || 0}</span>
-                      </div>
-                      <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-center">
-                        <span className="text-[10px] text-slate-400 font-bold block">Total Camas</span>
-                        <span className="text-sm font-black text-indigo-700 dark:text-indigo-300">{viewingAlojamento.total_camas || 0}</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs pt-1">
-                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Individuales</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_individuais || 0}</span>
-                      </div>
-                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Dobles</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.camas_duplas || 0}</span>
-                      </div>
-                      <div className="p-2 bg-slate-50 dark:bg-slate-700/20 rounded-lg text-center">
-                        <span className="text-[10px] text-slate-400 block">Baños</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{viewingAlojamento.banheiros || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Proveedor & Localização */}
-                  <div className="space-y-3">
-                    <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
-                          <Building size={13} />
-                          Proveedor Vinculado
-                        </span>
-                        {viewingAlojamento.provedor?.codigo && (
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-purple-200 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 rounded">
-                            {viewingAlojamento.provedor.codigo}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
-                        {viewingAlojamento.provedor?.nome_razao_social || 'Proveedor no especificado'}
-                      </p>
-                      {viewingAlojamento.provedor?.telefone && (
-                        <a
-                          href={`https://wa.me/${viewingAlojamento.provedor.telefone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline pt-0.5"
-                        >
-                          <Phone size={13} />
-                          {viewingAlojamento.provedor.telefone}
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <MapPin size={13} />
-                        Ubicación Completa
-                      </span>
-                      <p className="font-bold text-slate-800 dark:text-slate-100 text-xs">
-                        {viewingAlojamento.endereco || 'Dirección no registrada'}
-                      </p>
-                      <p className="text-slate-500 text-xs">
-                        {[
-                          viewingAlojamento.municipio,
-                          viewingAlojamento.provincia,
-                          viewingAlojamento.codigo_postal ? `CP: ${viewingAlojamento.codigo_postal}` : null,
-                          viewingAlojamento.pais || 'España'
-                        ].filter(Boolean).join(' • ')}
-                      </p>
-
-                      {/* Coordenadas GPS & Link Google Maps */}
-                      <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-                          <Globe size={13} className="text-blue-600" />
-                          <span className="font-mono font-bold text-[11px]">
-                            {viewingAlojamento.latitude && viewingAlojamento.longitude
-                              ? `${Number(viewingAlojamento.latitude).toFixed(5)}, ${Number(viewingAlojamento.longitude).toFixed(5)}`
-                              : 'Coordenadas disponibles'}
-                          </span>
-                        </div>
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${viewingAlojamento.latitude || viewingAlojamento.endereco},${viewingAlojamento.longitude || viewingAlojamento.municipio}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
-                        >
-                          <ExternalLink size={11} />
-                          Abrir en Maps
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. COMODIDADES & SUPRIMENTOS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-amber-500" />
-                      Comodidades del Inmueble
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { key: 'wifi', label: 'Wi-Fi', icon: Wifi },
-                        { key: 'aire_acondicionado', label: 'Aire acondicionado', icon: Snowflake },
-                        { key: 'parking', label: 'Parking', icon: Car },
-                        { key: 'cocina', label: 'Cocina', icon: UtensilsCrossed },
-                        { key: 'calefaccion', label: 'Calefacción', icon: Flame },
-                        { key: 'lavadora', label: 'Lavadora', icon: Shirt },
-                        { key: 'tv', label: 'TV', icon: Tv },
-                        { key: 'ascensor', label: 'Ascensor', icon: ArrowUpCircle },
-                      ].map(item => {
-                        const active = !!comod[item.key];
-                        const Icon = item.icon;
-                        return (
-                          <span
-                            key={item.key}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                              active
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60'
-                            }`}
-                          >
-                            <Icon size={13} />
-                            {item.label}
-                            {active ? '✓' : '✗'}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Droplets size={14} className="text-cyan-500" />
-                      Suministros a Pagar / Incluidos
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { key: 'internet', label: 'Internet', icon: Globe },
-                        { key: 'agua', label: 'Agua', icon: Droplets },
-                        { key: 'luz', label: 'Luz', icon: Zap },
-                        { key: 'gas', label: 'Gas', icon: Flame },
-                        { key: 'limpieza', label: 'Limpieza', icon: Shirt },
-                        { key: 'otros', label: 'Otros Gastos', icon: Info },
-                      ].map(item => {
-                        const active = !!sumin[item.key];
-                        const Icon = item.icon;
-                        return (
-                          <span
-                            key={item.key}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                              active
-                                ? 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60'
-                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60'
-                            }`}
-                          >
-                            <Icon size={13} />
-                            {item.label}
-                            {active ? '✓' : '✗'}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. CONTRATO & CONDIÇÕES FINANCEIRAS */}
-                <div className="p-5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl space-y-4">
-                  <div className="flex items-center justify-between border-b border-emerald-100 dark:border-emerald-900/60 pb-3">
-                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <DollarSign size={15} />
-                      Contrato & Condiciones Financieras
-                    </span>
-                    {cont.codigo && (
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 rounded-md">
-                        {cont.codigo}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Modalidad</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {cont.tipo_contrato || viewingAlojamento.tipo_alojamento || 'Fijo'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Alquiler / Coste Mensual</span>
-                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                        € {(viewingAlojamento.valor_mensal || cont.valor_mensal || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Fianza / Depósito</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {cont.tem_fianza || Number(cont.fianza_valor) > 0
-                          ? `€ ${Number(cont.fianza_valor || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${cont.fianza_meses || 1}m)`
-                          : 'Sin Fianza (Airbnb/Hotel)'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Vencimiento</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Día {cont.dia_vencimento || 5} del mes
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Footer Modal Actions */}
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 flex justify-between items-center">
                 <button
                   onClick={() => {
                     const id = viewingAlojamento.id;
-                    const name = viewingAlojamento.nome;
                     setViewingAlojamento(null);
-                    setItemToDelete({ id, name, type: 'alojamento' });
+                    navigate(`/logistica/registros/alojamentos/editar/${id}`);
                   }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
                 >
-                  <Trash2 size={14} />
-                  Eliminar Alojamiento
+                  <Pencil size={13} />
+                  Editar Alojamiento
                 </button>
+              </div>
+            </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setViewingAlojamento(null)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    onClick={() => {
-                      const alojId = viewingAlojamento.id;
-                      setViewingAlojamento(null);
-                      navigate(`/logistica/registros/alojamentos/editar/${alojId}`);
-                    }}
-                    className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm"
-                  >
-                    <Pencil size={14} />
-                    Editar Alojamiento
-                  </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VIEW PROVEDOR */}
+      {viewingProvedor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded-2xl">
+                  <Building size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">{viewingProvedor.nome_razao_social}</h3>
+                  <p className="text-xs text-slate-500">{viewingProvedor.tipo_provedor || 'Proveedor Inmobiliario'}</p>
                 </div>
               </div>
-
+              <button onClick={() => setViewingProvedor(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                <X size={18} />
+              </button>
             </div>
-          </div>
-        );
-      })()}
 
-      {/* MODAL DE ZOOM DE FOTO */}
-      {zoomPhotoUrl && (
-        <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150 cursor-pointer"
-          onClick={() => setZoomPhotoUrl(null)}
-        >
-          <div className="relative max-w-5xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <img src={zoomPhotoUrl} alt="Zoom Preview" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
-            <button
-              onClick={() => setZoomPhotoUrl(null)}
-              className="absolute top-4 right-4 p-2.5 bg-black/70 hover:bg-black/90 text-white rounded-full transition-colors"
-            >
-              <X size={20} />
-            </button>
-            <a
-              href={zoomPhotoUrl}
-              download="alojamento-foto.jpg"
-              target="_blank"
-              rel="noreferrer"
-              className="absolute bottom-4 right-4 flex items-center gap-1.5 px-4 py-2 bg-black/70 hover:bg-black/90 text-white text-xs font-bold rounded-xl transition-colors"
-            >
-              <Download size={14} />
-              Descargar Foto Original
-            </a>
+            <div className="space-y-2 text-xs">
+              <p><strong>CIF/NIF:</strong> {viewingProvedor.cif_nif || '-'}</p>
+              <p><strong>Contacto:</strong> {viewingProvedor.contato_nome || '-'} ({viewingProvedor.telefone || 'Sin teléfono'})</p>
+              <p><strong>IBAN:</strong> {viewingProvedor.iban || '-'}</p>
+              <p><strong>Dirección:</strong> {viewingProvedor.endereco || '-'}, {viewingProvedor.municipio}</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button onClick={() => setViewingProvedor(null)} className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl">
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  const id = viewingProvedor.id;
+                  setViewingProvedor(null);
+                  navigate(`/logistica/registros/provedores/editar/${id}`);
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs"
+              >
+                Editar Proveedor
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-3 bg-red-100 dark:bg-red-950/50 rounded-xl">
-                <AlertTriangle size={24} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
+                <AlertTriangle size={22} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Confirmar Eliminación</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Confirmar Eliminación</h3>
                 <p className="text-xs text-slate-500">Esta acción no se puede deshacer.</p>
               </div>
             </div>
-
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              ¿Está seguro de que desea eliminar el {itemToDelete.type === 'provedor' ? 'proveedor' : 'alojamiento'}{' '}
-              <strong className="text-slate-900 dark:text-white">{itemToDelete.name}</strong>?
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              ¿Está seguro de que desea eliminar <strong>{itemToDelete.name}</strong>?
             </p>
-
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 disabled={isDeleting}
                 onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
               >
                 Cancelar
               </button>
               <button
                 disabled={isDeleting}
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5"
               >
-                <Trash2 size={14} />
-                {isDeleting ? 'Eliminando...' : 'Sí, Eliminar'}
+                <Trash2 size={13} />
+                {isDeleting ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Import Modal */}
-      <ImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onSuccess={() => {
-          fetchData();
-          setIsImportModalOpen(false);
-        }}
-      />
     </div>
   );
 };
+
+const Table2Icon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M3 9h18" />
+    <path d="M3 15h18" />
+    <path d="M9 3v18" />
+  </svg>
+);
