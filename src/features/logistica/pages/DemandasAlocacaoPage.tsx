@@ -53,7 +53,7 @@ import type {
   TrabalhadorDemandaItem,
   TrabalhadorAlojado
 } from '../services/logisticsService';
-import { ExportLogisticaDialog, ExportColumnDef } from '../components/ExportLogisticaDialog';
+import { ExportLogisticaDialog, type ExportColumnDef } from '../components/ExportLogisticaDialog';
 
 const MESES_NOMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
