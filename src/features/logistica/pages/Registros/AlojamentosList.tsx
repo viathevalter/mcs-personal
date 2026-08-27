@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Bed,
   Users,
+  User,
   Calendar,
   Sparkles,
   Wifi,
