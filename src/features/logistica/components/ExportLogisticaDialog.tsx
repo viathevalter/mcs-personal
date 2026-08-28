@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { DownloadCloud, Loader2, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
+import { DownloadCloud, Loader2, CheckSquare, Square, FileSpreadsheet, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 
 export interface ExportColumnDef {
   id: string;
@@ -40,13 +38,18 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   
+  // Estado das colunas selecionadas
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
-  // Inicializar colunas selecionadas
+  // Inicializar com todas as colunas selecionadas por padrão sempre que abrir o modal ou mudar colunas
   useEffect(() => {
-    const defaults = availableColumns.filter(c => c.defaultSelected !== false).map(c => c.id);
-    setSelectedColumns(defaults);
-  }, [availableColumns]);
+    if (isOpen) {
+      const defaults = availableColumns
+        .filter(c => c.defaultSelected !== false)
+        .map(c => c.id);
+      setSelectedColumns(defaults.length > 0 ? defaults : availableColumns.map(c => c.id));
+    }
+  }, [isOpen, availableColumns]);
 
   const handleToggleColumn = (colId: string) => {
     setSelectedColumns(prev =>
@@ -127,7 +130,7 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[620px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-3xl p-6 shadow-2xl">
+      <DialogContent className="sm:max-w-[640px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-3xl p-6 shadow-2xl">
         <DialogHeader className="space-y-2">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
@@ -149,14 +152,14 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
 
         <div className="py-3 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 text-xs">
-            <span className="font-bold text-slate-600 dark:text-slate-300">
+            <span className="font-bold text-slate-700 dark:text-slate-200">
               {selectedColumns.length} de {availableColumns.length} columnas seleccionadas
             </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleSelectAll(true)}
-                className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <CheckSquare size={13} />
                 Seleccionar Todas
@@ -165,7 +168,7 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
               <button
                 type="button"
                 onClick={() => handleSelectAll(false)}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:underline flex items-center gap-1"
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Square size={13} />
                 Limpiar
@@ -173,32 +176,31 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
             {availableColumns.map(col => {
               const isChecked = selectedColumns.includes(col.id);
               return (
-                <div
+                <button
                   key={col.id}
+                  type="button"
                   onClick={() => handleToggleColumn(col.id)}
-                  className={`flex items-center space-x-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs ${
+                  className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition-all cursor-pointer select-none text-xs ${
                     isChecked
-                      ? 'bg-emerald-50/50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800 font-bold text-emerald-950 dark:text-emerald-200'
-                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-medium'
+                      ? 'bg-emerald-50/80 border-emerald-500 text-emerald-950 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-200 shadow-2xs font-bold'
+                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400 font-medium'
                   }`}
                 >
-                  <Checkbox
-                    id={`col-${col.id}`}
-                    checked={isChecked}
-                    onCheckedChange={() => handleToggleColumn(col.id)}
-                    className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
-                  />
-                  <Label
-                    htmlFor={`col-${col.id}`}
-                    className="cursor-pointer text-xs truncate leading-tight pointer-events-none"
-                  >
+                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center border transition-all flex-shrink-0 ${
+                    isChecked
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                  }`}>
+                    {isChecked && <Check size={12} strokeWidth={3.5} />}
+                  </div>
+                  <span className="truncate flex-1">
                     {col.label}
-                  </Label>
-                </div>
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -209,7 +211,7 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
             type="button"
             variant="ghost"
             onClick={() => setIsOpen(false)}
-            className="rounded-xl text-xs"
+            className="rounded-xl text-xs cursor-pointer"
           >
             Cancelar
           </Button>
@@ -218,7 +220,7 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
             type="button"
             onClick={handleExport}
             disabled={isExporting || selectedColumns.length === 0}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isExporting ? (
               <>
@@ -237,3 +239,4 @@ export const ExportLogisticaDialog: React.FC<ExportLogisticaDialogProps> = ({
     </Dialog>
   );
 };
+
