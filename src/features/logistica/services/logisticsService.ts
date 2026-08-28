@@ -727,22 +727,33 @@ export const logisticsService = {
         const pedidoItems = (itemsRes.data || []).filter((it: any) => it.pedido_id === ped.id);
         const totalVagas = pedidoItems.reduce((acc: number, it: any) => acc + (it.quantity_requested || 1), 0);
 
-        // Trabalhadores contratados vinculados a este pedido
-        const pedAssignments = (assignmentsRes.data || []).filter((ass: any) => ass.pedido_id === ped.id);
+        // Trabalhadores contratados vinculados estritamente a este pedido
+        const pedAssignments = (assignmentsRes.data || []).filter(
+          (ass: any) => Boolean(ass.pedido_id) && Boolean(ped.id) && String(ass.pedido_id).trim() === String(ped.id).trim()
+        );
         
-        const trabalhadores: TrabalhadorDemandaItem[] = pedAssignments.map((ass: any) => {
-          const w = ass.worker || {};
-          const workerId = w.id || ass.id;
+        const seenWorkerIds = new Set<string>();
+        const trabalhadores: TrabalhadorDemandaItem[] = [];
+
+        for (const ass of pedAssignments) {
+          const rawWorker = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
+          const workerId = rawWorker.id || ass.worker_id || ass.id;
+          
+          if (!workerId || seenWorkerIds.has(workerId)) {
+            continue;
+          }
+          seenWorkerIds.add(workerId);
+
           const alocLog = alocacoesLogisticaMap.get(workerId);
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
-          return {
+          trabalhadores.push({
             assignment_id: ass.id,
             worker_id: workerId,
-            worker_nome: w.nome || 'Trabalhador',
-            codigo_colab: w.cod_colab || 'E-XXXX',
-            nif: w.nif,
-            movil: w.movil,
+            worker_nome: rawWorker.nome || 'Trabalhador',
+            codigo_colab: rawWorker.cod_colab || 'E-XXXX',
+            nif: rawWorker.nif,
+            movil: rawWorker.movil,
             funcao: ass.job_function_name_snapshot || 'Operador Especialista',
             data_inicio: ass.planned_start_date || ass.start_date || dataInicioStr,
             data_fim: dataFimStr,
@@ -757,8 +768,8 @@ export const logisticsService = {
               data_inicio: alocLog.data_inicio,
               data_fim: alocLog.data_fim
             } : undefined
-          };
-        });
+          });
+        }
 
         const totalAlojados = trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
         const totalPendentes = trabalhadores.filter(t => t.status_alocacao === 'pendente').length;

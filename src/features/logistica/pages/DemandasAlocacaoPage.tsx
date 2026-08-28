@@ -184,6 +184,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
     loadData();
   }, []);
 
+  // Limpar seleção ao trocar de pedido
+  useEffect(() => {
+    setSelectedWorkerIds([]);
+  }, [selectedPedidoId]);
+
   // Busca rápida de colaboradores no banco para modal direto
   useEffect(() => {
     if (!isDirectModalOpen) return;
@@ -1510,7 +1515,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <th className="px-4 py-3 text-right">Acción</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      <tbody key={selectedPedido.pedido_id} className="divide-y divide-slate-100 dark:divide-slate-800/60">
                         {sortedPedidoWorkers.length === 0 ? (
                           <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-400">
@@ -1524,7 +1529,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                             return (
                               <tr
-                                key={worker.worker_id}
+                                key={worker.assignment_id || `${selectedPedido.pedido_id}-${worker.worker_id}`}
                                 className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
                                   isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
                                 }`}
