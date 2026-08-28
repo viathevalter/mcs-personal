@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePedidos } from './hooks/usePedidos';
 import { PedidoKpiCards } from './components/PedidoKpiCards';
 import { PedidosTable } from './components/PedidosTable';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Search } from 'lucide-react';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
 
@@ -17,6 +18,20 @@ export function PedidosPage() {
 
   const { data, isLoading } = usePedidos(filters);
   const { data: clients } = useClients();
+
+  const clientOptions = useMemo(() => {
+    const list = (clients || [])
+      .map(c => ({
+        value: c.id || '',
+        label: c.trade_name || c.legal_name || ''
+      }))
+      .filter(c => c.value && c.label);
+
+    return [
+      { value: 'all', label: 'Todos os Clientes' },
+      ...list
+    ];
+  }, [clients]);
 
   const pedidos = data?.pedidos || [];
   const itemsMap = data?.itemsMap || {};
@@ -46,22 +61,15 @@ export function PedidosPage() {
           </div>
         </div>
 
-        <div className="space-y-1 w-full md:w-48">
+        <div className="space-y-1 w-full md:w-56">
           <label className="text-xs font-medium text-muted-foreground">Cliente</label>
-          <Select 
-            value={filters.client_id} 
-            onValueChange={(val) => setFilters(f => ({ ...f, client_id: val }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Todos os Clientes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Clientes</SelectItem>
-              {clients?.map((client) => (
-                <SelectItem key={client.id} value={client.id || ''}>{client.trade_name || client.legal_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            options={clientOptions}
+            value={filters.client_id === 'all' ? null : filters.client_id}
+            onChange={(val) => setFilters(f => ({ ...f, client_id: val || 'all' }))}
+            placeholder="Todos os Clientes"
+            emptyText="Nenhum cliente encontrado."
+          />
         </div>
 
         <div className="space-y-1 w-full md:w-48">

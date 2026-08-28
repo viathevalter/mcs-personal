@@ -7,6 +7,7 @@ import { useWorkerAssignments } from './hooks/useWorkerAssignments';
 import { useCreateSolicitud } from './hooks/useCreateSolicitud';
 import { AssignmentsSelectionTable } from './components/AssignmentsSelectionTable';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
@@ -115,12 +116,54 @@ export function NewSolicitudPage() {
     const selectedClient = clients.find(c => c.id === selectedClientId);
     const selectedClientName = selectedClient?.trade_name || selectedClient?.legal_name || '';
 
+    const clientOptions = React.useMemo(() => {
+        const list = clients
+            .map(c => ({
+                value: c.id || '',
+                label: c.trade_name || c.legal_name || ''
+            }))
+            .filter(c => c.value && c.label);
+        
+        return [
+            { value: 'all', label: 'Todos os Clientes' },
+            ...list
+        ];
+    }, [clients]);
+
+    const targetClientOptions = React.useMemo(() => {
+        const list = clients
+            .map(c => ({
+                value: c.id || '',
+                label: c.trade_name || c.legal_name || ''
+            }))
+            .filter(c => c.value && c.label);
+        
+        return [
+            { value: 'all', label: 'Selecione o Cliente' },
+            ...list
+        ];
+    }, [clients]);
+
     const filteredDropdownPedidos = selectedClientId !== 'all' 
         ? pedidos.filter(p => {
             const pClientName = p.client?.trade_name || p.client?.legal_name || '';
             return pClientName.toLowerCase() === selectedClientName.toLowerCase();
           }) 
         : pedidos;
+
+    const pedidoOptions = React.useMemo(() => {
+        const list = filteredDropdownPedidos
+            .map(p => ({
+                value: p.id?.toString() || '',
+                label: `${p.codigo} - ${p.client?.trade_name || p.client?.legal_name || ''}${p.client_site?.name ? ` (${p.client_site.name})` : ''}`
+            }))
+            .filter(p => p.value);
+
+        return [
+            { value: 'all', label: 'Todos os Pedidos' },
+            ...list
+        ];
+    }, [filteredDropdownPedidos]);
 
     const filteredAssignments = assignments.filter(a => {
         // Filter by Client
@@ -942,33 +985,25 @@ export function NewSolicitudPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
-                                        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Todos os Clientes" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Todos os Clientes</SelectItem>
-                                                {clients.map(c => (
-                                                    <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={clientOptions}
+                                            value={selectedClientId === 'all' ? null : selectedClientId}
+                                            onChange={(val) => setSelectedClientId(val || 'all')}
+                                            placeholder="Todos os Clientes"
+                                            emptyText="Nenhum cliente encontrado."
+                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                        />
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Pedido (Obra)</label>
-                                        <Select value={selectedPedidoId} onValueChange={setSelectedPedidoId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Todos os Pedidos" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Todos os Pedidos</SelectItem>
-                                                {filteredDropdownPedidos.map(p => (
-                                                    <SelectItem key={p.id} value={p.id?.toString() || ''}>
-                                                        {p.codigo} - {p.client?.trade_name || p.client?.legal_name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={pedidoOptions}
+                                            value={selectedPedidoId === 'all' ? null : selectedPedidoId}
+                                            onChange={(val) => setSelectedPedidoId(val || 'all')}
+                                            placeholder="Todos os Pedidos"
+                                            emptyText="Nenhum pedido encontrado."
+                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                        />
                                     </div>
                                     {selectedPedidoId !== 'all' && (() => {
                                         const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
@@ -1052,17 +1087,14 @@ export function NewSolicitudPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
-                                        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Todos os Clientes" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Todos os Clientes</SelectItem>
-                                                {clients.map(c => (
-                                                    <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={clientOptions}
+                                            value={selectedClientId === 'all' ? null : selectedClientId}
+                                            onChange={(val) => setSelectedClientId(val || 'all')}
+                                            placeholder="Todos os Clientes"
+                                            emptyText="Nenhum cliente encontrado."
+                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                        />
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Obra / Local</label>
@@ -1338,17 +1370,14 @@ export function NewSolicitudPage() {
                                 <>
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente de Destino</label>
-                                        <Select value={targetClientId} onValueChange={setTargetClientId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione o Cliente" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Selecione o Cliente</SelectItem>
-                                                {clients.map(c => (
-                                                    <SelectItem key={c.id} value={c.id || ''}>{c.trade_name || c.legal_name || ''}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={targetClientOptions}
+                                            value={targetClientId === 'all' ? null : targetClientId}
+                                            onChange={(val) => setTargetClientId(val || 'all')}
+                                            placeholder="Selecione o Cliente"
+                                            emptyText="Nenhum cliente encontrado."
+                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                        />
                                     </div>
 
                                     <div className="space-y-1.5">

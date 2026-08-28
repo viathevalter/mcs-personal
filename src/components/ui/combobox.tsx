@@ -70,7 +70,7 @@ export function Combobox({
                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] min-w-[280px] max-w-[420px] p-0 shadow-lg border-slate-200 dark:border-slate-800", popoverClassName)} align="start">
+            <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0 shadow-lg border-slate-200 dark:border-slate-800", popoverClassName)} align="start">
                 <Command filter={() => 1}>
                     <CommandInput 
                         placeholder="Buscar..." 
@@ -85,7 +85,7 @@ export function Combobox({
                             {filteredOptions.map((option) => (
                                 <CommandItem
                                     key={option.value}
-                                    value={option.label.toLowerCase()}
+                                    value={`${option.label} ${option.value}`.toLowerCase()}
                                     onSelect={() => {
                                         onChange(option.value === value ? null : option.value)
                                         setOpen(false)
