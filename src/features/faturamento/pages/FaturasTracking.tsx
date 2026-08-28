@@ -2,7 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, AlertTriangle, Trash2, Save, Euro } from 'lucide-react';
+import { 
+  Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, 
+  AlertTriangle, Trash2, Save, Euro, Calendar, Layers, Filter, CheckCheck, RefreshCw 
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
@@ -108,6 +111,42 @@ export function FaturasTracking() {
   const [statusFilter, setStatusFilter] = useState(() => {
     return sessionStorage.getItem('mcs:faturamento_tracking_statusFilter') || 'all';
   });
+
+  // Period filter states (synchronized with localStorage)
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(() => {
+    try {
+      const stored = localStorage.getItem('mcs:selectedPeriod');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.year) return parsed.year;
+      }
+    } catch {}
+    const prevMonthDate = new Date();
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    return prevMonthDate.getFullYear();
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>(() => {
+    try {
+      const stored = localStorage.getItem('mcs:selectedPeriod');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.month !== undefined) return parsed.month - 1; // 0-indexed
+      }
+    } catch {}
+    const prevMonthDate = new Date();
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    return prevMonthDate.getMonth();
+  });
+
+  // 3 Premium tabs: 'pending' (Em Andamento), 'completed' (Finalizadas), 'all' (Todas)
+  const [trackingTab, setTrackingTab] = useState<'pending' | 'completed' | 'all'>(() => {
+    return (sessionStorage.getItem('mcs:faturamento_tracking_tab') as any) || 'pending';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mcs:faturamento_tracking_tab', trackingTab);
+  }, [trackingTab]);
 
   useEffect(() => {
     sessionStorage.setItem('mcs:faturamento_tracking_search', searchQuery);
@@ -2331,15 +2370,60 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const filteredFaturas = faturas.filter(f => {
-    const query = searchQuery.toLowerCase();
-    const matchesId = f.id.toLowerCase().includes(query);
-    const matchesClient = f.client?.nombre_comercial?.toLowerCase().includes(query) || false;
-    const matchesClientCode = f.client?.codigo?.toLowerCase().includes(query) || false;
-    const matchesQuery = matchesId || matchesClient || matchesClientCode;
+  const getFaturaPeriod = (fat: any) => {
+    if (fat.period_year && fat.period_month) {
+      return { year: Number(fat.period_year), month: Number(fat.period_month) - 1 };
+    }
+    const dateStr = fat.data_emissao || fat.created_at;
+    if (dateStr) {
+      const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+      return { year: d.getFullYear(), month: d.getMonth() };
+    }
+    return { year: new Date().getFullYear(), month: new Date().getMonth() };
+  };
 
-    if (statusFilter === 'all') return matchesQuery;
-    return matchesQuery && f.status === statusFilter;
+  // 1. Filtrar pelo Período (Mês / Ano)
+  const periodFaturas = faturas.filter(fat => {
+    if (selectedYear === 'all' && selectedMonth === 'all') return true;
+    const { year, month } = getFaturaPeriod(fat);
+    
+    if (selectedYear !== 'all' && year !== selectedYear) return false;
+    if (selectedMonth !== 'all' && month !== selectedMonth) return false;
+    return true;
+  });
+
+  // 2. Contadores e métricas do período selecionado
+  const pendingFaturas = periodFaturas.filter(f => f.status === 'pending_client_approval' || f.status === 'disputed');
+  const completedFaturas = periodFaturas.filter(f => f.status === 'invoice_sent' || f.status === 'approved');
+  const allPeriodFaturas = periodFaturas;
+
+  const totalPeriodHoras = periodFaturas.reduce((sum, f) => sum + Number(f.total_horas || 0), 0);
+  const totalPeriodValor = periodFaturas.reduce((sum, f) => sum + Number(f.total_valor || 0), 0);
+  const pendingPeriodValor = pendingFaturas.reduce((sum, f) => sum + Number(f.total_valor || 0), 0);
+  const completedPeriodValor = completedFaturas.reduce((sum, f) => sum + Number(f.total_valor || 0), 0);
+
+  // 3. Faturas da Aba Ativa
+  const activeTabFaturas = trackingTab === 'pending'
+    ? pendingFaturas
+    : trackingTab === 'completed'
+      ? completedFaturas
+      : allPeriodFaturas;
+
+  // 4. Filtrar por Busca Textual e Status específico
+  const filteredFaturas = activeTabFaturas.filter(f => {
+    const query = searchQuery.toLowerCase().trim();
+    if (query) {
+      const matchesId = f.id.toLowerCase().includes(query) || (f.fatura_numero && f.fatura_numero.toLowerCase().includes(query));
+      const matchesClient = f.client?.nombre_comercial?.toLowerCase().includes(query) || f.client?.legal_name?.toLowerCase().includes(query) || false;
+      const matchesClientCode = f.client?.codigo?.toLowerCase().includes(query) || false;
+      if (!matchesId && !matchesClient && !matchesClientCode) return false;
+    }
+
+    if (statusFilter !== 'all') {
+      if (f.status !== statusFilter) return false;
+    }
+
+    return true;
   });
 
   const getStatusBadge = (status: string) => {
@@ -2382,27 +2466,227 @@ MCS - Gestão Comercial`;
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-full w-full">
-      <div className="flex justify-between items-center">
+    <div className="p-4 md:p-6 space-y-6 max-w-full w-full">
+      {/* 1. Top Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Tracking de Faturas</h1>
           <p className="text-muted-foreground mt-1">
-            Acompanhe o status e a aprovação das faturas enviadas aos clientes.
+            Acompanhe o status, aprovação e envio de faturas aos clientes.
           </p>
         </div>
       </div>
 
-      <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <CardHeader className="bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-200 dark:border-slate-800 pb-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle>Painel de Rastreamento</CardTitle>
-              <CardDescription>Monitore as solicitações de aprovação ativas</CardDescription>
+      {/* 2. Seletor de Período (Mês e Ano) - Sincronizado */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#ec8a5e]" /> Mês Referência
+            </span>
+            <Select 
+              value={selectedMonth.toString()} 
+              onValueChange={(val) => setSelectedMonth(val === 'all' ? 'all' : parseInt(val))}
+            >
+              <SelectTrigger className="w-[180px] bg-slate-50 dark:bg-slate-950 font-medium">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Meses</SelectItem>
+                <SelectItem value="0">Janeiro</SelectItem>
+                <SelectItem value="1">Fevereiro</SelectItem>
+                <SelectItem value="2">Março</SelectItem>
+                <SelectItem value="3">Abril</SelectItem>
+                <SelectItem value="4">Maio</SelectItem>
+                <SelectItem value="5">Junho</SelectItem>
+                <SelectItem value="6">Julho</SelectItem>
+                <SelectItem value="7">Agosto</SelectItem>
+                <SelectItem value="8">Setembro</SelectItem>
+                <SelectItem value="9">Outubro</SelectItem>
+                <SelectItem value="10">Novembro</SelectItem>
+                <SelectItem value="11">Dezembro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Ano</span>
+            <Select 
+              value={selectedYear.toString()} 
+              onValueChange={(val) => setSelectedYear(val === 'all' ? 'all' : parseInt(val))}
+            >
+              <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-950 font-medium">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="2024">2024</SelectItem>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Botão rápido para alternar/ver todo o histórico */}
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          {selectedMonth !== 'all' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedMonth('all')}
+              className="text-xs text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100"
+            >
+              Ver Todo o Histórico
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const now = new Date();
+                setSelectedMonth(now.getMonth() - 1 < 0 ? 11 : now.getMonth() - 1);
+                setSelectedYear(now.getFullYear());
+              }}
+              className="text-xs text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100"
+            >
+              Focar no Mês Atual
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Cards de Resumo / KPI do Período */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1: Total do Período */}
+        <Card className="border-slate-200 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total no Período</p>
+              <h4 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+                {periodFaturas.length} {periodFaturas.length === 1 ? 'Fatura' : 'Faturas'}
+              </h4>
+              <p className="text-xs text-slate-500 font-medium">
+                {totalPeriodHoras.toFixed(2)}h • <span className="font-semibold text-slate-700 dark:text-slate-300">€ {totalPeriodValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-blue-600 dark:text-blue-400">
+              <FileText className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Em Andamento / Pendentes */}
+        <Card className="border-amber-200/80 dark:border-amber-900/40 shadow-sm bg-gradient-to-br from-white to-amber-50/30 dark:from-slate-900 dark:to-amber-950/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Em Andamento</p>
+              <h4 className="text-2xl font-extrabold text-amber-900 dark:text-amber-200">
+                {pendingFaturas.length} {pendingFaturas.length === 1 ? 'Pendente' : 'Pendentes'}
+              </h4>
+              <p className="text-xs text-amber-700/80 dark:text-amber-400/80 font-medium">
+                Aguardando cliente • <span className="font-bold">€ {pendingPeriodValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </p>
+            </div>
+            <div className="p-3 bg-amber-100/70 dark:bg-amber-950/60 rounded-xl text-amber-600 dark:text-amber-400">
+              <Clock className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Finalizadas / Faturadas */}
+        <Card className="border-emerald-200/80 dark:border-emerald-900/40 shadow-sm bg-gradient-to-br from-white to-emerald-50/30 dark:from-slate-900 dark:to-emerald-950/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Finalizadas</p>
+              <h4 className="text-2xl font-extrabold text-emerald-900 dark:text-emerald-200">
+                {completedFaturas.length} {completedFaturas.length === 1 ? 'Concluída' : 'Concluídas'}
+              </h4>
+              <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 font-medium">
+                Cobros gerados • <span className="font-bold">€ {completedPeriodValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </p>
+            </div>
+            <div className="p-3 bg-emerald-100/70 dark:bg-emerald-950/60 rounded-xl text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 4. Tabela Principal com as 3 Abas Integradas e Filtros */}
+      <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50/60 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800 pb-3 pt-4 px-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            
+            {/* 3 Abas Principais com Badges de Contagem */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-200/70 dark:bg-slate-800/80 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setTrackingTab('pending')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                  trackingTab === 'pending'
+                    ? 'bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Clock className={`w-4 h-4 ${trackingTab === 'pending' ? 'text-amber-500' : 'text-slate-400'}`} />
+                <span>Em Andamento</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  trackingTab === 'pending'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                    : 'bg-slate-300/60 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                }`}>
+                  {pendingFaturas.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTrackingTab('completed')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                  trackingTab === 'completed'
+                    ? 'bg-white dark:bg-slate-900 text-emerald-900 dark:text-emerald-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <CheckCircle2 className={`w-4 h-4 ${trackingTab === 'completed' ? 'text-emerald-500' : 'text-slate-400'}`} />
+                <span>Finalizadas</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  trackingTab === 'completed'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'bg-slate-300/60 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                }`}>
+                  {completedFaturas.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTrackingTab('all')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                  trackingTab === 'all'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Layers className={`w-4 h-4 ${trackingTab === 'all' ? 'text-blue-500' : 'text-slate-400'}`} />
+                <span>Todas as Faturas</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  trackingTab === 'all'
+                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                    : 'bg-slate-300/60 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                }`}>
+                  {allPeriodFaturas.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Controles de Filtro e Busca */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-center">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[185px] bg-white dark:bg-slate-950 font-medium">
-                  <SelectValue placeholder="Filtrar por status" />
+                <SelectTrigger className="w-full sm:w-[170px] bg-white dark:bg-slate-950 text-xs font-medium h-9">
+                  <SelectValue placeholder="Filtrar status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
@@ -2413,12 +2697,12 @@ MCS - Gestão Comercial`;
                 </SelectContent>
               </Select>
               
-              <div className="relative w-full sm:w-72">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
                   placeholder="Buscar fatura ou cliente..."
-                  className="pl-9 bg-white dark:bg-slate-950"
+                  className="pl-9 bg-white dark:bg-slate-950 text-xs h-9"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -2634,6 +2918,26 @@ MCS - Gestão Comercial`;
                     );
                   })}
                 </TableBody>
+                {filteredFaturas.length > 0 && (
+                  <TableFooter className="bg-slate-100/90 dark:bg-slate-900 border-t-2 border-slate-300 dark:border-slate-700">
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={5} className="pl-6 font-bold text-slate-800 dark:text-slate-200 text-xs">
+                        Subtotal {trackingTab === 'pending' ? 'Em Andamento' : trackingTab === 'completed' ? 'Finalizadas' : 'Geral'} ({filteredFaturas.length} {filteredFaturas.length === 1 ? 'fatura' : 'faturas'})
+                      </TableCell>
+                      <TableCell className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                        <div className="flex flex-col text-left">
+                          <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                            {filteredFaturas.reduce((sum, f) => sum + Number(f.total_horas || 0), 0).toFixed(2)}h
+                          </span>
+                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            € {filteredFaturas.reduce((sum, f) => sum + Number(f.total_valor || 0), 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </div>
           )}
