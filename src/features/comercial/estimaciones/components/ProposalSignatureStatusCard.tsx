@@ -560,6 +560,76 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               </Button>
             )}
           </div>
+
+          {/* Seção para Emitir / Reenviar Proposta da Nova Versão */}
+          <div className="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-900/50 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <Mail className="h-3.5 w-3.5 text-indigo-500" />
+                E-mail do Destinatário (Nova Assinatura):
+              </label>
+              <input
+                type="email"
+                placeholder="E-mail do cliente"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded text-xs outline-none text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="include-proposal-signed" 
+                  checked={includeProposal} 
+                  onCheckedChange={(checked: boolean) => {
+                    if (!checked && !includeContract) return;
+                    setIncludeProposal(checked);
+                  }}
+                />
+                <label
+                  htmlFor="include-proposal-signed"
+                  className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  Propuesta Comercial (Pressuposto)
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="include-contract-signed" 
+                  checked={includeContract} 
+                  onCheckedChange={(checked: boolean) => {
+                    if (!checked && !includeProposal) return;
+                    setIncludeContract(checked);
+                  }}
+                />
+                <label
+                  htmlFor="include-contract-signed"
+                  className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  Contrato Comercial
+                </label>
+              </div>
+            </div>
+
+            <Button 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm"
+              onClick={handleSendOrRecreate}
+              disabled={enviarProposta.isPending}
+            >
+              {enviarProposta.isPending ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando e Enviando Nova Versão...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Emitir e Enviar Nova Versão para Assinatura
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
