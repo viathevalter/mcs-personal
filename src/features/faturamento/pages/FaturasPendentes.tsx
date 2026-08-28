@@ -984,73 +984,257 @@ MCS - Gestão Comercial`;
     }
   };
 
+  const generateFacturaPDFProgrammatically = async (f: ClientBillingSummary, cardId: string): Promise<jsPDF | null> => {
+    const selectedObraId = selectedObraByClient[cardId];
+    const hasObraFilter = selectedObraId !== undefined;
+    const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
+    
+    const displayTotalHoras = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalHoras || 0)
+      : f.totalHoras;
+
+    const displayTotalValor = hasObraFilter
+      ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
+      : f.totalValor;
+
+    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const totalBase = displayTotalValor;
+    const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
+
+    const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
+    const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
+
+    const qrCodeSvg = document.querySelector(`#factura-sheet-${cardId} svg`);
+    const qrCodeHtml = qrCodeSvg ? qrCodeSvg.outerHTML : `
+      <div style="width: 80px; height: 80px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #64748b; font-weight: bold;">
+        QR CODE
+      </div>
+    `;
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.zIndex = '-9999';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+
+    const facturaHtml = `
+      <div style="width: 800px; min-height: 1130px; height: 1130px; background-color: #ffffff; padding: 40px; box-sizing: border-box; color: #1e293b; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+        <!-- TOP SECTION -->
+        <div style="flex: 1;">
+          ${selectedObra ? `<div style="text-align: center; font-weight: 700; font-size: 11px; background-color: #f1f5f9; padding: 6px; border-radius: 4px; color: #334155; margin-bottom: 24px;">OBRA: ${selectedObra.name.toUpperCase()}</div>` : ''}
+          
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
+            <div>
+              <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.025em;">
+                ${f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || '1'} ${f.year || new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
+              </h3>
+              <p style="font-size: 11px; font-weight: 700; color: #0f172a; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">ORIGINAL</p>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+              <span style="font-size: 9px; font-weight: 700; color: #475569;">
+                ATCUD: ${f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}
+              </span>
+              <div style="border: 1px solid #e2e8f0; padding: 4px; background-color: #ffffff; border-radius: 4px;">
+                ${qrCodeHtml}
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 COLUMNS: De, ATCUD/Datas, Para -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 11px; line-height: 1.45; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">De</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaNome}</p>
+              <p style="color: #475569; margin: 0;">${f.empresaAddressLine || 'N/A'}</p>
+              <p style="color: #475569; margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+              <p style="color: #475569; margin: 0;">${f.empresaProvince || 'Portugal'}</p>
+              ${f.empresaEmail ? `<p style="color: #475569; margin: 0;">${f.empresaEmail}</p>` : ''}
+              <p style="color: #475569; margin: 0;">Nº Contribuinte: ${f.empresaTaxId || 'N/A'}</p>
+              ${f.empresaCapitalSocial ? `<p style="color: #475569; margin: 0;">Capital Social: ${f.empresaCapitalSocial}</p>` : ''}
+              ${f.empresaConservatoria ? `<p style="color: #475569; margin: 0;">Cons. Reg. Com.: ${f.empresaConservatoria}</p>` : ''}
+              ${f.empresaMatricula ? `<p style="color: #475569; margin: 0;">Matrícula: ${f.empresaMatricula}</p>` : ''}
+            </div>
+
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">ATCUD</p>
+              <p style="font-weight: 600; color: #0f172a; margin: 0;">${f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}</p>
+              
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 12px 0 2px 0;">Data de Emissão</p>
+              <p style="color: #334155; margin: 0;">${emissionDateStr}</p>
+              
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 12px 0 2px 0;">Data de Vencimento</p>
+              <p style="color: #334155; margin: 0;">${vencimentoDateStr}</p>
+            </div>
+
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">Para</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.clientLegalName || f.clientName}</p>
+              <p style="color: #475569; margin: 0;">${f.clientAddressLine || 'N/A'}</p>
+              <p style="color: #475569; margin: 0;">${[f.clientPostalCode, f.clientCity].filter(Boolean).join(' ')}</p>
+              <p style="color: #475569; margin: 0;">${f.clientCountryName || 'Espanha'}</p>
+              <p style="color: #475569; margin: 6px 0 0 0;">Nº Contribuinte: ${f.taxId || 'N/A'}</p>
+            </div>
+          </div>
+
+          <!-- TABELA LISTA DE ARTIGOS -->
+          <div style="background-color: #ec8a5e; color: #ffffff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 12px; text-align: center; border-top-left-radius: 4px; border-top-right-radius: 4px;">
+            Lista de Artigos
+          </div>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid rgba(236, 138, 94, 0.4); font-size: 11px; margin-bottom: 24px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f2a87a; color: #ffffff; border-bottom: 1px solid rgba(236, 138, 94, 0.4);">
+                <th style="font-weight: 700; color: #ffffff; padding: 6px 12px; text-align: left;">DESCRIÇÃO DO ARTIGO</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 80px; padding: 6px 8px;">QUANT.</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 90px; padding: 6px 8px;">PREÇO</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 60px; padding: 6px 8px;">DESC.</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 70px; padding: 6px 8px;">IVA (%)</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 100px; padding: 6px 12px;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">${adj.descricaoServico || 'Prestação de Serviços'}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${displayTotalHoras.toFixed(2)}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace; color: #0f172a;">${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              ${Number(adj.incrementos) > 0 ? `
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #047857;">
+                <td style="padding: 6px 12px;">${adj.incrementosDesc || 'Incremento Adicional'}</td>
+                <td style="text-align: right; padding: 6px 8px;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px;">${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${Number(adj.reducoes) > 0 ? `
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #be123c;">
+                <td style="padding: 6px 12px;">${adj.reducoesDesc || 'Redução Comercial'}</td>
+                <td style="text-align: right; padding: 6px 8px;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px;">-${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">-${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+            </tbody>
+          </table>
+
+          <!-- TABELA RESUMO -->
+          <div style="background-color: #ec8a5e; color: #ffffff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 12px; text-align: center; border-top-left-radius: 4px; border-top-right-radius: 4px;">
+            Resumo
+          </div>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid rgba(236, 138, 94, 0.4); font-size: 11px; margin-bottom: 24px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; overflow: hidden;">
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">Subtotal da Factura</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">IVA ${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: ${(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.4); background-color: #fff7ed;">
+                <td style="font-weight: 800; color: #0f172a; padding: 8px 12px; font-size: 12px;">Total da Factura</td>
+                <td style="text-align: right; font-weight: 800; color: #0f172a; font-size: 13px; padding: 8px 12px; font-family: monospace;">
+                  ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.4;">
+            Condições de Enquadramento de IVA:<br/>
+            (1) ${Number(adj.ivaPct || 0) === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+          </div>
+        </div>
+
+        <!-- BOTTOM SECTION / FOOTER -->
+        <div style="margin-top: 20px;">
+          <div style="text-align: center; font-size: 10px; color: #475569; font-style: italic; font-weight: 600; margin-bottom: 12px;">
+            ${f.empresaCertifiedSoftwareText || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+          </div>
+
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: grid; grid-template-columns: 1fr 1.2fr 1fr; font-size: 9px; color: #64748b; line-height: 1.4;">
+            <div>
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Local de Carga</p>
+              <p style="margin: 0;">${f.empresaAddressLine || 'N/ Morada'}</p>
+              <p style="margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
+            </div>
+            ${adj.iban ? `
+            <div style="text-align: center;">
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Informações de Pagamento</p>
+              <div style="font-family: monospace; font-size: 9px; white-space: pre-line; line-height: 1.2;">${adj.iban}</div>
+            </div>` : '<div></div>'}
+            <div style="text-align: right;">
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Local de Descarga</p>
+              <p style="margin: 0;">${f.clientAddressLine || 'V/ Morada'}</p>
+              <p style="margin: 0;">${[f.clientPostalCode, f.clientCity, f.clientCountryName].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = facturaHtml;
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2.0,
+        useCORS: true,
+        width: 800,
+        windowWidth: 800
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.90);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      return pdf;
+    } catch (err) {
+      console.error("Erro ao gerar PDF da Factura programaticamente:", err);
+      return null;
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
   const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
     if (type === 'factura') {
-      const elementId = `${type}-sheet-${cardId}`;
-      let element = document.getElementById(elementId);
-      if (!element) {
-        console.warn(`Element not found for PDF capture: ${elementId}`);
+      const f = faturamentos.find(item => {
+        const expectedCardId = item.magicLinkToken 
+          ? `${item.clientId}-${item.magicLinkToken}` 
+          : `${item.clientId}-pending`;
+        return expectedCardId === cardId || item.clientId === cardId.split('-')[0];
+      });
+      if (!f) {
+        console.warn(`Client billing summary not found: ${cardId}`);
         return null;
       }
 
-      const parentWrapper = element.closest('.hidden');
-      const wasHidden = !!parentWrapper;
-
-      if (wasHidden && parentWrapper) {
-        parentWrapper.classList.remove('hidden');
-        parentWrapper.classList.add('block');
-        (parentWrapper as HTMLElement).style.position = 'absolute';
-        (parentWrapper as HTMLElement).style.left = '-9999px';
-        (parentWrapper as HTMLElement).style.top = '0';
-        (parentWrapper as HTMLElement).style.width = '800px';
-      }
-
       try {
-        const canvas = await html2canvas(element, {
-          scale: 1.0,
-          useCORS: true,
-          width: 800,
-          windowWidth: 800
-        });
-        
-        const imgData = canvas.toDataURL('image/jpeg', 0.70);
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-          compress: true
-        });
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-        
+        const pdf = await generateFacturaPDFProgrammatically(f, cardId);
+        if (!pdf) return null;
+
         const pdfBase64 = pdf.output('datauristring').split(',')[1];
-        const filename = 'Factura_Pro-forma.pdf';
-
-        if (wasHidden && parentWrapper) {
-          parentWrapper.classList.remove('block');
-          parentWrapper.classList.add('hidden');
-          (parentWrapper as HTMLElement).style.position = '';
-          (parentWrapper as HTMLElement).style.left = '';
-          (parentWrapper as HTMLElement).style.top = '';
-          (parentWrapper as HTMLElement).style.width = '';
-        }
-
         return {
-          name: filename,
+          name: 'Factura_Pro-forma.pdf',
           contentType: 'application/pdf',
           contentBytes: pdfBase64
         };
       } catch (err) {
         console.error(`Error generating ${type} PDF:`, err);
-        if (wasHidden && parentWrapper) {
-          parentWrapper.classList.remove('block');
-          parentWrapper.classList.add('hidden');
-          (parentWrapper as HTMLElement).style.position = '';
-          (parentWrapper as HTMLElement).style.left = '';
-          (parentWrapper as HTMLElement).style.top = '';
-          (parentWrapper as HTMLElement).style.width = '';
-        }
         return null;
       }
     }
@@ -2087,67 +2271,31 @@ MCS - Gestão Comercial`;
 
   const handleExportA4PDF = async (cardId: string, clientName: string, type: 'informe' | 'factura') => {
     if (type === 'factura') {
-      const elementId = `${type}-sheet-${cardId}`;
-      let element = document.getElementById(elementId);
-      
-      if (!element) {
-        setExpandedClients(prev => ({ ...prev, [cardId]: true }));
-        await new Promise(resolve => setTimeout(resolve, 400));
-        element = document.getElementById(elementId);
-      }
-
-      if (!element) {
-        toast.error(`Não foi possível localizar o elemento visual da Fatura Pró-forma.`);
+      const f = faturamentos.find(item => {
+        const expectedCardId = item.magicLinkToken 
+          ? `${item.clientId}-${item.magicLinkToken}` 
+          : `${item.clientId}-pending`;
+        return expectedCardId === cardId || item.clientId === cardId.split('-')[0];
+      });
+      if (!f) {
+        toast.error('Não foi possível localizar o resumo do cliente.');
         return;
       }
 
-      const parentWrapper = element.closest('.hidden');
-      const wasHidden = !!parentWrapper;
-
-      if (wasHidden && parentWrapper) {
-        parentWrapper.classList.remove('hidden');
-        parentWrapper.classList.add('block');
-        (parentWrapper as HTMLElement).style.position = 'absolute';
-        (parentWrapper as HTMLElement).style.left = '-9999px';
-        (parentWrapper as HTMLElement).style.top = '0';
-        (parentWrapper as HTMLElement).style.width = '800px';
-      }
-      
       toast.info(`Aguarde, gerando PDF da Fatura Pró-forma...`);
       
       try {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          width: 800,
-          windowWidth: 800
-        });
-        
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-        
-        const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
-        pdf.save(filename);
-        toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
+        const pdf = await generateFacturaPDFProgrammatically(f, cardId);
+        if (pdf) {
+          const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+          pdf.save(filename);
+          toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
+        } else {
+          toast.error("Erro ao gerar o arquivo PDF.");
+        }
       } catch (error: any) {
         console.error("Erro ao gerar PDF:", error);
         toast.error("Erro ao gerar o arquivo PDF: " + error.message);
-      } finally {
-        if (wasHidden && parentWrapper) {
-          parentWrapper.classList.remove('block');
-          parentWrapper.classList.add('hidden');
-          (parentWrapper as HTMLElement).style.position = '';
-          (parentWrapper as HTMLElement).style.left = '';
-          (parentWrapper as HTMLElement).style.top = '';
-          (parentWrapper as HTMLElement).style.width = '';
-        }
       }
       return;
     }
