@@ -208,7 +208,7 @@ export function EstimacionDetailPage() {
                 </Button>
               </>
             )}
-            {estimacion.status === 'sent' && (
+            {estimacion.status !== 'draft' && (
               <Button 
                 variant="outline" 
                 onClick={() => {
