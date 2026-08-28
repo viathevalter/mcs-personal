@@ -665,6 +665,29 @@ export function CampaignsPage() {
         offset: '',
       },
       created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_mailing_comercial_3',
+      name: '💼 Mailing Comercial 3 - Prospecção Equipe',
+      leadCount: 1987,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Comercial 3',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
     }
   ], []);
 
