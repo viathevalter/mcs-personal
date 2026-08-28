@@ -258,8 +258,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (filterStatus === 'pendentes') return p.total_pendentes_alojamento > 0;
-      if (filterStatus === 'alojados') return p.total_pendentes_alojamento === 0 && p.total_alojados > 0;
+      const totalContr = p.trabalhadores.length > 0 ? p.trabalhadores.length : (p.total_contratados || p.total_vagas_pedido);
+      const totalAloj = p.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
+      const totalPend = p.trabalhadores.length > 0 ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj);
+
+      if (filterStatus === 'pendentes') return totalPend > 0;
+      if (filterStatus === 'alojados') return totalPend === 0 && totalAloj > 0;
       return true;
     });
   }, [pedidos, searchTerm, filterStatus]);
@@ -437,7 +441,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
         case 'empresa': return compareValues(a.empresa_contratante, b.empresa_contratante, pedidosSortOrder);
         case 'obra': return compareValues(a.obra_nome, b.obra_nome, pedidosSortOrder);
         case 'cidade': return compareValues(a.cidade, b.cidade, pedidosSortOrder);
-        case 'pendentes': return compareValues(a.total_pendentes_alojamento, b.total_pendentes_alojamento, pedidosSortOrder);
+        case 'pendentes': {
+          const pendA = a.trabalhadores.length > 0 ? a.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : a.total_pendentes_alojamento;
+          const pendB = b.trabalhadores.length > 0 ? b.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : b.total_pendentes_alojamento;
+          return compareValues(pendA, pendB, pedidosSortOrder);
+        }
         case 'data': return compareValues(a.data_inicio, b.data_inicio, pedidosSortOrder);
         default: return 0;
       }
@@ -457,6 +465,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
       }
     });
   }, [selectedPedido, pedidoWorkersSortField, pedidoWorkersSortOrder]);
+
+  // Contadores globais
+  const totalPedidosPendentes = useMemo(() => {
+    return pedidos.filter(p => {
+      const pend = p.trabalhadores.length > 0 
+        ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length 
+        : p.total_pendentes_alojamento;
+      return pend > 0;
+    }).length;
+  }, [pedidos]);
+
+  const totalTrabalhadoresPendentes = useMemo(() => {
+    return pedidos.reduce((acc, p) => {
+      const pend = p.trabalhadores.length > 0 
+        ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length 
+        : p.total_pendentes_alojamento;
+      return acc + pend;
+    }, 0);
+  }, [pedidos]);
 
   // 3. Alojamientos Empresa Ordenados (Aba 2)
   const sortedAlojadosEmpresa = useMemo(() => {
@@ -509,15 +536,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
       }
     });
   }, [filteredClienteAlojados, clienteSortField, clienteSortOrder]);
-
-  // Contadores globais
-  const totalPedidosPendentes = useMemo(() => {
-    return pedidos.filter(p => p.total_pendentes_alojamento > 0).length;
-  }, [pedidos]);
-
-  const totalTrabalhadoresPendentes = useMemo(() => {
-    return pedidos.reduce((acc, p) => acc + p.total_pendentes_alojamento, 0);
-  }, [pedidos]);
 
   // Empresas Únicas para Filtro
   const empresasList = useMemo(() => {
@@ -1162,7 +1180,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
               ) : (
                 sortedPedidos.map(pedido => {
                   const isSelected = selectedPedido?.pedido_id === pedido.pedido_id;
-                  const isComplete = pedido.total_pendentes_alojamento === 0 && pedido.total_alojados > 0;
+                  const totalContr = pedido.trabalhadores.length > 0 ? pedido.trabalhadores.length : (pedido.total_contratados || pedido.total_vagas_pedido);
+                  const totalAloj = pedido.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
+                  const totalPend = pedido.trabalhadores.length > 0 ? pedido.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj);
+                  const isComplete = totalPend === 0 && totalAloj > 0;
 
                   return (
                     <div
@@ -1194,7 +1215,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                             : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                         }`}>
                           {isComplete ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-                          {isComplete ? '100% Alojado' : `${pedido.total_pendentes_alojamento} sin alojar`}
+                          {isComplete ? '100% Alojado' : `${totalPend} sin alojar`}
                         </span>
                       </div>
 
@@ -1227,7 +1248,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
                           <span>Plazas asignadas</span>
-                          <span>{pedido.total_alojados} de {pedido.total_contratados} trabajadores</span>
+                          <span>{totalAloj} de {totalContr} trabajadores</span>
                         </div>
                         <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                           <div
@@ -1235,7 +1256,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                               isComplete ? 'bg-emerald-500' : 'bg-blue-600'
                             }`}
                             style={{
-                              width: `${pedido.total_contratados > 0 ? (pedido.total_alojados / pedido.total_contratados) * 100 : 0}%`
+                              width: `${totalContr > 0 ? (totalAloj / totalContr) * 100 : 0}%`
                             }}
                           />
                         </div>
@@ -1402,12 +1423,22 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         title="Seleccionar todos los pendientes"
                       />
                       <div>
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          Trabajadores Vinculados al Pedido ({selectedPedido.trabalhadores.length})
-                        </h2>
-                        <p className="text-[11px] text-slate-400">
-                          {selectedPedido.total_pendentes_alojamento} pendientes de alojamiento • {selectedPedido.total_alojados} asignados
-                        </p>
+                        {(() => {
+                          const selTotalContr = selectedPedido.trabalhadores.length > 0 ? selectedPedido.trabalhadores.length : (selectedPedido.total_contratados || selectedPedido.total_vagas_pedido);
+                          const selTotalAloj = selectedPedido.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
+                          const selTotalPend = selectedPedido.trabalhadores.length > 0 ? selectedPedido.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, selTotalContr - selTotalAloj);
+
+                          return (
+                            <>
+                              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                Trabajadores Vinculados al Pedido ({selTotalContr})
+                              </h2>
+                              <p className="text-[11px] text-slate-400">
+                                {selTotalPend} pendientes de alojamiento • {selTotalAloj} asignados
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 
