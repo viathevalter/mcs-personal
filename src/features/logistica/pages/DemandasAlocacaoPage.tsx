@@ -54,6 +54,7 @@ import type {
   TrabalhadorAlojado
 } from '../services/logisticsService';
 import { ExportLogisticaDialog, type ExportColumnDef } from '../components/ExportLogisticaDialog';
+import { AlojamentoSearchSelect } from '../components/AlojamentoSearchSelect';
 
 const MESES_NOMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -2537,8 +2538,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       {/* MODAL 1: ALOCAÇÃO INDIVIDUAL */}
       {/* ========================================================================= */}
       {allocatingWorker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl sm:max-w-3xl overflow-hidden shadow-2xl space-y-0 my-8">
             
             <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2556,13 +2557,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setAllocatingWorker(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-6 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
               <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-2xl space-y-1">
                 <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300 block">
                   📍 Destino de la Obra
@@ -2570,63 +2571,26 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <p className="font-bold text-slate-800 dark:text-slate-100">
                   {allocatingWorker.pedido.cliente_nome} — {allocatingWorker.pedido.obra_nome}
                 </p>
-                <p className="text-slate-500 text-[11px]">{allocatingWorker.pedido.endereco_completo}</p>
+                <p className="text-slate-500 text-[11px]">{allocatingWorker.pedido.endereco_completo} ({allocatingWorker.pedido.cidade})</p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  1. Modalidad / Alojamiento:
-                </label>
-                <select
-                  value={singleAlojamentoId}
-                  onChange={e => {
-                    setSingleAlojamentoId(e.target.value);
-                    if (e.target.value !== 'propio') {
-                      const firstBed = camasDisponiveis.find(c => c.alojamento_id === e.target.value);
-                      if (firstBed) setSingleCamaId(firstBed.id);
-                    } else {
-                      setSingleCamaId('propio');
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Seleccionar Alojamiento --</option>
-                  <option value="propio">🏠 Alojamiento Propio / Por Cuenta Propia (Sin plaza empresa)</option>
-                  {alojamentos.map(aloj => {
-                    const vagasLivres = camasDisponiveis.filter(c => c.alojamento_id === aloj.id).length;
-                    const isSameCity = aloj.municipio?.toLowerCase().includes(allocatingWorker.pedido.cidade.toLowerCase());
-                    return (
-                      <option key={aloj.id} value={aloj.id}>
-                        {aloj.nome} ({aloj.municipio || 'España'}) — {vagasLivres} camas libres {isSameCity ? '⭐ Ciudad Coincidente' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+              {/* Seletor Inteligente de Alojamentos e Camas */}
+              <AlojamentoSearchSelect
+                alojamentos={alojamentos}
+                camasDisponiveis={camasDisponiveis}
+                selectedAlojamentoId={singleAlojamentoId}
+                onSelectAlojamento={(alojId, isPropio) => {
+                  setSingleAlojamentoId(alojId);
+                  if (isPropio) setSingleCamaId('propio');
+                }}
+                selectedCamaId={singleCamaId}
+                onSelectCama={bedId => setSingleCamaId(bedId)}
+                targetCity={allocatingWorker.pedido.cidade}
+                requiredVagas={1}
+                allowPropio={true}
+              />
 
-              {singleAlojamentoId !== 'propio' && (
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                    2. Cama / Habitación Disponible:
-                  </label>
-                  <select
-                    value={singleCamaId}
-                    onChange={e => setSingleCamaId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- Seleccionar Cama --</option>
-                    {camasDisponiveis
-                      .filter(c => c.alojamento_id === singleAlojamentoId)
-                      .map(cama => (
-                        <option key={cama.id} value={cama.id}>
-                          {cama.identificador} ({cama.tipo === 'dupla' ? 'Cama Doble' : 'Individual'})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-600 dark:text-slate-400 block">Fecha Check-in:</label>
                   <input
@@ -2651,14 +2615,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => setAllocatingWorker(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 disabled={isAllocatingSingle || (!singleCamaId && singleAlojamentoId !== 'propio')}
                 onClick={handleConfirmSingleAlloc}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isAllocatingSingle ? 'Asignando...' : 'Confirmar Asignación'}
               </button>
@@ -2672,8 +2636,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       {/* MODAL 2: ALOCAÇÃO EM LOTE */}
       {/* ========================================================================= */}
       {isBatchModalOpen && selectedPedido && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl sm:max-w-3xl overflow-hidden shadow-2xl space-y-0 my-8">
             
             <div className="p-6 bg-emerald-50/70 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2685,25 +2649,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     Asignación en Lote ({selectedWorkerIds.length} Trabajadores)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Pedido {selectedPedido.pedido_codigo} • {selectedPedido.cliente_nome}
+                    Pedido {selectedPedido.pedido_codigo} • {selectedPedido.cliente_nome} ({selectedPedido.cidade})
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsBatchModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-6 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
               <p className="text-slate-600 dark:text-slate-300">
                 Seleccione el inmueble donde se hospedarán los {selectedWorkerIds.length} trabajadores. El sistema distribuirá automáticamente las camas libres disponibles.
               </p>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto space-y-1.5">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">Trabajadores a hospedar:</span>
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto space-y-1.5 scrollbar-thin">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                  Trabajadores a hospedar ({selectedWorkerIds.length}):
+                </span>
                 {selectedWorkerIds.map(id => {
                   const w = selectedPedido.trabalhadores.find(t => t.worker_id === id);
                   return (
@@ -2715,29 +2681,16 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 })}
               </div>
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  Alojamiento Destino:
-                </label>
-                <select
-                  value={batchAlojamentoId}
-                  onChange={e => setBatchAlojamentoId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">-- Seleccionar Alojamiento --</option>
-                  {alojamentos.map(aloj => {
-                    const vagasLivres = camasDisponiveis.filter(c => c.alojamento_id === aloj.id).length;
-                    const hasEnough = vagasLivres >= selectedWorkerIds.length;
-                    const isSameCity = aloj.municipio?.toLowerCase().includes(selectedPedido.cidade.toLowerCase());
-
-                    return (
-                      <option key={aloj.id} value={aloj.id}>
-                        {aloj.nome} ({aloj.municipio || 'España'}) — {vagasLivres} camas libres {hasEnough ? '✓ Capacidad OK' : '⚠ Insuficiente'} {isSameCity ? '⭐ Ciudad Obra' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+              {/* Seletor Inteligente de Alojamento para Lote */}
+              <AlojamentoSearchSelect
+                alojamentos={alojamentos}
+                camasDisponiveis={camasDisponiveis}
+                selectedAlojamentoId={batchAlojamentoId}
+                onSelectAlojamento={alojId => setBatchAlojamentoId(alojId)}
+                targetCity={selectedPedido.cidade}
+                requiredVagas={selectedWorkerIds.length}
+                allowPropio={false}
+              />
 
               <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
                 <CheckCircle2 size={15} />
@@ -2750,14 +2703,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => setIsBatchModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 disabled={isAllocatingBatch || !batchAlojamentoId}
                 onClick={handleConfirmBatchAlloc}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isAllocatingBatch ? 'Asignando Grupo...' : `Confirmar Asignación de los ${selectedWorkerIds.length} Trabajadores`}
               </button>
@@ -2959,8 +2912,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       {/* MODAL 4: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL */}
       {/* ========================================================================= */}
       {isDirectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl space-y-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl sm:max-w-3xl overflow-hidden shadow-2xl space-y-0 my-8">
             
             <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2979,27 +2932,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   setIsDirectModalOpen(false);
                   setSelectedRealWorker(null);
                 }}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
+            <div className="p-6 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
               {!selectedRealWorker ? (
                 <div className="space-y-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                       type="text"
-                      placeholder="Buscar por nombre o código (ej: E2105)..."
+                      placeholder="Buscar colaborador por nombre o código (ej: E2105)..."
                       value={workerSearchQuery}
                       onChange={e => setWorkerSearchQuery(e.target.value)}
                       className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
                     {isSearchingWorkers ? (
                       <div className="p-8 text-center text-slate-400">Buscando colaboradores...</div>
                     ) : searchResults.length === 0 ? (
@@ -3024,59 +2977,34 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl flex justify-between items-center">
+                <div className="space-y-5">
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl flex justify-between items-center">
                     <div>
                       <p className="font-black text-slate-800 dark:text-slate-100">{selectedRealWorker.Nombre || selectedRealWorker.nombre}</p>
-                      <p className="text-[11px] text-blue-700 dark:text-blue-300">{selectedRealWorker.contratante} • {selectedRealWorker.ubicacion}</p>
+                      <p className="text-[11px] text-blue-700 dark:text-blue-300 font-semibold">{selectedRealWorker.contratante} • {selectedRealWorker.ubicacion}</p>
                     </div>
                     <button
                       onClick={() => setSelectedRealWorker(null)}
-                      className="text-xs font-bold text-blue-600 hover:underline"
+                      className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
                     >
-                      Cambiar
+                      Cambiar Trabajador
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Alojamiento:</label>
-                      <select
-                        value={directAlojamentoId}
-                        onChange={e => {
-                          setDirectAlojamentoId(e.target.value);
-                          const firstBed = camasDisponiveis.find(c => c.alojamento_id === e.target.value);
-                          if (firstBed) setDirectCamaId(firstBed.id);
-                        }}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
-                      >
-                        <option value="">-- Seleccionar --</option>
-                        {alojamentos.map(a => (
-                          <option key={a.id} value={a.id}>{a.nome} ({a.municipio})</option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Seletor Inteligente de Alojamento e Cama */}
+                  <AlojamentoSearchSelect
+                    alojamentos={alojamentos}
+                    camasDisponiveis={camasDisponiveis}
+                    selectedAlojamentoId={directAlojamentoId}
+                    onSelectAlojamento={alojId => setDirectAlojamentoId(alojId)}
+                    selectedCamaId={directCamaId}
+                    onSelectCama={bedId => setDirectCamaId(bedId)}
+                    allowPropio={false}
+                  />
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Cama:</label>
-                      <select
-                        value={directCamaId}
-                        onChange={e => setDirectCamaId(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
-                      >
-                        <option value="">-- Seleccionar --</option>
-                        {camasDisponiveis
-                          .filter(c => c.alojamento_id === directAlojamentoId)
-                          .map(c => (
-                            <option key={c.id} value={c.id}>{c.identificador}</option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Fecha Check-in:</label>
+                      <label className="font-bold text-slate-600 dark:text-slate-400 block">Fecha Check-in:</label>
                       <input
                         type="date"
                         value={directDataInicio}
@@ -3085,7 +3013,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Fecha Prevista Salida:</label>
+                      <label className="font-bold text-slate-600 dark:text-slate-400 block">Fecha Prevista Salida:</label>
                       <input
                         type="date"
                         value={directDataFim}
@@ -3105,14 +3033,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     setIsDirectModalOpen(false);
                     setSelectedRealWorker(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   disabled={!directCamaId}
                   onClick={handleConfirmDirectAlloc}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   Confirmar Asignación
                 </button>
