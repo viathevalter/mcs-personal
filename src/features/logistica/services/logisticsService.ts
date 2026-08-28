@@ -680,12 +680,30 @@ export const logisticsService = {
       const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
       const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
-      // Agrupar alocações ativas da logística por worker_id
+      // Agrupar alocações ativas da logística por worker_id, codigo_colab e nome normalizado
       const alocacoesLogisticaMap = new Map<string, Alocacao>();
+      const alocacoesByCodeMap = new Map<string, Alocacao>();
+      const alocacoesByNameMap = new Map<string, Alocacao>();
+
+      const normalizeWName = (s?: string) => (s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       alocacoesAtivas
         .filter(a => a.status !== 'Checkout')
         .forEach(a => {
-          alocacoesLogisticaMap.set(a.worker_id, a);
+          if (a.worker_id) alocacoesLogisticaMap.set(a.worker_id, a);
+          if (a.codigo_colab && a.codigo_colab !== 'E-XXXX' && a.codigo_colab.toUpperCase() !== 'NO') {
+            alocacoesByCodeMap.set(a.codigo_colab.toUpperCase().trim(), a);
+          }
+          if (a.worker_nome) {
+            const norm = normalizeWName(a.worker_nome);
+            if (norm) alocacoesByNameMap.set(norm, a);
+          }
         });
 
       // 3. Montar Lista de Pedidos com seus Trabalhadores Contratados
@@ -744,7 +762,13 @@ export const logisticsService = {
           }
           seenWorkerIds.add(workerId);
 
-          const alocLog = alocacoesLogisticaMap.get(workerId);
+          const normName = normalizeWName(rawWorker.nome);
+          const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
+
+          const alocLog = alocacoesLogisticaMap.get(workerId) ||
+                          (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
+                          (normName ? alocacoesByNameMap.get(normName) : undefined);
+
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
           trabalhadores.push({
