@@ -657,20 +657,9 @@ export const DemandasAlocacaoPage: React.FC = () => {
     setSingleDataFim(worker.data_fim || pedido.data_fim || '');
     setSingleObservacoes(`Alocación Pedido ${pedido.pedido_codigo} - ${pedido.cliente_nome}`);
     
-    // Tenta pré-selecionar alojamento da mesma cidade se existir
-    const matchingAloj = alojamentos.find(a => 
-      a.municipio?.toLowerCase().includes(pedido.cidade.toLowerCase()) ||
-      pedido.cidade.toLowerCase().includes(a.municipio?.toLowerCase() || '')
-    );
-    if (matchingAloj) {
-      setSingleAlojamentoId(matchingAloj.id);
-      const firstBed = camasDisponiveis.find(c => c.alojamento_id === matchingAloj.id);
-      if (firstBed) setSingleCamaId(firstBed.id);
-    } else {
-      setSingleAlojamentoId(alojamentos[0]?.id || '');
-      const firstBed = camasDisponiveis.find(c => c.alojamento_id === alojamentos[0]?.id);
-      if (firstBed) setSingleCamaId(firstBed.id);
-    }
+    // Iniciar sem alojamento pré-selecionado para abrir diretamente na busca inteligente
+    setSingleAlojamentoId('');
+    setSingleCamaId('');
   };
 
   // Confirmar Alocação Individual
@@ -742,12 +731,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       alert('Seleccione al menos un trabajador para asignar en lote.');
       return;
     }
-    if (selectedPedido) {
-      const matchCity = alojamentos.find(a => 
-        a.municipio?.toLowerCase().includes(selectedPedido.cidade.toLowerCase())
-      );
-      setBatchAlojamentoId(matchCity?.id || alojamentos[0]?.id || '');
-    }
+    setBatchAlojamentoId('');
     setIsBatchModalOpen(true);
   };
 
@@ -2622,6 +2606,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 selectedCamaId={singleCamaId}
                 onSelectCama={bedId => setSingleCamaId(bedId)}
                 targetCity={allocatingWorker.pedido.cidade}
+                targetCliente={allocatingWorker.pedido.cliente_nome}
+                alojados={alojados}
                 requiredVagas={1}
                 allowPropio={true}
               />
@@ -2724,6 +2710,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 selectedAlojamentoId={batchAlojamentoId}
                 onSelectAlojamento={alojId => setBatchAlojamentoId(alojId)}
                 targetCity={selectedPedido.cidade}
+                targetCliente={selectedPedido.cliente_nome}
+                alojados={alojados}
                 requiredVagas={selectedWorkerIds.length}
                 allowPropio={false}
               />
@@ -3035,6 +3023,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     onSelectAlojamento={alojId => setDirectAlojamentoId(alojId)}
                     selectedCamaId={directCamaId}
                     onSelectCama={bedId => setDirectCamaId(bedId)}
+                    targetCity={selectedRealWorker?.ubicacion || ''}
+                    targetCliente={selectedRealWorker?.contratante || ''}
+                    alojados={alojados}
+                    requiredVagas={1}
                     allowPropio={false}
                   />
 

@@ -12,9 +12,13 @@ import {
   Filter,
   Check,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Users,
+  Clock,
+  ChevronRight,
+  Info
 } from 'lucide-react';
-import type { Alojamento, Cama } from '../services/logisticsService';
+import type { Alojamento, Cama, Alocacao } from '../services/logisticsService';
 
 interface AlojamentoSearchSelectProps {
   alojamentos: Alojamento[];
@@ -24,6 +28,8 @@ interface AlojamentoSearchSelectProps {
   selectedCamaId?: string;
   onSelectCama?: (camaId: string) => void;
   targetCity?: string;
+  targetCliente?: string;
+  alojados?: Alocacao[];
   requiredVagas?: number;
   allowPropio?: boolean;
 }
@@ -36,13 +42,24 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
   selectedCamaId,
   onSelectCama,
   targetCity = '',
+  targetCliente = '',
+  alojados = [],
   requiredVagas = 1,
   allowPropio = true
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCityFilter, setSelectedCityFilter] = useState('todas');
-  const [categoryFilter, setCategoryFilter] = useState<'todos' | 'cidade_obra' | 'fijo' | 'booking_airbnb' | 'libres'>('todos');
+  const [categoryFilter, setCategoryFilter] = useState<
+    'todos' | 'mismo_cliente' | 'cidade_obra' | 'libres' | 'booking_airbnb' | 'fijo' | 'recientes'
+  >('todos');
   const [isChanging, setIsChanging] = useState(!selectedAlojamentoId);
+
+  // Normalizador de texto para comparações
+  const normalize = (s?: string) => (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 
   // Lista única de cidades dos alojamentos
   const availableCities = useMemo(() => {
@@ -66,6 +83,19 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
     return map;
   }, [camasDisponiveis]);
 
+  // Mapa de residentes atualmente hospedados por alojamento
+  const residentsByAlojamento = useMemo(() => {
+    const map = new Map<string, Alocacao[]>();
+    alojados
+      .filter(a => a.status !== 'Checkout' && a.alojamento_id)
+      .forEach(a => {
+        const list = map.get(a.alojamento_id!) || [];
+        list.push(a);
+        map.set(a.alojamento_id!, list);
+      });
+    return map;
+  }, [alojados]);
+
   // Alojamento atualmente selecionado
   const selectedAlojamento = useMemo(() => {
     if (!selectedAlojamentoId) return null;
@@ -88,74 +118,132 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
     return camasDisponiveis.filter(c => c.alojamento_id === selectedAlojamentoId);
   }, [selectedAlojamentoId, camasDisponiveis]);
 
-  // Filtragem Inteligente dos Alojamentos
+  // Métricas rápidas de contagem para os filtros
+  const metrics = useMemo(() => {
+    const normCli = normalize(targetCliente);
+    const normCity = normalize(targetCity);
+
+    let countMismoCliente = 0;
+    let countMismaCiudad = 0;
+    let countConPlazas = 0;
+
+    alojamentos.forEach(a => {
+      const camas = camasCountByAlojamento.get(a.id) || 0;
+      if (camas >= requiredVagas) countConPlazas++;
+
+      if (normCity && normalize(a.municipio).includes(normCity)) {
+        countMismaCiudad++;
+      }
+
+      if (normCli) {
+        const residents = residentsByAlojamento.get(a.id) || [];
+        const hasSameClient = residents.some(r => normalize(r.cliente_nome).includes(normCli));
+        if (hasSameClient) countMismoCliente++;
+      }
+    });
+
+    return { countMismoCliente, countMismaCiudad, countConPlazas };
+  }, [alojamentos, targetCliente, targetCity, camasCountByAlojamento, residentsByAlojamento, requiredVagas]);
+
+  // Filtragem e Ordenação Inteligente dos Alojamentos
   const filteredAlojamentos = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    const cityTargetClean = targetCity.toLowerCase().trim();
+    const q = normalize(searchQuery);
+    const cityTargetClean = normalize(targetCity);
+    const clienteTargetClean = normalize(targetCliente);
 
     return alojamentos.filter(a => {
-      const nome = (a.nome || '').toLowerCase();
-      const codigo = (a.codigo || '').toLowerCase();
-      const municipio = (a.municipio || '').toLowerCase();
-      const provincia = (a.provincia || '').toLowerCase();
-      const endereco = (a.endereco || '').toLowerCase();
-      const tipo = (a.tipo_alojamento || '').toLowerCase();
-      const provedorNome = (a.provedor?.nome_razao_social || '').toLowerCase();
+      const nome = normalize(a.nome);
+      const codigo = normalize(a.codigo);
+      const municipio = normalize(a.municipio);
+      const provincia = normalize(a.provincia);
+      const endereco = normalize(a.endereco);
+      const tipo = normalize(a.tipo_alojamento);
+      const provedorNome = normalize(a.provedor?.nome_razao_social);
       const camasLivres = camasCountByAlojamento.get(a.id) || 0;
+      const residents = residentsByAlojamento.get(a.id) || [];
+      const hasSameClient = clienteTargetClean ? residents.some(r => normalize(r.cliente_nome).includes(clienteTargetClean)) : false;
 
-      // 1. Busca por Texto (digitação livre)
+      // 1. Busca por Texto Livre (nome, código, rua, cidade, fornecedor, nome dos colegas hospedados)
       if (q) {
-        const matchesQ = 
+        const residentNames = residents.map(r => normalize(r.worker_nome)).join(' ');
+        const matchesQ =
           nome.includes(q) ||
           codigo.includes(q) ||
           municipio.includes(q) ||
           provincia.includes(q) ||
           endereco.includes(q) ||
           tipo.includes(q) ||
-          provedorNome.includes(q);
+          provedorNome.includes(q) ||
+          residentNames.includes(q);
 
         if (!matchesQ) return false;
       }
 
-      // 2. Filtro por Cidade Dropdown
+      // 2. Filtro por Dropdown de Cidade
       if (selectedCityFilter !== 'todas' && a.municipio?.toLowerCase() !== selectedCityFilter.toLowerCase()) {
         return false;
       }
 
       // 3. Filtros de Categoria Rápida
-      if (categoryFilter === 'cidade_obra') {
+      if (categoryFilter === 'mismo_cliente') {
+        if (!hasSameClient) return false;
+      } else if (categoryFilter === 'cidade_obra') {
         if (!cityTargetClean || !municipio.includes(cityTargetClean)) return false;
-      } else if (categoryFilter === 'fijo') {
-        if (!tipo.includes('fijo') && !tipo.includes('empresa')) return false;
-      } else if (categoryFilter === 'booking_airbnb') {
-        const isBookingAirbnb = 
-          tipo.includes('temporal') || 
-          tipo.includes('airbnb') || 
-          tipo.includes('booking') || 
-          tipo.includes('hotel') ||
-          provedorNome.includes('booking') || 
-          provedorNome.includes('airbnb');
-        if (!isBookingAirbnb) return false;
       } else if (categoryFilter === 'libres') {
         if (camasLivres < requiredVagas) return false;
+      } else if (categoryFilter === 'fijo') {
+        if (!tipo.includes('fijo') && !tipo.includes('empresa') && !tipo.includes('propio')) return false;
+      } else if (categoryFilter === 'booking_airbnb') {
+        const isBookingAirbnb =
+          tipo.includes('temporal') ||
+          tipo.includes('airbnb') ||
+          tipo.includes('booking') ||
+          tipo.includes('hotel') ||
+          provedorNome.includes('booking') ||
+          provedorNome.includes('airbnb');
+        if (!isBookingAirbnb) return false;
+      } else if (categoryFilter === 'recientes') {
+        if (!a.created_at) return false;
+        const createdDate = new Date(a.created_at).getTime();
+        const now = new Date().getTime();
+        const diffDays = (now - createdDate) / (1000 * 60 * 60 * 24);
+        if (diffDays > 7) return false;
       }
 
       return true;
     }).sort((a, b) => {
-      // Priorizar alojamentos da cidade da obra
-      const isSameCityA = targetCity && a.municipio?.toLowerCase().includes(targetCity.toLowerCase());
-      const isSameCityB = targetCity && b.municipio?.toLowerCase().includes(targetCity.toLowerCase());
-      if (isSameCityA && !isSameCityB) return -1;
-      if (!isSameCityA && isSameCityB) return 1;
-
-      // Em seguida por quantidade de vagas livres
       const camasA = camasCountByAlojamento.get(a.id) || 0;
       const camasB = camasCountByAlojamento.get(b.id) || 0;
+
+      const hasVagasA = camasA >= requiredVagas;
+      const hasVagasB = camasB >= requiredVagas;
+
+      const resA = residentsByAlojamento.get(a.id) || [];
+      const resB = residentsByAlojamento.get(b.id) || [];
+      const sameClientA = clienteTargetClean ? resA.some(r => normalize(r.cliente_nome).includes(clienteTargetClean)) : false;
+      const sameClientB = clienteTargetClean ? resB.some(r => normalize(r.cliente_nome).includes(clienteTargetClean)) : false;
+
+      const sameCityA = cityTargetClean && normalize(a.municipio).includes(cityTargetClean);
+      const sameCityB = cityTargetClean && normalize(b.municipio).includes(cityTargetClean);
+
+      // Prioridade 1: Vagas Livres + Colegas do mesmo cliente já alojados
+      if (hasVagasA && sameClientA && !(hasVagasB && sameClientB)) return -1;
+      if (!(hasVagasA && sameClientA) && hasVagasB && sameClientB) return 1;
+
+      // Prioridade 2: Vagas Livres + Mesma Cidade da Obra
+      if (hasVagasA && sameCityA && !(hasVagasB && sameCityB)) return -1;
+      if (!(hasVagasA && sameCityA) && hasVagasB && sameCityB) return 1;
+
+      // Prioridade 3: Alojamentos com Vagas Livres suficientes
+      if (hasVagasA && !hasVagasB) return -1;
+      if (!hasVagasA && hasVagasB) return 1;
+
+      // Prioridade 4: Quantidade de camas livres decrescente
       if (camasA !== camasB) return camasB - camasA;
 
       return (a.nome || '').localeCompare(b.nome || '', 'es', { sensitivity: 'base' });
     });
-  }, [alojamentos, searchQuery, selectedCityFilter, categoryFilter, targetCity, camasCountByAlojamento, requiredVagas]);
+  }, [alojamentos, searchQuery, selectedCityFilter, categoryFilter, targetCity, targetCliente, camasCountByAlojamento, residentsByAlojamento, requiredVagas]);
 
   const handlePickAlojamento = (aloj: Alojamento, isPropio: boolean = false) => {
     if (isPropio) {
@@ -173,7 +261,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 1. SE JÁ HOUVER ALOJAMIENTO SELECIONADO E NÃO ESTIVER EM MODO DE TROCA */}
+      {/* 1. SE JÁ HOUVER ALOJAMENTO SELECIONADO E NÃO ESTIVER EM MODO DE BUSCA */}
       {selectedAlojamento && !isChanging ? (
         <div className="p-4 rounded-2xl border-2 border-blue-500/80 bg-blue-50/60 dark:bg-blue-950/30 dark:border-blue-700 space-y-3 shadow-xs animate-in fade-in duration-150">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -211,7 +299,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
               className="px-3.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 transition-all shadow-2xs hover:shadow-xs flex items-center justify-center gap-1.5 self-start sm:self-center cursor-pointer"
             >
               <RotateCcw size={13} />
-              Cambiar / Buscar otro
+              Buscar / Cambiar Alojamiento
             </button>
           </div>
 
@@ -261,18 +349,18 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
         </div>
       ) : (
         /* 2. MODO DE BUSCA E SELEÇÃO AVANÇADA DE ALOJAMIENTOS */
-        <div className="space-y-3 p-4 bg-slate-50/80 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/80">
+        <div className="space-y-3.5 p-4 bg-slate-50/90 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
           
           <div className="flex items-center justify-between">
-            <label className="font-black text-slate-800 dark:text-slate-100 text-xs flex items-center gap-1.5">
-              <Search size={14} className="text-blue-600" />
-              Buscar y Seleccionar Alojamiento ({alojamentos.length} inmuebles registrados):
+            <label className="font-black text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+              <Search size={15} className="text-blue-600" />
+              Seleccione el Alojamiento para este trabajador:
             </label>
             {selectedAlojamento && (
               <button
                 type="button"
                 onClick={() => setIsChanging(false)}
-                className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
               >
                 Volver al seleccionado
               </button>
@@ -281,32 +369,32 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
 
           {/* Campo de Busca Principal */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Escriba el nombre, calle/dirección, ciudad, Booking, Airbnb, proveedor o código..."
+              placeholder="Buscar por nombre, calle, ciudad, proveedor, Booking, Airbnb o nombres de compañeros..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+              className="w-full pl-10 pr-9 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
               autoFocus
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Barra de Filtros Rápidos (Chips e Seletor de Cidade) */}
+          {/* Barra de Filtros Rápidos (Chips Inteligentes) */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <button
               type="button"
               onClick={() => setCategoryFilter('todos')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 categoryFilter === 'todos'
                   ? 'bg-blue-600 text-white shadow-2xs'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
@@ -315,55 +403,70 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
               Todos ({alojamentos.length})
             </button>
 
-            {targetCity && (
+            {targetCliente && metrics.countMismoCliente > 0 && (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('mismo_cliente')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  categoryFilter === 'mismo_cliente'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50'
+                }`}
+              >
+                <Users size={12} />
+                🏢 Mismo Cliente: {targetCliente} ({metrics.countMismoCliente})
+              </button>
+            )}
+
+            {targetCity && metrics.countMismaCiudad > 0 && (
               <button
                 type="button"
                 onClick={() => setCategoryFilter('cidade_obra')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   categoryFilter === 'cidade_obra'
                     ? 'bg-purple-600 text-white shadow-2xs'
                     : 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-50'
                 }`}
               >
                 <Sparkles size={12} />
-                ⭐ Ciudad Obra: {targetCity}
+                📍 Misma Ciudad: {targetCity} ({metrics.countMismaCiudad})
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => setCategoryFilter('fijo')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                categoryFilter === 'fijo'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              Inmuebles Fijos
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCategoryFilter('booking_airbnb')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                categoryFilter === 'booking_airbnb'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-50'
-              }`}
-            >
-              Booking & Airbnb
-            </button>
-
-            <button
-              type="button"
               onClick={() => setCategoryFilter('libres')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                 categoryFilter === 'libres'
                   ? 'bg-emerald-600 text-white shadow-2xs'
                   : 'bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50'
               }`}
             >
-              🟢 Con Plazas Libres
+              🟢 Con Plazas Libres ({metrics.countConPlazas})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCategoryFilter('booking_airbnb')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                categoryFilter === 'booking_airbnb'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-50'
+              }`}
+            >
+              🏨 Booking & Airbnb
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCategoryFilter('fijo')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                categoryFilter === 'fijo'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              🏠 Inmuebles Fijos
             </button>
 
             {/* Dropdown de Cidade */}
@@ -371,7 +474,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
               <select
                 value={selectedCityFilter}
                 onChange={e => setSelectedCityFilter(e.target.value)}
-                className="ml-auto px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[150px] truncate"
+                className="ml-auto px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[150px] truncate cursor-pointer"
               >
                 <option value="todas">Ciudad: Todas</option>
                 {availableCities.map(c => (
@@ -385,7 +488,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
           {allowPropio && (
             <div
               onClick={() => handlePickAlojamento({} as any, true)}
-              className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/80 dark:hover:bg-purple-900/40 cursor-pointer transition-all flex items-center justify-between group"
+              className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/80 dark:hover:bg-purple-900/40 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-purple-600 text-white shadow-2xs group-hover:scale-105 transition-transform">
@@ -406,8 +509,8 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
             </div>
           )}
 
-          {/* Lista Rolável de Resultados */}
-          <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+          {/* Lista Rolável de Resultados com Inteligência de Ocupação e Colegas */}
+          <div className="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto pr-1 scrollbar-thin">
             {filteredAlojamentos.length === 0 ? (
               <div className="p-8 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-1">
                 <Building size={24} className="mx-auto text-slate-400" />
@@ -422,18 +525,28 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
               filteredAlojamentos.map(aloj => {
                 const camasLivres = camasCountByAlojamento.get(aloj.id) || 0;
                 const hasEnough = camasLivres >= requiredVagas;
-                const isSameCity = targetCity && aloj.municipio?.toLowerCase().includes(targetCity.toLowerCase());
+                const isSameCity = targetCity && normalize(aloj.municipio).includes(normalize(targetCity));
                 const isBooking = (aloj.nome || '').toLowerCase().includes('booking') || (aloj.provedor?.nome_razao_social || '').toLowerCase().includes('booking');
                 const isAirbnb = (aloj.nome || '').toLowerCase().includes('airbnb') || (aloj.provedor?.nome_razao_social || '').toLowerCase().includes('airbnb');
+                
+                const residents = residentsByAlojamento.get(aloj.id) || [];
+                const sameClientResidents = targetCliente ? residents.filter(r => normalize(r.cliente_nome).includes(normalize(targetCliente))) : [];
+                const hasSameClient = sameClientResidents.length > 0;
 
                 return (
                   <div
                     key={aloj.id}
                     onClick={() => handlePickAlojamento(aloj, false)}
-                    className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/80 hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 cursor-pointer transition-all space-y-1.5 shadow-2xs group"
+                    className={`p-3 bg-white dark:bg-slate-900 rounded-xl border transition-all space-y-2 shadow-2xs group cursor-pointer ${
+                      hasSameClient && hasEnough
+                        ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/20 hover:border-indigo-500 hover:bg-indigo-50/40'
+                        : isSameCity && hasEnough
+                        ? 'border-purple-300 dark:border-purple-800 bg-purple-50/20 hover:border-purple-500 hover:bg-purple-50/40'
+                        : 'border-slate-200 dark:border-slate-700/80 hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-950/20'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-0.5 flex-1 min-w-0">
+                      <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                             {aloj.codigo || 'AL-XXXX'}
@@ -449,9 +562,16 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
                             {isBooking ? 'Booking' : isAirbnb ? 'Airbnb' : (aloj.tipo_alojamento || 'Fijo')}
                           </span>
 
+                          {hasSameClient && (
+                            <span className="text-[10px] font-black px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 flex items-center gap-1">
+                              <Users size={11} />
+                              {sameClientResidents.length} de {targetCliente}
+                            </span>
+                          )}
+
                           {isSameCity && (
                             <span className="text-[10px] font-black px-2 py-0.2 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 flex items-center gap-0.5">
-                              ⭐ Ciudad de la Obra
+                              📍 Ciudad Obra
                             </span>
                           )}
                         </div>
@@ -464,24 +584,50 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
                           <MapPin size={11} className="text-rose-500 flex-shrink-0" />
                           <span className="truncate">{aloj.endereco || ''} ({aloj.municipio || 'España'}{aloj.provincia ? `, ${aloj.provincia}` : ''})</span>
                         </p>
+
+                        {/* Listagem Rápida de Colegas Hospedados */}
+                        {residents.length > 0 && (
+                          <div className="pt-1 flex items-center gap-1.5 text-[10px] text-slate-600 dark:text-slate-300 flex-wrap">
+                            <span className="font-bold text-slate-400">Hospedados ({residents.length}):</span>
+                            {residents.slice(0, 3).map((r, i) => (
+                              <span
+                                key={r.id || i}
+                                className={`px-1.5 py-0.2 rounded font-medium ${
+                                  targetCliente && normalize(r.cliente_nome).includes(normalize(targetCliente))
+                                    ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 font-bold'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                }`}
+                              >
+                                {r.worker_nome.split(' ').slice(0, 2).join(' ')}
+                              </span>
+                            ))}
+                            {residents.length > 3 && (
+                              <span className="text-slate-400 font-bold">+{residents.length - 3} más</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      <div className="text-right flex-shrink-0 space-y-1">
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full inline-block ${
+                      <div className="text-right flex-shrink-0 space-y-1.5">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full inline-block shadow-2xs ${
                           hasEnough
                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                             : camasLivres > 0
                             ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                         }`}>
-                          {camasLivres} camas libres
+                          {camasLivres > 0 ? `🟢 ${camasLivres} libres` : '🔴 Completo'}
                         </span>
 
-                        {aloj.provedor?.nome_razao_social && (
-                          <p className="text-[10px] text-slate-400 truncate max-w-[120px]" title={aloj.provedor.nome_razao_social}>
-                            Prov: {aloj.provedor.nome_razao_social}
-                          </p>
-                        )}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            className="px-2.5 py-1 bg-blue-600 group-hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold shadow-2xs flex items-center gap-1 ml-auto"
+                          >
+                            Seleccionar
+                            <ChevronRight size={12} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -490,8 +636,9 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
             )}
           </div>
 
-          <div className="text-[11px] text-slate-400 text-right">
-            Mostrando <strong>{filteredAlojamentos.length}</strong> alojamientos disponibles
+          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+            <span>💡 Sugerencias ordenadas por cliente, cercanía y camas libres</span>
+            <span>Mostrando <strong>{filteredAlojamentos.length}</strong> alojamientos</span>
           </div>
 
         </div>
