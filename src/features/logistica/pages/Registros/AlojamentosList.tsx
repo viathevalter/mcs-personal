@@ -120,8 +120,14 @@ export const AlojamentosList: React.FC = () => {
   const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
 
   // Ordenação
-  const [sortField, setSortField] = useState<string>('nome');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Filtros por Data de Cadastro e Categorias Rápidas
+  const [createdDateFilter, setCreatedDateFilter] = useState<'todos' | 'hoje' | 'ultimos_3_dias' | 'esta_semana' | 'este_mes' | 'custom'>('todos');
+  const [customDateStart, setCustomDateStart] = useState<string>('');
+  const [customDateEnd, setCustomDateEnd] = useState<string>('');
+  const [alojamentoCategoryFilter, setAlojamentoCategoryFilter] = useState<'todos' | 'recentes' | 'booking_airbnb' | 'fijos' | 'com_vagas' | 'ocupados'>('todos');
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -407,9 +413,63 @@ export const AlojamentosList: React.FC = () => {
       // Cidade
       if (selectedMunicipio !== 'todos' && a.municipio !== selectedMunicipio) return false;
 
+      // Filtro por Data de Cadastro
+      if (createdDateFilter !== 'todos') {
+        const createdDate = a.created_at ? new Date(a.created_at) : null;
+        if (!createdDate || isNaN(createdDate.getTime())) {
+          return false;
+        }
+
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+        if (createdDateFilter === 'hoje') {
+          if (createdDate.getTime() < todayStart && (now.getTime() - createdDate.getTime() > 24 * 60 * 60 * 1000)) {
+            return false;
+          }
+        } else if (createdDateFilter === 'ultimos_3_dias') {
+          const threeDaysAgo = todayStart - (2 * 24 * 60 * 60 * 1000);
+          if (createdDate.getTime() < threeDaysAgo) return false;
+        } else if (createdDateFilter === 'esta_semana') {
+          const sevenDaysAgo = todayStart - (6 * 24 * 60 * 60 * 1000);
+          if (createdDate.getTime() < sevenDaysAgo) return false;
+        } else if (createdDateFilter === 'este_mes') {
+          if (createdDate.getMonth() !== now.getMonth() || createdDate.getFullYear() !== now.getFullYear()) {
+            return false;
+          }
+        } else if (createdDateFilter === 'custom') {
+          if (customDateStart) {
+            const start = new Date(customDateStart).getTime();
+            if (createdDate.getTime() < start) return false;
+          }
+          if (customDateEnd) {
+            const end = new Date(customDateEnd + 'T23:59:59').getTime();
+            if (createdDate.getTime() > end) return false;
+          }
+        }
+      }
+
+      // Filtro por Categoria Rápida
+      if (alojamentoCategoryFilter === 'recentes') {
+        const createdDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        if (createdDate < sevenDaysAgo) return false;
+      } else if (alojamentoCategoryFilter === 'booking_airbnb') {
+        const text = `${a.nome} ${a.tipo_alojamento} ${a.provedor?.nome_razao_social || ''}`.toLowerCase();
+        if (!text.includes('booking') && !text.includes('airbnb') && a.tipo_alojamento !== 'Temporal') return false;
+      } else if (alojamentoCategoryFilter === 'fijos') {
+        const text = `${a.nome} ${a.tipo_alojamento} ${a.provedor?.nome_razao_social || ''}`.toLowerCase();
+        if (text.includes('booking') || text.includes('airbnb') || a.tipo_alojamento === 'Temporal') return false;
+      } else if (alojamentoCategoryFilter === 'com_vagas') {
+        const totalVagas = a.capacidade_pessoas || a.total_camas || 0;
+        if (occupants.length >= totalVagas) return false;
+      } else if (alojamentoCategoryFilter === 'ocupados') {
+        if (occupants.length === 0) return false;
+      }
+
       return true;
     });
-  }, [alojamentos, searchTerm, statusFilter, tipoFilter, ocupacaoFilter, selectedMunicipio, alocacoes]);
+  }, [alojamentos, searchTerm, statusFilter, tipoFilter, ocupacaoFilter, selectedMunicipio, alocacoes, createdDateFilter, customDateStart, customDateEnd, alojamentoCategoryFilter]);
 
   // Ordenação de Alojamentos (Activos e com ocupantes primeiro)
   const sortedAlojamentos = useMemo(() => {
@@ -417,6 +477,12 @@ export const AlojamentosList: React.FC = () => {
       const isActivoA = a.ativo !== false && a.status !== 'Inactivo';
       const isActivoB = b.ativo !== false && b.status !== 'Inactivo';
       if (isActivoA !== isActivoB) return isActivoA ? -1 : 1;
+
+      if (sortField === 'created_at') {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      }
 
       let valA: any = a[sortField as keyof Alojamento];
       let valB: any = b[sortField as keyof Alojamento];
@@ -614,6 +680,43 @@ export const AlojamentosList: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2.5">
             {activeTab === 'alojamentos' && (
               <>
+                {/* Seletor de Ordenação */}
+                <select
+                  value={`${sortField}_${sortOrder}`}
+                  onChange={e => {
+                    const [field, order] = e.target.value.split('_');
+                    setSortField(field);
+                    setSortOrder(order as any);
+                  }}
+                  className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200 shadow-2xs"
+                  title="Ordenar alojamientos"
+                >
+                  <option value="created_at_desc">🕒 Más Recientes (Recién Creados)</option>
+                  <option value="created_at_asc">🕒 Más Antiguos</option>
+                  <option value="nome_asc">🔤 Nombre (A-Z)</option>
+                  <option value="nome_desc">🔤 Nombre (Z-A)</option>
+                  <option value="codigo_asc">🏷️ Código (AL-XXXX)</option>
+                  <option value="municipio_asc">📍 Ciudad (A-Z)</option>
+                  <option value="capacidade_pessoas_desc">🛏️ Mayor Capacidad</option>
+                  <option value="valor_mensal_desc">💶 Mayor Alquiler</option>
+                  <option value="valor_mensal_asc">💶 Menor Alquiler</option>
+                </select>
+
+                {/* Filtro por Data de Cadastro */}
+                <select
+                  value={createdDateFilter}
+                  onChange={e => setCreatedDateFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200 shadow-2xs"
+                  title="Filtrar por fecha de alta"
+                >
+                  <option value="todos">📅 Fecha Alta: Todas</option>
+                  <option value="hoje">⭐ Creados Hoy (Últimas 24h)</option>
+                  <option value="ultimos_3_dias">📅 Últimos 3 días</option>
+                  <option value="esta_semana">📅 Esta Semana (7 días)</option>
+                  <option value="este_mes">📅 Este Mes</option>
+                  <option value="custom">📅 Fecha Específica...</option>
+                </select>
+
                 {/* Filtro Status */}
                 <select
                   value={statusFilter}
@@ -632,8 +735,8 @@ export const AlojamentosList: React.FC = () => {
                   className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
                 >
                   <option value="todos">Ocupación: Todas</option>
-                  <option value="ocupados">👥 Con Trabajadores Alojados</option>
-                  <option value="libres">🚪 Totalmente Libres</option>
+                  <option value="ocupados">👥 Con Ocupantes</option>
+                  <option value="libres">🚪 Plazas Libres</option>
                 </select>
 
                 {/* Filtro Modalidade */}
@@ -746,6 +849,109 @@ export const AlojamentosList: React.FC = () => {
           </div>
         </div>
 
+        {/* Barra de Chips Rápidos de Filtro */}
+        {activeTab === 'alojamentos' && (
+          <div className="border-b border-slate-200/80 dark:border-slate-800/80 px-4 py-2.5 bg-slate-50/40 dark:bg-slate-900/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filtros Rápidos:</span>
+              
+              <button
+                onClick={() => {
+                  setAlojamentoCategoryFilter('todos');
+                  setCreatedDateFilter('todos');
+                  setStatusFilter('todos');
+                  setOcupacaoFilter('todos');
+                  setTipoFilter('todos');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  alojamentoCategoryFilter === 'todos' && createdDateFilter === 'todos' && tipoFilter === 'todos' && ocupacaoFilter === 'todos'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                Todos ({alojamentos.length})
+              </button>
+
+              <button
+                onClick={() => {
+                  setAlojamentoCategoryFilter('recentes');
+                  setCreatedDateFilter('esta_semana');
+                  setSortField('created_at');
+                  setSortOrder('desc');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  alojamentoCategoryFilter === 'recentes' || createdDateFilter === 'hoje' || createdDateFilter === 'esta_semana'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                }`}
+              >
+                ⭐ Recién Creados (Últimos 7 días)
+              </button>
+
+              <button
+                onClick={() => {
+                  setAlojamentoCategoryFilter(alojamentoCategoryFilter === 'booking_airbnb' ? 'todos' : 'booking_airbnb');
+                  setTipoFilter('todos');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  alojamentoCategoryFilter === 'booking_airbnb'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                }`}
+              >
+                🏨 Booking & Airbnb
+              </button>
+
+              <button
+                onClick={() => {
+                  setAlojamentoCategoryFilter(alojamentoCategoryFilter === 'fijos' ? 'todos' : 'fijos');
+                  setTipoFilter(alojamentoCategoryFilter === 'fijos' ? 'todos' : 'fijo');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  alojamentoCategoryFilter === 'fijos'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                }`}
+              >
+                🏠 Inmuebles Fijos
+              </button>
+
+              <button
+                onClick={() => {
+                  setAlojamentoCategoryFilter(alojamentoCategoryFilter === 'com_vagas' ? 'todos' : 'com_vagas');
+                  setOcupacaoFilter(alojamentoCategoryFilter === 'com_vagas' ? 'todos' : 'libres');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  alojamentoCategoryFilter === 'com_vagas' || ocupacaoFilter === 'libres'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                }`}
+              >
+                🟢 Con Plazas Libres
+              </button>
+            </div>
+
+            {createdDateFilter === 'custom' && (
+              <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 animate-in fade-in">
+                <span className="text-[11px] font-semibold text-slate-500">Desde:</span>
+                <input
+                  type="date"
+                  value={customDateStart}
+                  onChange={e => setCustomDateStart(e.target.value)}
+                  className="text-xs bg-transparent border-0 p-0 text-slate-700 dark:text-slate-300 font-medium focus:ring-0"
+                />
+                <span className="text-[11px] font-semibold text-slate-500">Hasta:</span>
+                <input
+                  type="date"
+                  value={customDateEnd}
+                  onChange={e => setCustomDateEnd(e.target.value)}
+                  className="text-xs bg-transparent border-0 p-0 text-slate-700 dark:text-slate-300 font-medium focus:ring-0"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ========================================================================= */}
         {/* CORPO: VISTA DE FICHAS ACCORDION (ESTILO FATURAMENTO) */}
         {/* ========================================================================= */}
@@ -833,6 +1039,32 @@ export const AlojamentosList: React.FC = () => {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                 {a.tipo_alojamento || 'Fijo'}
                               </span>
+
+                              {a.created_at && (() => {
+                                const d = new Date(a.created_at);
+                                if (isNaN(d.getTime())) return null;
+                                const isCreatedToday = d.toDateString() === new Date().toDateString();
+                                const dateFormatted = d.toLocaleDateString('es-ES', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                });
+                                const timeFormatted = d.toLocaleTimeString('es-ES', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                });
+
+                                return (
+                                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                    isCreatedToday
+                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs animate-pulse'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                  }`} title={`Fecha de registro: ${dateFormatted} ${timeFormatted}`}>
+                                    <Calendar size={10} className={isCreatedToday ? 'text-amber-600' : 'text-slate-400'} />
+                                    {isCreatedToday ? `⭐ Creado Hoy (${timeFormatted})` : `Reg: ${dateFormatted}`}
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             {/* Linha 2: Localização, GPS e Provedor */}
@@ -1299,13 +1531,19 @@ export const AlojamentosList: React.FC = () => {
                         <ArrowUpDown size={12} className={sortField === 'municipio' ? 'text-blue-600' : 'text-slate-400'} />
                       </div>
                     </th>
+                    <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+                        Fecha Alta
+                        <ArrowUpDown size={12} className={sortField === 'created_at' ? 'text-blue-600' : 'text-slate-400'} />
+                      </div>
+                    </th>
                     <th className="px-4 py-3">Proveedor</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {sortedAlojamentos.length === 0 ? (
-                    <tr><td colSpan={7} className="p-12 text-center text-slate-500">Ningún alojamiento encontrado.</td></tr>
+                    <tr><td colSpan={8} className="p-12 text-center text-slate-500">Ningún alojamiento encontrado.</td></tr>
                   ) : (
                     sortedAlojamentos.map(a => {
                       const isActivo = a.ativo !== false && a.status !== 'Inactivo';
@@ -1382,6 +1620,24 @@ export const AlojamentosList: React.FC = () => {
                                 Maps ({Number(a.latitude).toFixed(2)}, {Number(a.longitude).toFixed(2)})
                               </a>
                             )}
+                          </td>
+
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            {a.created_at ? (() => {
+                              const d = new Date(a.created_at);
+                              if (isNaN(d.getTime())) return <span className="text-slate-400">—</span>;
+                              const isToday = d.toDateString() === new Date().toDateString();
+                              return (
+                                <div>
+                                  <span className={`text-[11px] font-semibold ${isToday ? 'text-amber-600 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                    {d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block font-mono">
+                                    {d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              );
+                            })() : <span className="text-slate-400 text-[11px]">—</span>}
                           </td>
 
                           <td className="px-4 py-3.5">

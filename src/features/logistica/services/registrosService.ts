@@ -113,6 +113,8 @@ export interface Alojamento {
   observacoes?: string;
   status?: string;
   ativo: boolean;
+  created_at?: string;
+  updated_at?: string;
   provedor?: {
     id?: string;
     codigo?: string;
@@ -216,7 +218,8 @@ const buildAlojamentoPayload = (input: any) => {
   const comodidadesMeta = {
     ...(input.comodidades || {}),
     __fotos: input.fotos || [],
-    __contrato: input.contrato || {}
+    __contrato: input.contrato || {},
+    __created_at: input.created_at || new Date().toISOString()
   };
 
   const name = input.titulo || input.nome || 'Novo Alojamento';
@@ -247,6 +250,8 @@ const buildAlojamentoPayload = (input: any) => {
     status: isInactive ? 'inativo' : 'ativo'
   };
 
+  if (input.created_at) payload.created_at = input.created_at;
+
   if (input.latitude !== undefined && input.latitude !== null && input.latitude !== '') {
     const latNum = typeof input.latitude === 'string' ? parseFloat(input.latitude.replace(',', '.')) : input.latitude;
     payload.latitude = !isNaN(latNum) ? latNum : null;
@@ -267,6 +272,7 @@ const hydrateAlojamento = (a: any): Alojamento => {
   const comodidades = a.comodidades || {};
   const fotos = a.fotos || comodidades.__fotos || [];
   const contrato = a.contrato || comodidades.__contrato || {};
+  const createdAt = a.created_at || comodidades.__created_at || a.data_cadastro || undefined;
 
   return {
     ...a,
@@ -288,7 +294,8 @@ const hydrateAlojamento = (a: any): Alojamento => {
     observacoes: a.observacoes || '',
     status: a.status === 'inativo' || a.status === 'Inactivo' ? 'Inactivo' : 'Activo',
     provedor: a.provedores || a.provedor,
-    ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false
+    ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false,
+    created_at: createdAt
   };
 };
 
