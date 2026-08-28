@@ -1835,10 +1835,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
                         <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                        {aloc.data_checkout_prevista && (
+                        {aloc.data_checkout_prevista ? (
                           <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                        ) : (
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
                         )}
                       </td>
 
@@ -2221,7 +2223,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
                             <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
-                            {a.data_checkout_prevista && <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>}
+                            {a.data_checkout_prevista ? (
+                              <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>
+                            ) : (
+                              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3.5">
@@ -2496,8 +2502,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
                         <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                        {aloc.data_checkout_prevista && (
+                        {aloc.data_checkout_prevista ? (
                           <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                        ) : (
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
                         )}
                       </td>
 
