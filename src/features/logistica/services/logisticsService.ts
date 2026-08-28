@@ -789,7 +789,7 @@ export const logisticsService = {
           tipo_solicitacao: 'Nuevo Pedido',
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
           observacoes: ped.notes || 'Sin observaciones generales.',
-          total_vagas_pedido: totalVagas || trabalhadores.length || 1,
+          total_vagas_pedido: Math.max(totalVagas || 0, trabalhadores.length, 1),
           total_contratados: trabalhadores.length,
           total_alojados: totalAlojados,
           total_pendentes_alojamento: totalPendentes,
