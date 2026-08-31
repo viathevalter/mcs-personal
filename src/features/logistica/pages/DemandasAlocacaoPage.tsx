@@ -83,6 +83,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   // Filtros e Ordenação de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
   const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
+  const [alojadosTipoSubFilter, setAlojadosTipoSubFilter] = useState<'todos' | 'fijo' | 'temporal'>('todos');
   const [empresaSortField, setEmpresaSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'data_checkin'>('cliente');
   const [empresaSortOrder, setEmpresaSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -306,9 +307,17 @@ export const DemandasAlocacaoPage: React.FC = () => {
         return false;
       }
 
+      if (alojadosTipoSubFilter === 'fijo' && a.tipo_alojamento?.toLowerCase() !== 'fijo') {
+        return false;
+      }
+
+      if (alojadosTipoSubFilter === 'temporal' && a.tipo_alojamento?.toLowerCase() !== 'temporal') {
+        return false;
+      }
+
       return true;
     });
-  }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter]);
+  }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter, alojadosTipoSubFilter]);
 
   // Função para Cálculo Proporcional Mensal de Alojamento Próprio (€ 300 base)
   const calculateProporcionalPropio = (checkinStr?: string, checkoutStr?: string, year: number = 2026, month: number = 8) => {
@@ -1640,7 +1649,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <Building size={16} className="text-blue-600" />
                 Alojamientos Gestionados por la Empresa ({filteredAlojadosEmpresa.length} de {empresaAlojadosRaw.length})
               </h2>
-              <p className="text-xs text-slate-500">Colaboradores asignados a plazas e inmuebles contratados por la empresa.</p>
+              <p className="text-xs text-slate-500">Colaboradores asignados a inmuebles fijos y reservas temporales contratadas por la empresa.</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
@@ -1670,6 +1679,42 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Chips de Modalidade: Fijo vs Temporal */}
+          <div className="px-4 py-2 bg-slate-100/60 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setAlojadosTipoSubFilter('todos')}
+              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                alojadosTipoSubFilter === 'todos'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              Todos ({empresaAlojadosRaw.length})
+            </button>
+            <button
+              onClick={() => setAlojadosTipoSubFilter('fijo')}
+              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                alojadosTipoSubFilter === 'fijo'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>🏠</span>
+              Inmuebles Fijos ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'fijo').length})
+            </button>
+            <button
+              onClick={() => setAlojadosTipoSubFilter('temporal')}
+              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                alojadosTipoSubFilter === 'temporal'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>🏨</span>
+              Temporales (Booking & Airbnb) ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'temporal').length})
+            </button>
           </div>
 
           <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
@@ -1828,11 +1873,24 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-                            <Home size={13} />
+                          <div className={`p-1.5 rounded-lg ${
+                            aloc.tipo_alojamento?.toLowerCase() === 'temporal'
+                              ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40'
+                              : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'
+                          }`}>
+                            {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? <Hotel size={13} /> : <Home size={13} />}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                aloc.tipo_alojamento?.toLowerCase() === 'temporal'
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                              }`}>
+                                {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? 'Temporal' : 'Fijo'}
+                              </span>
+                            </div>
                             <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
                           </div>
                         </div>
