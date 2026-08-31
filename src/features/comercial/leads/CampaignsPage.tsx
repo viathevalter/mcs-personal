@@ -691,7 +691,7 @@ export function CampaignsPage() {
     },
     {
       id: 'aud_mailing_alex_stocco',
-      name: '💼 Mailing Alex Stocco - Estoko (2.197 leads)',
+      name: '💼 Mailing Alex Stocco (2.197 leads)',
       leadCount: 2197,
       filters: {
         stageId: '',
