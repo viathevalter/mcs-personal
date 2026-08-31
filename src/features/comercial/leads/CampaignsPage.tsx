@@ -688,6 +688,29 @@ export function CampaignsPage() {
         offset: '',
       },
       created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_mailing_alex_stocco',
+      name: '💼 Mailing Alex Stocco - Estoko (2.197 leads)',
+      leadCount: 2197,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Alex Stocco',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
     }
   ], []);
 
