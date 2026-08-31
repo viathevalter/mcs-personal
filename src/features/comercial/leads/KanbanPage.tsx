@@ -43,11 +43,13 @@ import {
   Users,
   MapPin,
   Send,
-  Globe
+  Globe,
+  User
 } from 'lucide-react';
 import { useKanbanStages, useAllKanbanStages, useMutateKanban, type KanbanStage } from './hooks/useKanban';
-import { useLeads, useMutateLead } from './hooks/useLeads';
+import { useLeads, useMutateLead, useSalespeople } from './hooks/useLeads';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -85,12 +87,27 @@ export function KanbanPage() {
   const { t, i18n } = useTranslation();
   const isSpanish = (i18n.language || i18n.resolvedLanguage || '').toLowerCase().startsWith('es');
 
+  const { selectedEmpresaId, currentEmpresa } = useEmpresa();
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>('all');
+
   // Queries & Mutations
+  const { data: salespeople = [] } = useSalespeople();
   const { data: stages = [], isLoading: loadingStages } = useKanbanStages();
   const { data: allStages = [] } = useAllKanbanStages();
-  const { data: leads = [], isLoading: loadingLeads } = useLeads();
+  const { data: leads = [], isLoading: loadingLeads } = useLeads({
+    empresaId: selectedEmpresaId,
+    assignedTo: selectedSalesperson === 'all' ? null : selectedSalesperson
+  });
   const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban();
-  const { createLead } = useMutateLead();
+  const { createLead, updateLead } = useMutateLead();
+
+  const salespersonMap = useMemo(() => {
+    const map = new Map<string, string>();
+    salespeople.forEach(u => {
+      map.set(u.id, u.display_name || u.email);
+    });
+    return map;
+  }, [salespeople]);
 
   const stageIdToOrderMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -128,6 +145,7 @@ export function KanbanPage() {
     company_name: '',
     notes: '',
     stage_id: '',
+    assigned_to: '',
   });
 
   // Dynamic Stage Name Translation Helper
@@ -267,12 +285,18 @@ export function KanbanPage() {
     try {
       const defaultStage = newLeadData.stage_id || (stages[0]?.id ?? '');
       await createLead({
-        ...newLeadData,
-        stage_id: defaultStage
+        name: newLeadData.name,
+        company_name: newLeadData.company_name,
+        email: newLeadData.email || '',
+        phone: newLeadData.phone || undefined,
+        notes: newLeadData.notes || undefined,
+        stage_id: defaultStage,
+        assigned_to: newLeadData.assigned_to && newLeadData.assigned_to !== 'unassigned' ? newLeadData.assigned_to : null,
+        empresa_id: selectedEmpresaId || undefined,
       });
-      toast.success('Lead criado com sucesso!');
+      toast.success('Lead criado com sucesso no pipeline!');
       setIsNewLeadOpen(false);
-      setNewLeadData({ name: '', email: '', phone: '', company_name: '', notes: '', stage_id: '' });
+      setNewLeadData({ name: '', email: '', phone: '', company_name: '', notes: '', stage_id: '', assigned_to: '' });
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar lead');
     }
@@ -281,7 +305,7 @@ export function KanbanPage() {
   const handleLeadStageChange = async (leadId: string, stageId: string) => {
     try {
       await moveLead({ leadId, stageId });
-      toast.success(t('comercialKanban.moveSuccess', 'Estágio do lead atualizado!'));
+      toast.success(t('comercialKanban.moveSuccess', 'Etapa do lead atualizada!'));
       if (selectedLead && selectedLead.id === leadId) {
         setSelectedLead(prev => prev ? { ...prev, stage_id: stageId } : null);
       }
@@ -290,19 +314,43 @@ export function KanbanPage() {
     }
   };
 
-  // Filtered Leads
+  const handleLeadAssignedChange = async (leadId: string, newAssignedTo: string) => {
+    try {
+      const targetVal = newAssignedTo === 'unassigned' ? null : newAssignedTo;
+      await updateLead({
+        id: leadId,
+        payload: { assigned_to: targetVal }
+      });
+      toast.success('Responsável comercial atualizado!');
+      if (selectedLead && selectedLead.id === leadId) {
+        setSelectedLead(prev => prev ? { ...prev, assigned_to: targetVal } : null);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atribuir vendedor');
+    }
+  };
+
+  // Filtered Leads (strictly for selected company and optional search/salesperson)
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
+      // Must match active company
+      if (lead.empresa_id && selectedEmpresaId && lead.empresa_id !== selectedEmpresaId) {
+        return false;
+      }
+      // Salesperson filter
+      if (selectedSalesperson !== 'all' && lead.assigned_to !== selectedSalesperson) {
+        return false;
+      }
       const search = searchTerm.toLowerCase();
       return (
         lead.name.toLowerCase().includes(search) ||
-        lead.email.toLowerCase().includes(search) ||
+        (lead.email && lead.email.toLowerCase().includes(search)) ||
         (lead.company_name && lead.company_name.toLowerCase().includes(search)) ||
         (lead.phone && lead.phone.includes(search)) ||
         (lead.notes && lead.notes.toLowerCase().includes(search))
       );
     });
-  }, [leads, searchTerm]);
+  }, [leads, searchTerm, selectedEmpresaId, selectedSalesperson]);
 
   const getLeadsInStage = (stage: KanbanStage) => {
     return filteredLeads.filter(lead => {
@@ -338,7 +386,7 @@ export function KanbanPage() {
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 {t('comercialKanban.title', 'Funil de Vendas')}
                 <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-bold text-xs">
-                  {leads.length} Leads
+                  {filteredLeads.length} Leads
                 </Badge>
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -349,7 +397,27 @@ export function KanbanPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Seletor de Empresa (Multitenant) */}
           <EmpresaSelector />
+
+          {/* Seletor de Comercial / Vendedor */}
+          <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+            <SelectTrigger className="w-[210px] h-10 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 font-medium text-xs rounded-xl">
+              <User className="h-3.5 w-3.5 mr-1.5 text-amber-500 shrink-0" />
+              <SelectValue placeholder="Vendedor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs font-semibold">
+                👤 Todos os Comerciais
+              </SelectItem>
+              {salespeople.map(u => (
+                <SelectItem key={u.id} value={u.id} className="text-xs">
+                  👤 {u.display_name || u.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Button 
             onClick={() => setIsNewLeadOpen(true)}
             className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold shadow-sm gap-2"
@@ -447,6 +515,7 @@ export function KanbanPage() {
                   ) : (
                     stageLeads.map(lead => {
                       const budgetInfo = parseBudgetNotes(lead.notes);
+                      const assignedName = lead.assigned_to ? salespersonMap.get(lead.assigned_to) : null;
 
                       return (
                         <div
@@ -476,6 +545,14 @@ export function KanbanPage() {
                           <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {lead.name}
                           </h4>
+
+                          {/* Salesperson Assigned Badge */}
+                          {assignedName && (
+                            <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md w-fit">
+                              <User className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[170px]">{assignedName}</span>
+                            </div>
+                          )}
 
                           {/* Budget Form Snippet if present */}
                           {budgetInfo?.parsed && (
@@ -549,7 +626,7 @@ export function KanbanPage() {
               {isSpanish ? 'Nuevo Lead' : 'Novo Lead'}
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-              Cadastre um novo prospecto manualmente no funil de vendas.
+              Cadastre um novo prospecto manualmente no pipeline da empresa ativa.
             </DialogDescription>
           </DialogHeader>
 
@@ -591,30 +668,52 @@ export function KanbanPage() {
                 <Label htmlFor="phone">Telefone / WhatsApp</Label>
                 <Input
                   id="phone"
-                  placeholder="+351 912 345 678"
+                  placeholder="+34 9xx xxx xxx"
                   value={newLeadData.phone}
                   onChange={(e) => setNewLeadData(prev => ({ ...prev, phone: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="stage_id">Estágio Inicial</Label>
-              <Select
-                value={newLeadData.stage_id || (stages[0]?.id ?? '')}
-                onValueChange={(val) => setNewLeadData(prev => ({ ...prev, stage_id: val }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o estágio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stages.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {getStageTitle(s)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="stage_id">Estágio Inicial</Label>
+                <Select
+                  value={newLeadData.stage_id || (stages[0]?.id ?? '')}
+                  onValueChange={(val) => setNewLeadData(prev => ({ ...prev, stage_id: val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o estágio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {getStageTitle(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="assigned_to">Responsável Comercial</Label>
+                <Select
+                  value={newLeadData.assigned_to || 'unassigned'}
+                  onValueChange={(val) => setNewLeadData(prev => ({ ...prev, assigned_to: val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Atribuir vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Sem Atribuição</SelectItem>
+                    {salespeople.map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.display_name || u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -661,26 +760,50 @@ export function KanbanPage() {
             </DialogHeader>
 
             <div className="space-y-6 py-2">
-              {/* Stage Quick Switcher Bar */}
-              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {t('comercialKanban.moveLeadTo', 'Mover a la Etapa:')}
-                </span>
-                <Select
-                  value={selectedLead.stage_id || ''}
-                  onValueChange={(val) => handleLeadStageChange(selectedLead.id, val)}
-                >
-                  <SelectTrigger className="w-[220px] h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                    <SelectValue placeholder="Selecione a etapa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stages.map(s => (
-                      <SelectItem key={s.id} value={s.id} className="text-xs">
-                        {getStageTitle(s)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Stage & Assigned Salesperson Quick Switcher Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    {t('comercialKanban.moveLeadTo', 'Etapa do Funil:')}
+                  </span>
+                  <Select
+                    value={selectedLead.stage_id || ''}
+                    onValueChange={(val) => handleLeadStageChange(selectedLead.id, val)}
+                  >
+                    <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                      <SelectValue placeholder="Selecione a etapa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.map(s => (
+                        <SelectItem key={s.id} value={s.id} className="text-xs">
+                          {getStageTitle(s)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Responsável Comercial:
+                  </span>
+                  <Select
+                    value={selectedLead.assigned_to || 'unassigned'}
+                    onValueChange={(val) => handleLeadAssignedChange(selectedLead.id, val)}
+                  >
+                    <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                      <SelectValue placeholder="Atribuir vendedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned" className="text-xs">Sem Atribuição</SelectItem>
+                      {salespeople.map(u => (
+                        <SelectItem key={u.id} value={u.id} className="text-xs">
+                          👤 {u.display_name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Contact Main Summary Card */}
@@ -750,52 +873,47 @@ export function KanbanPage() {
                 )}
               </div>
 
-              {/* Parsed Budget Form Specifications Grid */}
-              {(() => {
-                const budgetDetails = parseBudgetNotes(selectedLead.notes);
-                if (!budgetDetails?.parsed) return null;
-
-                return (
-                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {t('comercialKanban.budgetRequestHeader', 'Datos de la Solicitud de Presupuesto')}
+              {/* Budget Request Structured Breakdown (if present) */}
+              {parseBudgetNotes(selectedLead.notes)?.parsed && (
+                <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-amber-200/80 dark:border-amber-800/60 pb-2">
+                    <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <h4 className="font-bold text-sm text-amber-900 dark:text-amber-200">
+                      Especificações da Demanda / Obra
                     </h4>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-500/5 dark:bg-amber-950/20 border border-amber-500/20 p-4 rounded-xl">
-                      {Object.entries(budgetDetails.parsed).map(([key, val]) => (
-                        <div key={key} className="space-y-0.5 bg-white dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">
-                            {key}
-                          </span>
-                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                            {val}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                );
-              })()}
 
-              {/* Raw Notes fallback if not parsed */}
-              {!parseBudgetNotes(selectedLead.notes)?.parsed && selectedLead.notes && (
-                <div className="space-y-2 pt-2">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Observações / Notas</Label>
-                  <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-sm whitespace-pre-wrap">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {Object.entries(parseBudgetNotes(selectedLead.notes)!.parsed!).map(([key, val]) => (
+                      <div key={key} className="space-y-0.5">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium block">{key}:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 block">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Raw Notes if not structured */}
+              {selectedLead.notes && !parseBudgetNotes(selectedLead.notes)?.parsed && (
+                <div className="space-y-1 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                  <Label className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    Observações do Contato
+                  </Label>
+                  <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {selectedLead.notes}
-                  </div>
+                  </p>
                 </div>
               )}
             </div>
 
-            <DialogFooter className="pt-3 border-t border-slate-200 dark:border-slate-800 flex-col sm:flex-row gap-2">
+            <DialogFooter className="border-t pt-4 flex items-center justify-between gap-3">
               <Button
+                type="button"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 shadow-sm"
                 onClick={() => {
-                  setIsDetailsOpen(false);
-                  navigate(`/comercial/estimaciones/new?lead_id=${selectedLead.id}`);
+                  navigate(`/comercial/estimaciones/nueva?lead_id=${selectedLead.id}`);
                 }}
-                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold gap-2"
               >
                 <Sparkles className="h-4 w-4" />
                 {t('comercialKanban.createEstimate', 'Generar Estimación')}

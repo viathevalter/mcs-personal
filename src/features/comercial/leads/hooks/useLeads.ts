@@ -3,22 +3,68 @@ import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { Lead } from '../../estimaciones/types';
 
-export function useLeads() {
+export interface Salesperson {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+}
+
+export function useSalespeople() {
   return useQuery({
-    queryKey: ['leads', 'global'],
+    queryKey: ['salespeople_users'],
     queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mcs_users')
+        .select('id, email, display_name, role')
+        .eq('active', true)
+        .order('display_name', { ascending: true });
+
+      if (error) throw error;
+      return (data || []) as Salesperson[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface UseLeadsOptions {
+  empresaId?: string | null;
+  assignedTo?: string | null;
+  global?: boolean;
+}
+
+export function useLeads(options?: UseLeadsOptions) {
+  const { selectedEmpresaId } = useEmpresa();
+  const targetEmpresaId = options?.global ? null : (options?.empresaId !== undefined ? options.empresaId : selectedEmpresaId);
+  const assignedTo = options?.assignedTo || null;
+  const isGlobal = options?.global || false;
+
+  return useQuery({
+    queryKey: ['leads', isGlobal ? 'global' : targetEmpresaId, assignedTo],
+    queryFn: async () => {
+      if (!isGlobal && !targetEmpresaId) return [];
+
       let allLeads: Lead[] = [];
       let from = 0;
       let to = 999;
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .schema('core_comercial')
           .from('leads')
           .select('*')
-          .order('id', { ascending: true })
-          .range(from, to);
+          .order('id', { ascending: true });
+
+        if (!isGlobal && targetEmpresaId) {
+          query = query.eq('empresa_id', targetEmpresaId);
+        }
+
+        if (assignedTo && assignedTo !== 'all') {
+          query = query.eq('assigned_to', assignedTo);
+        }
+
+        const { data, error } = await query.range(from, to);
 
         if (error) throw error;
         if (data && data.length > 0) {

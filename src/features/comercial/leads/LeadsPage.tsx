@@ -86,8 +86,8 @@ const ensureAbsoluteUrl = (url?: string | null): string => {
 export function LeadsPage() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: leads = [], isLoading, error } = useLeads();
-  const { empresas, selectedEmpresaId } = useEmpresa();
+  const { data: leads = [], isLoading, error } = useLeads({ empresaId: selectedEmpresaId });
+  const { empresas } = useEmpresa();
   const { createLead, updateLead, deleteLead, isCreating, isUpdating, isDeleting, createLeadsBatch, isCreatingBatch } = useMutateLead();
   const { createClient } = useMutateClient();
   const { data: paymentTerms = [] } = usePaymentTerms();

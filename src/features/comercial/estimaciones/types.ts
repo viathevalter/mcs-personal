@@ -28,6 +28,8 @@ export interface Lead {
   linkedin_url?: string;
   instagram_url?: string;
   tags?: string[];
+  stage_id?: string;
+  assigned_to?: string | null;
   prospecting_job_id?: string;
   created_at: string;
   updated_at: string;
