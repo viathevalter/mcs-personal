@@ -46,14 +46,18 @@ import { toast } from 'sonner';
 // Helper to parse lead notes string into key-value budget request details
 function parseBudgetNotes(notes?: string | null) {
   if (!notes) return null;
-  const isBudgetForm = notes.includes('SOLICITAÇÃO DE ORÇAMENTO') || notes.includes('Orçamento') || notes.includes('Presupuesto');
+  const isBudgetForm = notes.includes('SOLICITAÇÃO DE ORÇAMENTO') || 
+    notes.includes('SOLICITUD DE PRESUPUESTO') || 
+    notes.includes('Orçamento') || 
+    notes.includes('Presupuesto') || 
+    notes.includes('PRESUPUESTO');
   
   const parsed: Record<string, string> = {};
   const lines = notes.split('\n');
 
   lines.forEach(line => {
     const trimmed = line.trim();
-    if (trimmed.startsWith('•')) {
+    if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
       const parts = trimmed.substring(1).split(':');
       if (parts.length >= 2) {
         const key = parts[0].trim();
@@ -155,6 +159,18 @@ export function NewEstimacionPage() {
           // Auto-prefill payload fields if creating a new estimation
           if (!id) {
             const budgetInfo = parseBudgetNotes(data.notes);
+            const isEs = data.country_id === '2f487ab4-c7f5-4b70-9c37-995dc4cda125' || 
+              (data.phone && (data.phone.startsWith('+34') || data.phone.startsWith('34'))) ||
+              (data.email && data.email.endsWith('.es'));
+
+            const addressVal = budgetInfo?.parsed?.['Dirección de la obra y Código Postal'] || 
+              budgetInfo?.parsed?.['Endereço da obra e Código Postal'] || 
+              data.address_line || 
+              '';
+
+            const startDateVal = budgetInfo?.parsed?.['Inicio del Proyecto'] || 
+              budgetInfo?.parsed?.['Início do Projeto'] || 
+              '';
 
             setPayload((prev: any) => ({
               ...prev,
@@ -162,7 +178,10 @@ export function NewEstimacionPage() {
               empresa_id: prev.empresa_id || data.empresa_id || selectedEmpresaId,
               contact_name: data.name || prev.contact_name,
               contact_email: data.email || prev.contact_email,
-              postal_code: budgetInfo?.parsed?.['Endereço da obra e Código Postal'] || data.address_line || prev.postal_code,
+              country_id: prev.country_id || data.country_id || (isEs ? '2f487ab4-c7f5-4b70-9c37-995dc4cda125' : ''),
+              document_language: isEs ? 'es' : prev.document_language,
+              postal_code: addressVal || prev.postal_code,
+              expected_start_date: startDateVal || prev.expected_start_date,
               general_notes: data.notes ? `--- NOTAS DO LEAD (${data.company_name}) ---\n${data.notes}` : prev.general_notes
             }));
           }

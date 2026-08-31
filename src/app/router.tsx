@@ -276,6 +276,7 @@ export const router = createBrowserRouter([
                     { path: 'campanhas', element: <CampaignsPage /> },
                     { path: 'estimaciones', element: <EstimacionesPage /> },
                     { path: 'estimaciones/nova', element: <NewEstimacionPage /> },
+                    { path: 'estimaciones/nueva', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/new', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/:id', element: <EstimacionDetailPage /> },
                     { path: 'estimaciones/:id/editar', element: <NewEstimacionPage /> },

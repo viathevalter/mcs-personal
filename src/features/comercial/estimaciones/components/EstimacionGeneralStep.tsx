@@ -101,7 +101,7 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
     return wl !== dw || wt !== dw || wq !== dw || wqi !== dw || wv !== dw;
   });
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
-  const { data: leads = [], isLoading: isLoadingLeads } = useLeads();
+  const { data: leads = [], isLoading: isLoadingLeads } = useLeads({ global: true });
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
   const { data: paymentTerms = [] } = usePaymentTerms();
 
