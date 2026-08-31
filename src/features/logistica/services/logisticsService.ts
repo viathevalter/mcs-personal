@@ -278,15 +278,16 @@ export const logisticsService = {
   async searchTrabalhadores(query: string = ''): Promise<any[]> {
     try {
       let q = supabase
-        .from('colaboradores')
-        .select('id, cod_colab, nombre, status_trabajador, contratante, ubicacion, funcion, fecha_inicio, email, movil')
-        .in('status_trabajador', ['Ativo', 'ATIVO', 'Pendiente Ingresar', 'Pendente de Ingresso', 'Pendente'])
-        .order('nombre', { ascending: true })
+        .schema('core_personal')
+        .from('workers')
+        .select('id, cod_colab, nome, status_trabajador, status_seguridad, contratante, location, cliente, funcion, email, movil')
+        .in('status_trabajador', ['Ativo', 'ATIVO', 'Pendente Ingresso', 'PENDENTE INGRESSO', 'Pendente de Ingresso', 'Pendiente Ingresar', 'Pendente', 'Em Regularização', 'EM REGULARIZACAO'])
+        .order('nome', { ascending: true })
         .limit(100);
 
       if (query && query.trim().length > 0) {
         const clean = query.trim();
-        q = q.or(`nombre.ilike.%${clean}%,cod_colab.ilike.%${clean}%`);
+        q = q.or(`nome.ilike.%${clean}%,cod_colab.ilike.%${clean}%`);
       }
 
       const { data, error } = await q;
@@ -294,12 +295,16 @@ export const logisticsService = {
         return data.map((w: any) => ({
           id: w.id,
           Cod_colab: w.cod_colab,
-          Nombre: w.nombre,
+          cod_colab: w.cod_colab,
+          Nombre: w.nome,
+          nombre: w.nome,
           status_trabajador: w.status_trabajador,
-          contratante: w.contratante || 'Luminous',
-          ubicacion: w.ubicacion || 'Barcelona / Espanha',
+          status_seguridad: w.status_seguridad,
+          contratante: w.contratante || 'LUMINOUS',
+          empresa_interna: w.contratante || 'LUMINOUS',
+          ubicacion: w.location || 'Espanha',
+          cliente: w.cliente || 'Cliente Principal',
           funcion: w.funcion || 'Operador Especialista',
-          fecha_inicio: w.fecha_inicio || new Date().toISOString().split('T')[0],
           email: w.email,
           movil: w.movil
         }));
@@ -308,6 +313,10 @@ export const logisticsService = {
       console.warn('Erro ao buscar trabalhadores no banco:', e);
     }
     return [];
+  },
+
+  async buscarTrabalhadoresParaAlocacao(query: string = ''): Promise<any[]> {
+    return this.searchTrabalhadores(query);
   },
 
   async clearAllAlocacoes(): Promise<void> {
@@ -730,10 +739,12 @@ export const logisticsService = {
               nome,
               nif,
               movil,
-              cod_colab
+              cod_colab,
+              status_trabajador,
+              status_seguridad
             )
           `)
-          .in('status', ['planned', 'active', 'paused', 'replaced', 'relocated', 'terminated']),
+          .in('status', ['planned', 'active']),
         this.fetchAlocacoesAtivas(),
         this.fetchAlojamentos()
       ]);
@@ -817,12 +828,31 @@ export const logisticsService = {
         const trabalhadores: TrabalhadorDemandaItem[] = [];
 
         for (const ass of pedAssignments) {
+          // Filtrar atribuições inativas
+          const assStatus = (ass.status || '').toLowerCase().trim();
+          if (assStatus !== 'active' && assStatus !== 'planned') {
+            continue;
+          }
+
           const rawWorker = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
           const workerId = rawWorker.id || ass.worker_id || ass.id;
           
           if (!workerId || seenWorkerIds.has(workerId)) {
             continue;
           }
+
+          // Filtrar trabalhadores inativos ou desligados (Baixa)
+          const wStatus = (rawWorker.status_trabajador || '').toUpperCase().trim();
+          const isInactive = wStatus === 'INATIVO' || 
+                             wStatus === 'INACTIVO' || 
+                             wStatus === 'BAIXA' || 
+                             wStatus === 'BAJA' || 
+                             wStatus === 'DESLIGADO';
+
+          if (isInactive) {
+            continue;
+          }
+
           seenWorkerIds.add(workerId);
 
           const normName = normalizeWName(rawWorker.nome);
