@@ -496,6 +496,69 @@ export const logisticsService = {
     return newAloc;
   },
 
+  async registrarAlojamentoCliente(payload: {
+    worker_id: string;
+    worker_nome: string;
+    codigo_colab?: string;
+    cliente_nome?: string;
+    obra_nome?: string;
+    pedido_id?: string;
+    pedido_codigo?: string;
+    data_inicio: string;
+    data_fim?: string;
+    observacoes?: string;
+    empresa_contratante?: string;
+    alojamento_nome?: string;
+    municipio?: string;
+  }): Promise<Alocacao> {
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const newAloc: Alocacao = {
+      id: `cliente-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      cama_id: `cliente-cama-${payload.worker_id}`,
+      alojamento_id: 'cliente',
+      alojamento_codigo: 'CLI-ALOJ',
+      alojamento_nome: payload.alojamento_nome || `Alojamiento Cedido por ${payload.cliente_nome || 'el Cliente'}`,
+      worker_id: payload.worker_id,
+      worker_nome: payload.worker_nome,
+      codigo_colab: payload.codigo_colab || 'E-XXXX',
+      cliente_nome: payload.cliente_nome || 'Cliente Obra',
+      obra_nome: payload.obra_nome || 'Obra Principal',
+      municipio: payload.municipio || payload.obra_nome || 'España',
+      pedido_id: payload.pedido_id,
+      pedido_codigo: payload.pedido_codigo,
+      data_inicio: payload.data_inicio,
+      data_fim: payload.data_fim,
+      data_checkin: payload.data_inicio,
+      data_checkout_prevista: payload.data_fim,
+      observacoes: payload.observacoes || 'Alojamiento por cuenta del cliente (Sin coste MCS)',
+      status: 'Alojamiento Cliente',
+      tipo_alojamento: 'Cliente',
+      empresa_contratante: payload.empresa_contratante || 'LUMINOUS',
+      custo_alojamento: 0,
+      alojamento: {
+        id: 'cliente',
+        nome: payload.alojamento_nome || `Alojamiento Cedido por ${payload.cliente_nome || 'el Cliente'}`,
+        codigo: 'CLI-ALOJ',
+        capacidade_pessoas: 1,
+        dormitorios: 1,
+        total_camas: 1,
+        camas_individuais: 1,
+        camas_duplas: 0,
+        banheiros: 1,
+        municipio: payload.municipio || payload.obra_nome || 'España'
+      }
+    };
+
+    const filtered = alocacoes.filter(a => a.worker_id !== payload.worker_id);
+    const updated = [newAloc, ...filtered];
+
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    return newAloc;
+  },
+
   async alocarTrabalhador(payload: {
     cama_id: string;
     alojamento_id: string;

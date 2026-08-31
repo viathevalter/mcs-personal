@@ -380,12 +380,20 @@ export async function getHorasPendentesFaturamento(
       });
     }
     const workerHoursMap = new Map<string, { status: string; observacoes: string | null }>();
+    const getStatusPriority = (s?: string | null) => {
+      if (s === 'validado' || s === 'validated') return 3;
+      if (s === 'enviado' || s === 'processado') return 2;
+      return 1;
+    };
     workerHoursList.forEach(wh => {
       const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
-      const val = { status: wh.status, observacoes: wh.observacoes };
-      workerHoursMap.set(key, val);
-      if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
-        workerHoursMap.set(wh.worker_id, val);
+      const existing = workerHoursMap.get(key);
+      if (!existing || getStatusPriority(wh.status) >= getStatusPriority(existing.status)) {
+        const val = { status: wh.status, observacoes: wh.observacoes };
+        workerHoursMap.set(key, val);
+        if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
+          workerHoursMap.set(wh.worker_id, val);
+        }
       }
     });
 

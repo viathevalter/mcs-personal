@@ -24,7 +24,7 @@ interface AlojamentoSearchSelectProps {
   alojamentos: Alojamento[];
   camasDisponiveis: Cama[];
   selectedAlojamentoId: string;
-  onSelectAlojamento: (alojamentoId: string, isPropio?: boolean) => void;
+  onSelectAlojamento: (alojamentoId: string, isSpecial?: boolean | 'propio' | 'cliente') => void;
   selectedCamaId?: string;
   onSelectCama?: (camaId: string) => void;
   targetCity?: string;
@@ -32,6 +32,7 @@ interface AlojamentoSearchSelectProps {
   alojados?: Alocacao[];
   requiredVagas?: number;
   allowPropio?: boolean;
+  allowCliente?: boolean;
 }
 
 export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
@@ -45,7 +46,8 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
   targetCliente = '',
   alojados = [],
   requiredVagas = 1,
-  allowPropio = true
+  allowPropio = true,
+  allowCliente = true
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCityFilter, setSelectedCityFilter] = useState('todas');
@@ -102,6 +104,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
     if (selectedAlojamentoId === 'propio') {
       return {
         id: 'propio',
+        codigo: 'PROP-001',
         nome: 'Alojamiento Propio / Por Cuenta Propia',
         municipio: targetCity || 'Residencia Propia',
         endereco: 'Colaborador se hospeda por su cuenta (Ayuda de coste € 300 / mes)',
@@ -109,12 +112,23 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
         provedor: { nome_razao_social: 'Particular / Cuenta Propia' }
       } as unknown as Alojamento;
     }
+    if (selectedAlojamentoId === 'cliente') {
+      return {
+        id: 'cliente',
+        codigo: 'CLI-ALOJ',
+        nome: `Alojamiento Cedido por el Cliente (${targetCliente || 'Cliente Obra'})`,
+        municipio: targetCity || 'Ubicación de la Obra',
+        endereco: 'El cliente de la obra proporciona el alojamiento (Sin coste directo para MCS)',
+        tipo_alojamento: 'Cliente',
+        provedor: { nome_razao_social: targetCliente || 'Cliente Obra' }
+      } as unknown as Alojamento;
+    }
     return alojamentos.find(a => a.id === selectedAlojamentoId) || null;
-  }, [selectedAlojamentoId, alojamentos, targetCity]);
+  }, [selectedAlojamentoId, alojamentos, targetCity, targetCliente]);
 
   // Camas disponíveis do alojamento selecionado
   const availableBedsForSelected = useMemo(() => {
-    if (!selectedAlojamentoId || selectedAlojamentoId === 'propio') return [];
+    if (!selectedAlojamentoId || selectedAlojamentoId === 'propio' || selectedAlojamentoId === 'cliente') return [];
     return camasDisponiveis.filter(c => c.alojamento_id === selectedAlojamentoId);
   }, [selectedAlojamentoId, camasDisponiveis]);
 
@@ -245,16 +259,22 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
     });
   }, [alojamentos, searchQuery, selectedCityFilter, categoryFilter, targetCity, targetCliente, camasCountByAlojamento, residentsByAlojamento, requiredVagas]);
 
-  const handlePickAlojamento = (aloj: Alojamento, isPropio: boolean = false) => {
-    if (isPropio) {
-      onSelectAlojamento('propio', true);
+  const handlePickAlojamento = (aloj: Alojamento) => {
+    onSelectAlojamento(aloj.id, false);
+    const beds = camasDisponiveis.filter(c => c.alojamento_id === aloj.id);
+    if (beds.length > 0 && onSelectCama) {
+      onSelectCama(beds[0].id);
+    }
+    setIsChanging(false);
+  };
+
+  const handlePickSpecial = (specialType: 'propio' | 'cliente') => {
+    if (specialType === 'propio') {
+      onSelectAlojamento('propio', 'propio');
       if (onSelectCama) onSelectCama('propio');
-    } else {
-      onSelectAlojamento(aloj.id, false);
-      const beds = camasDisponiveis.filter(c => c.alojamento_id === aloj.id);
-      if (beds.length > 0 && onSelectCama) {
-        onSelectCama(beds[0].id);
-      }
+    } else if (specialType === 'cliente') {
+      onSelectAlojamento('cliente', 'cliente');
+      if (onSelectCama) onSelectCama('cliente');
     }
     setIsChanging(false);
   };
@@ -263,21 +283,51 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
     <div className="space-y-4">
       {/* 1. SE JÁ HOUVER ALOJAMENTO SELECIONADO E NÃO ESTIVER EM MODO DE BUSCA */}
       {selectedAlojamento && !isChanging ? (
-        <div className="p-4 rounded-2xl border-2 border-blue-500/80 bg-blue-50/60 dark:bg-blue-950/30 dark:border-blue-700 space-y-3 shadow-xs animate-in fade-in duration-150">
+        <div className={`p-4 rounded-2xl border-2 space-y-3 shadow-xs animate-in fade-in duration-150 ${
+          selectedAlojamento.id === 'cliente'
+            ? 'border-amber-500/80 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-700'
+            : selectedAlojamento.id === 'propio'
+            ? 'border-purple-500/80 bg-purple-50/60 dark:bg-purple-950/30 dark:border-purple-700'
+            : 'border-blue-500/80 bg-blue-50/60 dark:bg-blue-950/30 dark:border-blue-700'
+        }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-2xs flex-shrink-0">
-                {selectedAlojamento.id === 'propio' ? <Home size={20} /> : <Building size={20} />}
+              <div className={`p-2.5 rounded-xl text-white shadow-2xs flex-shrink-0 ${
+                selectedAlojamento.id === 'cliente'
+                  ? 'bg-amber-600'
+                  : selectedAlojamento.id === 'propio'
+                  ? 'bg-purple-600'
+                  : 'bg-blue-600'
+              }`}>
+                {selectedAlojamento.id === 'cliente' ? (
+                  <Hotel size={20} />
+                ) : selectedAlojamento.id === 'propio' ? (
+                  <Home size={20} />
+                ) : (
+                  <Building size={20} />
+                )}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                    {selectedAlojamento.codigo || (selectedAlojamento.id === 'propio' ? 'PROP-001' : 'AL-XXXX')}
+                  <span className={`font-mono text-xs font-black px-2 py-0.5 rounded ${
+                    selectedAlojamento.id === 'cliente'
+                      ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200'
+                      : selectedAlojamento.id === 'propio'
+                      ? 'bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200'
+                      : 'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200'
+                  }`}>
+                    {selectedAlojamento.codigo || (selectedAlojamento.id === 'cliente' ? 'CLI-ALOJ' : selectedAlojamento.id === 'propio' ? 'PROP-001' : 'AL-XXXX')}
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
-                    {selectedAlojamento.tipo_alojamento || 'Fijo'}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    selectedAlojamento.id === 'cliente'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                      : selectedAlojamento.id === 'propio'
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                  }`}>
+                    {selectedAlojamento.id === 'cliente' ? 'Por Cuenta del Cliente' : selectedAlojamento.tipo_alojamento || 'Fijo'}
                   </span>
-                  {selectedAlojamento.id !== 'propio' && (
+                  {selectedAlojamento.id !== 'propio' && selectedAlojamento.id !== 'cliente' && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                       {camasCountByAlojamento.get(selectedAlojamento.id) || 0} camas libres
                     </span>
@@ -484,10 +534,35 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
             )}
           </div>
 
+          {/* Opção em Destaque: Alojamento por Conta do Cliente */}
+          {allowCliente && (
+            <div
+              onClick={() => handlePickSpecial('cliente')}
+              className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-amber-600 text-white shadow-2xs group-hover:scale-105 transition-transform">
+                  <Hotel size={16} />
+                </div>
+                <div>
+                  <h5 className="font-black text-amber-950 dark:text-amber-200 text-xs">
+                    🤝 Alojamiento por Cuenta del Cliente {targetCliente ? `(${targetCliente})` : ''}
+                  </h5>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                    El cliente de la obra proporciona el alojamiento (Sin coste directo de alquiler para MCS).
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-amber-600 text-white rounded-lg font-bold text-xs shadow-2xs">
+                Seleccionar
+              </span>
+            </div>
+          )}
+
           {/* Opção em Destaque: Alojamento Próprio */}
           {allowPropio && (
             <div
-              onClick={() => handlePickAlojamento({} as any, true)}
+              onClick={() => handlePickSpecial('propio')}
               className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/80 dark:hover:bg-purple-900/40 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
             >
               <div className="flex items-center gap-2.5">

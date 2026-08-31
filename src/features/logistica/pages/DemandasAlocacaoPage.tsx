@@ -133,6 +133,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [propioDataFim, setPropioDataFim] = useState('');
   const [propioObservacoes, setPropioObservacoes] = useState('Alojamiento Propio / Por cuenta propia');
 
+  // Modal Registro de Alojamiento por Cliente
+  const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
+  const [clienteWorkerQuery, setClienteWorkerQuery] = useState('');
+  const [clienteSearchResults, setClienteSearchResults] = useState<any[]>([]);
+  const [isSearchingClienteWorker, setIsSearchingClienteWorker] = useState(false);
+  const [selectedClienteWorker, setSelectedClienteWorker] = useState<any | null>(null);
+  const [clienteAlojClienteNome, setClienteAlojClienteNome] = useState('');
+  const [clienteAlojObraNome, setClienteAlojObraNome] = useState('');
+  const [clienteAlojHotelNome, setClienteAlojHotelNome] = useState('');
+  const [clienteAlojEmpresa, setClienteAlojEmpresa] = useState('LUMINOUS');
+  const [clienteAlojDataInicio, setClienteAlojDataInicio] = useState(new Date().toISOString().split('T')[0]);
+  const [clienteAlojDataFim, setClienteAlojDataFim] = useState('');
+  const [clienteAlojObservacoes, setClienteAlojObservacoes] = useState('Alojamiento por cuenta del cliente (Sin coste MCS)');
+
   // Modal Asignación Directa de Trabalhador Avulso (Busca no Banco)
   const [isDirectModalOpen, setIsDirectModalOpen] = useState(false);
   const [workerSearchQuery, setWorkerSearchQuery] = useState('');
@@ -690,7 +704,36 @@ export const DemandasAlocacaoPage: React.FC = () => {
           data_inicio: singleDataInicio,
           data_fim: singleDataFim,
           empresa_contratante: allocatingWorker.pedido.empresa_contratante,
-          observacoes: singleObservacoes || 'Alojamiento Propio'
+          observacoes: singleObservacoes || 'Alojamiento Propio / Por cuenta propia'
+        });
+        setAllocatingWorker(null);
+        await loadData();
+      } catch (err: any) {
+        alert('Error: ' + err.message);
+      } finally {
+        setIsAllocatingSingle(false);
+      }
+      return;
+    }
+
+    // Opção: Alocar como Alojamento por Conta do Cliente
+    if (singleAlojamentoId === 'cliente') {
+      try {
+        setIsAllocatingSingle(true);
+        await logisticsService.registrarAlojamentoCliente({
+          worker_id: allocatingWorker.worker.worker_id,
+          worker_nome: allocatingWorker.worker.worker_nome,
+          codigo_colab: allocatingWorker.worker.codigo_colab,
+          cliente_nome: allocatingWorker.pedido.cliente_nome,
+          obra_nome: allocatingWorker.pedido.obra_nome,
+          pedido_id: allocatingWorker.pedido.pedido_id,
+          pedido_codigo: allocatingWorker.pedido.pedido_codigo,
+          data_inicio: singleDataInicio,
+          data_fim: singleDataFim,
+          empresa_contratante: allocatingWorker.pedido.empresa_contratante,
+          alojamento_nome: `Alojamiento Cedido por ${allocatingWorker.pedido.cliente_nome}`,
+          municipio: allocatingWorker.pedido.cidade,
+          observacoes: singleObservacoes || 'Alojamiento por cuenta del cliente (Sin coste MCS)'
         });
         setAllocatingWorker(null);
         await loadData();
@@ -748,6 +791,70 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const handleConfirmBatchAlloc = async () => {
     if (!selectedPedido || !batchAlojamentoId) return;
 
+    // Alocação em Lote para Alojamento Cliente
+    if (batchAlojamentoId === 'cliente') {
+      try {
+        setIsAllocatingBatch(true);
+        for (const wId of selectedWorkerIds) {
+          const w = selectedPedido.trabalhadores.find(t => t.worker_id === wId)!;
+          await logisticsService.registrarAlojamentoCliente({
+            worker_id: w.worker_id,
+            worker_nome: w.worker_nome,
+            codigo_colab: w.codigo_colab,
+            cliente_nome: selectedPedido.cliente_nome,
+            obra_nome: selectedPedido.obra_nome,
+            pedido_id: selectedPedido.pedido_id,
+            pedido_codigo: selectedPedido.pedido_codigo,
+            data_inicio: selectedPedido.data_inicio || new Date().toISOString().split('T')[0],
+            data_fim: selectedPedido.data_fim,
+            empresa_contratante: selectedPedido.empresa_contratante,
+            alojamento_nome: `Alojamiento Cedido por ${selectedPedido.cliente_nome}`,
+            municipio: selectedPedido.cidade,
+            observacoes: `Asignación por Cliente en Lote - Pedido ${selectedPedido.pedido_codigo}`
+          });
+        }
+        setIsBatchModalOpen(false);
+        setSelectedWorkerIds([]);
+        await loadData();
+      } catch (err: any) {
+        alert('Error al asignar en lote a cliente: ' + err.message);
+      } finally {
+        setIsAllocatingBatch(false);
+      }
+      return;
+    }
+
+    // Alocação em Lote para Alojamento Próprio
+    if (batchAlojamentoId === 'propio') {
+      try {
+        setIsAllocatingBatch(true);
+        for (const wId of selectedWorkerIds) {
+          const w = selectedPedido.trabalhadores.find(t => t.worker_id === wId)!;
+          await logisticsService.registrarAlojamentoPropio({
+            worker_id: w.worker_id,
+            worker_nome: w.worker_nome,
+            codigo_colab: w.codigo_colab,
+            cliente_nome: selectedPedido.cliente_nome,
+            obra_nome: selectedPedido.obra_nome,
+            pedido_id: selectedPedido.pedido_id,
+            pedido_codigo: selectedPedido.pedido_codigo,
+            data_inicio: selectedPedido.data_inicio || new Date().toISOString().split('T')[0],
+            data_fim: selectedPedido.data_fim,
+            empresa_contratante: selectedPedido.empresa_contratante,
+            observacoes: `Alojamiento Propio en Lote - Pedido ${selectedPedido.pedido_codigo}`
+          });
+        }
+        setIsBatchModalOpen(false);
+        setSelectedWorkerIds([]);
+        await loadData();
+      } catch (err: any) {
+        alert('Error al asignar en lote a propio: ' + err.message);
+      } finally {
+        setIsAllocatingBatch(false);
+      }
+      return;
+    }
+
     const camasLivresDoAloj = camasDisponiveis.filter(c => c.alojamento_id === batchAlojamentoId);
     if (camasLivresDoAloj.length < selectedWorkerIds.length) {
       alert(`El alojamiento seleccionado solo tiene ${camasLivresDoAloj.length} camas libres, pero ha seleccionado ${selectedWorkerIds.length} trabajadores.`);
@@ -789,8 +896,59 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   // Confirmar Alocação Direta Avulsa (Modal Azul)
   const handleConfirmDirectAlloc = async () => {
-    if (!selectedRealWorker || !directAlojamentoId || !directCamaId) {
-      alert('Por favor, seleccione el colaborador, el alojamiento y la cama.');
+    if (!selectedRealWorker || !directAlojamentoId) {
+      alert('Por favor, seleccione el colaborador y el alojamiento.');
+      return;
+    }
+
+    if (directAlojamentoId === 'propio') {
+      try {
+        await logisticsService.registrarAlojamentoPropio({
+          worker_id: selectedRealWorker.id,
+          worker_nome: selectedRealWorker.Nombre || selectedRealWorker.nombre,
+          codigo_colab: selectedRealWorker.Cod_colab || selectedRealWorker.cod_colab,
+          cliente_nome: selectedRealWorker.contratante || 'Cliente Principal',
+          obra_nome: selectedRealWorker.ubicacion || 'Obra',
+          data_inicio: directDataInicio,
+          data_fim: directDataFim,
+          observacoes: directObservacoes || 'Alojamiento Propio'
+        });
+
+        setIsDirectModalOpen(false);
+        setSelectedRealWorker(null);
+        await loadData();
+      } catch (err: any) {
+        alert('Error al asignar alojamiento propio: ' + err.message);
+      }
+      return;
+    }
+
+    if (directAlojamentoId === 'cliente') {
+      try {
+        await logisticsService.registrarAlojamentoCliente({
+          worker_id: selectedRealWorker.id,
+          worker_nome: selectedRealWorker.Nombre || selectedRealWorker.nombre,
+          codigo_colab: selectedRealWorker.Cod_colab || selectedRealWorker.cod_colab,
+          cliente_nome: selectedRealWorker.contratante || 'Cliente Principal',
+          obra_nome: selectedRealWorker.ubicacion || 'Obra',
+          alojamento_nome: `Alojamiento Cedido por ${selectedRealWorker.contratante || 'el Cliente'}`,
+          municipio: selectedRealWorker.ubicacion || 'España',
+          data_inicio: directDataInicio,
+          data_fim: directDataFim,
+          observacoes: directObservacoes || 'Alojamiento por cuenta del cliente (Sin coste MCS)'
+        });
+
+        setIsDirectModalOpen(false);
+        setSelectedRealWorker(null);
+        await loadData();
+      } catch (err: any) {
+        alert('Error al asignar alojamiento por cliente: ' + err.message);
+      }
+      return;
+    }
+
+    if (!directCamaId) {
+      alert('Por favor, seleccione una cama disponible.');
       return;
     }
 
@@ -846,6 +1004,55 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
+  // Buscar Trabalhadores para Modal de Alojamiento por Cliente
+  const handleSearchClienteWorkers = async (q: string) => {
+    setClienteWorkerQuery(q);
+    if (!q || q.length < 2) {
+      setClienteSearchResults([]);
+      return;
+    }
+    setIsSearchingClienteWorker(true);
+    try {
+      const results = await logisticsService.buscarTrabalhadoresParaAlocacao(q);
+      setClienteSearchResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearchingClienteWorker(false);
+    }
+  };
+
+  // Confirmar Registro de Alojamiento por Cliente
+  const handleConfirmClienteModal = async () => {
+    if (!selectedClienteWorker) {
+      alert('Por favor, seleccione un colaborador.');
+      return;
+    }
+
+    try {
+      await logisticsService.registrarAlojamentoCliente({
+        worker_id: selectedClienteWorker.id,
+        worker_nome: selectedClienteWorker.Nombre || selectedClienteWorker.nombre,
+        codigo_colab: selectedClienteWorker.Cod_colab || selectedClienteWorker.cod_colab,
+        cliente_nome: clienteAlojClienteNome || selectedClienteWorker.contratante || 'Cliente Obra',
+        obra_nome: clienteAlojObraNome || selectedClienteWorker.ubicacion || 'Obra',
+        empresa_contratante: clienteAlojEmpresa,
+        alojamento_nome: clienteAlojHotelNome || `Alojamiento Cedido por ${clienteAlojClienteNome || selectedClienteWorker.contratante || 'el Cliente'}`,
+        municipio: clienteAlojObraNome || selectedClienteWorker.ubicacion || 'España',
+        data_inicio: clienteAlojDataInicio,
+        data_fim: clienteAlojDataFim,
+        observacoes: clienteAlojObservacoes
+      });
+
+      setIsClienteModalOpen(false);
+      setSelectedClienteWorker(null);
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al registrar alojamiento por cliente: ' + err.message);
+    }
+  };
+
   // Confirmar Check-out
   const handleConfirmCheckout = async () => {
     if (!checkingOutWorker) return;
@@ -892,22 +1099,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
             Central de Demandas por Pedido & Alojamientos
           </h1>
           <p className="text-sm text-slate-500">
-            Control de movilizaciones, asignación de plazas por pedido comercial, seguimiento de check-outs y control de alojamiento propio.
+            Control de movilizaciones, asignación de plazas por pedido comercial, seguimiento de check-outs y control de alojamientos.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => loadData()}
-            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             title="Actualizar datos"
           >
             <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
           </button>
 
           <button
+            onClick={() => setIsClienteModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 rounded-xl text-xs font-bold transition-colors border border-amber-200 dark:border-amber-800 shadow-2xs cursor-pointer"
+          >
+            <Hotel size={15} />
+            + Registrar Alojamiento Cliente
+          </button>
+
+          <button
             onClick={() => setIsPropioModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800 shadow-2xs"
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 rounded-xl text-xs font-bold transition-colors border border-purple-200 dark:border-purple-800 shadow-2xs cursor-pointer"
           >
             <Home size={15} />
             + Registrar Alojamiento Propio
@@ -915,7 +1130,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           <button
             onClick={() => setIsDirectModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
           >
             <UserPlus size={15} />
             Asignar Cama Directa
@@ -2657,9 +2872,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 alojamentos={alojamentos}
                 camasDisponiveis={camasDisponiveis}
                 selectedAlojamentoId={singleAlojamentoId}
-                onSelectAlojamento={(alojId, isPropio) => {
+                onSelectAlojamento={(alojId, specialType) => {
                   setSingleAlojamentoId(alojId);
-                  if (isPropio) setSingleCamaId('propio');
+                  if (specialType === 'propio') setSingleCamaId('propio');
+                  if (specialType === 'cliente') setSingleCamaId('cliente');
                 }}
                 selectedCamaId={singleCamaId}
                 onSelectCama={bedId => setSingleCamaId(bedId)}
@@ -2668,6 +2884,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 alojados={alojados}
                 requiredVagas={1}
                 allowPropio={true}
+                allowCliente={true}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -2700,7 +2917,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 Cancelar
               </button>
               <button
-                disabled={isAllocatingSingle || (!singleCamaId && singleAlojamentoId !== 'propio')}
+                disabled={isAllocatingSingle || (!singleCamaId && singleAlojamentoId !== 'propio' && singleAlojamentoId !== 'cliente')}
                 onClick={handleConfirmSingleAlloc}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
@@ -2771,7 +2988,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 targetCliente={selectedPedido.cliente_nome}
                 alojados={alojados}
                 requiredVagas={selectedWorkerIds.length}
-                allowPropio={false}
+                allowPropio={true}
+                allowCliente={true}
               />
 
               <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
@@ -2991,6 +3209,210 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL 3.5: REGISTRO DE ALOJAMIENTO POR CLIENTE */}
+      {/* ========================================================================= */}
+      {isClienteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl space-y-0">
+            
+            <div className="p-6 bg-amber-50/70 dark:bg-amber-950/40 border-b border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-amber-600 text-white rounded-2xl shadow-sm">
+                  <Hotel size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Registrar Alojamiento por Cliente
+                  </h3>
+                  <p className="text-xs text-slate-500">Colaborador hospedado en alojamiento provisto por el cliente de la obra.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsClienteModalOpen(false);
+                  setSelectedClienteWorker(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
+              {!selectedClienteWorker ? (
+                <div className="space-y-3">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    1. Seleccione el Trabajador:
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre o código (ej: E2105)..."
+                      value={clienteWorkerQuery}
+                      onChange={e => handleSearchClienteWorkers(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  {isSearchingClienteWorker && (
+                    <div className="text-center py-4 text-slate-400">
+                      <RefreshCw size={18} className="animate-spin mx-auto mb-1" />
+                      <span>Buscando en la base de colaboradores...</span>
+                    </div>
+                  )}
+
+                  {clienteSearchResults.length > 0 && (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                      {clienteSearchResults.map(w => (
+                        <div
+                          key={w.id}
+                          onClick={() => {
+                            setSelectedClienteWorker(w);
+                            setClienteAlojClienteNome(w.contratante || '');
+                            setClienteAlojObraNome(w.ubicacion || '');
+                            setClienteAlojEmpresa(w.empresa_interna || 'LUMINOUS');
+                          }}
+                          className="p-3 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer flex justify-between items-center transition-colors"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-200">{w.Nombre || w.nombre}</p>
+                            <p className="text-[11px] text-slate-500">{w.contratante} • {w.ubicacion}</p>
+                          </div>
+                          <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-300">
+                            {w.Cod_colab || w.cod_colab || 'E-XXXX'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-100">{selectedClienteWorker.Nombre || selectedClienteWorker.nombre}</p>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300">{selectedClienteWorker.Cod_colab || selectedClienteWorker.cod_colab}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedClienteWorker(null)}
+                      className="text-xs font-bold text-amber-600 hover:underline cursor-pointer"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Empresa Contratante:</label>
+                      <select
+                        value={clienteAlojEmpresa}
+                        onChange={e => setClienteAlojEmpresa(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      >
+                        <option value="LUMINOUS">LUMINOUS</option>
+                        <option value="STOCCO">STOCCO</option>
+                        <option value="WISEOWE">WISEOWE</option>
+                        <option value="KOTRIK">KOTRIK</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Cliente Responsable:</label>
+                      <input
+                        type="text"
+                        value={clienteAlojClienteNome}
+                        onChange={e => setClienteAlojClienteNome(e.target.value)}
+                        placeholder="Ej: INSTALACIONES Y SISTEMAS HIDRAULICOS"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Ubicación / Ciudad de la Obra:</label>
+                      <input
+                        type="text"
+                        value={clienteAlojObraNome}
+                        onChange={e => setClienteAlojObraNome(e.target.value)}
+                        placeholder="Ej: Madrid / Zaragoza / Almería"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Nombre Hotel / Alojamiento (Opcional):</label>
+                      <input
+                        type="text"
+                        value={clienteAlojHotelNome}
+                        onChange={e => setClienteAlojHotelNome(e.target.value)}
+                        placeholder="Ej: Hotel del Cliente / Casa de Obra"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Inicio:</label>
+                      <input
+                        type="date"
+                        value={clienteAlojDataInicio}
+                        onChange={e => setClienteAlojDataInicio(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Fecha Fin Prevista:</label>
+                      <input
+                        type="date"
+                        value={clienteAlojDataFim}
+                        onChange={e => setClienteAlojDataFim(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">Observaciones:</label>
+                    <input
+                      type="text"
+                      value={clienteAlojObservacoes}
+                      onChange={e => setClienteAlojObservacoes(e.target.value)}
+                      placeholder="Detalles sobre el alojamiento por cliente..."
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedClienteWorker && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setIsClienteModalOpen(false);
+                    setSelectedClienteWorker(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmClienteModal}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer"
+                >
+                  Guardar Alojamiento por Cliente
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL 4: ASIGNACIÓN DIRECTA DE TRABAJADOR REAL */}
       {/* ========================================================================= */}
       {isDirectModalOpen && (
@@ -3078,14 +3500,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     alojamentos={alojamentos}
                     camasDisponiveis={camasDisponiveis}
                     selectedAlojamentoId={directAlojamentoId}
-                    onSelectAlojamento={alojId => setDirectAlojamentoId(alojId)}
+                    onSelectAlojamento={(alojId, specialType) => {
+                      setDirectAlojamentoId(alojId);
+                      if (specialType === 'propio') setDirectCamaId('propio');
+                      if (specialType === 'cliente') setDirectCamaId('cliente');
+                    }}
                     selectedCamaId={directCamaId}
                     onSelectCama={bedId => setDirectCamaId(bedId)}
                     targetCity={selectedRealWorker?.ubicacion || ''}
                     targetCliente={selectedRealWorker?.contratante || ''}
                     alojados={alojados}
                     requiredVagas={1}
-                    allowPropio={false}
+                    allowPropio={true}
+                    allowCliente={true}
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -3124,7 +3551,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   Cancelar
                 </button>
                 <button
-                  disabled={!directCamaId}
+                  disabled={!directCamaId && directAlojamentoId !== 'propio' && directAlojamentoId !== 'cliente'}
                   onClick={handleConfirmDirectAlloc}
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer shadow-xs"
                 >
