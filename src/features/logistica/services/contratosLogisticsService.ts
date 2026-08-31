@@ -1,5 +1,5 @@
 import { registrosService } from './registrosService';
-import type { Alojamento, Provedor } from './logisticsService';
+import { logisticsService, type Alojamento, type Provedor } from './logisticsService';
 
 export interface ContratoAlojamento {
   id: string;
@@ -9,7 +9,12 @@ export interface ContratoAlojamento {
   provedor_id?: string;
   provedor_nome?: string;
   empresa_id?: string;
+  empresa_contratante?: string;
   cliente_id?: string;
+  cliente_nome?: string;
+  centro_custo_obra?: string;
+  total_ocupantes?: number;
+  ocupantes_nomes?: string;
   status: 'Activo' | 'Cerrado' | 'Pendente_Renovacao';
   tipo_contrato: 'Fijo' | 'Por Trabajador / Habitación' | 'Temporario (Airbnb / Booking)' | 'Hotel / Pensión' | 'Auxilio_moradia';
   data_inicio?: string;
@@ -35,7 +40,12 @@ export interface ContratoAlojamento {
 export const contratosLogisticsService = {
   async fetchContratos(): Promise<ContratoAlojamento[]> {
     try {
-      const alojamentos = await registrosService.fetchAlojamentos();
+      const [alojamentos, alocacoesAtivas] = await Promise.all([
+        registrosService.fetchAlojamentos(),
+        logisticsService.fetchAlocacoesAtivas()
+      ]);
+
+      const activeOccupants = alocacoesAtivas.filter(a => a.status !== 'Checkout');
 
       return alojamentos.map((a: Alojamento) => {
         const comod = a.comodidades || {};
@@ -46,6 +56,33 @@ export const contratosLogisticsService = {
         const valor = Number(a.valor_mensal || a.custo_mensal_total || cont.valor_mensal || 0);
         const fianza = Number(cont.fianza_valor || 0);
 
+        // Mapear ocupantes ativos neste alojamento
+        const occupants = activeOccupants.filter(aloc => 
+          (aloc.alojamento_id && aloc.alojamento_id === a.id) ||
+          (aloc.alojamento_codigo && aloc.alojamento_codigo === a.codigo) ||
+          (aloc.alojamento_nome && (aloc.alojamento_nome === a.nome || aloc.alojamento_nome === a.titulo))
+        );
+
+        let clienteNome = '';
+        let empresaContratante = '';
+        let ocupantesNomes = '';
+
+        if (occupants.length > 0) {
+          const uniqueClients = Array.from(new Set(occupants.map(o => o.cliente_nome).filter(Boolean)));
+          const uniqueEmpresas = Array.from(new Set(occupants.map(o => o.empresa_contratante).filter(Boolean)));
+          clienteNome = uniqueClients.join(', ');
+          empresaContratante = uniqueEmpresas.join(', ');
+          ocupantesNomes = occupants.map(o => `${o.worker_nome} (${o.codigo_colab || 'E-XXXX'})`).join(', ');
+        }
+
+        if (!clienteNome) {
+          clienteNome = cont.cliente_nome || a.cliente_nome || (a.municipio ? `Obra ${a.municipio}` : 'Centro de Coste General');
+        }
+
+        if (!empresaContratante) {
+          empresaContratante = cont.empresa_contratante || a.empresa_contratante || 'LUMINOUS';
+        }
+
         return {
           id: a.id,
           codigo: codigoContrato,
@@ -53,6 +90,11 @@ export const contratosLogisticsService = {
           alojamento_nome: a.nome || a.titulo,
           provedor_id: a.provedor_id,
           provedor_nome: prov?.nome_razao_social || 'Proveedor',
+          cliente_nome: clienteNome,
+          empresa_contratante: empresaContratante,
+          centro_custo_obra: `Obra ${a.municipio || a.provincia || 'Principal'}`,
+          total_ocupantes: occupants.length,
+          ocupantes_nomes: ocupantesNomes,
           status: (cont.status as any) || (a.status === 'Inactivo' || a.status === 'inativo' ? 'Cerrado' : 'Activo'),
           tipo_contrato: (cont.tipo_contrato as any) || (a.tipo_alojamento as any) || 'Fijo',
           data_inicio: cont.data_inicio || '2026-09-01',

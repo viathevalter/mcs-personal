@@ -34,7 +34,29 @@ export const financeLogisticsService = {
     try {
       const stored = localStorage.getItem(FINANCE_STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const list: PagoAlojamento[] = JSON.parse(stored);
+        let changed = false;
+        const repaired = list.map(op => {
+          if (
+            (op.alojamento_codigo === 'AL-0977' || (op.alojamento_nome && op.alojamento_nome.toLowerCase().includes('jesús'))) &&
+            (!op.centro_custo_cliente || op.centro_custo_cliente === 'BECK & POLLITZER IBERICA SLU')
+          ) {
+            changed = true;
+            return {
+              ...op,
+              centro_custo_cliente: 'EUROCONTAINER',
+              centro_custo_obra: 'Obra ZARAGOZA'
+            };
+          }
+          return op;
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(repaired));
+          } catch (e) {}
+        }
+        return repaired;
       }
     } catch (e) {}
 
@@ -83,7 +105,7 @@ export const financeLogisticsService = {
       iban_cobranca: payload.iban_cobranca || '',
       banco: payload.banco || '',
       titular: payload.titular || '',
-      centro_custo_cliente: payload.centro_custo_cliente || 'BECK & POLLITZER IBERICA SLU',
+      centro_custo_cliente: payload.centro_custo_cliente || 'Centro de Coste General',
       centro_custo_obra: payload.centro_custo_obra || 'Obra Principal',
       tipo_pago: payload.tipo_pago,
       status_pago: 'Rascunho',

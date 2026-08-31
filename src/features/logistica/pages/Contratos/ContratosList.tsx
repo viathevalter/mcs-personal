@@ -82,8 +82,8 @@ export const ContratosList: React.FC = () => {
         iban_cobranca: contrato.iban_cobranca,
         banco: contrato.banco,
         titular: contrato.titular,
-        centro_custo_cliente: 'BECK & POLLITZER IBERICA SLU',
-        centro_custo_obra: `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
+        centro_custo_cliente: contrato.cliente_nome || 'Centro de Coste General',
+        centro_custo_obra: contrato.centro_custo_obra || `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
         tipo_pago: 'Aluguel',
         valor: Number(contrato.valor_mensal) || 0,
         data_vencimento: vencimento,
@@ -91,7 +91,7 @@ export const ContratosList: React.FC = () => {
         observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome})`
       });
 
-      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito para el inmueble ${contrato.alojamento_nome}! Puede visualizarla y enviarla a aprobación en la pantalla de Órdenes de Pago.`);
+      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito para el inmueble ${contrato.alojamento_nome} (Cliente: ${contrato.cliente_nome || 'General'})! Puede visualizarla y enviarla a aprobación en la pantalla de Órdenes de Pago.`);
     } catch (err: any) {
       console.error('Error al generar OP:', err);
       alert(`Aviso: ${err?.message || 'No fue posible generar la Orden de Pago. Compruebe los datos del contrato.'}`);
@@ -115,6 +115,9 @@ export const ContratosList: React.FC = () => {
       (c.codigo && c.codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (c.alojamento_nome && c.alojamento_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (c.provedor_nome && c.provedor_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.cliente_nome && c.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.empresa_contratante && c.empresa_contratante.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.ocupantes_nomes && c.ocupantes_nomes.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (c.iban_cobranca && c.iban_cobranca.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!matchesSearch) return false;
@@ -313,6 +316,23 @@ export const ContratosList: React.FC = () => {
                           <p className="font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5">
                             {c.alojamento_nome}
                           </p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            {c.cliente_nome && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                🏢 {c.cliente_nome}
+                              </span>
+                            )}
+                            {c.empresa_contratante && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                {c.empresa_contratante}
+                              </span>
+                            )}
+                            {c.total_ocupantes !== undefined && c.total_ocupantes > 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                👥 {c.total_ocupantes} ocupante{c.total_ocupantes > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -466,6 +486,25 @@ export const ContratosList: React.FC = () => {
                     € {viewingContrato.valor_mensal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
+              </div>
+
+              {/* Centro de Coste & Ocupación */}
+              <div className="p-4 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 rounded-2xl space-y-2">
+                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 size={14} />
+                  Centro de Coste & Ocupación Actual
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
+                  <p><span className="text-slate-400">Cliente / Proyecto:</span> <strong className="text-blue-900 dark:text-blue-200">{viewingContrato.cliente_nome || 'Centro de Coste General'}</strong></p>
+                  <p><span className="text-slate-400">Empresa Contratante:</span> <strong>{viewingContrato.empresa_contratante || 'LUMINOUS'}</strong></p>
+                  <p><span className="text-slate-400">Ubicación / Obra:</span> <strong>{viewingContrato.centro_custo_obra}</strong></p>
+                  <p><span className="text-slate-400">Total Ocupantes:</span> <strong>{viewingContrato.total_ocupantes || 0} personas</strong></p>
+                </div>
+                {viewingContrato.ocupantes_nomes && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-blue-100 dark:border-blue-900/40">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Colaboradores Alojados:</span> {viewingContrato.ocupantes_nomes}
+                  </p>
+                )}
               </div>
 
               {/* Fiança */}

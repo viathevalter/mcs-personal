@@ -43,13 +43,14 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
   // Modal Nueva OP
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedAlojamentoId, setSelectedAlojamentoId] = useState('');
+  const [selectedAlojamentoId, setSelectedAlojamentoId] = useState<string>('');
+  const [alocacoes, setAlocacoes] = useState<any[]>([]);
   const [tipoGasto, setTipoGasto] = useState<PagoAlojamento['tipo_pago']>('Aluguel');
   const [valorGasto, setValorGasto] = useState<number>(0);
   const [vencimentoGasto, setVencimentoGasto] = useState<string>(new Date().toISOString().split('T')[0]);
   const [competenciaGasto, setCompetenciaGasto] = useState<string>('09/2026');
-  const [clienteCentroCusto, setClienteCentroCusto] = useState<string>('BECK & POLLITZER IBERICA SLU');
-  const [obraCentroCusto, setObraCentroCusto] = useState<string>('Obra Fábrica Arbúcies');
+  const [clienteCentroCusto, setClienteCentroCusto] = useState<string>('');
+  const [obraCentroCusto, setObraCentroCusto] = useState<string>('');
   const [observacoesGasto, setObservacoesGasto] = useState<string>('');
   const [isSavingOp, setIsSavingOp] = useState(false);
 
@@ -59,14 +60,16 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [pagosData, alojData, provData] = await Promise.all([
+      const [pagosData, alojData, provData, alocsData] = await Promise.all([
         financeLogisticsService.fetchPagos(),
         logisticsService.fetchAlojamentos(),
-        logisticsService.fetchProvedores()
+        logisticsService.fetchProvedores(),
+        logisticsService.fetchAlocacoesAtivas()
       ]);
       setPagos(pagosData);
       setAlojamentos(alojData);
       setProvedores(provData);
+      setAlocacoes(alocsData);
     } catch (err) {
       console.error('Error al cargar pagos de logística:', err);
     } finally {
@@ -77,6 +80,37 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleSelectAlojamento = (alojId: string) => {
+    setSelectedAlojamentoId(alojId);
+    if (!alojId) {
+      setClienteCentroCusto('');
+      setObraCentroCusto('');
+      return;
+    }
+
+    const aloj = alojamentos.find(a => a.id === alojId);
+    if (!aloj) return;
+
+    // Buscar ocupantes ativos
+    const occ = alocacoes.filter(a => 
+      a.status !== 'Checkout' && 
+      (a.alojamento_id === alojId || a.alojamento_codigo === aloj.codigo || (a.alojamento_nome && (a.alojamento_nome === aloj.nome || a.alojamento_nome === aloj.titulo)))
+    );
+
+    if (occ.length > 0) {
+      const uniqueClients = Array.from(new Set(occ.map(o => o.cliente_nome).filter(Boolean)));
+      setClienteCentroCusto(uniqueClients.join(', '));
+    } else {
+      setClienteCentroCusto(aloj.cliente_nome || (aloj.municipio ? `Obra ${aloj.municipio}` : 'Centro de Coste General'));
+    }
+
+    setObraCentroCusto(`Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
+
+    if (tipoGasto === 'Aluguel' && (aloj.custo_mensal_total || aloj.valor_mensal)) {
+      setValorGasto(Number(aloj.custo_mensal_total || aloj.valor_mensal));
+    }
+  };
 
   const handleCopyIban = (iban: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -493,7 +527,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     {/* Centro de Custo */}
                     <td className="px-4 py-3.5">
                       <span className="font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[180px]">
-                        {op.centro_custo_cliente || 'BECK & POLLITZER IBERICA SLU'}
+                        {op.centro_custo_cliente || 'Centro de Coste General'}
                       </span>
                       <span className="text-[10px] text-slate-400 block truncate max-w-[180px]">
                         {op.centro_custo_obra || 'Obra Principal'}
@@ -590,7 +624,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                   </label>
                   <select
                     value={selectedAlojamentoId}
-                    onChange={e => setSelectedAlojamentoId(e.target.value)}
+                    onChange={e => handleSelectAlojamento(e.target.value)}
                     required
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
                   >
