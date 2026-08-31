@@ -438,6 +438,10 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
             waUpdates.end_date = updates.fechasalidatrabajador || null;
             if (updates.fechasalidatrabajador) {
                 waUpdates.status = 'completed';
+            } else if (!waUpdates.status) {
+                const effectiveDate = waUpdates.start_date || waUpdates.planned_start_date;
+                const todayStr = new Date().toISOString().split('T')[0];
+                waUpdates.status = (effectiveDate && effectiveDate <= todayStr) ? 'active' : 'planned';
             }
         }
         if (updates.funcion !== undefined) {
