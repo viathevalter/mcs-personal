@@ -405,6 +405,7 @@ export function NewEstimacionPage() {
       lead_id: payload.lead_id || null,
       client_site_id: payload.client_site_id || null,
       country_id: payload.country_id || null,
+      payment_term_id: payload.payment_term_id || null,
       postal_code: payload.postal_code || null,
       expected_start_date: payload.expected_start_date || null,
       expected_end_date: payload.expected_end_date || null,
@@ -425,6 +426,10 @@ export function NewEstimacionPage() {
       hours_viernes: Number(payload.hours_viernes ?? payload.hours_weekday ?? 8.0),
       hours_sabado: Number(payload.hours_sabado ?? 0.0),
       hours_domingo: Number(payload.hours_domingo ?? 0.0),
+      items: payload.items?.map((item: any) => ({
+        ...item,
+        job_function_id: item.job_function_id || null,
+      })) || [],
       additional_revenues: payload.additional_revenues || [],
     };
 
