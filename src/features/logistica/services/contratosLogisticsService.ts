@@ -1,5 +1,19 @@
+import { supabase } from '@/shared/supabase/client';
 import { registrosService } from './registrosService';
 import { logisticsService, type Alojamento, type Provedor } from './logisticsService';
+
+export interface OcupanteContrato {
+  worker_id?: string;
+  codigo_colab?: string;
+  worker_nome: string;
+  perfil?: string;
+  empresa_contratante?: string;
+  cliente_nome?: string;
+  obra_nome?: string;
+  status_trabajador?: string;
+  data_entrada?: string;
+  custo_rateado: number;
+}
 
 export interface ContratoAlojamento {
   id: string;
@@ -15,6 +29,8 @@ export interface ContratoAlojamento {
   centro_custo_obra?: string;
   total_ocupantes?: number;
   ocupantes_nomes?: string;
+  ocupantes_detalhados?: OcupanteContrato[];
+  custo_rateado_por_pessoa?: number;
   status: 'Activo' | 'Cerrado' | 'Pendente_Renovacao';
   tipo_contrato: 'Fijo' | 'Por Trabajador / Habitación' | 'Temporario (Airbnb / Booking)' | 'Hotel / Pensión' | 'Auxilio_moradia';
   data_inicio?: string;
@@ -46,6 +62,21 @@ export const contratosLogisticsService = {
       ]);
 
       const activeOccupants = alocacoesAtivas.filter(a => a.status !== 'Checkout');
+
+      // Buscar perfil profissional/função dos trabalhadores em core_personal.workers
+      const workerProfilesMap = new Map<string, { funcion?: string; contratante?: string; cliente?: string }>();
+      try {
+        const personalClient = (supabase as any).schema ? (supabase as any).schema('core_personal') : supabase;
+        const { data: workersData } = await personalClient
+          .from('workers')
+          .select('cod_colab, nome, funcion, contratante, cliente');
+        if (workersData) {
+          workersData.forEach((w: any) => {
+            if (w.cod_colab) workerProfilesMap.set(w.cod_colab.toUpperCase().trim(), w);
+            if (w.nome) workerProfilesMap.set(w.nome.toUpperCase().trim(), w);
+          });
+        }
+      } catch (e) {}
 
       return alojamentos.map((a: Alojamento) => {
         const comod = a.comodidades || {};
@@ -99,6 +130,32 @@ export const contratosLogisticsService = {
         // Dia do vencimento
         const diaVenc = Number(cont.dia_vencimento || (comod as any).__fecha_pago || (occupants[0] as any)?.fecha_pago || 5);
 
+        // Rateio do aluguel por pessoa
+        const custoRateadoPorPessoa = occupants.length > 0 ? (valor / occupants.length) : valor;
+
+        // Construir lista detalhada dos ocupantes
+        const ocupantesDetalhados: OcupanteContrato[] = occupants.map(o => {
+          const wProf = (o.codigo_colab ? workerProfilesMap.get(o.codigo_colab.toUpperCase().trim()) : null) ||
+                        (o.worker_nome ? workerProfilesMap.get(o.worker_nome.toUpperCase().trim()) : null);
+
+          const perfil = wProf?.funcion || (o as any).funcao || (o as any).perfil || (o as any).cargo || 'Montador / Operario';
+          const empresa = o.empresa_contratante || wProf?.contratante || empresaContratante;
+          const cliente = o.cliente_nome || wProf?.cliente || clienteNome;
+
+          return {
+            worker_id: o.worker_id,
+            codigo_colab: o.codigo_colab || 'E-XXXX',
+            worker_nome: o.worker_nome,
+            perfil: perfil,
+            empresa_contratante: empresa,
+            cliente_nome: cliente,
+            obra_nome: o.obra_nome || `Obra ${a.municipio || a.provincia || 'Principal'}`,
+            status_trabajador: (o as any).status || 'Activo',
+            data_entrada: (o as any).data_entrada || (o as any).data_inicio || '2026-08-01',
+            custo_rateado: custoRateadoPorPessoa
+          };
+        });
+
         return {
           id: a.id,
           codigo: codigoContrato,
@@ -111,6 +168,8 @@ export const contratosLogisticsService = {
           centro_custo_obra: `Obra ${a.municipio || a.provincia || 'Principal'}`,
           total_ocupantes: occupants.length,
           ocupantes_nomes: ocupantesNomes,
+          ocupantes_detalhados: ocupantesDetalhados,
+          custo_rateado_por_pessoa: custoRateadoPorPessoa,
           status: isActivo ? 'Activo' : 'Cerrado',
           tipo_contrato: tipoContrato,
           data_inicio: cont.data_inicio || '2026-09-01',

@@ -26,10 +26,16 @@ import {
   Zap,
   Filter,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Briefcase,
+  Layers,
+  PieChart,
+  UserCheck,
   X
 } from 'lucide-react';
 import { contratosLogisticsService } from '../../services/contratosLogisticsService';
-import type { ContratoAlojamento } from '../../services/contratosLogisticsService';
+import type { ContratoAlojamento, OcupanteContrato } from '../../services/contratosLogisticsService';
 import { financeLogisticsService } from '../../services/financeLogisticsService';
 
 export const ContratosList: React.FC = () => {
@@ -46,6 +52,9 @@ export const ContratosList: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [competenciaLote, setCompetenciaLote] = useState<string>('09/2026');
   const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
+
+  // Galeria alinhada / Accordion de ocupantes expandidos
+  const [expandedContractIds, setExpandedContractIds] = useState<Set<string>>(new Set());
   
   const [generatingOpId, setGeneratingOpId] = useState<string | null>(null);
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
@@ -72,6 +81,25 @@ export const ContratosList: React.FC = () => {
     navigator.clipboard.writeText(iban);
     setCopiedIban(iban);
     setTimeout(() => setCopiedIban(null), 2000);
+  };
+
+  const toggleExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const next = new Set(expandedContractIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setExpandedContractIds(next);
+  };
+
+  const expandAllVisible = () => {
+    if (expandedContractIds.size === filtered.length) {
+      setExpandedContractIds(new Set());
+    } else {
+      setExpandedContractIds(new Set(filtered.map(c => c.id)));
+    }
   };
 
   // Gerar OP Individual
@@ -196,6 +224,11 @@ export const ContratosList: React.FC = () => {
         (c.cliente_nome && c.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.empresa_contratante && c.empresa_contratante.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.ocupantes_nomes && c.ocupantes_nomes.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.ocupantes_detalhados && c.ocupantes_detalhados.some(o => 
+          o.worker_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          o.codigo_colab?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          o.perfil?.toLowerCase().includes(searchTerm.toLowerCase())
+        )) ||
         (c.iban_cobranca && c.iban_cobranca.toLowerCase().includes(searchTerm.toLowerCase()));
 
       if (!matchesSearch) return false;
@@ -271,7 +304,7 @@ export const ContratosList: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Gestión unificada de alquileres (Fijos & Temporales), seguimiento de vencimientos y generación masiva de Órdenes de Pago
+                Gestión unificada de alquileres (Fijos & Temporales), ocupantes con perfiles, imputación de costes y generación masiva de OPs
               </p>
             </div>
           </div>
@@ -497,7 +530,7 @@ export const ContratosList: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-barra de Filtro de Vencimentos */}
+        {/* Sub-barra de Filtro de Vencimentos & Botão de Expandir Todos */}
         <div className="px-4 py-2.5 bg-slate-50/30 dark:bg-slate-800/20 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between text-xs gap-3">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
@@ -527,17 +560,27 @@ export const ContratosList: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-500">
-            Mostrando <strong>{filtered.length}</strong> de {contratos.length} contratos
+          <div className="flex items-center gap-3">
+            <button
+              onClick={expandAllVisible}
+              className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+            >
+              <Layers size={13} />
+              {expandedContractIds.size === filtered.length ? 'Contraer Todos los Ocupantes' : 'Expandir Todos los Ocupantes'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] text-slate-500">
+              Mostrando <strong>{filtered.length}</strong> de {contratos.length} contratos
+            </span>
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table with Expandable Aligned Occupants Gallery */}
         <div className="overflow-x-auto">
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-              Cargando contratos de alojamientos...
+              Cargando contratos de alojamientos y ocupantes...
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-16 text-center text-slate-500 space-y-2">
@@ -558,209 +601,361 @@ export const ContratosList: React.FC = () => {
                       {isAllSelected ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
                     </button>
                   </th>
-                  <th className="px-4 py-3">Contrato & Inmueble</th>
-                  <th className="px-4 py-3">Ocupantes en Curso</th>
-                  <th className="px-4 py-3">Proveedor & Pago</th>
-                  <th className="px-4 py-3">Modalidad</th>
-                  <th className="px-4 py-3">Día Vencimiento</th>
-                  <th className="px-4 py-3">Alquiler Mensual</th>
-                  <th className="px-4 py-3">Fianza</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="w-8 py-3 px-1 text-center"></th>
+                  <th className="px-3 py-3">Contrato & Inmueble</th>
+                  <th className="px-3 py-3">Ocupación & Plazas</th>
+                  <th className="px-3 py-3">Proveedor & Pago</th>
+                  <th className="px-3 py-3">Modalidad</th>
+                  <th className="px-3 py-3">Día Vencimiento</th>
+                  <th className="px-3 py-3">Alquiler Mensual</th>
+                  <th className="px-3 py-3">Fianza</th>
+                  <th className="px-3 py-3">Estado</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filtered.map(c => {
                   const isSelected = selectedIds.has(c.id);
+                  const isExpanded = expandedContractIds.has(c.id);
                   const dia = Number(c.dia_vencimento || 5);
                   const isInicioMes = dia <= 5;
+                  const ocupantes = c.ocupantes_detalhados || [];
 
                   return (
-                    <tr
-                      key={c.id}
-                      onClick={() => setViewingContrato(c)}
-                      className={`transition-colors cursor-pointer group ${
-                        isSelected 
-                          ? 'bg-blue-50/80 dark:bg-blue-950/40 hover:bg-blue-100/60' 
-                          : 'hover:bg-blue-50/30 dark:hover:bg-slate-800/40'
-                      }`}
-                    >
-                      {/* Checkbox de Seleção */}
-                      <td className="px-3 py-3.5 text-center" onClick={e => toggleSelectOne(c.id, e)}>
-                        <button className="text-slate-400 hover:text-blue-600 transition-colors">
-                          {isSelected ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
-                        </button>
-                      </td>
+                    <React.Fragment key={c.id}>
+                      <tr
+                        onClick={e => toggleExpand(c.id, e)}
+                        className={`transition-colors cursor-pointer group select-none ${
+                          isSelected 
+                            ? 'bg-blue-50/80 dark:bg-blue-950/40 hover:bg-blue-100/60' 
+                            : isExpanded
+                            ? 'bg-slate-50 dark:bg-slate-800/60'
+                            : 'hover:bg-blue-50/30 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        {/* Checkbox de Seleção */}
+                        <td className="px-3 py-3.5 text-center" onClick={e => toggleSelectOne(c.id, e)}>
+                          <button className="text-slate-400 hover:text-blue-600 transition-colors">
+                            {isSelected ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                          </button>
+                        </td>
 
-                      {/* Código e Alojamento */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-start gap-2.5">
-                          <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 group-hover:scale-105 transition-transform mt-0.5">
-                            <Home size={15} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
-                                {c.codigo}
-                              </span>
-                              <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded font-semibold">
-                                {c.alojamento?.codigo || 'AL-XXXX'}
-                              </span>
+                        {/* Chevron Expand/Collapse */}
+                        <td className="py-3.5 px-1 text-center">
+                          <button 
+                            onClick={e => toggleExpand(c.id, e)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-transform"
+                            title={isExpanded ? 'Ocultar ocupantes' : 'Ver detalle de ocupantes'}
+                          >
+                            <ChevronDown size={16} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : ''}`} />
+                          </button>
+                        </td>
+
+                        {/* Código e Alojamento */}
+                        <td className="px-3 py-3.5">
+                          <div className="flex items-start gap-2.5">
+                            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 group-hover:scale-105 transition-transform mt-0.5">
+                              <Home size={15} />
                             </div>
-                            <p className="font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 max-w-[260px] truncate" title={c.alojamento_nome}>
-                              {c.alojamento_nome}
-                            </p>
-                            
-                            {/* Badges de Cliente e Empresa Contratante */}
-                            <div className="flex flex-wrap items-center gap-1 mt-1">
-                              {c.cliente_nome && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate max-w-[140px]" title={c.cliente_nome}>
-                                  🏢 {c.cliente_nome}
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
+                                  {c.codigo}
                                 </span>
-                              )}
-                              {c.empresa_contratante && (
-                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 truncate max-w-[120px]" title={c.empresa_contratante}>
-                                  {c.empresa_contratante}
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded font-semibold">
+                                  {c.alojamento?.codigo || 'AL-XXXX'}
                                 </span>
-                              )}
+                              </div>
+                              <p className="font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 max-w-[240px] truncate" title={c.alojamento_nome}>
+                                {c.alojamento_nome}
+                              </p>
+                              
+                              {/* Badges de Cliente e Empresa Contratante */}
+                              <div className="flex flex-wrap items-center gap-1 mt-1">
+                                {c.cliente_nome && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate max-w-[130px]" title={c.cliente_nome}>
+                                    🏢 {c.cliente_nome}
+                                  </span>
+                                )}
+                                {c.empresa_contratante && (
+                                  <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 truncate max-w-[110px]" title={c.empresa_contratante}>
+                                    {c.empresa_contratante}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Ocupantes Activos */}
-                      <td className="px-4 py-3.5">
-                        {c.total_ocupantes !== undefined && c.total_ocupantes > 0 ? (
-                          <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              <Users size={11} />
-                              {c.total_ocupantes} {c.total_ocupantes === 1 ? 'ocupante' : 'ocupantes'}
-                            </span>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 max-w-[180px] line-clamp-2" title={c.ocupantes_nomes}>
-                              {c.ocupantes_nomes}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-[10px] italic">Sin ocupantes activos</span>
-                        )}
-                      </td>
-
-                      {/* Provedor & IBAN */}
-                      <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[150px]">{c.provedor_nome}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {c.iban_cobranca ? (
-                            <div className="flex items-center gap-1">
-                              <span className="font-mono text-[10px] text-slate-500">
-                                {c.iban_cobranca.slice(0, 8)}...{c.iban_cobranca.slice(-4)}
+                        {/* Ocupação & Plazas */}
+                        <td className="px-3 py-3.5">
+                          {c.total_ocupantes !== undefined && c.total_ocupantes > 0 ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                <Users size={11} />
+                                {c.total_ocupantes} {c.total_ocupantes === 1 ? 'ocupante' : 'ocupantes'}
                               </span>
-                              <button
-                                onClick={e => handleCopyIban(c.iban_cobranca!, e)}
-                                className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded"
-                                title="Copiar IBAN"
-                              >
-                                {copiedIban === c.iban_cobranca ? '✓' : 'Copiar'}
-                              </button>
+                              <p className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-medium">
+                                <span>Ver colaboradores</span>
+                                <ChevronRight size={10} />
+                              </p>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-slate-400 italic">Sin IBAN</span>
+                            <span className="text-slate-400 text-[10px] italic">Sin ocupantes</span>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Modalidade */}
-                      <td className="px-4 py-3.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          c.tipo_contrato?.toLowerCase().includes('temp')
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}>
-                          {c.tipo_contrato?.toLowerCase().includes('temp') ? '🏨 Temporal' : '🏠 Fijo'}
-                        </span>
-                      </td>
+                        {/* Provedor & IBAN */}
+                        <td className="px-3 py-3.5">
+                          <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[140px]">{c.provedor_nome}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {c.iban_cobranca ? (
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  {c.iban_cobranca.slice(0, 8)}...{c.iban_cobranca.slice(-4)}
+                                </span>
+                                <button
+                                  onClick={e => handleCopyIban(c.iban_cobranca!, e)}
+                                  className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded"
+                                  title="Copiar IBAN"
+                                >
+                                  {copiedIban === c.iban_cobranca ? '✓' : 'Copiar'}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Sin IBAN</span>
+                            )}
+                          </div>
+                        </td>
 
-                      {/* Vencimento / Fecha Pago */}
-                      <td className="px-4 py-3.5">
-                        <div className="space-y-0.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-black ${
-                            isInicioMes
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                        {/* Modalidade */}
+                        <td className="px-3 py-3.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            c.tipo_contrato?.toLowerCase().includes('temp')
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
                               : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                           }`}>
-                            <Calendar size={11} />
-                            Día {dia}
+                            {c.tipo_contrato?.toLowerCase().includes('temp') ? '🏨 Temporal' : '🏠 Fijo'}
                           </span>
-                          <span className="text-[9px] text-slate-400 block font-medium">
-                            {isInicioMes ? 'Inicio de mes' : 'Mensual'}
-                          </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Valor Mensal */}
-                      <td className="px-4 py-3.5">
-                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                          € {c.valor_mensal?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                        </span>
-                      </td>
-
-                      {/* Fiança */}
-                      <td className="px-4 py-3.5">
-                        {c.fianza_valor > 0 ? (
+                        {/* Vencimento / Fecha Pago */}
+                        <td className="px-3 py-3.5">
                           <div className="space-y-0.5">
-                            <span className="font-bold text-amber-700 dark:text-amber-400">
-                              € {c.fianza_valor?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-black ${
+                              isInicioMes
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                              <Calendar size={11} />
+                              Día {dia}
                             </span>
                             <span className="text-[9px] text-slate-400 block font-medium">
-                              {c.fianza_meses} mes(es)
+                              {isInicioMes ? 'Inicio de mes' : 'Mensual'}
                             </span>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-[10px] italic">Sin fianza</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Status */}
-                      <td className="px-4 py-3.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          c.status === 'Activo'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                        }`}>
-                          {c.status}
-                        </span>
-                      </td>
+                        {/* Valor Mensal */}
+                        <td className="px-3 py-3.5">
+                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                            € {c.valor_mensal?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                          </span>
+                        </td>
 
-                      {/* Ações */}
-                      <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={e => handleGerarOP(c, e)}
-                            disabled={generatingOpId === c.id}
-                            className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs disabled:opacity-50"
-                            title="Generar Orden de Pago en Finanzas"
-                          >
-                            <DollarSign size={13} />
-                            {generatingOpId === c.id ? 'Generando...' : 'Generar OP'}
-                          </button>
+                        {/* Fiança */}
+                        <td className="px-3 py-3.5">
+                          {c.fianza_valor > 0 ? (
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-amber-700 dark:text-amber-400">
+                                € {c.fianza_valor?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                              </span>
+                              <span className="text-[9px] text-slate-400 block font-medium">
+                                {c.fianza_meses} mes(es)
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[10px] italic">Sin fianza</span>
+                          )}
+                        </td>
 
-                          <button
-                            onClick={() => setViewingContrato(c)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Ver Detalles del Contrato"
-                          >
-                            <Eye size={14} />
-                          </button>
+                        {/* Status */}
+                        <td className="px-3 py-3.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            c.status === 'Activo'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </td>
 
-                          <button
-                            onClick={() => navigate(`/logistica/registros/alojamentos/editar/${c.alojamento_id}`)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Editar Alojamiento"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        {/* Ações */}
+                        <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={e => handleGerarOP(c, e)}
+                              disabled={generatingOpId === c.id}
+                              className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs disabled:opacity-50"
+                              title="Generar Orden de Pago en Finanzas"
+                            >
+                              <DollarSign size={13} />
+                              {generatingOpId === c.id ? 'Generando...' : 'Generar OP'}
+                            </button>
+
+                            <button
+                              onClick={() => setViewingContrato(c)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Ver Ficha Completa del Contrato"
+                            >
+                              <Eye size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => navigate(`/logistica/registros/alojamentos/editar/${c.alojamento_id}`)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Editar Alojamiento"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* ACCORDION DRAWER: GALERIA ALINHADA DE OCUPANTES & RATEIO DE CUSTO */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-y border-slate-200 dark:border-slate-800">
+                          <td colSpan={11} className="p-4 sm:p-5">
+                            <div className="space-y-3 bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-top-1 duration-150">
+                              {/* Sub-header com Rateio e Resumo do Contrato */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1.5 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-lg">
+                                    <Users size={16} />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                                      <span>Ocupantes Asignados al Inmueble</span>
+                                      <span className="text-[11px] font-black px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                        {ocupantes.length} trabajadores
+                                      </span>
+                                    </h4>
+                                    <p className="text-[11px] text-slate-400">
+                                      Desglose individual de colaboradores, perfil profesional e imputación mensual de coste
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Alquiler Total:</span>
+                                    <strong className="text-slate-800 dark:text-slate-200">
+                                      € {c.valor_mensal?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                                    </strong>
+                                  </div>
+
+                                  <div className="px-3 py-1.5 rounded-xl bg-emerald-50/70 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 flex items-center gap-2">
+                                    <PieChart size={13} />
+                                    <span className="text-[10px] font-bold uppercase">Rateo por Trabajador:</span>
+                                    <strong className="text-sm font-black">
+                                      € {(c.custo_rateado_por_pessoa || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal">/ mes</span>
+                                    </strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Tabela de Ocupantes */}
+                              {ocupantes.length === 0 ? (
+                                <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50/50 dark:bg-slate-900/50 rounded-xl">
+                                  Este inmueble no posee trabajadores asignados en este momento. Plazas disponibles para asignación en el módulo de Demandas.
+                                </div>
+                              ) : (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/80 uppercase font-bold text-[9px] text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                      <tr>
+                                        <th className="px-3 py-2">Cod.</th>
+                                        <th className="px-3 py-2">Trabajador</th>
+                                        <th className="px-3 py-2">Perfil / Función</th>
+                                        <th className="px-3 py-2">Empresa Contratante</th>
+                                        <th className="px-3 py-2">Cliente & Proyecto</th>
+                                        <th className="px-3 py-2">Ubicación / Obra</th>
+                                        <th className="px-3 py-2 text-right">Coste Imputado (Rateo)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                      {ocupantes.map((o, idx) => (
+                                        <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+                                          {/* Código Colaborador */}
+                                          <td className="px-3 py-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 text-[11px]">
+                                            {o.codigo_colab || 'E-XXXX'}
+                                          </td>
+
+                                          {/* Nome do Trabalhador */}
+                                          <td className="px-3 py-2.5">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 font-bold text-[10px] flex items-center justify-center">
+                                                {o.worker_nome?.slice(0, 2).toUpperCase()}
+                                              </div>
+                                              <div>
+                                                <p className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                                  {o.worker_nome}
+                                                </p>
+                                                <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-600 font-semibold">
+                                                  <UserCheck size={9} />
+                                                  Activo en obra
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          {/* Perfil / Função */}
+                                          <td className="px-3 py-2.5">
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                              <Briefcase size={10} />
+                                              {o.perfil || 'Montador / Operario'}
+                                            </span>
+                                          </td>
+
+                                          {/* Empresa Contratante */}
+                                          <td className="px-3 py-2.5">
+                                            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[170px]">
+                                              {o.empresa_contratante}
+                                            </span>
+                                          </td>
+
+                                          {/* Cliente do Projeto */}
+                                          <td className="px-3 py-2.5">
+                                            <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 block truncate max-w-[170px]">
+                                              🏢 {o.cliente_nome}
+                                            </span>
+                                          </td>
+
+                                          {/* Ubicación / Obra */}
+                                          <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 text-[11px]">
+                                            {o.obra_nome}
+                                          </td>
+
+                                          {/* Custo Rateado */}
+                                          <td className="px-3 py-2.5 text-right">
+                                            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block">
+                                              € {o.custo_rateado?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            <span className="text-[9px] text-slate-400 font-semibold">
+                                              Rateo mensual
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
