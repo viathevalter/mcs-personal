@@ -7,6 +7,7 @@ import {
   Calendar,
   DollarSign,
   Building,
+  Building2,
   Home,
   CreditCard,
   CheckCircle2,
