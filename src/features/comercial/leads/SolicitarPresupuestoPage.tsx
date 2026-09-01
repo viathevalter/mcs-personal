@@ -316,41 +316,49 @@ export function SolicitarPresupuestoPage() {
               setSelectedPerfiles(matched);
             }
 
-            // Automatically transition to 'E-mail Lido / Clicado' if lead is in a lower stage
+            // Automatically transition to 'E-mail Lido / Clicado' only if lead is in a lower stage (< 3) and has NOT requested a budget
             try {
-              const { data: stageData } = await supabase
-                .schema('core_comercial')
-                .from('kanban_stages')
-                .select('id, order_index')
-                .eq('empresa_id', lead.empresa_id)
-                .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
-                .limit(1)
-                .maybeSingle();
+              const hasBudget = lead.notes && (
+                lead.notes.includes('PRESUPUESTO') ||
+                lead.notes.includes('ORÇAMENTO') ||
+                lead.notes.includes('PREVENTIVO') ||
+                lead.notes.includes('DEVIS')
+              );
 
-              if (stageData) {
-                let currentOrderIndex = 0;
-                if (lead.stage_id) {
-                  const { data: curStage } = await supabase
-                    .schema('core_comercial')
-                    .from('kanban_stages')
-                    .select('order_index')
-                    .eq('empresa_id', lead.empresa_id)
-                    .eq('id', lead.stage_id)
-                    .maybeSingle();
-                  if (curStage) {
-                    currentOrderIndex = curStage.order_index;
+              if (!hasBudget) {
+                const { data: stageData } = await supabase
+                  .schema('core_comercial')
+                  .from('kanban_stages')
+                  .select('id, order_index')
+                  .eq('empresa_id', lead.empresa_id)
+                  .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
+                  .limit(1)
+                  .maybeSingle();
+
+                if (stageData) {
+                  let currentOrderIndex = 0;
+                  if (lead.stage_id) {
+                    const { data: curStage } = await supabase
+                      .schema('core_comercial')
+                      .from('kanban_stages')
+                      .select('order_index')
+                      .eq('id', lead.stage_id)
+                      .maybeSingle();
+                    if (curStage) {
+                      currentOrderIndex = curStage.order_index;
+                    }
                   }
-                }
 
-                if (stageData.order_index > currentOrderIndex) {
-                  await supabase
-                    .schema('core_comercial')
-                    .from('leads')
-                    .update({
-                      stage_id: stageData.id,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', leadId);
+                  if (currentOrderIndex > 0 && currentOrderIndex < stageData.order_index) {
+                    await supabase
+                      .schema('core_comercial')
+                      .from('leads')
+                      .update({
+                        stage_id: stageData.id,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', leadId);
+                  }
                 }
               }
             } catch (stageErr) {

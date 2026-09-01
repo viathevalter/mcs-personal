@@ -23,6 +23,20 @@ export function WhatsAppRedirectPage() {
             .maybeSingle();
 
           if (lead && lead.empresa_id) {
+            // Check current stage order_index
+            let currentOrderIndex = 0;
+            if (lead.stage_id) {
+              const { data: curStage } = await supabase
+                .schema('core_comercial')
+                .from('kanban_stages')
+                .select('order_index')
+                .eq('id', lead.stage_id)
+                .maybeSingle();
+              if (curStage) {
+                currentOrderIndex = curStage.order_index;
+              }
+            }
+
             // Fetch the 'Contato Via WhatsApp' stage for this specific empresa
             const { data: targetStages } = await supabase
               .schema('core_comercial')
@@ -34,7 +48,8 @@ export function WhatsAppRedirectPage() {
 
             const targetStage = targetStages && targetStages.length > 0 ? targetStages[0] : null;
 
-            if (targetStage) {
+            // Only transition if not already in WhatsApp stage or higher (stages 1, 2, 3)
+            if (targetStage && currentOrderIndex < targetStage.order_index) {
               await supabase
                 .schema('core_comercial')
                 .from('leads')
