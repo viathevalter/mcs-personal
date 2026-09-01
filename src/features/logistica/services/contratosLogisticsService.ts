@@ -83,6 +83,22 @@ export const contratosLogisticsService = {
           empresaContratante = cont.empresa_contratante || a.empresa_contratante || 'LUMINOUS';
         }
 
+        let tipoContrato: ContratoAlojamento['tipo_contrato'] = 'Fijo';
+        if (
+          (cont.tipo_contrato && cont.tipo_contrato.toLowerCase().includes('temp')) ||
+          (a.tipo_alojamento && a.tipo_alojamento.toLowerCase().includes('temp')) ||
+          (a.nome && (a.nome.toLowerCase().includes('hotel') || a.nome.toLowerCase().includes('pensión') || a.nome.toLowerCase().includes('pension') || a.nome.toLowerCase().includes('airbnb') || a.nome.toLowerCase().includes('booking'))) ||
+          occupants.some(o => o.tipo_alojamento && o.tipo_alojamento.toLowerCase().includes('temp'))
+        ) {
+          tipoContrato = 'Temporario (Airbnb / Booking)';
+        }
+
+        // Status real do contrato: Ativo apenas se tem ocupantes em curso ou contrato explícito em vigor
+        const isActivo = occupants.length > 0 || cont.status === 'Activo';
+
+        // Dia do vencimento
+        const diaVenc = Number(cont.dia_vencimento || (comod as any).__fecha_pago || (occupants[0] as any)?.fecha_pago || 5);
+
         return {
           id: a.id,
           codigo: codigoContrato,
@@ -95,11 +111,11 @@ export const contratosLogisticsService = {
           centro_custo_obra: `Obra ${a.municipio || a.provincia || 'Principal'}`,
           total_ocupantes: occupants.length,
           ocupantes_nomes: ocupantesNomes,
-          status: (cont.status as any) || (a.status === 'Inactivo' || a.status === 'inativo' ? 'Cerrado' : 'Activo'),
-          tipo_contrato: (cont.tipo_contrato as any) || (a.tipo_alojamento as any) || 'Fijo',
+          status: isActivo ? 'Activo' : 'Cerrado',
+          tipo_contrato: tipoContrato,
           data_inicio: cont.data_inicio || '2026-09-01',
           data_fim: cont.data_fim || '',
-          dia_vencimento: cont.dia_vencimento || 5,
+          dia_vencimento: diaVenc,
           valor_mensal: valor,
           valor_por_pessoa: cont.valor_por_pessoa || 0,
           tem_fianza: cont.tem_fianza ?? (fianza > 0),

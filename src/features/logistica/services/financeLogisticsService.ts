@@ -143,6 +143,67 @@ export const financeLogisticsService = {
     return newOP;
   },
 
+  async gerarOrdensPagamentoEmLote(payloads: Array<{
+    contrato_id?: string;
+    alojamento_id?: string;
+    alojamento_nome?: string;
+    alojamento_codigo?: string;
+    provedor_id?: string;
+    provedor_nome?: string;
+    iban_cobranca?: string;
+    banco?: string;
+    titular?: string;
+    centro_custo_cliente?: string;
+    centro_custo_obra?: string;
+    tipo_pago: PagoAlojamento['tipo_pago'];
+    valor: number;
+    data_vencimento: string;
+    periodo_competencia?: string;
+    observacoes?: string;
+    anexo_fatura_url?: string;
+  }>): Promise<PagoAlojamento[]> {
+    const list = await this.fetchPagos();
+    let currentNum = list.length + 125;
+    const createdList: PagoAlojamento[] = [];
+
+    for (const payload of payloads) {
+      currentNum++;
+      const codOP = `OP-${String(currentNum).padStart(6, '0')}`;
+      const newOP: PagoAlojamento = {
+        id: `op-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        codigo_pago: codOP,
+        contrato_id: payload.contrato_id,
+        alojamento_id: payload.alojamento_id,
+        alojamento_nome: payload.alojamento_nome || 'Alojamento',
+        alojamento_codigo: payload.alojamento_codigo || 'AL-XXXX',
+        provedor_id: payload.provedor_id,
+        provedor_nome: payload.provedor_nome || 'Proveedor',
+        iban_cobranca: payload.iban_cobranca || '',
+        banco: payload.banco || '',
+        titular: payload.titular || '',
+        centro_custo_cliente: payload.centro_custo_cliente || 'Centro de Coste General',
+        centro_custo_obra: payload.centro_custo_obra || 'Obra Principal',
+        tipo_pago: payload.tipo_pago,
+        status_pago: 'Rascunho',
+        periodo_competencia: payload.periodo_competencia || new Date().toISOString().slice(0, 7),
+        data_emissao: new Date().toISOString().split('T')[0],
+        data_vencimento: payload.data_vencimento,
+        valor_previsto: payload.valor,
+        moeda: 'EUR',
+        observacoes: payload.observacoes || `${payload.tipo_pago} de ${payload.alojamento_nome}`,
+        anexo_fatura_url: payload.anexo_fatura_url
+      };
+      createdList.push(newOP);
+    }
+
+    const updated = [...createdList, ...list];
+    try {
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    return createdList;
+  },
+
   async enviarParaAprovacao(opId: string): Promise<void> {
     const list = await this.fetchPagos();
     const updated = list.map(op => {
