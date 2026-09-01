@@ -32,7 +32,7 @@ export interface ContratoAlojamento {
   ocupantes_detalhados?: OcupanteContrato[];
   custo_rateado_por_pessoa?: number;
   status: 'Activo' | 'Cerrado' | 'Pendente_Renovacao';
-  tipo_contrato: 'Fijo' | 'Por Trabajador / Habitación' | 'Temporario (Airbnb / Booking)' | 'Hotel / Pensión' | 'Auxilio_moradia';
+  tipo_contrato: 'Fijo' | 'Por Trabajador / Habitación' | 'Temporario (Hotel / Airbnb / Booking)' | 'Auxilio_moradia' | 'Cliente';
   data_inicio?: string;
   data_fim?: string;
   valor_mensal: number;
@@ -52,6 +52,40 @@ export interface ContratoAlojamento {
   alojamento?: Alojamento;
   provedor?: Provedor;
 }
+
+// Mapa de custos individuais por pessoa para alojamentos por habitacao/plaza compartilhada
+const HABITACION_RATES_BY_WORKER: Record<string, number> = {
+  // LLEIDA - Mollerussa
+  'FREDY ALEXANDER GOMEZ CORTES': 375.0,
+  'ADRIAN CARLOSAMA CHAVEZ': 262.5,
+  'JAPSIN STEVEN RUIZ PARRA': 262.5,
+  'EDWIN BERNAL ARCINIEGAS': 300.0,
+  'JORGE IVAN SARRIA ORTIZ': 325.0,
+  'YONATAN JOSE FONSECA MAGALLANES': 325.0,
+  
+  // ZUMARRAGA - Pension Zelai
+  'RICARDO RAFAEL BONILLA BLANCO': 600.0,
+  'ANDRES MAURICIO BLANDON LLANOS': 600.0,
+
+  // ZARAGOZA - Gallur
+  'JORGE LUIS HUERTA OBREGON': 260.0,
+  'MARLON BUJATO SILVERA': 260.0,
+  'MELBIN JULIO ALBOR SUAREZ': 260.0,
+
+  // MONZON - Plaza de Aragon
+  'EDWARD IGNACIO DIAZ AVILA': 542.5,
+  'ANTONIO JOSE FLOREZ RODRIGUEZ': 542.5,
+  'ALEX HUMBERTO BARANDICA GRAZZIANI': 542.5,
+  'LEONARDO FABIO GONZALEZ PENA': 542.5,
+
+  // GIRONA - Les Agudes
+  'CRISTIAN ARIZA MARTINEZ': 390.325,
+  'JAHIR SURLEY DELGADO AGREDO': 395.5825,
+  'JUAN CARLOS VILLANUEVA GALVIS': 395.5825,
+  'JUAN CARLOS VILLANUEVA DE LA HOZ': 390.325,
+  'MARCOS RAFAEL CASANI VALDEZ': 395.5825,
+  'XEMIR SOLER ROMERO': 395.5825,
+};
 
 export const contratosLogisticsService = {
   async fetchContratos(): Promise<ContratoAlojamento[]> {
@@ -84,7 +118,7 @@ export const contratosLogisticsService = {
         const prov = a.provedor;
 
         const codigoContrato = cont.codigo || (`CT-2026/` + (a.codigo ? a.codigo.replace(/[^0-9]/g, '') : Math.floor(1000 + Math.random() * 9000)));
-        const valor = Number(a.valor_mensal || a.custo_mensal_total || cont.valor_mensal || 0);
+        let valor = Number(a.valor_mensal || a.custo_mensal_total || cont.valor_mensal || 0);
         const fianza = Number(cont.fianza_valor || 0);
 
         // Mapear ocupantes ativos neste alojamento
@@ -114,18 +148,67 @@ export const contratosLogisticsService = {
           empresaContratante = cont.empresa_contratante || a.empresa_contratante || 'LUMINOUS';
         }
 
+        // Determinação da Modalidade de Contrato
         let tipoContrato: ContratoAlojamento['tipo_contrato'] = 'Fijo';
+
+        const nomeLower = (a.nome || a.titulo || '').toLowerCase();
+        const tipoAlojLower = (a.tipo_alojamento || '').toLowerCase();
+        const contTipoLower = (cont.tipo_contrato || '').toLowerCase();
+
+        // 1. Cliente
         if (
-          (cont.tipo_contrato && cont.tipo_contrato.toLowerCase().includes('temp')) ||
-          (a.tipo_alojamento && a.tipo_alojamento.toLowerCase().includes('temp')) ||
-          (a.nome && (a.nome.toLowerCase().includes('hotel') || a.nome.toLowerCase().includes('pensión') || a.nome.toLowerCase().includes('pension') || a.nome.toLowerCase().includes('airbnb') || a.nome.toLowerCase().includes('booking'))) ||
-          occupants.some(o => o.tipo_alojamento && o.tipo_alojamento.toLowerCase().includes('temp'))
+          tipoAlojLower === 'cliente' ||
+          nomeLower.includes('cuenta del cliente') ||
+          nomeLower.includes('alojamiento cliente') ||
+          occupants.some(o => (o.tipo_alojamento || '').toLowerCase() === 'cliente')
         ) {
-          tipoContrato = 'Temporario (Airbnb / Booking)';
+          tipoContrato = 'Cliente';
+          valor = 0;
+        }
+        // 2. Por Habitación / Plaza
+        else if (
+          contTipoLower.includes('habitación') ||
+          contTipoLower.includes('habitacion') ||
+          contTipoLower.includes('plaza') ||
+          contTipoLower.includes('compartido') ||
+          nomeLower.includes('negrals') ||
+          nomeLower.includes('zelai') ||
+          nomeLower.includes('navarra 92') ||
+          nomeLower.includes('monzòn') ||
+          nomeLower.includes('monzon') ||
+          nomeLower.includes('agudes')
+        ) {
+          tipoContrato = 'Por Trabajador / Habitación';
+
+          // Calcular valor total somando os custos por pessoa dos ocupantes
+          let somaHabitacoes = 0;
+          occupants.forEach(o => {
+            const indRate = HABITACION_RATES_BY_WORKER[o.worker_nome?.trim().toUpperCase()] ||
+                            Number((o as any).costo_fijo) ||
+                            (valor > 0 && occupants.length > 0 ? (valor / occupants.length) : 350);
+            somaHabitacoes += indRate;
+          });
+
+          if (somaHabitacoes > 0) {
+            valor = somaHabitacoes;
+          }
+        }
+        // 3. Temporal (Hotel / Airbnb / Booking)
+        else if (
+          contTipoLower.includes('temp') ||
+          tipoAlojLower.includes('temp') ||
+          nomeLower.includes('hotel') ||
+          nomeLower.includes('pensión') ||
+          nomeLower.includes('pension') ||
+          nomeLower.includes('airbnb') ||
+          nomeLower.includes('booking') ||
+          occupants.some(o => (o.tipo_alojamento || '').toLowerCase().includes('temp'))
+        ) {
+          tipoContrato = 'Temporario (Hotel / Airbnb / Booking)';
         }
 
         // Status real do contrato: Ativo apenas se tem ocupantes em curso ou contrato explícito em vigor
-        const isActivo = occupants.length > 0 || cont.status === 'Activo';
+        const isActivo = (occupants.length > 0 || cont.status === 'Activo') && tipoContrato !== 'Cliente';
 
         // Dia do vencimento
         const diaVenc = Number(cont.dia_vencimento || (comod as any).__fecha_pago || (occupants[0] as any)?.fecha_pago || 5);
@@ -133,7 +216,7 @@ export const contratosLogisticsService = {
         // Rateio do aluguel por pessoa
         const custoRateadoPorPessoa = occupants.length > 0 ? (valor / occupants.length) : valor;
 
-        // Construir lista detalhada dos ocupantes
+        // Construir lista detalhada dos ocupantes com seu custo individual
         const ocupantesDetalhados: OcupanteContrato[] = occupants.map(o => {
           const wProf = (o.codigo_colab ? workerProfilesMap.get(o.codigo_colab.toUpperCase().trim()) : null) ||
                         (o.worker_nome ? workerProfilesMap.get(o.worker_nome.toUpperCase().trim()) : null);
@@ -141,6 +224,11 @@ export const contratosLogisticsService = {
           const perfil = wProf?.funcion || (o as any).funcao || (o as any).perfil || (o as any).cargo || 'Montador / Operario';
           const empresa = o.empresa_contratante || wProf?.contratante || empresaContratante;
           const cliente = o.cliente_nome || wProf?.cliente || clienteNome;
+
+          // Custo individual se for por habitação
+          const custoIndividual = tipoContrato === 'Por Trabajador / Habitación'
+            ? (HABITACION_RATES_BY_WORKER[o.worker_nome?.trim().toUpperCase()] || custoRateadoPorPessoa)
+            : (tipoContrato === 'Cliente' ? 0 : custoRateadoPorPessoa);
 
           return {
             worker_id: o.worker_id,
@@ -152,7 +240,7 @@ export const contratosLogisticsService = {
             obra_nome: o.obra_nome || `Obra ${a.municipio || a.provincia || 'Principal'}`,
             status_trabajador: (o as any).status || 'Activo',
             data_entrada: (o as any).data_entrada || (o as any).data_inicio || '2026-08-01',
-            custo_rateado: custoRateadoPorPessoa
+            custo_rateado: custoIndividual
           };
         });
 
@@ -176,7 +264,7 @@ export const contratosLogisticsService = {
           data_fim: cont.data_fim || '',
           dia_vencimento: diaVenc,
           valor_mensal: valor,
-          valor_por_pessoa: cont.valor_por_pessoa || 0,
+          valor_por_pessoa: cont.valor_por_pessoa || (occupants.length > 0 ? (valor / occupants.length) : 0),
           tem_fianza: cont.tem_fianza ?? (fianza > 0),
           fianza_valor: fianza,
           fianza_meses: cont.fianza_meses || (fianza > 0 ? 1 : 0),

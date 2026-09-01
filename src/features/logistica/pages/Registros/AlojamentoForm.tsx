@@ -789,6 +789,7 @@ export const AlojamentoForm: React.FC = () => {
                     <option value="Fijo">Fijo</option>
                     <option value="Temporario">Temporal</option>
                     <option value="Propio">Propio</option>
+                    <option value="Cliente">Cliente</option>
                   </select>
                 </div>
 
@@ -1251,8 +1252,7 @@ export const AlojamentoForm: React.FC = () => {
                 >
                   <option value="Fijo">Fijo (Piso Completo / Importe Mensual Cerrado)</option>
                   <option value="Por Trabajador / Habitación">Por Habitación / Plaza (Importe por Persona)</option>
-                  <option value="Temporario (Airbnb / Booking)">Temporal (Airbnb / Booking / Corto Plazo)</option>
-                  <option value="Hotel / Pensión">Hotel / Pensión (Diaria / Transitorio)</option>
+                  <option value="Temporario (Hotel / Airbnb / Booking)">Temporal (Hotel / Airbnb / Booking)</option>
                 </select>
               </div>
 

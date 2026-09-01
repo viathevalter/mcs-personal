@@ -32,6 +32,7 @@ import {
   Layers,
   PieChart,
   UserCheck,
+  BedDouble,
   X
 } from 'lucide-react';
 import { contratosLogisticsService } from '../../services/contratosLogisticsService';
@@ -45,7 +46,7 @@ export const ContratosList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filtros principais (Padrão: Apenas ativos em curso)
-  const [statusFilter, setStatusFilter] = useState<'ativos' | 'fijos' | 'temporais' | 'com_fianca' | 'cerrados' | 'todos'>('ativos');
+  const [statusFilter, setStatusFilter] = useState<'ativos' | 'fijos' | 'habitacion' | 'temporais' | 'com_fianca' | 'cerrados' | 'todos'>('ativos');
   const [vencimentoRange, setVencimentoRange] = useState<'todos' | '1-5' | '6-10' | '11-20' | '21-31'>('todos');
   
   // Seleção múltipla para geração de OP em lote
@@ -127,7 +128,7 @@ export const ContratosList: React.FC = () => {
         valor: Number(contrato.valor_mensal) || 0,
         data_vencimento: vencimento,
         periodo_competencia: competenciaLote,
-        observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.total_ocupantes || 0} ocupantes`
+        observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.tipo_contrato} - ${contrato.total_ocupantes || 0} ocupantes`
       });
 
       alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito para el inmueble ${contrato.alojamento_nome} (Cliente: ${contrato.cliente_nome || 'General'})!\nPuede visualizarla y aprobarla en Finanzas.`);
@@ -190,8 +191,9 @@ export const ContratosList: React.FC = () => {
   const contratosAtivosList = useMemo(() => contratos.filter(c => c.status === 'Activo'), [contratos]);
   const contratosAtivos = contratosAtivosList.length;
   
-  const fijosAtivos = useMemo(() => contratosAtivosList.filter(c => !c.tipo_contrato?.toLowerCase().includes('temp')), [contratosAtivosList]);
-  const temporaisAtivos = useMemo(() => contratosAtivosList.filter(c => c.tipo_contrato?.toLowerCase().includes('temp')), [contratosAtivosList]);
+  const fijosAtivos = useMemo(() => contratosAtivosList.filter(c => c.tipo_contrato === 'Fijo'), [contratosAtivosList]);
+  const habitacionAtivos = useMemo(() => contratosAtivosList.filter(c => c.tipo_contrato === 'Por Trabajador / Habitación'), [contratosAtivosList]);
+  const temporaisAtivos = useMemo(() => contratosAtivosList.filter(c => c.tipo_contrato?.includes('Temporario') || c.tipo_contrato?.includes('Temporal')), [contratosAtivosList]);
   
   const valorTotalMensalActivo = useMemo(() => 
     contratosAtivosList.reduce((acc, c) => acc + (Number(c.valor_mensal) || 0), 0),
@@ -233,13 +235,15 @@ export const ContratosList: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      // 2. Filtro de Status / Tipo
+      // 2. Filtro de Status / Modalidade
       if (statusFilter === 'ativos') {
         if (c.status !== 'Activo') return false;
       } else if (statusFilter === 'fijos') {
-        if (c.status !== 'Activo' || c.tipo_contrato?.toLowerCase().includes('temp')) return false;
+        if (c.status !== 'Activo' || c.tipo_contrato !== 'Fijo') return false;
+      } else if (statusFilter === 'habitacion') {
+        if (c.status !== 'Activo' || c.tipo_contrato !== 'Por Trabajador / Habitación') return false;
       } else if (statusFilter === 'temporais') {
-        if (c.status !== 'Activo' || !c.tipo_contrato?.toLowerCase().includes('temp')) return false;
+        if (c.status !== 'Activo' || (!c.tipo_contrato?.includes('Temporario') && !c.tipo_contrato?.includes('Temporal'))) return false;
       } else if (statusFilter === 'com_fianca') {
         if (c.status !== 'Activo' || Number(c.fianza_valor) <= 0) return false;
       } else if (statusFilter === 'cerrados') {
@@ -304,7 +308,7 @@ export const ContratosList: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Gestión unificada de alquileres (Fijos & Temporales), ocupantes con perfiles, imputación de costes y generación masiva de OPs
+                Gestión unificada de alquileres (Fijos, Por Habitación & Temporal Hotel/Airbnb), imputación de costes y generación masiva de OPs
               </p>
             </div>
           </div>
@@ -342,7 +346,9 @@ export const ContratosList: React.FC = () => {
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-blue-600 font-bold">{fijosAtivos.length} Fijos</span>
             <span className="text-slate-300">•</span>
-            <span className="text-purple-600 font-bold">{temporaisAtivos.length} Temporales</span>
+            <span className="text-amber-600 font-bold">{habitacionAtivos.length} Habitación</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-purple-600 font-bold">{temporaisAtivos.length} Hotel/Airbnb</span>
           </div>
         </div>
 
@@ -485,6 +491,17 @@ export const ContratosList: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setStatusFilter('habitacion')}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${
+                statusFilter === 'habitacion'
+                  ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-300'
+              }`}
+            >
+              Por Habitación ({habitacionAtivos.length})
+            </button>
+
+            <button
               onClick={() => setStatusFilter('temporais')}
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 statusFilter === 'temporais'
@@ -492,7 +509,7 @@ export const ContratosList: React.FC = () => {
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-300'
               }`}
             >
-              Temporales ({temporaisAtivos.length})
+              Temporal Hotel/Airbnb ({temporaisAtivos.length})
             </button>
 
             <button
@@ -730,13 +747,24 @@ export const ContratosList: React.FC = () => {
 
                         {/* Modalidade */}
                         <td className="px-3 py-3.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            c.tipo_contrato?.toLowerCase().includes('temp')
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                          }`}>
-                            {c.tipo_contrato?.toLowerCase().includes('temp') ? '🏨 Temporal' : '🏠 Fijo'}
-                          </span>
+                          {c.tipo_contrato === 'Por Trabajador / Habitación' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60">
+                              <BedDouble size={11} />
+                              Por Habitación
+                            </span>
+                          ) : c.tipo_contrato?.includes('Temporario') || c.tipo_contrato?.includes('Temporal') ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                              🏨 Temporal (Hotel/Airbnb)
+                            </span>
+                          ) : c.tipo_contrato === 'Cliente' ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                              🏢 Aloj. Cliente
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              🏠 Fijo (Piso Completo)
+                            </span>
+                          )}
                         </td>
 
                         {/* Vencimento / Fecha Pago */}
@@ -839,6 +867,11 @@ export const ContratosList: React.FC = () => {
                                       <span className="text-[11px] font-black px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                                         {ocupantes.length} trabajadores
                                       </span>
+                                      {c.tipo_contrato === 'Por Trabajador / Habitación' && (
+                                        <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200">
+                                          🛏️ Modalidad Por Habitación
+                                        </span>
+                                      )}
                                     </h4>
                                     <p className="text-[11px] text-slate-400">
                                       Desglose individual de colaboradores, perfil profesional e imputación mensual de coste
@@ -856,7 +889,9 @@ export const ContratosList: React.FC = () => {
 
                                   <div className="px-3 py-1.5 rounded-xl bg-emerald-50/70 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 flex items-center gap-2">
                                     <PieChart size={13} />
-                                    <span className="text-[10px] font-bold uppercase">Rateo por Trabajador:</span>
+                                    <span className="text-[10px] font-bold uppercase">
+                                      {c.tipo_contrato === 'Por Trabajador / Habitación' ? 'Media / Trabajador:' : 'Rateo por Trabajador:'}
+                                    </span>
                                     <strong className="text-sm font-black">
                                       € {(c.custo_rateado_por_pessoa || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal">/ mes</span>
                                     </strong>
@@ -880,7 +915,7 @@ export const ContratosList: React.FC = () => {
                                         <th className="px-3 py-2">Empresa Contratante</th>
                                         <th className="px-3 py-2">Cliente & Proyecto</th>
                                         <th className="px-3 py-2">Ubicación / Obra</th>
-                                        <th className="px-3 py-2 text-right">Coste Imputado (Rateo)</th>
+                                        <th className="px-3 py-2 text-right">Coste Imputado (Persona / Rateo)</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -942,7 +977,7 @@ export const ContratosList: React.FC = () => {
                                               € {o.custo_rateado?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                                             </span>
                                             <span className="text-[9px] text-slate-400 font-semibold">
-                                              Rateo mensual
+                                              {c.tipo_contrato === 'Por Trabajador / Habitación' ? 'Coste plaza/mes' : 'Rateio mensual'}
                                             </span>
                                           </td>
                                         </tr>
