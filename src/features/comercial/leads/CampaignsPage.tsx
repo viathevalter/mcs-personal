@@ -711,6 +711,29 @@ export function CampaignsPage() {
         offset: '',
       },
       created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_mailing_kr_captacion',
+      name: '🎯 Mailing Kr-Captación / Rosa (2.937 leads)',
+      leadCount: 2937,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Kr-Captacion',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
     }
   ], []);
 
