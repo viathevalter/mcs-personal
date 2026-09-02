@@ -184,11 +184,11 @@ export function ProspectingPage() {
       }
     } else {
       setActiveJob(null);
-      setAudienceTag('Prospecção Geral Espanha');
+      setAudienceTag(jobCountryFilter === 'FR' ? 'Prospecção Geral França' : 'Prospecção Geral Espanha');
       setImportSector('Calderería & Tubería Industrial');
-      setCustomNotes('Leads qualificados importados via AIsa Prospecting.');
+      setCustomNotes(`Leads industriais qualificados importados da base ${jobCountryFilter === 'FR' ? 'França' : 'Espanha'} via AIsa.`);
     }
-  }, [jobs, selectedJobId]);
+  }, [jobs, selectedJobId, jobCountryFilter]);
 
   // Add log entry
   const addLog = (message: string, type: 'info' | 'success' | 'warn' | 'error' = 'info') => {
@@ -342,6 +342,8 @@ export function ProspectingPage() {
 
   // Mission filtering state
   const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
+  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES'>('FR');
+  const [isSpainSummaryModalOpen, setIsSpainSummaryModalOpen] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
 
   const jobCounts = {
@@ -350,10 +352,19 @@ export function ProspectingPage() {
     pending: jobs.filter((j) => j.status === 'pending').length,
     completed: jobs.filter((j) => j.status === 'completed').length,
     paused: jobs.filter((j) => j.status === 'paused').length,
+    france: jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷'))).length,
+    spain: jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷'))).length,
   };
 
   const filteredJobs = jobs.filter((j) => {
     if (jobStatusFilter !== 'all' && j.status !== jobStatusFilter) return false;
+    
+    // Country filter
+    const isJobFR = (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷'));
+    const isJobES = !isJobFR;
+    if (jobCountryFilter === 'FR' && !isJobFR) return false;
+    if (jobCountryFilter === 'ES' && !isJobES) return false;
+
     if (!jobSearchTerm) return true;
     const term = jobSearchTerm.toLowerCase().trim();
     return (
@@ -594,12 +605,22 @@ export function ProspectingPage() {
     }
   };
 
-  // Totals calculations for Staging KPIs
+  // Totals calculations for Staging KPIs based on active country filter
+  const countryJobs = useMemo(() => {
+    if (jobCountryFilter === 'FR') {
+      return jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷')));
+    }
+    if (jobCountryFilter === 'ES') {
+      return jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷')));
+    }
+    return jobs;
+  }, [jobs, jobCountryFilter]);
+
   const totalStagingResultsCount = results.length;
   const emailsStagingCount = results.filter((r) => r.email).length;
-  const totalLeadsCaptured = Math.max(jobs.reduce((acc, j) => acc + (j.processed_count || 0), 0), totalStagingResultsCount);
-  const totalEmailsFound = Math.max(jobs.reduce((acc, j) => acc + (j.found_emails_count || 0), 0), emailsStagingCount);
-  const activeJobsCount = jobs.filter((j) => j.status === 'processing' || j.status === 'pending').length;
+  const totalLeadsCaptured = Math.max(countryJobs.reduce((acc, j) => acc + (j.processed_count || 0), 0), totalStagingResultsCount);
+  const totalEmailsFound = Math.max(countryJobs.reduce((acc, j) => acc + (j.found_emails_count || 0), 0), emailsStagingCount);
+  const activeJobsCount = countryJobs.filter((j) => j.status === 'processing' || j.status === 'pending').length;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 bg-slate-50 dark:bg-slate-900/90 text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200">
@@ -704,6 +725,67 @@ export function ProspectingPage() {
               </div>
             </div>
 
+            {/* Country Selector Tabs (France / Spain / All) */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs mb-3">
+              <button
+                onClick={() => setJobCountryFilter('FR')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  jobCountryFilter === 'FR'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>🇫🇷 França</span>
+                <span className="bg-blue-800/40 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">
+                  {jobCounts.france}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setJobCountryFilter('ES')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  jobCountryFilter === 'ES'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>🇪🇸 Espanha</span>
+                <span className="bg-amber-800/40 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">
+                  {jobCounts.spain}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setJobCountryFilter('all')}
+                className={`py-1.5 px-2 rounded-lg font-bold text-xs transition-all ${
+                  jobCountryFilter === 'all'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Ver todos os países"
+              >
+                🌍
+              </button>
+            </div>
+
+            {/* Spain Completion Quick Banner */}
+            <div className="mb-3 p-2.5 bg-gradient-to-r from-amber-500/10 via-amber-600/10 to-emerald-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-2">
+              <div className="text-xs">
+                <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  🇪🇸 Espanha: 15 Missões Finalizadas
+                </span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                  8.500+ Leads no CRM &bull; 10.000+ no Diretório CNAE
+                </span>
+              </div>
+              <button
+                onClick={() => setIsSpainSummaryModalOpen(true)}
+                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all whitespace-nowrap"
+              >
+                Ver Resumo
+              </button>
+            </div>
+
             {/* Global Repositoriy Selector */}
             <button
               onClick={() => setSelectedJobId('all')}
@@ -714,7 +796,7 @@ export function ProspectingPage() {
               }`}
             >
               <span className="flex items-center gap-2">
-                <Bookmark className="w-4 h-4" /> Ver Repositório Global (Todas as Missões)
+                <Bookmark className="w-4 h-4" /> Ver Repositório Global ({jobCountryFilter === 'FR' ? '🇫🇷 França' : jobCountryFilter === 'ES' ? '🇪🇸 Espanha' : '🌍 Todos'})
               </span>
               <span className="bg-slate-900/20 px-2 py-0.5 rounded text-[10px] font-bold">
                 {totalLeadsCaptured}
@@ -826,7 +908,7 @@ export function ProspectingPage() {
                               job.status === 'completed'
                                 ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30'
                                 : job.status === 'processing'
-                                ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30 animate-pulse'
+                                ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30'
                                 : job.status === 'paused'
                                 ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
                                 : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
@@ -1873,6 +1955,135 @@ export function ProspectingPage() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spain Campaign Accomplishment Summary Modal */}
+      {isSpainSummaryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-amber-500/30 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xl">
+                  🇪🇸
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    Campanha Espanha: Concluída com Sucesso
+                    <span className="text-[10px] uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      Finalizada
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Resumo executivo de captação industrial nos CNAEs espanhóis
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSpainSummaryModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wider mb-1">
+                  Leads no CRM
+                </span>
+                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
+                  8.552
+                </span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block mt-0.5">
+                  ✓ Prontos p/ Disparo
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wider mb-1">
+                  Master CNAE Espanha
+                </span>
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                  10.092
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Empresas Registradas
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block uppercase tracking-wider mb-1">
+                  Missões Executadas
+                </span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  15 / 15
+                </span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block mt-0.5">
+                  100% Finalizadas
+                </span>
+              </div>
+            </div>
+
+            {/* CNAE Breakdown List */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Principais Verticais Capturadas na Espanha:
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">🚰 CNAE 3320 (Tubería / Piping)</span>
+                  <span className="font-mono font-bold text-blue-600">1.300 leads</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">🏗️ CNAE 2511 (Estruturas Metálicas)</span>
+                  <span className="font-mono font-bold text-blue-600">723 leads</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">⚙️ CNAE 2562 (Mecanizado CNC)</span>
+                  <span className="font-mono font-bold text-blue-600">573 leads</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">🔨 CNAE 2529 (Calderería Pesada)</span>
+                  <span className="font-mono font-bold text-blue-600">407 leads</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">🥛 CNAE 2893 (Tubería Inox / Agro)</span>
+                  <span className="font-mono font-bold text-blue-600">295 leads</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">⚓ CNAE 3011 (Naval & Astilleros)</span>
+                  <span className="font-mono font-bold text-blue-600">235 leads</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-3 flex justify-between items-center border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setJobCountryFilter('ES');
+                  setIsSpainSummaryModalOpen(false);
+                }}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors"
+              >
+                Ver Missões da Espanha no Painel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setJobCountryFilter('FR');
+                  setIsSpainSummaryModalOpen(false);
+                }}
+                className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all"
+              >
+                <span>Focar nas Missões Ativas da França 🇫🇷</span>
+              </button>
             </div>
           </div>
         </div>

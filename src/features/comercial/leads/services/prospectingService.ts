@@ -180,6 +180,9 @@ export class ProspectingService {
       return catalogHits;
     }
 
+    const isFrance = location.toLowerCase().includes('fran') || location.toLowerCase().includes('fr');
+    const isBelgium = location.toLowerCase().includes('bélg') || location.toLowerCase().includes('belg');
+
     const ALL_SPANISH_PROVINCES = [
       'Vizcaya (Bilbao y Barakaldo)',
       'Guipúzcoa (San Sebastián y Zumaia)',
@@ -208,21 +211,43 @@ export class ProspectingService {
       'Jaén'
     ];
 
-    // If national search or broad location, cycle through multiple Spanish industrial provinces in parallel
-    const isNational = !cleanLocation || cleanLocation.toLowerCase() === 'espanha' || cleanLocation.toLowerCase() === 'es' || cleanLocation.toLowerCase() === 'nacional';
+    const ALL_FRENCH_REGIONS = [
+      'Auvergne-Rhône-Alpes (Lyon, Saint-Priest, Vénissieux, Saint-Étienne)',
+      'Provence-Alpes-Côte d\'Azur (Fos-sur-Mer, Marseille, Berre, Toulon)',
+      'Hauts-de-France (Dunkerque, Lille, Valenciennes, Douai)',
+      'Grand Est (Strasbourg, Mulhouse, Metz, Nancy, Moselle)',
+      'Normandie (Le Havre, Rouen, Cherbourg, Vallée de la Seine)',
+      'Pays de la Loire (Saint-Nazaire, Nantes, Angers, Le Mans)',
+      'Bretagne (Brest, Lorient, Rennes, Saint-Malo)',
+      'Nouvelle-Aquitaine (Bordeaux, Mérignac, Pau, Niort)',
+      'Occitanie (Toulouse, Montpellier, Alès, Tarbes)',
+      'Île-de-France (Mitry-Compans, Évry, Mantes-la-Jolie, Roissy)',
+      'Bourgogne-Franche-Comté (Chalon-sur-Saône, Belfort, Montbéliard)',
+      'Centre-Val de Loire (Orléans, Tours, Chartres)'
+    ];
+
+    // If national search or broad location, cycle through regional industrial hubs in parallel
+    const cleanCountryLoc = isFrance ? 'França' : isBelgium ? 'Bélgica' : 'Espanha';
+    const isNational = !cleanLocation || 
+      cleanLocation.toLowerCase().includes('espanha') || 
+      cleanLocation.toLowerCase().includes('fran') ||
+      cleanLocation.toLowerCase().includes('nacional') ||
+      cleanLocation.length < 4;
     
     let targetProvinces: string[] = [];
+    const sourceRegions = isFrance ? ALL_FRENCH_REGIONS : ALL_SPANISH_PROVINCES;
+
     if (isNational) {
       const baseIdx = Math.floor(excludedCompanyNames.length / 5);
       targetProvinces = [
-        ALL_SPANISH_PROVINCES[baseIdx % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 1) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 2) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 3) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 4) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 5) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 6) % ALL_SPANISH_PROVINCES.length],
-        ALL_SPANISH_PROVINCES[(baseIdx + 7) % ALL_SPANISH_PROVINCES.length],
+        sourceRegions[baseIdx % sourceRegions.length],
+        sourceRegions[(baseIdx + 1) % sourceRegions.length],
+        sourceRegions[(baseIdx + 2) % sourceRegions.length],
+        sourceRegions[(baseIdx + 3) % sourceRegions.length],
+        sourceRegions[(baseIdx + 4) % sourceRegions.length],
+        sourceRegions[(baseIdx + 5) % sourceRegions.length],
+        sourceRegions[(baseIdx + 6) % sourceRegions.length],
+        sourceRegions[(baseIdx + 7) % sourceRegions.length],
       ];
     } else {
       targetProvinces = [cleanLocation];
@@ -238,7 +263,25 @@ export class ProspectingService {
     try {
       // Dispatch parallel multi-hub workers
       const hubPromises = targetProvinces.map(async (provinceName) => {
-        const prompt = `Provide 20 real, active small/medium industrial workshops and fabricators (Pymes / Talleres de calderería, tubería industrial, cerrajería pesada, soldadura TIG/MIG, montajes mecánicos y mecanizado) located in polígonos industriales across "${provinceName}", Spain matching: "${cleanKeywords}".
+        const prompt = isFrance 
+          ? `Provide 20 real, active small/medium industrial workshops, fabricators and subcontractors (PME / SAS / SARL / Ateliers de chaudronnerie, tuyauterie industrielle, charpente métallique, mécano-soudure TIG/MIG, usinage CNC, maintenance industrielle) located in Zones Industrielles (Z.I.) or Parcs d'Activités across "${provinceName}", France matching: "${cleanKeywords}".
+Target medium and small workshops (10 to 80 workers) in industrial zones (Zones Industrielles) that subcontract welders (soudeurs), pipefitters (tuyautiers) and boilermakers (chaudronniers).
+Only return registered French companies with their official active website (.fr or .com) and corporate contact email.${excludeInstruction}
+
+Return JSON array only:
+[
+  {
+    "company_name": "Exact Legal/Trade Name SAS / SARL",
+    "website": "https://www.company.fr",
+    "phone": "+33 4 xx xx xx xx",
+    "address": "Z.I. des Prés...",
+    "city": "${provinceName}",
+    "province": "${provinceName}",
+    "email": "contact@company.fr",
+    "sector": "${cleanKeywords}"
+  }
+]`
+          : `Provide 20 real, active small/medium industrial workshops and fabricators (Pymes / Talleres de calderería, tubería industrial, cerrajería pesada, soldadura TIG/MIG, montajes mecánicos y mecanizado) located in polígonos industriales across "${provinceName}", Spain matching: "${cleanKeywords}".
 Target medium and small workshops (10 to 50 workers) situated in industrial estates (Polígonos Industriales) that subcontract welders, fitters, and tuberos.
 Only return valid, non-fictional registered companies with their official website and primary contact email.${excludeInstruction}
 
@@ -256,7 +299,7 @@ Return JSON array only:
   }
 ]`;
 
-        const CANDIDATE_MODELS = ['gemini-3.6-flash', 'gemini-pro-latest', 'gemini-3.5-flash'];
+        const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.6-flash'];
         for (const model of CANDIDATE_MODELS) {
           try {
             const controller = new AbortController();
@@ -552,7 +595,11 @@ Return JSON array only:
         address: item.address || null,
         city: item.city || job.location,
         province: item.province || job.location,
-        country: 'Espanha',
+        country: (job.location.toLowerCase().includes('fran') || job.location.toLowerCase().includes('fr') || (item.province && item.province.toLowerCase().includes('fran')))
+          ? 'França'
+          : (job.location.toLowerCase().includes('bélg') || job.location.toLowerCase().includes('belg'))
+          ? 'Bélgica'
+          : 'Espanha',
         confidence_score: item.email ? 95 : 70,
         status: 'raw',
       });
