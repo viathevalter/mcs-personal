@@ -33,10 +33,15 @@ import {
   PieChart,
   UserCheck,
   BedDouble,
+  ShieldAlert,
+  DownloadCloud,
+  FileCheck,
+  Check,
+  Save,
   X
 } from 'lucide-react';
 import { contratosLogisticsService } from '../../services/contratosLogisticsService';
-import type { ContratoAlojamento, OcupanteContrato } from '../../services/contratosLogisticsService';
+import type { ContratoAlojamento, OcupanteContrato, FianzaDetalhes } from '../../services/contratosLogisticsService';
 import { financeLogisticsService } from '../../services/financeLogisticsService';
 
 export const ContratosList: React.FC = () => {
@@ -60,6 +65,20 @@ export const ContratosList: React.FC = () => {
   const [generatingOpId, setGeneratingOpId] = useState<string | null>(null);
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
   const [viewingContrato, setViewingContrato] = useState<ContratoAlojamento | null>(null);
+
+  // Modal de Vistoria e Liquidação de Fiança
+  const [fianzaModalContrato, setFianzaModalContrato] = useState<ContratoAlojamento | null>(null);
+  const [fianzaForm, setFianzaForm] = useState<FianzaDetalhes>({
+    fianza_valor: 0,
+    estado_fianza: 'En Custodia',
+    recaudo_devuelto: 0,
+    deducoes_danos: 0,
+    deducoes_suministros: 0,
+    documentos_url: '',
+    observacoes_vistoria: ''
+  });
+  const [isSavingFianza, setIsSavingFianza] = useState(false);
+  const [isRegisteringFinance, setIsRegisteringFinance] = useState(false);
 
   const loadContratos = async () => {
     setIsLoading(true);
@@ -103,7 +122,86 @@ export const ContratosList: React.FC = () => {
     }
   };
 
-  // Gerar OP Individual
+  // Abrir Modal de Vistoria de Fiança
+  const handleOpenFianzaModal = (contrato: ContratoAlojamento, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setFianzaModalContrato(contrato);
+    const fd = contrato.fianza_detalhes || {
+      fianza_valor: contrato.fianza_valor || 0,
+      estado_fianza: contrato.status === 'Activo' ? 'En Custodia' : 'Devuelta',
+      recaudo_devuelto: 0,
+      deducoes_danos: 0,
+      deducoes_suministros: 0,
+      documentos_url: '',
+      observacoes_vistoria: ''
+    };
+    setFianzaForm({ ...fd, fianza_valor: fd.fianza_valor || contrato.fianza_valor || 0 });
+  };
+
+  // Salvar Vistoria de Fiança
+  const handleSaveFianza = async () => {
+    if (!fianzaModalContrato) return;
+    try {
+      setIsSavingFianza(true);
+      await contratosLogisticsService.salvarVistoriaFianza(fianzaModalContrato.alojamento_id || fianzaModalContrato.id, fianzaForm);
+      alert('✅ ¡Datos de la fianza e informe de inspección guardados con éxito!');
+      setFianzaModalContrato(null);
+      loadContratos();
+    } catch (err: any) {
+      console.error('Error al guardar fianza:', err);
+      alert(`Error al guardar: ${err?.message || 'Compruebe la conexión.'}`);
+    } finally {
+      setIsSavingFianza(false);
+    }
+  };
+
+  // Registrar Devolução de Fiança no Financeiro
+  const handleRegistrarEntradaFinanceiro = async () => {
+    if (!fianzaModalContrato) return;
+    if (fianzaForm.recaudo_devuelto <= 0) {
+      alert('Aviso: Especifique el importe reembolsado / devuelto a cuenta antes de registrar la entrada.');
+      return;
+    }
+
+    try {
+      setIsRegisteringFinance(true);
+      await financeLogisticsService.registrarDevolucaoFianza({
+        contrato_id: fianzaModalContrato.codigo,
+        alojamento_id: fianzaModalContrato.alojamento_id,
+        alojamento_nome: fianzaModalContrato.alojamento_nome,
+        alojamento_codigo: fianzaModalContrato.alojamento?.codigo,
+        provedor_id: fianzaModalContrato.provedor_id,
+        provedor_nome: fianzaModalContrato.provedor_nome,
+        iban_cobranca: fianzaModalContrato.iban_cobranca,
+        banco: fianzaModalContrato.banco,
+        titular: fianzaModalContrato.titular,
+        centro_custo_cliente: fianzaModalContrato.cliente_nome,
+        centro_custo_obra: fianzaModalContrato.centro_custo_obra,
+        valor_devolvido: Number(fianzaForm.recaudo_devuelto),
+        valor_danos: Number(fianzaForm.deducoes_danos || 0),
+        valor_suministros: Number(fianzaForm.deducoes_suministros || 0),
+        documentos_url: fianzaForm.documentos_url,
+        observacoes: fianzaForm.observacoes_vistoria
+      });
+
+      // Salvar estado também no contrato
+      await contratosLogisticsService.salvarVistoriaFianza(fianzaModalContrato.alojamento_id || fianzaModalContrato.id, {
+        ...fianzaForm,
+        estado_fianza: fianzaForm.deducoes_danos > 0 || fianzaForm.deducoes_suministros > 0 ? 'Devuelta Parcial' : 'Devuelta'
+      });
+
+      alert(`🎉 ¡Entrada de reembolso de fianza por € ${Number(fianzaForm.recaudo_devuelto).toLocaleString('es-ES', { minimumFractionDigits: 2 })} registrada con éxito en Finanzas!`);
+      setFianzaModalContrato(null);
+      loadContratos();
+    } catch (err: any) {
+      console.error('Error al registrar en finanzas:', err);
+      alert(`Error al registrar en finanzas: ${err?.message}`);
+    } finally {
+      setIsRegisteringFinance(false);
+    }
+  };
+
+  // Gerar OP Individual de Aluguel
   const handleGerarOP = async (contrato: ContratoAlojamento, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
@@ -200,9 +298,20 @@ export const ContratosList: React.FC = () => {
     [contratosAtivosList]
   );
 
+  // Métricas Consolidadas de Fianças
   const totalFiancasCustodia = useMemo(() => 
     contratosAtivosList.reduce((acc, c) => acc + (Number(c.fianza_valor) || 0), 0),
     [contratosAtivosList]
+  );
+
+  const totalFiancasDevolvidas = useMemo(() => 
+    contratos.reduce((acc, c) => acc + (Number(c.fianza_detalhes?.recaudo_devuelto) || 0), 0),
+    [contratos]
+  );
+
+  const totalDeducoesDanos = useMemo(() => 
+    contratos.reduce((acc, c) => acc + (Number(c.fianza_detalhes?.deducoes_danos) || 0) + (Number(c.fianza_detalhes?.deducoes_suministros) || 0), 0),
+    [contratos]
   );
 
   // Vencimentos Início de Mês (Días 1 a 5)
@@ -226,6 +335,7 @@ export const ContratosList: React.FC = () => {
         (c.cliente_nome && c.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.empresa_contratante && c.empresa_contratante.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.ocupantes_nomes && c.ocupantes_nomes.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.fianza_detalhes?.observacoes_vistoria && c.fianza_detalhes.observacoes_vistoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.ocupantes_detalhados && c.ocupantes_detalhados.some(o => 
           o.worker_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
           o.codigo_colab?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -245,7 +355,7 @@ export const ContratosList: React.FC = () => {
       } else if (statusFilter === 'temporais') {
         if (c.status !== 'Activo' || (!c.tipo_contrato?.includes('Temporario') && !c.tipo_contrato?.includes('Temporal'))) return false;
       } else if (statusFilter === 'com_fianca') {
-        if (c.status !== 'Activo' || Number(c.fianza_valor) <= 0) return false;
+        if (Number(c.fianza_valor) <= 0) return false;
       } else if (statusFilter === 'cerrados') {
         if (c.status === 'Activo') return false;
       }
@@ -301,14 +411,14 @@ export const ContratosList: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Contratos de Arrendamiento & Fianzas
+                  Contratos de Arrendamiento & Control de Fianzas
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300">
                   {contratosAtivos} Activos en Curso
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Gestión unificada de alquileres (Fijos, Por Habitación & Temporal Hotel/Airbnb), imputación de costes y generación masiva de OPs
+                Gestión de alquileres (Fijos, Habitación, Temporal), control de fianzas en custodia, informes de vistoria y devolución financiera
               </p>
             </div>
           </div>
@@ -348,7 +458,7 @@ export const ContratosList: React.FC = () => {
             <span className="text-slate-300">•</span>
             <span className="text-amber-600 font-bold">{habitacionAtivos.length} Habitación</span>
             <span className="text-slate-300">•</span>
-            <span className="text-purple-600 font-bold">{temporaisAtivos.length} Hotel/Airbnb</span>
+            <span className="text-purple-600 font-bold">{temporaisAtivos.length} Hotel</span>
           </div>
         </div>
 
@@ -366,38 +476,38 @@ export const ContratosList: React.FC = () => {
           </span>
         </div>
 
-        {/* Vencimento Início de Mês (Días 1 a 5) */}
-        <div 
-          onClick={() => { setStatusFilter('ativos'); setVencimentoRange('1-5'); }}
-          className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 rounded-2xl space-y-1 shadow-xs cursor-pointer transition-colors group"
-        >
-          <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span className="group-hover:text-amber-600 transition-colors">Vencimientos Días 1 al 5</span>
-            <Calendar size={16} className="text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
-            {inicioMesContratos.length} <span className="text-xs font-normal text-slate-400">inmuebles</span>
-          </p>
-          <span className="text-[11px] text-amber-700 dark:text-amber-300 font-bold block">
-            € {valorInicioMes.toLocaleString('es-ES', { minimumFractionDigits: 2 })} a renovar ahora ⚡
-          </span>
-        </div>
-
-        {/* Fianças em Custódia */}
+        {/* Fianças em Custódia Activa */}
         <div 
           onClick={() => { setStatusFilter('com_fianca'); setVencimentoRange('todos'); }}
           className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-400 rounded-2xl space-y-1 shadow-xs cursor-pointer transition-colors group"
         >
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
-            <span className="group-hover:text-purple-600 transition-colors">Fianzas en Custodia</span>
+            <span className="group-hover:text-purple-600 transition-colors">Fianzas en Custodia Activa</span>
             <ShieldCheck size={16} className="text-purple-500" />
           </div>
           <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
             € {totalFiancasCustodia.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
           <span className="text-[11px] text-slate-400 font-medium">
-            Depósitos activos en arrendamientos
+            Garantías retenidas en inmuebles activos
           </span>
+        </div>
+
+        {/* Fianças Recuperadas & Retenções */}
+        <div 
+          onClick={() => { setStatusFilter('com_fianca'); setVencimentoRange('todos'); }}
+          className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 rounded-2xl space-y-1 shadow-xs cursor-pointer transition-colors group"
+        >
+          <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
+            <span className="group-hover:text-emerald-600 transition-colors">Fianzas Reembolsadas</span>
+            <ShieldAlert size={16} className="text-amber-500" />
+          </div>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            € {totalFiancasDevolvidas.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+          </p>
+          <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-bold">
+            <span>€ {totalDeducoesDanos.toLocaleString('es-ES', { minimumFractionDigits: 2 })} retenidos por daños/suministros</span>
+          </div>
         </div>
       </div>
 
@@ -459,7 +569,7 @@ export const ContratosList: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input
               type="text"
-              placeholder="Buscar por código, dirección, cliente, empresa, ocupante o IBAN..."
+              placeholder="Buscar por código, dirección, cliente, empresa, fianza u observaciones..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
@@ -514,13 +624,14 @@ export const ContratosList: React.FC = () => {
 
             <button
               onClick={() => setStatusFilter('com_fianca')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
                 statusFilter === 'com_fianca'
-                  ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-300'
               }`}
             >
-              Con Fianza ({contratosAtivosList.filter(c => Number(c.fianza_valor) > 0).length})
+              <ShieldCheck size={13} />
+              <span>Con Fianza ({contratos.filter(c => Number(c.fianza_valor) > 0).length})</span>
             </button>
 
             <button
@@ -597,7 +708,7 @@ export const ContratosList: React.FC = () => {
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-              Cargando contratos de alojamientos y ocupantes...
+              Cargando contratos de alojamientos, ocupantes y fianzas...
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-16 text-center text-slate-500 space-y-2">
@@ -625,7 +736,7 @@ export const ContratosList: React.FC = () => {
                   <th className="px-3 py-3">Modalidad</th>
                   <th className="px-3 py-3">Día Vencimiento</th>
                   <th className="px-3 py-3">Alquiler Mensual</th>
-                  <th className="px-3 py-3">Fianza</th>
+                  <th className="px-3 py-3">Fianza & Vistoria</th>
                   <th className="px-3 py-3">Estado</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
@@ -637,6 +748,7 @@ export const ContratosList: React.FC = () => {
                   const dia = Number(c.dia_vencimento || 5);
                   const isInicioMes = dia <= 5;
                   const ocupantes = c.ocupantes_detalhados || [];
+                  const fd = c.fianza_detalhes;
 
                   return (
                     <React.Fragment key={c.id}>
@@ -791,15 +903,28 @@ export const ContratosList: React.FC = () => {
                           </span>
                         </td>
 
-                        {/* Fiança */}
-                        <td className="px-3 py-3.5">
+                        {/* Fiança & Vistoria (Interativo) */}
+                        <td className="px-3 py-3.5" onClick={e => handleOpenFianzaModal(c, e)}>
                           {c.fianza_valor > 0 ? (
-                            <div className="space-y-0.5">
-                              <span className="font-bold text-amber-700 dark:text-amber-400">
+                            <div className="space-y-0.5 group/fianza">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black border transition-all ${
+                                fd?.estado_fianza === 'Devuelta' || fd?.estado_fianza === 'Devuelta Parcial'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : fd?.estado_fianza === 'No Devuelta'
+                                  ? 'bg-red-50 text-red-800 border-red-300 dark:bg-red-950/60 dark:text-red-300'
+                                  : fd?.estado_fianza === 'En Inspeccion'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300'
+                                  : 'bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 group-hover/fianza:border-purple-400'
+                              }`}>
+                                <ShieldCheck size={11} />
                                 € {c.fianza_valor?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                               </span>
-                              <span className="text-[9px] text-slate-400 block font-medium">
-                                {c.fianza_meses} mes(es)
+                              <span className="text-[9px] text-slate-400 block font-medium group-hover/fianza:text-purple-600 transition-colors">
+                                {fd?.estado_fianza === 'Devuelta' ? '✓ Devuelta a banco' :
+                                 fd?.estado_fianza === 'Devuelta Parcial' ? `✓ Dev. € ${fd.recaudo_devuelto} | Daños: € ${fd.deducoes_danos}` :
+                                 fd?.estado_fianza === 'No Devuelta' ? '✗ Retenida por daños' :
+                                 fd?.estado_fianza === 'En Inspeccion' ? '⚠️ En inspección' :
+                                 '🛡️ En custodia activa'}
                               </span>
                             </div>
                           ) : (
@@ -821,6 +946,16 @@ export const ContratosList: React.FC = () => {
                         {/* Ações */}
                         <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
+                            {c.fianza_valor > 0 && (
+                              <button
+                                onClick={e => handleOpenFianzaModal(c, e)}
+                                className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
+                                title="Control de Vistoria y Devolución de Fianza"
+                              >
+                                <ShieldCheck size={14} />
+                              </button>
+                            )}
+
                             <button
                               onClick={e => handleGerarOP(c, e)}
                               disabled={generatingOpId === c.id}
@@ -999,7 +1134,207 @@ export const ContratosList: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL DE DETALHES DO CONTRATO */}
+      {/* MODAL DE VISTORIA, INSPECCIÓN & LIQUIDACIÓN DE FIANZA */}
+      {fianzaModalContrato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl">
+            {/* Header Modal */}
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/40">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-600 text-white rounded-2xl shadow-sm">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-black text-slate-900 dark:text-white">
+                      Control de Fianza & Vistoria de Salida
+                    </h2>
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
+                      {fianzaModalContrato.codigo}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">{fianzaModalContrato.alojamento_nome}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setFianzaModalContrato(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 text-xs">
+              {/* Resumo Fiança Depositada */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Fianza Original</span>
+                  <span className="font-black text-slate-900 dark:text-white text-base">
+                    € {Number(fianzaForm.fianza_valor).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/60">
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold uppercase block">Reembolsado a Banco</span>
+                  <span className="font-black text-emerald-700 dark:text-emerald-300 text-base">
+                    € {Number(fianzaForm.recaudo_devuelto || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900/60">
+                  <span className="text-[10px] text-red-700 dark:text-red-300 font-bold uppercase block">Retenido por Daños/Gastos</span>
+                  <span className="font-black text-red-700 dark:text-red-300 text-base">
+                    € {(Number(fianzaForm.deducoes_danos || 0) + Number(fianzaForm.deducoes_suministros || 0)).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status da Fiança */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Estado de la Fianza / Vistoria
+                  </label>
+                  <select
+                    value={fianzaForm.estado_fianza}
+                    onChange={e => setFianzaForm({ ...fianzaForm, estado_fianza: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                  >
+                    <option value="En Custodia">🛡️ En Custodia (Alojamiento activo, fianza depositada con el arrendador)</option>
+                    <option value="En Inspeccion">⚠️ En Inspección / Check-out (Pendiente de vistoria y acuerdo de salida)</option>
+                    <option value="Devuelta">✓ Devuelta Total (100% reintegrada a la cuenta bancaria)</option>
+                    <option value="Devuelta Parcial">⚡ Devuelta Parcial (Reintegrada con deducciones por daños/suministros)</option>
+                    <option value="No Devuelta">✗ No Devuelta (Retenida por el arrendador por daños/incumplimiento)</option>
+                  </select>
+                </div>
+
+                {/* Campos de Valores de Liquidação */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-300 mb-1">
+                      Importe Reembolsado (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={fianzaForm.recaudo_devuelto}
+                      onChange={e => setFianzaForm({ ...fianzaForm, recaudo_devuelto: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-red-700 dark:text-red-300 mb-1">
+                      Deducción por Daños (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={fianzaForm.deducoes_danos}
+                      onChange={e => setFianzaForm({ ...fianzaForm, deducoes_danos: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-red-300 dark:border-red-800 rounded-xl text-xs font-bold text-red-700 dark:text-red-300"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-700 dark:text-amber-300 mb-1">
+                      Deducción Suministros (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={fianzaForm.deducoes_suministros}
+                      onChange={e => setFianzaForm({ ...fianzaForm, deducoes_suministros: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Link de Documentos / Fotos da Vistoria */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Enlace a Documentos / Informe de Vistoria / Fotos (URL)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={fianzaForm.documentos_url || ''}
+                      onChange={e => setFianzaForm({ ...fianzaForm, documentos_url: e.target.value })}
+                      placeholder="https://sharepoint.com/fianzas/laudo_vistoria.pdf"
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+                    />
+                    {fianzaForm.documentos_url && (
+                      <a
+                        href={fianzaForm.documentos_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <ExternalLink size={13} />
+                        Abrir
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Observações da Vistoria */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Observaciones de la Inspección / Motivos de Retención o Acuerdo
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={fianzaForm.observacoes_vistoria || ''}
+                    onChange={e => setFianzaForm({ ...fianzaForm, observacoes_vistoria: e.target.value })}
+                    placeholder="Detalle los daños alegados por el propietario, reparaciones, facturas de servicios pendientes o acuerdo alcanzado..."
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 flex flex-col sm:flex-row justify-between items-center gap-2">
+              <button
+                onClick={() => setFianzaModalContrato(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
+              >
+                Cerrar
+              </button>
+
+              <div className="flex items-center gap-2">
+                {fianzaForm.recaudo_devuelto > 0 && (
+                  <button
+                    onClick={handleRegistrarEntradaFinanceiro}
+                    disabled={isRegisteringFinance}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    title="Dar entrada del dinero devuelto en Finanzas"
+                  >
+                    <DollarSign size={14} />
+                    {isRegisteringFinance ? 'Registrando...' : `📥 Registrar Entrada en Finanzas (€ ${fianzaForm.recaudo_devuelto})`}
+                  </button>
+                )}
+
+                <button
+                  onClick={handleSaveFianza}
+                  disabled={isSavingFianza}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  <Save size={14} />
+                  {isSavingFianza ? 'Guardando...' : 'Guardar Vistoria'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DETALHES GERAIS DO CONTRATO */}
       {viewingContrato && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl">
@@ -1073,21 +1408,36 @@ export const ContratosList: React.FC = () => {
               </div>
 
               {/* Fiança */}
-              <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl space-y-1">
-                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <ShieldCheck size={14} />
-                  Garantía / Fianza Registrada
-                </span>
+              <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck size={14} />
+                    Garantía / Fianza Registrada
+                  </span>
+                  {viewingContrato.fianza_valor > 0 && (
+                    <button
+                      onClick={e => handleOpenFianzaModal(viewingContrato, e)}
+                      className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold transition-colors"
+                    >
+                      Abrir Control de Vistoria
+                    </button>
+                  )}
+                </div>
                 <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
                   {viewingContrato.fianza_valor > 0
-                    ? `€ ${viewingContrato.fianza_valor.toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${viewingContrato.fianza_meses} meses)`
+                    ? `€ ${viewingContrato.fianza_valor.toLocaleString('es-ES', { minimumFractionDigits: 2 })} (${viewingContrato.fianza_meses} meses) - Estado: ${viewingContrato.fianza_detalhes?.estado_fianza || 'En Custodia'}`
                     : 'Sin exigencia de fianza'}
                 </p>
+                {viewingContrato.fianza_detalhes?.observacoes_vistoria && (
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-purple-100 dark:border-purple-900/40 italic">
+                    "{viewingContrato.fianza_detalhes.observacoes_vistoria}"
+                  </p>
+                )}
               </div>
 
               {/* Dados Bancários */}
-              <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 rounded-2xl space-y-2">
-                <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                   <CreditCard size={14} />
                   Datos Bancarios para Pago del Alquiler
                 </span>

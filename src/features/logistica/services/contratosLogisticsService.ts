@@ -15,6 +15,20 @@ export interface OcupanteContrato {
   custo_rateado: number;
 }
 
+export interface FianzaDetalhes {
+  fianza_valor: number;
+  estado_fianza: 'En Custodia' | 'En Inspeccion' | 'Devuelta' | 'Devuelta Parcial' | 'No Devuelta' | 'Pendiente';
+  recaudo_devuelto: number;
+  deducoes_danos: number;
+  deducoes_suministros: number;
+  outras_deducoes?: number;
+  data_vistoria?: string;
+  data_devolucao?: string;
+  documentos_url?: string;
+  observacoes_vistoria?: string;
+  updated_at?: string;
+}
+
 export interface ContratoAlojamento {
   id: string;
   codigo?: string;
@@ -41,6 +55,7 @@ export interface ContratoAlojamento {
   tem_fianza?: boolean;
   fianza_valor: number;
   fianza_meses: number;
+  fianza_detalhes?: FianzaDetalhes;
   renovacao_automatica: boolean;
   aviso_rescisao_dias: number;
   metodo_pago?: string;
@@ -115,11 +130,12 @@ export const contratosLogisticsService = {
       return alojamentos.map((a: Alojamento) => {
         const comod = a.comodidades || {};
         const cont = a.contrato || (comod as any).__contrato || {};
+        const fianzaRaw = (comod as any).__fianza || cont.fianza_detalhes || {};
         const prov = a.provedor;
 
         const codigoContrato = cont.codigo || (`CT-2026/` + (a.codigo ? a.codigo.replace(/[^0-9]/g, '') : Math.floor(1000 + Math.random() * 9000)));
         let valor = Number(a.valor_mensal || a.custo_mensal_total || cont.valor_mensal || 0);
-        const fianza = Number(cont.fianza_valor || 0);
+        const fianza = Number(fianzaRaw.fianza_valor || cont.fianza_valor || 0);
 
         // Mapear ocupantes ativos neste alojamento
         const occupants = activeOccupants.filter(aloc => 
@@ -244,6 +260,18 @@ export const contratosLogisticsService = {
           };
         });
 
+        // Detalhes da Fiança
+        const fianzaDetalhes: FianzaDetalhes = {
+          fianza_valor: fianza,
+          estado_fianza: fianzaRaw.estado_fianza || (isActivo ? 'En Custodia' : 'Devuelta'),
+          recaudo_devuelto: Number(fianzaRaw.recaudo_devuelto || 0),
+          deducoes_danos: Number(fianzaRaw.deducoes_danos || 0),
+          deducoes_suministros: Number(fianzaRaw.deducoes_suministros || 0),
+          documentos_url: fianzaRaw.documentos_url || '',
+          observacoes_vistoria: fianzaRaw.observacoes_vistoria || '',
+          updated_at: fianzaRaw.updated_at
+        };
+
         return {
           id: a.id,
           codigo: codigoContrato,
@@ -265,9 +293,10 @@ export const contratosLogisticsService = {
           dia_vencimento: diaVenc,
           valor_mensal: valor,
           valor_por_pessoa: cont.valor_por_pessoa || (occupants.length > 0 ? (valor / occupants.length) : 0),
-          tem_fianza: cont.tem_fianza ?? (fianza > 0),
+          tem_fianza: fianza > 0,
           fianza_valor: fianza,
           fianza_meses: cont.fianza_meses || (fianza > 0 ? 1 : 0),
+          fianza_detalhes: fianzaDetalhes,
           renovacao_automatica: cont.renovacao_automatica ?? true,
           aviso_rescisao_dias: cont.aviso_renovacao_dias || 5,
           metodo_pago: cont.metodo_pago || prov?.metodo_pago || 'Transferir',
@@ -305,6 +334,45 @@ export const contratosLogisticsService = {
       ...existing,
       valor_mensal: contrato.valor_mensal ?? existing.valor_mensal,
       contrato: updatedContrato as any
+    });
+  },
+
+  async salvarVistoriaFianza(alojamentoId: string, fianza: Partial<FianzaDetalhes>): Promise<void> {
+    const existing = await registrosService.fetchAlojamentoById(alojamentoId);
+    if (!existing) return;
+
+    const currentComod = existing.comodidades || {};
+    const currentCont = existing.contrato || (currentComod as any).__contrato || {};
+    const currentFianza = (currentComod as any).__fianza || currentCont.fianza_detalhes || {};
+
+    const updatedFianza: FianzaDetalhes = {
+      ...currentFianza,
+      ...fianza,
+      fianza_valor: fianza.fianza_valor ?? currentFianza.fianza_valor ?? currentCont.fianza_valor ?? 0,
+      estado_fianza: fianza.estado_fianza || currentFianza.estado_fianza || 'En Custodia',
+      recaudo_devuelto: fianza.recaudo_devuelto ?? currentFianza.recaudo_devuelto ?? 0,
+      deducoes_danos: fianza.deducoes_danos ?? currentFianza.deducoes_danos ?? 0,
+      deducoes_suministros: fianza.deducoes_suministros ?? currentFianza.deducoes_suministros ?? 0,
+      documentos_url: fianza.documentos_url ?? currentFianza.documentos_url ?? '',
+      observacoes_vistoria: fianza.observacoes_vistoria ?? currentFianza.observacoes_vistoria ?? '',
+      updated_at: new Date().toISOString()
+    };
+
+    const updatedComod = {
+      ...currentComod,
+      __fianza: updatedFianza,
+      __contrato: {
+        ...currentCont,
+        fianza_valor: updatedFianza.fianza_valor,
+        tem_fianza: updatedFianza.fianza_valor > 0,
+        fianza_detalhes: updatedFianza
+      }
+    };
+
+    await registrosService.updateAlojamento(alojamentoId, {
+      ...existing,
+      comodidades: updatedComod,
+      contrato: updatedComod.__contrato as any
     });
   }
 };

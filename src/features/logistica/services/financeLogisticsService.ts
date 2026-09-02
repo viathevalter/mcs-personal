@@ -58,143 +58,122 @@ export const financeLogisticsService = {
         }
         return repaired;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Erro ao ler pagamentos do localStorage:', e);
+    }
 
-    return [];
-  },
+    // Inicialização padrão de demonstração / seed caso vazio
+    const initialSeed: PagoAlojamento[] = [
+      {
+        id: 'pago-001',
+        codigo_pago: 'OP-2026/0891',
+        contrato_id: 'CT-2026/0001',
+        alojamento_nome: 'MADRID - Piso Centro Paseo de la Castellana 45',
+        alojamento_codigo: 'AL-0001',
+        provedor_nome: 'Inmobiliaria Castellana Real Estate SL',
+        iban_cobranca: 'ES9121000418450200051332',
+        banco: 'CaixaBank',
+        titular: 'Inmobiliaria Castellana Real Estate SL',
+        centro_custo_cliente: 'CALDENOR',
+        centro_custo_obra: 'Obra Madrid Norte',
+        tipo_pago: 'Aluguel',
+        status_pago: 'Aguardando Aprovação',
+        periodo_competencia: '08/2026',
+        data_emissao: '2026-08-01',
+        data_vencimento: '2026-08-05',
+        valor_previsto: 1450.00,
+        moeda: 'EUR',
+        observacoes: 'Aluguel mensal referente ao mês de Agosto/2026'
+      },
+      {
+        id: 'pago-002',
+        codigo_pago: 'OP-2026/0892',
+        contrato_id: 'CT-2026/0004',
+        alojamento_nome: 'VALENCIA - Apartamento Turia Gran Vía 12',
+        alojamento_codigo: 'AL-0004',
+        provedor_nome: 'Levante Habitats SL',
+        iban_cobranca: 'ES7600491500051234567890',
+        banco: 'Santander',
+        titular: 'Levante Habitats SL',
+        centro_custo_cliente: 'IBERDROLA RENOVABLES',
+        centro_custo_obra: 'Parque Eólico Sagunto',
+        tipo_pago: 'Aluguel',
+        status_pago: 'Aprovado',
+        periodo_competencia: '08/2026',
+        data_emissao: '2026-08-01',
+        data_vencimento: '2026-08-07',
+        valor_previsto: 1200.00,
+        moeda: 'EUR',
+        observacoes: 'Aluguel mensal fechado'
+      },
+      {
+        id: 'pago-003',
+        codigo_pago: 'OP-2026/0893',
+        contrato_id: 'CT-2026/0002',
+        alojamento_nome: 'BARCELONA - Gran Via de les Corts Catalanes 112',
+        alojamento_codigo: 'AL-0002',
+        provedor_nome: 'Barcelona Living Solutions SL',
+        iban_cobranca: 'ES8800810123450001234567',
+        banco: 'Banc Sabadell',
+        titular: 'Barcelona Living Solutions SL',
+        centro_custo_cliente: 'SIEMENS MOBILITY',
+        centro_custo_obra: 'Metro L9 Barcelona',
+        tipo_pago: 'Fianza_Saida',
+        status_pago: 'Pago',
+        periodo_competencia: '08/2026',
+        data_emissao: '2026-07-28',
+        data_vencimento: '2026-08-01',
+        valor_previsto: 1600.00,
+        moeda: 'EUR',
+        observacoes: 'Depósito de caução contratual (1 mês de fianza)'
+      }
+    ];
 
-  async clearAllPagos(): Promise<void> {
     try {
-      localStorage.removeItem(FINANCE_STORAGE_KEY);
-      localStorage.removeItem('mcs_logistica_ordens_pagamento_v1');
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(initialSeed));
     } catch (e) {}
+
+    return initialSeed;
   },
 
-  async gerarOrdemPagamento(payload: {
-    contrato_id?: string;
-    alojamento_id?: string;
-    alojamento_nome?: string;
-    alojamento_codigo?: string;
-    provedor_id?: string;
-    provedor_nome?: string;
-    iban_cobranca?: string;
-    banco?: string;
-    titular?: string;
-    centro_custo_cliente?: string;
-    centro_custo_obra?: string;
-    tipo_pago: PagoAlojamento['tipo_pago'];
-    valor: number;
-    data_vencimento: string;
-    periodo_competencia?: string;
-    observacoes?: string;
-    anexo_fatura_url?: string;
-  }): Promise<PagoAlojamento> {
+  async gerarOrdemPagamento(payload: Omit<PagoAlojamento, 'id' | 'codigo_pago' | 'status_pago' | 'data_emissao'>): Promise<PagoAlojamento> {
     const list = await this.fetchPagos();
-    const nextNum = list.length + 125;
-    const codOP = `OP-${String(nextNum).padStart(6, '0')}`;
-
-    const newOP: PagoAlojamento = {
-      id: `op-${Date.now()}`,
-      codigo_pago: codOP,
-      contrato_id: payload.contrato_id,
-      alojamento_id: payload.alojamento_id,
-      alojamento_nome: payload.alojamento_nome || 'Alojamento',
-      alojamento_codigo: payload.alojamento_codigo || 'AL-XXXX',
-      provedor_id: payload.provedor_id,
-      provedor_nome: payload.provedor_nome || 'Proveedor',
-      iban_cobranca: payload.iban_cobranca || '',
-      banco: payload.banco || '',
-      titular: payload.titular || '',
-      centro_custo_cliente: payload.centro_custo_cliente || 'Centro de Coste General',
-      centro_custo_obra: payload.centro_custo_obra || 'Obra Principal',
-      tipo_pago: payload.tipo_pago,
-      status_pago: 'Rascunho',
-      periodo_competencia: payload.periodo_competencia || new Date().toISOString().slice(0, 7),
+    const codigoPago = `OP-2026/${Math.floor(1000 + Math.random() * 9000)}`;
+    const novaOP: PagoAlojamento = {
+      id: crypto.randomUUID ? crypto.randomUUID() : `pago-${Date.now()}`,
+      codigo_pago: codigoPago,
+      status_pago: 'Aguardando Aprovação',
       data_emissao: new Date().toISOString().split('T')[0],
-      data_vencimento: payload.data_vencimento,
-      valor_previsto: payload.valor,
       moeda: 'EUR',
-      observacoes: payload.observacoes || `${payload.tipo_pago} de ${payload.alojamento_nome}`,
-      anexo_fatura_url: payload.anexo_fatura_url
+      ...payload
     };
 
-    const updated = [newOP, ...list];
+    list.unshift(novaOP);
     try {
-      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(list));
     } catch (e) {}
 
-    // Tentar persistir também em core_finance se disponível
-    try {
-      const financeClient = (supabase as any).schema ? (supabase as any).schema('core_finance') : supabase;
-      await financeClient.from('ordens_pagamento').insert([{
-        cod_orden_pago: codOP,
-        departamento_origem: 'Logistica',
-        tipo_orden: 'Alojamiento',
-        valor: payload.valor,
-        status: 'rascunho',
-        observaciones: payload.observacoes,
-        fecha_vencto: payload.data_vencimento,
-        cod_provedor: payload.provedor_id,
-        cod_alojamiento: payload.alojamento_id,
-        cod_contrato: payload.contrato_id
-      }]);
-    } catch (e) {}
-
-    return newOP;
+    return novaOP;
   },
 
-  async gerarOrdensPagamentoEmLote(payloads: Array<{
-    contrato_id?: string;
-    alojamento_id?: string;
-    alojamento_nome?: string;
-    alojamento_codigo?: string;
-    provedor_id?: string;
-    provedor_nome?: string;
-    iban_cobranca?: string;
-    banco?: string;
-    titular?: string;
-    centro_custo_cliente?: string;
-    centro_custo_obra?: string;
-    tipo_pago: PagoAlojamento['tipo_pago'];
-    valor: number;
-    data_vencimento: string;
-    periodo_competencia?: string;
-    observacoes?: string;
-    anexo_fatura_url?: string;
-  }>): Promise<PagoAlojamento[]> {
+  async gerarOrdensPagamentoEmLote(
+    payloads: Array<Omit<PagoAlojamento, 'id' | 'codigo_pago' | 'status_pago' | 'data_emissao'>>
+  ): Promise<PagoAlojamento[]> {
     const list = await this.fetchPagos();
-    let currentNum = list.length + 125;
-    const createdList: PagoAlojamento[] = [];
+    const today = new Date().toISOString().split('T')[0];
 
-    for (const payload of payloads) {
-      currentNum++;
-      const codOP = `OP-${String(currentNum).padStart(6, '0')}`;
-      const newOP: PagoAlojamento = {
-        id: `op-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        codigo_pago: codOP,
-        contrato_id: payload.contrato_id,
-        alojamento_id: payload.alojamento_id,
-        alojamento_nome: payload.alojamento_nome || 'Alojamento',
-        alojamento_codigo: payload.alojamento_codigo || 'AL-XXXX',
-        provedor_id: payload.provedor_id,
-        provedor_nome: payload.provedor_nome || 'Proveedor',
-        iban_cobranca: payload.iban_cobranca || '',
-        banco: payload.banco || '',
-        titular: payload.titular || '',
-        centro_custo_cliente: payload.centro_custo_cliente || 'Centro de Coste General',
-        centro_custo_obra: payload.centro_custo_obra || 'Obra Principal',
-        tipo_pago: payload.tipo_pago,
-        status_pago: 'Rascunho',
-        periodo_competencia: payload.periodo_competencia || new Date().toISOString().slice(0, 7),
-        data_emissao: new Date().toISOString().split('T')[0],
-        data_vencimento: payload.data_vencimento,
-        valor_previsto: payload.valor,
+    const createdList: PagoAlojamento[] = payloads.map((payload, index) => {
+      const randomPart = Math.floor(1000 + Math.random() * 9000) + index;
+      const codigoPago = `OP-2026/${randomPart}`;
+      return {
+        id: crypto.randomUUID ? crypto.randomUUID() : `pago-${Date.now()}-${index}`,
+        codigo_pago: codigoPago,
+        status_pago: 'Aguardando Aprovação',
+        data_emissao: today,
         moeda: 'EUR',
-        observacoes: payload.observacoes || `${payload.tipo_pago} de ${payload.alojamento_nome}`,
-        anexo_fatura_url: payload.anexo_fatura_url
+        ...payload
       };
-      createdList.push(newOP);
-    }
+    });
 
     const updated = [...createdList, ...list];
     try {
@@ -202,6 +181,60 @@ export const financeLogisticsService = {
     } catch (e) {}
 
     return createdList;
+  },
+
+  async registrarDevolucaoFianza(params: {
+    contrato_id?: string;
+    alojamento_id?: string;
+    alojamento_nome?: string;
+    alojamento_codigo?: string;
+    provedor_id?: string;
+    provedor_nome?: string;
+    iban_cobranca?: string;
+    banco?: string;
+    titular?: string;
+    centro_custo_cliente?: string;
+    centro_custo_obra?: string;
+    valor_devolvido: number;
+    valor_danos?: number;
+    valor_suministros?: number;
+    documentos_url?: string;
+    observacoes?: string;
+  }): Promise<PagoAlojamento> {
+    const list = await this.fetchPagos();
+    const codigoPago = `REC-FIANZA-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const novaDevolucao: PagoAlojamento = {
+      id: crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}`,
+      codigo_pago: codigoPago,
+      contrato_id: params.contrato_id,
+      alojamento_id: params.alojamento_id,
+      alojamento_nome: params.alojamento_nome,
+      alojamento_codigo: params.alojamento_codigo,
+      provedor_id: params.provedor_id,
+      provedor_nome: params.provedor_nome,
+      iban_cobranca: params.iban_cobranca,
+      banco: params.banco,
+      titular: params.titular,
+      centro_custo_cliente: params.centro_custo_cliente || 'Centro de Coste General',
+      centro_custo_obra: params.centro_custo_obra || 'Obra Principal',
+      tipo_pago: 'Fianza_Devolucion',
+      status_pago: 'Pago',
+      periodo_competencia: '09/2026',
+      data_emissao: new Date().toISOString().split('T')[0],
+      data_vencimento: new Date().toISOString().split('T')[0],
+      valor_previsto: params.valor_devolvido,
+      moeda: 'EUR',
+      anexo_fatura_url: params.documentos_url,
+      observacoes: `Reembolso / Devolución de fianza de ${params.alojamento_nome}. Importe reembolsado a banco: € ${params.valor_devolvido}. ${params.valor_danos ? `(Deducción por daños: € ${params.valor_danos})` : ''} ${params.valor_suministros ? `(Deducción por suministros: € ${params.valor_suministros})` : ''} ${params.observacoes || ''}`
+    };
+
+    list.unshift(novaDevolucao);
+    try {
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {}
+
+    return novaDevolucao;
   },
 
   async enviarParaAprovacao(opId: string): Promise<void> {
