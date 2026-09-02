@@ -110,14 +110,19 @@ export const AlojamentosList: React.FC = () => {
   const [assignObservacoes, setAssignObservacoes] = useState('');
   const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
 
-  // Modal de Check-out
-  const [checkingOutWorker, setCheckingOutWorker] = useState<{
-    alocacaoId: string;
-    workerNome: string;
-    alojamentoNome: string;
+  // Modal de Check-out Avançado (Individual e em Grupo/Lote)
+  const [checkingOutData, setCheckingOutData] = useState<{
+    alocacaoIds: string[];
+    workers: Array<{ id: string; nome: string; alojamento: string; alojamentoId?: string }>;
+    alojamentoNomePrincipal: string;
+    alojamentoIdPrincipal?: string;
   } | null>(null);
   const [motivoCheckout, setMotivoCheckout] = useState('Fin de Pedido / Obra');
+  const [dataSaidaEfetiva, setDataSaidaEfetiva] = useState(new Date().toISOString().split('T')[0]);
+  const [observacoesCheckout, setObservacoesCheckout] = useState('');
+  const [desativarAlojamento, setDesativarAlojamento] = useState(false);
   const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
+  const [selectedOccupantsMap, setSelectedOccupantsMap] = useState<Record<string, string[]>>({});
 
   // Ordenação
   const [sortField, setSortField] = useState<string>('created_at');
@@ -326,20 +331,120 @@ export const AlojamentosList: React.FC = () => {
     }
   };
 
+  // Abrir Checkout Individual
+  const handleOpenSingleCheckout = (oc: any, alojamento: any) => {
+    setCheckingOutData({
+      alocacaoIds: [oc.id],
+      workers: [{
+        id: oc.id,
+        nome: oc.worker_nome,
+        alojamento: alojamento.nome,
+        alojamentoId: alojamento.id
+      }],
+      alojamentoNomePrincipal: alojamento.nome,
+      alojamentoIdPrincipal: alojamento.id
+    });
+    setMotivoCheckout('Fin de Pedido / Obra');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('');
+    setDesativarAlojamento(false);
+  };
+
+  // Abrir Checkout em Lote dos Selecionados no Alojamento
+  const handleOpenBatchCheckout = (alojamento: any, occupants: any[]) => {
+    const selectedIds = selectedOccupantsMap[alojamento.id] || [];
+    if (selectedIds.length === 0) return;
+    const selectedWorkers = occupants.filter(oc => selectedIds.includes(oc.id));
+
+    setCheckingOutData({
+      alocacaoIds: selectedWorkers.map(w => w.id),
+      workers: selectedWorkers.map(w => ({
+        id: w.id,
+        nome: w.worker_nome,
+        alojamento: alojamento.nome,
+        alojamentoId: alojamento.id
+      })),
+      alojamentoNomePrincipal: alojamento.nome,
+      alojamentoIdPrincipal: alojamento.id
+    });
+    setMotivoCheckout('Fin de Pedido / Obra');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('');
+    setDesativarAlojamento(false);
+  };
+
+  // Desocupar Todo o Alojamento
+  const handleDesocuparAlojamentoCompleto = (alojamento: any, occupants: any[]) => {
+    if (occupants.length === 0) return;
+    setCheckingOutData({
+      alocacaoIds: occupants.map(w => w.id),
+      workers: occupants.map(w => ({
+        id: w.id,
+        nome: w.worker_nome,
+        alojamento: alojamento.nome,
+        alojamentoId: alojamento.id
+      })),
+      alojamentoNomePrincipal: alojamento.nome,
+      alojamentoIdPrincipal: alojamento.id
+    });
+    setMotivoCheckout('Fin de Contrato de Arrendamiento / Desmovilización');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('Desocupación total del inmueble');
+    setDesativarAlojamento(true);
+  };
+
   // Confirmar Check-out
   const handleConfirmCheckout = async () => {
-    if (!checkingOutWorker) return;
+    if (!checkingOutData || checkingOutData.alocacaoIds.length === 0) return;
     try {
       setIsSubmittingCheckout(true);
-      await logisticsService.checkoutTrabalhador(checkingOutWorker.alocacaoId, motivoCheckout);
-      setCheckingOutWorker(null);
+      await logisticsService.checkoutGrupoTrabalhadores(
+        checkingOutData.alocacaoIds,
+        motivoCheckout + (observacoesCheckout ? ` - ${observacoesCheckout}` : ''),
+        dataSaidaEfetiva,
+        desativarAlojamento ? checkingOutData.alojamentoIdPrincipal : undefined
+      );
+
+      const alojIdForVistoria = checkingOutData.alojamentoIdPrincipal;
+      const finishedAloj = desativarAlojamento;
+      setCheckingOutData(null);
+      setSelectedOccupantsMap({});
       await fetchData();
+
+      if (finishedAloj && alojIdForVistoria) {
+        if (confirm('✅ Check-out concluído con éxito y alojamiento finalizado!\n\n¿Desea ir ahora a la pantalla de Contratos & Fianzas para registrar las fotos de la vistoria de salida y gestionar la devolución de la fianza?')) {
+          navigate('/logistica/contratos');
+        }
+      }
     } catch (err: any) {
       console.error(err);
       alert('Error: ' + err.message);
     } finally {
       setIsSubmittingCheckout(false);
     }
+  };
+
+  // Helpers de seleção de ocupantes por alojamento
+  const toggleSelectOccupant = (alojamentoId: string, alocId: string) => {
+    setSelectedOccupantsMap(prev => {
+      const current = prev[alojamentoId] || [];
+      const updated = current.includes(alocId)
+        ? current.filter(id => id !== alocId)
+        : [...current, alocId];
+      return { ...prev, [alojamentoId]: updated };
+    });
+  };
+
+  const selectAllOccupantsInAlojamento = (alojamentoId: string, occupants: any[]) => {
+    setSelectedOccupantsMap(prev => {
+      const current = prev[alojamentoId] || [];
+      const allIds = occupants.map(o => o.id);
+      if (current.length === allIds.length && allIds.length > 0) {
+        return { ...prev, [alojamentoId]: [] };
+      } else {
+        return { ...prev, [alojamentoId]: allIds };
+      }
+    });
   };
 
   // Listas Únicas para Filtros
@@ -1256,9 +1361,9 @@ export const AlojamentosList: React.FC = () => {
                       {isExpanded && (
                         <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
                           
-                          {/* Barra de Título do Painel Interno */}
+                          {/* Barra de Título do Painel Interno com Ações de Check-out e Alocação */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Users size={16} className="text-blue-600" />
                               <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
                                 Trabajadores Alojados Actualmente ({occupants.length} personas)
@@ -1270,17 +1375,43 @@ export const AlojamentosList: React.FC = () => {
                               )}
                             </div>
 
-                            <button
-                              onClick={() => {
-                                setAssigningAlojamento(a);
-                                const firstFreeBed = camas.find(c => c.alojamento_id === a.id && c.status === 'livre');
-                                if (firstFreeBed) setAssignCamaId(firstFreeBed.id);
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs w-fit"
-                            >
-                              <UserPlus size={13} />
-                              + Asignar Trabajador a este Alojamiento
-                            </button>
+                            {/* Botões de Ação no Alojamento */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Botão de Check-out em Lote para Selecionados */}
+                              {(selectedOccupantsMap[a.id]?.length || 0) > 0 && (
+                                <button
+                                  onClick={() => handleOpenBatchCheckout(a, occupants)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs animate-in fade-in cursor-pointer"
+                                >
+                                  <LogOut size={13} />
+                                  Check-out Colectivo ({selectedOccupantsMap[a.id].length})
+                                </button>
+                              )}
+
+                              {/* Botão de Desocupar Todo o Alojamento */}
+                              {occupants.length > 0 && (
+                                <button
+                                  onClick={() => handleDesocuparAlojamentoCompleto(a, occupants)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                                  title="Check-out de todos los ocupantes y cierre de este alojamiento"
+                                >
+                                  <Home size={13} />
+                                  Desocupar Todo ({occupants.length})
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  setAssigningAlojamento(a);
+                                  const firstFreeBed = camas.find(c => c.alojamento_id === a.id && c.status === 'livre');
+                                  if (firstFreeBed) setAssignCamaId(firstFreeBed.id);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                              >
+                                <UserPlus size={13} />
+                                + Asignar Trabajador
+                              </button>
+                            </div>
                           </div>
 
                           {/* TABELA DE TRABALHADORES HOSPEDADOS */}
@@ -1299,6 +1430,18 @@ export const AlojamentosList: React.FC = () => {
                               <table className="w-full text-xs text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-800 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
                                   <tr>
+                                    <th className="w-8 px-4 py-2.5">
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          occupants.length > 0 &&
+                                          (selectedOccupantsMap[a.id]?.length || 0) === occupants.length
+                                        }
+                                        onChange={() => selectAllOccupantsInAlojamento(a.id, occupants)}
+                                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                                        title="Seleccionar todos los ocupantes"
+                                      />
+                                    </th>
                                     <th className="px-4 py-2.5">Cód.</th>
                                     <th className="px-4 py-2.5">Trabajador</th>
                                     <th className="px-4 py-2.5">Empresa</th>
@@ -1310,94 +1453,106 @@ export const AlojamentosList: React.FC = () => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                  {occupants.map(oc => (
-                                    <tr key={oc.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-700/30 transition-colors">
-                                      <td className="px-4 py-3 font-mono font-bold text-slate-700 dark:text-slate-300">
-                                        {oc.codigo_colab || 'E-XXXX'}
-                                      </td>
+                                  {occupants.map(oc => {
+                                    const isSelected = (selectedOccupantsMap[a.id] || []).includes(oc.id);
 
-                                      <td className="px-4 py-3">
-                                        <p className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</p>
-                                        {oc.worker_movil ? (
-                                          <a
-                                            href={`https://wa.me/${oc.worker_movil.replace(/\D/g, '')}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            onClick={e => e.stopPropagation()}
-                                            className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-semibold mt-0.5"
-                                            title="Contactar al trabajador por WhatsApp"
+                                    return (
+                                      <tr
+                                        key={oc.id}
+                                        className={`hover:bg-blue-50/30 dark:hover:bg-slate-700/30 transition-colors ${
+                                          isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                                        }`}
+                                      >
+                                        <td className="px-4 py-3">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleSelectOccupant(a.id, oc.id)}
+                                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                                          />
+                                        </td>
+
+                                        <td className="px-4 py-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                          {oc.codigo_colab || 'E-XXXX'}
+                                        </td>
+
+                                        <td className="px-4 py-3">
+                                          <p className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</p>
+                                          {oc.worker_movil ? (
+                                            <a
+                                              href={`https://wa.me/${oc.worker_movil.replace(/\D/g, '')}`}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              onClick={e => e.stopPropagation()}
+                                              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-semibold mt-0.5"
+                                              title="Contactar al trabajador por WhatsApp"
+                                            >
+                                              <Phone size={11} />
+                                              {oc.worker_movil}
+                                            </a>
+                                          ) : (
+                                            <span className="text-[10px] text-slate-400 block mt-0.5 font-normal">Sin teléfono móvil</span>
+                                          )}
+                                        </td>
+
+                                        <td className="px-4 py-3">
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                            {oc.empresa_contratante || 'STOCCO, LDA'}
+                                          </span>
+                                        </td>
+
+                                        <td className="px-4 py-3">
+                                          <p className="font-semibold text-slate-700 dark:text-slate-300">{oc.cliente_nome}</p>
+                                          {oc.pedido_codigo && (
+                                            <span className="text-[10px] font-mono text-slate-400 block">{oc.pedido_codigo}</span>
+                                          )}
+                                        </td>
+
+                                        <td className="px-4 py-3">
+                                          <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+                                            <Bed size={12} className="text-blue-500" />
+                                            {oc.cama_identificador || (oc.cama_id?.includes('dup') ? 'Cama Doble' : 'Cama Individual')}
+                                          </span>
+                                        </td>
+
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                          <p className="font-medium">Desde: {oc.data_inicio}</p>
+                                          {oc.data_fim && <p className="text-[10px] text-slate-400">Hasta: {oc.data_fim}</p>}
+                                        </td>
+
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                          {oc.contacto_hospedaje ? (
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="font-semibold text-[11px]">{oc.contacto_hospedaje}</span>
+                                              {oc.contacto_hospedaje.replace(/\D/g, '').length >= 9 && (
+                                                <a
+                                                  href={`https://wa.me/${oc.contacto_hospedaje.replace(/\D/g, '')}`}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors"
+                                                  title="WhatsApp"
+                                                >
+                                                  <Phone size={11} />
+                                                </a>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-400 text-[10px]">No registrado</span>
+                                          )}
+                                        </td>
+
+                                        <td className="px-4 py-3 text-right">
+                                          <button
+                                            onClick={() => handleOpenSingleCheckout(oc, a)}
+                                            className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
                                           >
-                                            <Phone size={11} />
-                                            {oc.worker_movil}
-                                          </a>
-                                        ) : (
-                                          <span className="text-[10px] text-slate-400 block mt-0.5 font-normal">Sin teléfono móvil</span>
-                                        )}
-                                      </td>
-
-                                      <td className="px-4 py-3">
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                          {oc.empresa_contratante || 'STOCCO, LDA'}
-                                        </span>
-                                      </td>
-
-                                      <td className="px-4 py-3">
-                                        <p className="font-semibold text-slate-700 dark:text-slate-300">{oc.cliente_nome}</p>
-                                        {oc.pedido_codigo && (
-                                          <span className="text-[10px] font-mono text-slate-400 block">{oc.pedido_codigo}</span>
-                                        )}
-                                      </td>
-
-                                      <td className="px-4 py-3">
-                                        <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
-                                          <Bed size={12} className="text-blue-500" />
-                                          {oc.cama_identificador || (oc.cama_id?.includes('dup') ? 'Cama Doble' : 'Cama Individual')}
-                                        </span>
-                                      </td>
-
-                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                                        <p className="font-medium">Desde: {oc.data_inicio}</p>
-                                        {oc.data_fim && <p className="text-[10px] text-slate-400">Hasta: {oc.data_fim}</p>}
-                                      </td>
-
-                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                                        {oc.contacto_hospedaje ? (
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="font-semibold text-[11px]">{oc.contacto_hospedaje}</span>
-                                            {oc.contacto_hospedaje.replace(/\D/g, '').length >= 9 && (
-                                              <a
-                                                href={`https://wa.me/${oc.contacto_hospedaje.replace(/\D/g, '')}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors"
-                                                title="WhatsApp"
-                                              >
-                                                <Phone size={11} />
-                                              </a>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <span className="text-slate-400 text-[10px]">No registrado</span>
-                                        )}
-                                      </td>
-
-                                      <td className="px-4 py-3 text-right">
-                                        <button
-                                          onClick={() => {
-                                            setCheckingOutWorker({
-                                              alocacaoId: oc.id,
-                                              workerNome: oc.worker_nome,
-                                              alojamentoNome: a.nome
-                                            });
-                                          }}
-                                          className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1"
-                                        >
-                                          <LogOut size={12} />
-                                          Check-out
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                            <LogOut size={12} />
+                                            Check-out
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -2475,53 +2630,118 @@ export const AlojamentosList: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: CHECK-OUT DE TRABAJADOR */}
+      {/* MODAL 2: CHECK-OUT AVANÇADO (INDIVIDUAL E EM LOTE) */}
       {/* ========================================================================= */}
-      {checkingOutWorker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
-                <LogOut size={22} />
+      {checkingOutData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
+                  <LogOut size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {checkingOutData.workers.length > 1
+                      ? `Procesar Check-out Colectivo (${checkingOutData.workers.length} trabajadores)`
+                      : 'Procesar Check-out de Trabajador'}
+                  </h3>
+                  <p className="text-xs text-slate-500">Liberación de plazas e inspección de salida.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Procesar Check-out</h3>
-                <p className="text-xs text-slate-500">Liberación de plaza e inspección de salida.</p>
+              <button
+                onClick={() => setCheckingOutData(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Lista dos trabalhadores a realizar check-out */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-700 dark:text-slate-300 text-xs block">
+                Colaboradores afectados ({checkingOutData.workers.length}):
+              </label>
+              <div className="max-h-32 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                {checkingOutData.workers.map((w, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{w.nome}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{w.alojamento}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <p className="text-xs text-slate-700 dark:text-slate-300">
-              ¿Desea registrar la salida de <strong className="text-slate-900 dark:text-white">{checkingOutWorker.workerNome}</strong> del alojamiento <strong className="text-slate-900 dark:text-white">{checkingOutWorker.alojamentoNome}</strong>? La plaza quedará libre inmediatamente.
-            </p>
-
-            <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="font-bold text-slate-600 block mb-1">Motivo del Check-out:</label>
+                <label className="font-bold text-slate-600 dark:text-slate-400 block mb-1">Motivo del Check-out:</label>
                 <select
                   value={motivoCheckout}
                   onChange={e => setMotivoCheckout(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
                 >
                   <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
-                  <option value="Reemplazo por Baja">Reemplazo por Baja Médica / Renuncia</option>
-                  <option value="Cambio de Alojamiento">Cambio de Alojamiento / Reubicación</option>
-                  <option value="Cancelación de Pedido">Cancelación de Pedido</option>
+                  <option value="Traslado / Reubicación">Traslado / Reubicación a otro Alojamiento</option>
+                  <option value="Fin de Contrato de Arrendamiento">Fin de Arrendamiento / Desmovilización</option>
+                  <option value="Baja Médica / Renuncia">Baja Médica / Renuncia del Colaborador</option>
+                  <option value="Vacaciones / Permiso">Vacaciones / Permiso</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-600 dark:text-slate-400 block mb-1">Fecha Efectiva de Salida:</label>
+                <input
+                  type="date"
+                  value={dataSaidaEfetiva}
+                  onChange={e => setDataSaidaEfetiva(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
+                />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="space-y-1 text-xs">
+              <label className="font-bold text-slate-600 dark:text-slate-400 block">Observaciones de Salida:</label>
+              <input
+                type="text"
+                value={observacoesCheckout}
+                onChange={e => setObservacoesCheckout(e.target.value)}
+                placeholder="Ej: Entrega de llaves realizada, sin novedades..."
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
+              />
+            </div>
+
+            {/* Checkbox para Finalizar / Desativar Alojamento */}
+            {checkingOutData.alojamentoIdPrincipal && checkingOutData.alojamentoIdPrincipal !== 'propio' && checkingOutData.alojamentoIdPrincipal !== 'cliente' && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={desativarAlojamento}
+                    onChange={e => setDesativarAlojamento(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300"
+                  />
+                  <span className="font-bold text-xs text-amber-900 dark:text-amber-300">
+                    ¿Finalizar y dar de baja este alojamiento?
+                  </span>
+                </label>
+                <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-6">
+                  Marca el inmueble como inactivo y permite ir directamente a la gestión de Vistoria, fotos de avarias y reembolso de fianza.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 disabled={isSubmittingCheckout}
-                onClick={() => setCheckingOutWorker(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
+                onClick={() => setCheckingOutData(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 disabled={isSubmittingCheckout}
                 onClick={handleConfirmCheckout}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs"
               >
                 <LogOut size={13} />
                 {isSubmittingCheckout ? 'Procesando...' : 'Confirmar Salida'}

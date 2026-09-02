@@ -45,6 +45,7 @@ import {
   ArrowUp,
   ArrowDown
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { logisticsService } from '../services/logisticsService';
 import type {
   Alojamento,
@@ -62,6 +63,7 @@ const MESES_NOMES = [
 ];
 
 export const DemandasAlocacaoPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente'>('demandas');
   const [pedidos, setPedidos] = useState<PedidoDemandaLogistica[]>([]);
   const [alojados, setAlojados] = useState<TrabalhadorAlojado[]>([]);
@@ -80,12 +82,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [pedidoWorkersSortField, setPedidoWorkersSortField] = useState<'nome' | 'codigo' | 'funcao' | 'status'>('status');
   const [pedidoWorkersSortOrder, setPedidoWorkersSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Filtros e Ordenação de Alojamientos de la Empresa (Aba 2)
+  // Filtros Avançados e Ordenação de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
   const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
+  const [alojadosAlojamentoFilter, setAlojadosAlojamentoFilter] = useState('todos');
+  const [alojadosClienteFilter, setAlojadosClienteFilter] = useState('todos');
+  const [alojadosObraFilter, setAlojadosObraFilter] = useState('todos');
+  const [alojadosPedidoFilter, setAlojadosPedidoFilter] = useState('todos');
   const [alojadosTipoSubFilter, setAlojadosTipoSubFilter] = useState<'todos' | 'fijo' | 'temporal'>('todos');
   const [empresaSortField, setEmpresaSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'data_checkin'>('cliente');
   const [empresaSortOrder, setEmpresaSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Seleção Múltipla para Check-out em Lote (Aba 2)
+  const [selectedAlojadosIds, setSelectedAlojadosIds] = useState<string[]>([]);
 
   // Filtros, Mês de Referência e Ordenação para Alojamiento Propio (Aba 3)
   const [propioYear, setPropioYear] = useState<number>(2026);
@@ -102,7 +111,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [clienteSortField, setClienteSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'periodo'>('cliente');
   const [clienteSortOrder, setClienteSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Seleção Múltipla para Alocação em Lote
+  // Seleção Múltipla para Alocação em Lote (Aba 1)
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchAlojamentoId, setBatchAlojamentoId] = useState('');
@@ -159,14 +168,17 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [directDataFim, setDirectDataFim] = useState('');
   const [directObservacoes, setDirectObservacoes] = useState('');
 
-  // Check-out Modal
-  const [checkingOutWorker, setCheckingOutWorker] = useState<{
-    alocacaoId: string;
-    workerNome: string;
-    alojamentoNome: string;
+  // Modal de Check-out Avançado (Individual e em Grupo/Lote por Alojamento ou Obra)
+  const [checkingOutData, setCheckingOutData] = useState<{
+    alocacaoIds: string[];
+    workers: Array<{ id: string; nome: string; alojamento: string; alojamentoId?: string }>;
+    alojamentoNomePrincipal: string;
+    alojamentoIdPrincipal?: string;
   } | null>(null);
   const [motivoCheckout, setMotivoCheckout] = useState<string>('Fin de Pedido / Obra');
   const [dataSaidaEfetiva, setDataSaidaEfetiva] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [observacoesCheckout, setObservacoesCheckout] = useState<string>('');
+  const [desativarAlojamento, setDesativarAlojamento] = useState<boolean>(false);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   const loadData = async () => {
@@ -301,6 +313,46 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return alojados.filter(a => a.tipo_alojamento === 'Cliente' || a.status === 'Alojamiento Cliente');
   }, [alojados]);
 
+  // Listas Únicas para Filtros Avançados da Aba 2 (Alojamientos Empresa)
+  const empresasList = useMemo(() => {
+    const set = new Set<string>();
+    empresaAlojadosRaw.forEach(a => { if (a.empresa_contratante) set.add(a.empresa_contratante); });
+    return Array.from(set).sort();
+  }, [empresaAlojadosRaw]);
+
+  const alojamentosListAba2 = useMemo(() => {
+    const map = new Map<string, string>();
+    empresaAlojadosRaw.forEach(a => {
+      if (a.alojamento_nome) {
+        map.set(a.alojamento_nome, a.alojamento_id || a.alojamento_nome);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([nome, id]) => ({ nome, id }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [empresaAlojadosRaw]);
+
+  const clientesListAba2 = useMemo(() => {
+    const set = new Set<string>();
+    empresaAlojadosRaw.forEach(a => { if (a.cliente_nome) set.add(a.cliente_nome); });
+    return Array.from(set).sort();
+  }, [empresaAlojadosRaw]);
+
+  const obrasListAba2 = useMemo(() => {
+    const set = new Set<string>();
+    empresaAlojadosRaw.forEach(a => {
+      if (a.obra_nome) set.add(a.obra_nome);
+      if (a.municipio) set.add(a.municipio);
+    });
+    return Array.from(set).sort();
+  }, [empresaAlojadosRaw]);
+
+  const pedidosListAba2 = useMemo(() => {
+    const set = new Set<string>();
+    empresaAlojadosRaw.forEach(a => { if (a.pedido_codigo) set.add(a.pedido_codigo); });
+    return Array.from(set).sort();
+  }, [empresaAlojadosRaw]);
+
   // Trabalhadores Alojados em Imóveis da Empresa Filtrados (Aba 2)
   const filteredAlojadosEmpresa = useMemo(() => {
     return empresaAlojadosRaw.filter(a => {
@@ -312,12 +364,29 @@ export const DemandasAlocacaoPage: React.FC = () => {
         a.obra_nome.toLowerCase().includes(q) ||
         a.alojamento_nome.toLowerCase().includes(q) ||
         a.municipio.toLowerCase().includes(q) ||
+        (a.pedido_codigo && a.pedido_codigo.toLowerCase().includes(q)) ||
         (a.empresa_contratante && a.empresa_contratante.toLowerCase().includes(q))
       );
 
       if (!matchesSearch) return false;
 
       if (alojadosEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== alojadosEmpresaFilter.toLowerCase()) {
+        return false;
+      }
+
+      if (alojadosAlojamentoFilter !== 'todos' && a.alojamento_nome !== alojadosAlojamentoFilter && a.alojamento_id !== alojadosAlojamentoFilter) {
+        return false;
+      }
+
+      if (alojadosClienteFilter !== 'todos' && a.cliente_nome !== alojadosClienteFilter) {
+        return false;
+      }
+
+      if (alojadosObraFilter !== 'todos' && a.obra_nome !== alojadosObraFilter && a.municipio !== alojadosObraFilter) {
+        return false;
+      }
+
+      if (alojadosPedidoFilter !== 'todos' && a.pedido_codigo !== alojadosPedidoFilter) {
         return false;
       }
 
@@ -331,7 +400,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       return true;
     });
-  }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter, alojadosTipoSubFilter]);
+  }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter, alojadosAlojamentoFilter, alojadosClienteFilter, alojadosObraFilter, alojadosPedidoFilter, alojadosTipoSubFilter]);
 
   // Função para Cálculo Proporcional Mensal de Alojamento Próprio (€ 300 base)
   const calculateProporcionalPropio = (checkinStr?: string, checkoutStr?: string, year: number = 2026, month: number = 8) => {
@@ -565,14 +634,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     });
   }, [filteredClienteAlojados, clienteSortField, clienteSortOrder]);
 
-  // Empresas Únicas para Filtro
-  const empresasList = useMemo(() => {
-    const set = new Set<string>();
-    alojados.forEach(a => {
-      if (a.empresa_contratante) set.add(a.empresa_contratante);
-    });
-    return Array.from(set).sort();
-  }, [alojados]);
+
 
   // Colunas de Exportação para Excel (.xlsx)
   const exportColumnsPropio: ExportColumnDef[] = [
@@ -1053,19 +1115,116 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
-  // Confirmar Check-out
+  // Abrir Checkout Individual
+  const handleOpenSingleCheckout = (aloc: TrabalhadorAlojado) => {
+    setCheckingOutData({
+      alocacaoIds: [aloc.alocacao_id || aloc.id],
+      workers: [{
+        id: aloc.alocacao_id || aloc.id,
+        nome: aloc.worker_nome,
+        alojamento: aloc.alojamento_nome,
+        alojamentoId: aloc.alojamento_id
+      }],
+      alojamentoNomePrincipal: aloc.alojamento_nome,
+      alojamentoIdPrincipal: aloc.alojamento_id
+    });
+    setMotivoCheckout('Fin de Pedido / Obra');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('');
+    setDesativarAlojamento(false);
+  };
+
+  // Abrir Checkout em Lote dos Selecionados
+  const handleOpenBatchCheckout = () => {
+    if (selectedAlojadosIds.length === 0) return;
+    const selectedWorkers = filteredAlojadosEmpresa.filter(a => selectedAlojadosIds.includes(a.alocacao_id || a.id));
+    const firstAlojNome = selectedWorkers[0]?.alojamento_nome || 'Alojamiento';
+    const firstAlojId = selectedWorkers[0]?.alojamento_id;
+
+    setCheckingOutData({
+      alocacaoIds: selectedWorkers.map(w => w.alocacao_id || w.id),
+      workers: selectedWorkers.map(w => ({
+        id: w.alocacao_id || w.id,
+        nome: w.worker_nome,
+        alojamento: w.alojamento_nome,
+        alojamentoId: w.alojamento_id
+      })),
+      alojamentoNomePrincipal: firstAlojNome,
+      alojamentoIdPrincipal: firstAlojId
+    });
+    setMotivoCheckout('Fin de Pedido / Obra');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('');
+    setDesativarAlojamento(false);
+  };
+
+  // Desocupar Todo o Alojamento Filtrado
+  const handleDesocuparAlojamentoCompleto = () => {
+    if (filteredAlojadosEmpresa.length === 0) return;
+    const allIds = filteredAlojadosEmpresa.map(a => a.alocacao_id || a.id);
+    const firstAlojNome = filteredAlojadosEmpresa[0]?.alojamento_nome || 'Alojamiento';
+    const firstAlojId = filteredAlojadosEmpresa[0]?.alojamento_id;
+
+    setCheckingOutData({
+      alocacaoIds: allIds,
+      workers: filteredAlojadosEmpresa.map(w => ({
+        id: w.alocacao_id || w.id,
+        nome: w.worker_nome,
+        alojamento: w.alojamento_nome,
+        alojamentoId: w.alojamento_id
+      })),
+      alojamentoNomePrincipal: firstAlojNome,
+      alojamentoIdPrincipal: firstAlojId
+    });
+    setMotivoCheckout('Fin de Contrato de Arrendamiento / Desmovilización');
+    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setObservacoesCheckout('Desocupación total y cierre del alojamiento');
+    setDesativarAlojamento(true);
+  };
+
+  // Confirmar Check-out (Individual ou Lote)
   const handleConfirmCheckout = async () => {
-    if (!checkingOutWorker) return;
+    if (!checkingOutData || checkingOutData.alocacaoIds.length === 0) return;
     try {
       setIsProcessingCheckout(true);
-      await logisticsService.checkoutTrabalhador(checkingOutWorker.alocacaoId, motivoCheckout);
-      setCheckingOutWorker(null);
+      await logisticsService.checkoutGrupoTrabalhadores(
+        checkingOutData.alocacaoIds,
+        motivoCheckout + (observacoesCheckout ? ` - ${observacoesCheckout}` : ''),
+        dataSaidaEfetiva,
+        desativarAlojamento ? checkingOutData.alojamentoIdPrincipal : undefined
+      );
+
+      const alojIdForVistoria = checkingOutData.alojamentoIdPrincipal;
+      setCheckingOutData(null);
+      setSelectedAlojadosIds([]);
       await loadData();
+
+      if (desativarAlojamento && alojIdForVistoria) {
+        if (confirm('✅ Check-out concluído con éxito y alojamiento finalizado!\n\n¿Desea ir ahora a la pantalla de Contratos & Fianzas para registrar las fotos de la vistoria de salida y gestionar la devolución de la fianza?')) {
+          navigate('/logistica/contratos');
+        }
+      }
     } catch (err: any) {
       console.error(err);
       alert('Error al procesar check-out: ' + err.message);
     } finally {
       setIsProcessingCheckout(false);
+    }
+  };
+
+  // Alternar seleção de trabalhador para lote no Check-out (Aba 2)
+  const toggleSelectAlojado = (id: string) => {
+    setSelectedAlojadosIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllAlojadosInFilter = () => {
+    const allIds = filteredAlojadosEmpresa.map(a => a.alocacao_id || a.id);
+    if (selectedAlojadosIds.length === allIds.length && allIds.length > 0) {
+      setSelectedAlojadosIds([]);
+    } else {
+      setSelectedAlojadosIds(allIds);
     }
   };
 
@@ -1806,11 +1965,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                   {isAllocated ? (
                                     <button
                                       onClick={() => {
-                                        setCheckingOutWorker({
-                                          alocacaoId: worker.alocacao_detalhe!.alocacao_id,
-                                          workerNome: worker.worker_nome,
-                                          alojamentoNome: worker.alocacao_detalhe!.alojamento_nome
+                                        setCheckingOutData({
+                                          alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
+                                          workers: [{
+                                            id: worker.alocacao_detalhe!.alocacao_id,
+                                            nome: worker.worker_nome,
+                                            alojamento: worker.alocacao_detalhe!.alojamento_nome,
+                                            alojamentoId: worker.alocacao_detalhe!.alojamento_id
+                                          }],
+                                          alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
+                                          alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
                                         });
+                                        setMotivoCheckout('Fin de Pedido / Obra');
+                                        setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+                                        setObservacoesCheckout('');
+                                        setDesativarAlojamento(false);
                                       }}
                                       className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1"
                                     >
@@ -1858,84 +2027,196 @@ export const DemandasAlocacaoPage: React.FC = () => {
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs space-y-0">
           
           {/* Header & Filtros da Aba de Alojados da Empresa */}
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/70">
-            <div>
-              <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Building size={16} className="text-blue-600" />
-                Alojamientos Gestionados por la Empresa ({filteredAlojadosEmpresa.length} de {empresaAlojadosRaw.length})
-              </h2>
-              <p className="text-xs text-slate-500">Colaboradores asignados a inmuebles fijos y reservas temporales contratadas por la empresa.</p>
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3 bg-slate-50/70 dark:bg-slate-800/70">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Building size={16} className="text-blue-600" />
+                  Alojamientos Gestionados por la Empresa ({filteredAlojadosEmpresa.length} de {empresaAlojadosRaw.length})
+                </h2>
+                <p className="text-xs text-slate-500">Colaboradores asignados a inmuebles fijos y reservas temporales contratadas por la empresa.</p>
+              </div>
+
+              {/* Botões de Ação em Lote */}
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedAlojadosIds.length > 0 && (
+                  <button
+                    onClick={handleOpenBatchCheckout}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs animate-in fade-in"
+                  >
+                    <LogOut size={13} />
+                    Check-out Colectivo ({selectedAlojadosIds.length} seleccionados)
+                  </button>
+                )}
+
+                {alojadosAlojamentoFilter !== 'todos' && filteredAlojadosEmpresa.length > 0 && (
+                  <button
+                    onClick={handleDesocuparAlojamentoCompleto}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    title="Desocupar todos los trabajadores y finalizar este alojamiento"
+                  >
+                    <Home size={13} />
+                    Desocupar Todo el Alojamiento ({filteredAlojadosEmpresa.length})
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Filtro Empresa */}
-              {empresasList.length > 0 && (
-                <select
-                  value={alojadosEmpresaFilter}
-                  onChange={e => setAlojadosEmpresaFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
-                >
-                  <option value="todas">Empresa: Todas</option>
-                  {empresasList.map(emp => (
-                    <option key={emp} value={emp}>{emp}</option>
-                  ))}
-                </select>
-              )}
+            {/* Linha de Filtros Avançados: Alojamento, Cliente, Obra, Pedido, Empresa e Busca */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+              
+              {/* Filtro por Alojamento */}
+              <select
+                value={alojadosAlojamentoFilter}
+                onChange={e => setAlojadosAlojamentoFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 truncate"
+                title="Filtrar por Alojamiento Específico"
+              >
+                <option value="todos">🏠 Alojamiento: Todos</option>
+                {alojamentosListAba2.map(al => (
+                  <option key={al.id} value={al.nome}>{al.nome}</option>
+                ))}
+              </select>
 
-              {/* Busca */}
-              <div className="relative w-48 sm:w-64">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              {/* Filtro por Cliente */}
+              <select
+                value={alojadosClienteFilter}
+                onChange={e => setAlojadosClienteFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 truncate"
+                title="Filtrar por Cliente"
+              >
+                <option value="todos">🏢 Cliente: Todos</option>
+                {clientesListAba2.map(cli => (
+                  <option key={cli} value={cli}>{cli}</option>
+                ))}
+              </select>
+
+              {/* Filtro por Obra / Cidade */}
+              <select
+                value={alojadosObraFilter}
+                onChange={e => setAlojadosObraFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 truncate"
+                title="Filtrar por Obra / Ubicación"
+              >
+                <option value="todos">📍 Obra / Ciudad: Todas</option>
+                {obrasListAba2.map(ob => (
+                  <option key={ob} value={ob}>{ob}</option>
+                ))}
+              </select>
+
+              {/* Filtro por Pedido */}
+              <select
+                value={alojadosPedidoFilter}
+                onChange={e => setAlojadosPedidoFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 truncate"
+                title="Filtrar por Pedido Comercial"
+              >
+                <option value="todos">🏷️ Pedido: Todos</option>
+                {pedidosListAba2.map(ped => (
+                  <option key={ped} value={ped}>{ped}</option>
+                ))}
+              </select>
+
+              {/* Filtro Empresa */}
+              <select
+                value={alojadosEmpresaFilter}
+                onChange={e => setAlojadosEmpresaFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 truncate"
+                title="Filtrar por Empresa Contratante"
+              >
+                <option value="todas">Empresa: Todas</option>
+                {empresasList.map(emp => (
+                  <option key={emp} value={emp}>{emp}</option>
+                ))}
+              </select>
+
+              {/* Busca Geral */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 <input
                   type="text"
-                  placeholder="Buscar trabajador, pedido, obra, ciudad..."
+                  placeholder="Buscar..."
                   value={alojadosSearch}
                   onChange={e => setAlojadosSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200"
                 />
               </div>
+
             </div>
           </div>
 
           {/* Chips de Modalidade: Fijo vs Temporal */}
-          <div className="px-4 py-2 bg-slate-100/60 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setAlojadosTipoSubFilter('todos')}
-              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                alojadosTipoSubFilter === 'todos'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              Todos ({empresaAlojadosRaw.length})
-            </button>
-            <button
-              onClick={() => setAlojadosTipoSubFilter('fijo')}
-              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                alojadosTipoSubFilter === 'fijo'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span>🏠</span>
-              Inmuebles Fijos ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'fijo').length})
-            </button>
-            <button
-              onClick={() => setAlojadosTipoSubFilter('temporal')}
-              className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                alojadosTipoSubFilter === 'temporal'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span>🏨</span>
-              Temporales (Booking & Airbnb) ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'temporal').length})
-            </button>
+          <div className="px-4 py-2 bg-slate-100/60 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setAlojadosTipoSubFilter('todos')}
+                className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  alojadosTipoSubFilter === 'todos'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                Todos ({empresaAlojadosRaw.length})
+              </button>
+              <button
+                onClick={() => setAlojadosTipoSubFilter('fijo')}
+                className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                  alojadosTipoSubFilter === 'fijo'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>🏠</span>
+                Inmuebles Fijos ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'fijo').length})
+              </button>
+              <button
+                onClick={() => setAlojadosTipoSubFilter('temporal')}
+                className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                  alojadosTipoSubFilter === 'temporal'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>🏨</span>
+                Temporales (Booking & Airbnb) ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'temporal').length})
+              </button>
+            </div>
+
+            {(alojadosAlojamentoFilter !== 'todos' || alojadosClienteFilter !== 'todos' || alojadosObraFilter !== 'todos' || alojadosPedidoFilter !== 'todos' || alojadosEmpresaFilter !== 'todas' || alojadosSearch.trim() !== '') && (
+              <button
+                onClick={() => {
+                  setAlojadosAlojamentoFilter('todos');
+                  setAlojadosClienteFilter('todos');
+                  setAlojadosObraFilter('todos');
+                  setAlojadosPedidoFilter('todos');
+                  setAlojadosEmpresaFilter('todas');
+                  setAlojadosSearch('');
+                }}
+                className="text-[11px] font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <X size={12} />
+                Limpiar Filtros
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 <tr>
+                  <th className="w-8 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredAlojadosEmpresa.length > 0 &&
+                        selectedAlojadosIds.length === filteredAlojadosEmpresa.length
+                      }
+                      onChange={selectAllAlojadosInFilter}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                      title="Seleccionar todos los visibles"
+                    />
+                  </th>
+
                   <th className="px-4 py-3">
                     <button
                       onClick={() => {
@@ -2044,117 +2325,129 @@ export const DemandasAlocacaoPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {sortedAlojadosEmpresa.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-12 text-center text-slate-400">
+                    <td colSpan={8} className="p-12 text-center text-slate-400">
                       Ningún trabajador encontrado con los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
-                  sortedAlojadosEmpresa.map(aloc => (
-                    <tr key={aloc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
-                          {aloc.worker_movil && (
+                  sortedAlojadosEmpresa.map(aloc => {
+                    const isSelected = selectedAlojadosIds.includes(aloc.alocacao_id || aloc.id);
+
+                    return (
+                      <tr
+                        key={aloc.id}
+                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                          isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectAlojado(aloc.alocacao_id || aloc.id)}
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                          />
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
+                            {aloc.worker_movil && (
+                              <a
+                                href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                title="WhatsApp del Trabajador"
+                              >
+                                <Phone size={10} />
+                                {aloc.worker_movil}
+                              </a>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
+                            {aloc.empresa_contratante || 'LUMINOUS'}
+                          </span>
+                          {aloc.pedido_codigo && (
+                            <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                              {aloc.pedido_codigo}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
+                          <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg ${
+                              aloc.tipo_alojamento?.toLowerCase() === 'temporal'
+                                ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40'
+                                : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'
+                            }`}>
+                              {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? <Hotel size={13} /> : <Home size={13} />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                  aloc.tipo_alojamento?.toLowerCase() === 'temporal'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                                }`}>
+                                  {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? 'Temporal' : 'Fijo'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center gap-1">
+                            <MapPin size={12} className="text-slate-400" />
+                            <span>{aloc.municipio}</span>
+                          </div>
+                          {aloc.latitude && aloc.longitude && (
                             <a
-                              href={`https://wa.me/${aloc.worker_movil.replace(/\D/g, '')}`}
+                              href={`https://www.google.com/maps/search/?api=1&query=${aloc.latitude},${aloc.longitude}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
-                              title="WhatsApp del Trabajador"
+                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-mono"
                             >
-                              <Phone size={10} />
-                              {aloc.worker_movil}
+                              <Globe size={9} />
+                              Maps
                             </a>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-3.5">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 block w-fit">
-                          {aloc.empresa_contratante || 'LUMINOUS'}
-                        </span>
-                        {aloc.pedido_codigo && (
-                          <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                            {aloc.pedido_codigo}
-                          </span>
-                        )}
-                      </td>
+                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                          <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                          {aloc.data_checkout_prevista ? (
+                            <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                          ) : (
+                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
+                          )}
+                        </td>
 
-                      <td className="px-4 py-3.5">
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">{aloc.cliente_nome}</p>
-                        <p className="text-[10px] text-slate-400">{aloc.obra_nome}</p>
-                      </td>
-
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${
-                            aloc.tipo_alojamento?.toLowerCase() === 'temporal'
-                              ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40'
-                              : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'
-                          }`}>
-                            {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? <Hotel size={13} /> : <Home size={13} />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-bold text-slate-800 dark:text-slate-200">{aloc.alojamento_nome}</p>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
-                                aloc.tipo_alojamento?.toLowerCase() === 'temporal'
-                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                              }`}>
-                                {aloc.tipo_alojamento?.toLowerCase() === 'temporal' ? 'Temporal' : 'Fijo'}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400">{aloc.cama_identificador}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        <div className="flex items-center gap-1">
-                          <MapPin size={12} className="text-slate-400" />
-                          <span>{aloc.municipio}</span>
-                        </div>
-                        {aloc.latitude && aloc.longitude && (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${aloc.latitude},${aloc.longitude}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-mono"
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            onClick={() => handleOpenSingleCheckout(aloc)}
+                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                           >
-                            <Globe size={9} />
-                            Maps
-                          </a>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                        <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                        {aloc.data_checkout_prevista ? (
-                          <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
-                        ) : (
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          onClick={() => {
-                            setCheckingOutWorker({
-                              alocacaoId: aloc.alocacao_id,
-                              workerNome: aloc.worker_nome,
-                              alojamentoNome: aloc.alojamento_nome
-                            });
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <LogOut size={13} />
-                          Check-out
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                            <LogOut size={13} />
+                            Check-out
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -2555,13 +2848,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <td className="px-4 py-3.5 text-right">
                             <button
                               onClick={() => {
-                                setCheckingOutWorker({
-                                  alocacaoId: a.alocacao_id,
-                                  workerNome: a.worker_nome,
-                                  alojamentoNome: 'Alojamiento Propio'
+                                setCheckingOutData({
+                                  alocacaoIds: [a.alocacao_id || a.id],
+                                  workers: [{
+                                    id: a.alocacao_id || a.id,
+                                    nome: a.worker_nome,
+                                    alojamento: 'Alojamiento Propio'
+                                  }],
+                                  alojamentoNomePrincipal: 'Alojamiento Propio'
                                 });
+                                setMotivoCheckout('Fin de Pedido / Obra');
+                                setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+                                setObservacoesCheckout('');
+                                setDesativarAlojamento(false);
                               }}
-                              className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1"
+                              className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer"
                             >
                               <LogOut size={13} />
                               Finalizar
@@ -2806,13 +3107,23 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => {
-                            setCheckingOutWorker({
-                              alocacaoId: aloc.alocacao_id,
-                              workerNome: aloc.worker_nome,
-                              alojamentoNome: aloc.alojamento_nome
+                            setCheckingOutData({
+                              alocacaoIds: [aloc.alocacao_id || aloc.id],
+                              workers: [{
+                                id: aloc.alocacao_id || aloc.id,
+                                nome: aloc.worker_nome,
+                                alojamento: aloc.alojamento_nome,
+                                alojamentoId: aloc.alojamento_id
+                              }],
+                              alojamentoNomePrincipal: aloc.alojamento_nome,
+                              alojamentoIdPrincipal: aloc.alojamento_id
                             });
+                            setMotivoCheckout('Fin de Pedido / Obra');
+                            setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+                            setObservacoesCheckout('');
+                            setDesativarAlojamento(false);
                           }}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <LogOut size={13} />
                           Check-out
@@ -3565,63 +3876,118 @@ export const DemandasAlocacaoPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 5: CHECK-OUT */}
+      {/* MODAL 5: CHECK-OUT AVANÇADO (INDIVIDUAL E EM LOTE) */}
       {/* ========================================================================= */}
-      {checkingOutWorker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
-                <LogOut size={22} />
+      {checkingOutData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-3 bg-rose-100 dark:bg-rose-950/50 rounded-2xl">
+                  <LogOut size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {checkingOutData.workers.length > 1
+                      ? `Procesar Check-out Colectivo (${checkingOutData.workers.length} trabajadores)`
+                      : 'Procesar Check-out de Trabajador'}
+                  </h3>
+                  <p className="text-xs text-slate-500">Liberación de plazas e inspección de salida.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Procesar Check-out</h3>
-                <p className="text-xs text-slate-500">Liberación de cama e inspección de salida.</p>
+              <button
+                onClick={() => setCheckingOutData(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Lista dos trabalhadores a realizar check-out */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-700 dark:text-slate-300 text-xs block">
+                Colaboradores afectados ({checkingOutData.workers.length}):
+              </label>
+              <div className="max-h-32 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                {checkingOutData.workers.map((w, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{w.nome}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{w.alojamento}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <p className="text-xs text-slate-700 dark:text-slate-300">
-              ¿Desea registrar la salida de <strong className="text-slate-900 dark:text-white">{checkingOutWorker.workerNome}</strong> del alojamiento <strong className="text-slate-900 dark:text-white">{checkingOutWorker.alojamentoNome}</strong>? La plaza quedará libre inmediatamente.
-            </p>
-
-            <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="font-bold text-slate-600 block mb-1">Motivo del Check-out:</label>
+                <label className="font-bold text-slate-600 dark:text-slate-400 block mb-1">Motivo del Check-out:</label>
                 <select
                   value={motivoCheckout}
                   onChange={e => setMotivoCheckout(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
                 >
                   <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
-                  <option value="Reemplazo por Baja">Reemplazo por Baja Médica / Renuncia</option>
-                  <option value="Cambio de Alojamiento">Cambio de Alojamiento / Reubicación</option>
-                  <option value="Cancelación de Pedido">Cancelación de Pedido</option>
+                  <option value="Traslado / Reubicación">Traslado / Reubicación a otro Alojamiento</option>
+                  <option value="Fin de Contrato de Arrendamiento">Fin de Arrendamiento / Desmovilización</option>
+                  <option value="Baja Médica / Renuncia">Baja Médica / Renuncia del Colaborador</option>
+                  <option value="Vacaciones / Permiso">Vacaciones / Permiso</option>
                 </select>
               </div>
 
               <div>
-                <label className="font-bold text-slate-600 block mb-1">Fecha Efectiva de Salida:</label>
+                <label className="font-bold text-slate-600 dark:text-slate-400 block mb-1">Fecha Efectiva de Salida:</label>
                 <input
                   type="date"
                   value={dataSaidaEfetiva}
                   onChange={e => setDataSaidaEfetiva(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="space-y-1 text-xs">
+              <label className="font-bold text-slate-600 dark:text-slate-400 block">Observaciones de Salida:</label>
+              <input
+                type="text"
+                value={observacoesCheckout}
+                onChange={e => setObservacoesCheckout(e.target.value)}
+                placeholder="Ej: Entrega de llaves realizada, sin novedades..."
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
+              />
+            </div>
+
+            {/* Checkbox para Finalizar / Desativar Alojamento */}
+            {checkingOutData.alojamentoIdPrincipal && checkingOutData.alojamentoIdPrincipal !== 'propio' && checkingOutData.alojamentoIdPrincipal !== 'cliente' && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={desativarAlojamento}
+                    onChange={e => setDesativarAlojamento(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300"
+                  />
+                  <span className="font-bold text-xs text-amber-900 dark:text-amber-300">
+                    ¿Finalizar y dar de baja este alojamiento?
+                  </span>
+                </label>
+                <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-6">
+                  Marca el inmueble como finalizado y permite ir directamente a la gestión de Vistoria, fotos de avarias y reembolso de fianza.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 disabled={isProcessingCheckout}
-                onClick={() => setCheckingOutWorker(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl"
+                onClick={() => setCheckingOutData(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 rounded-xl cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 disabled={isProcessingCheckout}
                 onClick={handleConfirmCheckout}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs"
               >
                 <LogOut size={13} />
                 {isProcessingCheckout ? 'Procesando...' : 'Confirmar Salida'}

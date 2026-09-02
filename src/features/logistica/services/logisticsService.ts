@@ -673,15 +673,27 @@ export const logisticsService = {
     return newAllocations;
   },
 
-  async checkoutTrabalhador(alocacaoId: string, motivo?: string): Promise<void> {
+  async checkoutTrabalhador(alocacaoId: string, motivo?: string, dataSaida?: string, desativarAlojamentoId?: string): Promise<void> {
+    return this.checkoutGrupoTrabalhadores([alocacaoId], motivo, dataSaida, desativarAlojamentoId);
+  },
+
+  async checkoutGrupoTrabalhadores(
+    alocacaoIds: string[],
+    motivo?: string,
+    dataSaida?: string,
+    desativarAlojamentoId?: string
+  ): Promise<void> {
+    const idsSet = new Set(alocacaoIds);
     const alocacoes = await this.fetchAlocacoesAtivas();
+    const effectiveDate = dataSaida || new Date().toISOString().split('T')[0];
+
     const updated = alocacoes.map(a => {
-      if (a.id === alocacaoId) {
+      if (idsSet.has(a.id)) {
         return {
           ...a,
           status: 'Checkout' as const,
-          data_fim: new Date().toISOString().split('T')[0],
-          motivo_checkout: motivo || 'Término de Contrato'
+          data_fim: effectiveDate,
+          motivo_checkout: motivo || 'Fin de Pedido / Obra'
         };
       }
       return a;
@@ -690,6 +702,18 @@ export const logisticsService = {
     try {
       localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
+
+    // Se solicitado desativar / inativar o alojamento
+    if (desativarAlojamentoId && desativarAlojamentoId !== 'propio' && desativarAlojamentoId !== 'cliente') {
+      try {
+        await registrosService.updateAlojamento(desativarAlojamentoId, {
+          status: 'inativo',
+          ativo: false
+        });
+      } catch (e) {
+        console.warn('Erro ao inativar alojamento no checkout:', e);
+      }
+    }
   },
 
   // Demandas de Logística Agrupadas por Pedido Comercial Real & Trabalhadores Contratados
