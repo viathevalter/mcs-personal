@@ -1,6 +1,7 @@
 import { supabase } from '@/shared/supabase/client';
 import { registrosService } from './registrosService';
 import { logisticsService, type Alojamento, type Provedor } from './logisticsService';
+import type { DocumentoVistoria } from './storageService';
 
 export interface OcupanteContrato {
   worker_id?: string;
@@ -24,6 +25,7 @@ export interface FianzaDetalhes {
   outras_deducoes?: number;
   data_vistoria?: string;
   data_devolucao?: string;
+  documentos?: DocumentoVistoria[];
   documentos_url?: string;
   observacoes_vistoria?: string;
   updated_at?: string;
@@ -267,6 +269,7 @@ export const contratosLogisticsService = {
           recaudo_devuelto: Number(fianzaRaw.recaudo_devuelto || 0),
           deducoes_danos: Number(fianzaRaw.deducoes_danos || 0),
           deducoes_suministros: Number(fianzaRaw.deducoes_suministros || 0),
+          documentos: Array.isArray(fianzaRaw.documentos) ? fianzaRaw.documentos : [],
           documentos_url: fianzaRaw.documentos_url || '',
           observacoes_vistoria: fianzaRaw.observacoes_vistoria || '',
           updated_at: fianzaRaw.updated_at
@@ -353,6 +356,7 @@ export const contratosLogisticsService = {
       recaudo_devuelto: fianza.recaudo_devuelto ?? currentFianza.recaudo_devuelto ?? 0,
       deducoes_danos: fianza.deducoes_danos ?? currentFianza.deducoes_danos ?? 0,
       deducoes_suministros: fianza.deducoes_suministros ?? currentFianza.deducoes_suministros ?? 0,
+      documentos: fianza.documentos ?? currentFianza.documentos ?? [],
       documentos_url: fianza.documentos_url ?? currentFianza.documentos_url ?? '',
       observacoes_vistoria: fianza.observacoes_vistoria ?? currentFianza.observacoes_vistoria ?? '',
       updated_at: new Date().toISOString()

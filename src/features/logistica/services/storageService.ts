@@ -1,5 +1,14 @@
 import { supabase } from '@/shared/supabase/client';
 
+export interface DocumentoVistoria {
+  id: string;
+  nome: string;
+  tipo: 'foto_dano' | 'laudo_vistoria' | 'termo_entrega' | 'comprovante_devolucao' | 'outro';
+  url: string;
+  tamanho_bytes?: number;
+  data_upload: string;
+}
+
 /**
  * Redimensiona e comprime uma imagem para otimizar transferência e armazenamento
  */
@@ -56,6 +65,18 @@ export async function optimizeImage(file: File | Blob, maxWidth = 1280, maxHeigh
 }
 
 /**
+ * Converte um arquivo qualquer (PDF, documento) em Base64
+ */
+export async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
  * Upload de imagem para Supabase Storage (com fallback transparente para Base64 otimizado)
  */
 export async function uploadAlojamentoPhoto(file: File | Blob, prefix = 'alojamento'): Promise<string> {
@@ -67,7 +88,6 @@ export async function uploadAlojamentoPhoto(file: File | Blob, prefix = 'alojame
     const fileName = `${prefix}_${timestamp}_${randomSuffix}.jpg`;
     const filePath = `photos/${fileName}`;
 
-    // Tenta upload no bucket 'alojamentos'
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('alojamentos')
       .upload(filePath, blob, {
@@ -88,18 +108,74 @@ export async function uploadAlojamentoPhoto(file: File | Blob, prefix = 'alojame
     console.warn('Upload no Supabase Storage indisponível, utilizando armazenamento embutido otimizado:', err);
   }
 
-  // Fallback seguro: retorna o Base64 otimizado
   return base64;
 }
 
 /**
- * Faz download de uma imagem (URL pública ou Base64) diretamente para o dispositivo do usuário
+ * Upload de Documento / Foto de Vistoria de Fiança
  */
-export function downloadImage(url: string, filename = 'alojamento_foto.jpg') {
+export async function uploadDocumentoVistoria(
+  file: File,
+  tipo: DocumentoVistoria['tipo'] = 'foto_dano'
+): Promise<DocumentoVistoria> {
+  const isImage = file.type.startsWith('image/');
+  let finalUrl = '';
+
+  if (isImage) {
+    finalUrl = await uploadAlojamentoPhoto(file, 'vistoria');
+  } else {
+    // Para PDFs e outros arquivos
+    try {
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `vistorias/${timestamp}_${sanitizedName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('alojamentos')
+        .upload(filePath, file, {
+          contentType: file.type || 'application/pdf',
+          upsert: true
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: publicUrlData } = supabase.storage
+          .from('alojamentos')
+          .getPublicUrl(filePath);
+
+        if (publicUrlData && publicUrlData.publicUrl) {
+          finalUrl = publicUrlData.publicUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase storage fallback to Base64:', e);
+    }
+
+    if (!finalUrl) {
+      finalUrl = await fileToBase64(file);
+    }
+  }
+
+  return {
+    id: `doc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    nome: file.name,
+    tipo,
+    url: finalUrl,
+    tamanho_bytes: file.size,
+    data_upload: new Date().toISOString()
+  };
+}
+
+/**
+ * Faz download de um arquivo (URL pública ou Base64)
+ */
+export function downloadFile(url: string, filename = 'documento.pdf') {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  link.target = '_blank';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
+
+export const downloadImage = downloadFile;

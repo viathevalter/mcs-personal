@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -38,11 +38,18 @@ import {
   FileCheck,
   Check,
   Save,
+  Upload,
+  UploadCloud,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  Maximize2,
   X
 } from 'lucide-react';
 import { contratosLogisticsService } from '../../services/contratosLogisticsService';
 import type { ContratoAlojamento, OcupanteContrato, FianzaDetalhes } from '../../services/contratosLogisticsService';
 import { financeLogisticsService } from '../../services/financeLogisticsService';
+import { uploadDocumentoVistoria, downloadFile, type DocumentoVistoria } from '../../services/storageService';
 
 export const ContratosList: React.FC = () => {
   const navigate = useNavigate();
@@ -74,11 +81,16 @@ export const ContratosList: React.FC = () => {
     recaudo_devuelto: 0,
     deducoes_danos: 0,
     deducoes_suministros: 0,
+    documentos: [],
     documentos_url: '',
     observacoes_vistoria: ''
   });
   const [isSavingFianza, setIsSavingFianza] = useState(false);
   const [isRegisteringFinance, setIsRegisteringFinance] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [selectedDocCategory, setSelectedDocCategory] = useState<DocumentoVistoria['tipo']>('foto_dano');
+  const [previewDoc, setPreviewDoc] = useState<DocumentoVistoria | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadContratos = async () => {
     setIsLoading(true);
@@ -132,10 +144,50 @@ export const ContratosList: React.FC = () => {
       recaudo_devuelto: 0,
       deducoes_danos: 0,
       deducoes_suministros: 0,
+      documentos: [],
       documentos_url: '',
       observacoes_vistoria: ''
     };
-    setFianzaForm({ ...fd, fianza_valor: fd.fianza_valor || contrato.fianza_valor || 0 });
+    setFianzaForm({ 
+      ...fd, 
+      fianza_valor: fd.fianza_valor || contrato.fianza_valor || 0,
+      documentos: Array.isArray(fd.documentos) ? fd.documentos : []
+    });
+  };
+
+  // Upload de Fotos e Documentos para a Vistoria
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setIsUploadingDoc(true);
+      const newDocs: DocumentoVistoria[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const doc = await uploadDocumentoVistoria(file, selectedDocCategory);
+        newDocs.push(doc);
+      }
+
+      setFianzaForm(prev => ({
+        ...prev,
+        documentos: [...(prev.documentos || []), ...newDocs]
+      }));
+    } catch (err: any) {
+      console.error('Erro ao fazer upload de arquivos de vistoria:', err);
+      alert('Falha ao processar o upload do arquivo. Tente novamente.');
+    } finally {
+      setIsUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDoc = (docId: string) => {
+    setFianzaForm(prev => ({
+      ...prev,
+      documentos: (prev.documentos || []).filter(d => d.id !== docId)
+    }));
   };
 
   // Salvar Vistoria de Fiança
@@ -144,7 +196,7 @@ export const ContratosList: React.FC = () => {
     try {
       setIsSavingFianza(true);
       await contratosLogisticsService.salvarVistoriaFianza(fianzaModalContrato.alojamento_id || fianzaModalContrato.id, fianzaForm);
-      alert('✅ ¡Datos de la fianza e informe de inspección guardados con éxito!');
+      alert('✅ ¡Datos de la fianza, fotos e informes guardados con éxito!');
       setFianzaModalContrato(null);
       loadContratos();
     } catch (err: any) {
@@ -180,7 +232,7 @@ export const ContratosList: React.FC = () => {
         valor_devolvido: Number(fianzaForm.recaudo_devuelto),
         valor_danos: Number(fianzaForm.deducoes_danos || 0),
         valor_suministros: Number(fianzaForm.deducoes_suministros || 0),
-        documentos_url: fianzaForm.documentos_url,
+        documentos_url: fianzaForm.documentos?.[0]?.url || fianzaForm.documentos_url,
         observacoes: fianzaForm.observacoes_vistoria
       });
 
@@ -277,7 +329,7 @@ export const ContratosList: React.FC = () => {
       alert(`🎉 ¡Se generaron con éxito ${ops.length} Órdenes de Pago en Finanzas!`);
       setSelectedIds(new Set());
     } catch (err: any) {
-      console.error('Error al generar OPs en lote:', err);
+      console.error('Error al generar OPs em lote:', err);
       alert(`Error al generar lote: ${err?.message || 'Compruebe la conexión.'}`);
     } finally {
       setIsGeneratingBatch(false);
@@ -418,7 +470,7 @@ export const ContratosList: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Gestión de alquileres (Fijos, Habitación, Temporal), control de fianzas en custodia, informes de vistoria y devolución financiera
+                Gestión de alquileres (Fijos, Habitación, Temporal), almacenamiento de vistorias, fotos de daños y devolución financiera
               </p>
             </div>
           </div>
@@ -749,6 +801,7 @@ export const ContratosList: React.FC = () => {
                   const isInicioMes = dia <= 5;
                   const ocupantes = c.ocupantes_detalhados || [];
                   const fd = c.fianza_detalhes;
+                  const totalDocs = (fd?.documentos || []).length;
 
                   return (
                     <React.Fragment key={c.id}>
@@ -919,13 +972,20 @@ export const ContratosList: React.FC = () => {
                                 <ShieldCheck size={11} />
                                 € {c.fianza_valor?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                               </span>
-                              <span className="text-[9px] text-slate-400 block font-medium group-hover/fianza:text-purple-600 transition-colors">
-                                {fd?.estado_fianza === 'Devuelta' ? '✓ Devuelta a banco' :
-                                 fd?.estado_fianza === 'Devuelta Parcial' ? `✓ Dev. € ${fd.recaudo_devuelto} | Daños: € ${fd.deducoes_danos}` :
-                                 fd?.estado_fianza === 'No Devuelta' ? '✗ Retenida por daños' :
-                                 fd?.estado_fianza === 'En Inspeccion' ? '⚠️ En inspección' :
-                                 '🛡️ En custodia activa'}
-                              </span>
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium group-hover/fianza:text-purple-600 transition-colors">
+                                <span>
+                                  {fd?.estado_fianza === 'Devuelta' ? '✓ Devuelta a banco' :
+                                   fd?.estado_fianza === 'Devuelta Parcial' ? `✓ Dev. € ${fd.recaudo_devuelto} | Daños: € ${fd.deducoes_danos}` :
+                                   fd?.estado_fianza === 'No Devuelta' ? '✗ Retenida por daños' :
+                                   fd?.estado_fianza === 'En Inspeccion' ? '⚠️ En inspección' :
+                                   '🛡️ En custodia activa'}
+                                </span>
+                                {totalDocs > 0 && (
+                                  <span className="font-bold text-purple-600 dark:text-purple-400">
+                                    • 📁 {totalDocs} {totalDocs === 1 ? 'adjunto' : 'adjuntos'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <span className="text-slate-400 text-[10px] italic">Sin fianza</span>
@@ -950,7 +1010,7 @@ export const ContratosList: React.FC = () => {
                               <button
                                 onClick={e => handleOpenFianzaModal(c, e)}
                                 className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
-                                title="Control de Vistoria y Devolución de Fianza"
+                                title="Control de Vistoria, Fotos y Devolución de Fianza"
                               >
                                 <ShieldCheck size={14} />
                               </button>
@@ -1134,12 +1194,12 @@ export const ContratosList: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL DE VISTORIA, INSPECCIÓN & LIQUIDACIÓN DE FIANZA */}
+      {/* MODAL DE VISTORIA, INSPECCIÓN & LIQUIDACIÓN DE FIANZA (COM STORAGE DIRETO) */}
       {fianzaModalContrato && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl overflow-hidden flex flex-col shadow-2xl my-6">
             {/* Header Modal */}
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/40">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-purple-50/70 dark:bg-purple-950/40">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-purple-600 text-white rounded-2xl shadow-sm">
                   <ShieldCheck size={22} />
@@ -1166,7 +1226,7 @@ export const ContratosList: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
               {/* Resumo Fiança Depositada */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -1191,7 +1251,7 @@ export const ContratosList: React.FC = () => {
                 </div>
               </div>
 
-              {/* Status da Fiança */}
+              {/* Status da Fiança e Valores */}
               <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1254,47 +1314,150 @@ export const ContratosList: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* Link de Documentos / Fotos da Vistoria */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                    Enlace a Documentos / Informe de Vistoria / Fotos (URL)
-                  </label>
-                  <div className="flex gap-2">
+              {/* SEÇÃO DE STORAGE DE ARQUIVOS, FOTOS & LAUDOS */}
+              <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-black text-purple-900 dark:text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Camera size={15} />
+                      Almacenamiento de Fotos & Documentos de Vistoria
+                    </span>
+                    <p className="text-[10px] text-slate-500">
+                      Suba y guarde directamente fotos de averías, actas de inspección firmadas, recibos de entrega y comprobantes
+                    </p>
+                  </div>
+
+                  {/* Categoria do arquivo a subir */}
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={selectedDocCategory}
+                      onChange={e => setSelectedDocCategory(e.target.value as any)}
+                      className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded-lg text-[10px] font-bold text-purple-900 dark:text-purple-200"
+                    >
+                      <option value="foto_dano">📸 Foto de Daños / Desgaste</option>
+                      <option value="laudo_vistoria">📄 Acta / Laudo de Vistoria</option>
+                      <option value="comprovante_devolucao">💳 Comprobante Reembolso</option>
+                      <option value="termo_entrega">🔑 Entrega de Llaves</option>
+                      <option value="outro">📁 Otro Documento</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingDoc}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-colors disabled:opacity-50"
+                    >
+                      <Upload size={13} />
+                      {isUploadingDoc ? 'Subiendo...' : 'Adjuntar Archivo'}
+                    </button>
                     <input
-                      type="text"
-                      value={fianzaForm.documentos_url || ''}
-                      onChange={e => setFianzaForm({ ...fianzaForm, documentos_url: e.target.value })}
-                      placeholder="https://sharepoint.com/fianzas/laudo_vistoria.pdf"
-                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,application/pdf"
+                      onChange={handleFileUpload}
+                      className="hidden"
                     />
-                    {fianzaForm.documentos_url && (
-                      <a
-                        href={fianzaForm.documentos_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold flex items-center gap-1"
-                      >
-                        <ExternalLink size={13} />
-                        Abrir
-                      </a>
-                    )}
                   </div>
                 </div>
 
-                {/* Observações da Vistoria */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                    Observaciones de la Inspección / Motivos de Retención o Acuerdo
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={fianzaForm.observacoes_vistoria || ''}
-                    onChange={e => setFianzaForm({ ...fianzaForm, observacoes_vistoria: e.target.value })}
-                    placeholder="Detalle los daños alegados por el propietario, reparaciones, facturas de servicios pendientes o acuerdo alcanzado..."
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                  />
-                </div>
+                {/* Dropzone visual */}
+                {(!fianzaForm.documentos || fianzaForm.documentos.length === 0) ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-6 border-2 border-dashed border-purple-200 dark:border-purple-800/80 rounded-2xl text-center bg-white/60 dark:bg-slate-900/60 cursor-pointer hover:border-purple-400 dark:hover:border-purple-600 transition-colors group"
+                  >
+                    <UploadCloud size={28} className="mx-auto text-purple-400 group-hover:scale-110 transition-transform mb-1.5" />
+                    <p className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                      Haga clic aquí o arrastre fotos y PDFs para almacenarlos en este contrato
+                    </p>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Admite imágenes (JPG, PNG, WEBP) y documentos en PDF
+                    </span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                    {fianzaForm.documentos.map(doc => {
+                      const isImage = doc.url.startsWith('data:image') || doc.url.includes('.jpg') || doc.url.includes('.jpeg') || doc.url.includes('.png') || doc.tipo === 'foto_dano';
+                      return (
+                        <div
+                          key={doc.id}
+                          className="relative p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between group hover:border-purple-300 transition-all"
+                        >
+                          {/* Miniatura ou Ícone */}
+                          <div 
+                            onClick={() => setPreviewDoc(doc)}
+                            className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center cursor-pointer relative group/preview"
+                          >
+                            {isImage ? (
+                              <img src={doc.url} alt={doc.nome} className="w-full h-full object-cover group-hover/preview:scale-105 transition-transform" />
+                            ) : (
+                              <div className="text-center p-2">
+                                <FileText size={28} className="text-purple-600 mx-auto mb-1" />
+                                <span className="text-[9px] font-bold text-slate-600 dark:text-slate-400 block truncate max-w-[120px]">
+                                  {doc.nome}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Overlay de Zoom */}
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Maximize2 size={16} />
+                            </div>
+                          </div>
+
+                          {/* Informações e Ações */}
+                          <div className="mt-1.5 space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 truncate max-w-[100px]">
+                                {doc.tipo === 'foto_dano' ? '📸 Daños' :
+                                 doc.tipo === 'laudo_vistoria' ? '📄 Laudo' :
+                                 doc.tipo === 'comprovante_devolucao' ? '💳 Reembolso' :
+                                 doc.tipo === 'termo_entrega' ? '🔑 Llaves' : '📁 Archivo'}
+                              </span>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => downloadFile(doc.url, doc.nome)}
+                                  className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <DownloadCloud size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveDoc(doc.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                                  title="Eliminar archivo"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate" title={doc.nome}>
+                              {doc.nome}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Observações da Vistoria */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Observaciones de la Inspección / Motivos de Retención o Acuerdo
+                </label>
+                <textarea
+                  rows={3}
+                  value={fianzaForm.observacoes_vistoria || ''}
+                  onChange={e => setFianzaForm({ ...fianzaForm, observacoes_vistoria: e.target.value })}
+                  placeholder="Detalle los daños alegados por el propietario, reparaciones, facturas de servicios pendientes o acuerdo alcanzado..."
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
               </div>
             </div>
 
@@ -1326,9 +1489,52 @@ export const ContratosList: React.FC = () => {
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 >
                   <Save size={14} />
-                  {isSavingFianza ? 'Guardando...' : 'Guardar Vistoria'}
+                  {isSavingFianza ? 'Guardando...' : 'Guardar Vistoria & Archivos'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIGHTBOX / PREVIEW MODAL DE DOCUMENTO/FOTO EM TELA CHEIA */}
+      {previewDoc && (
+        <div 
+          onClick={() => setPreviewDoc(null)}
+          className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-700"
+          >
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-100 dark:bg-slate-800">
+              <div className="flex items-center gap-2">
+                <ImageIcon size={18} className="text-purple-600" />
+                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate max-w-md">{previewDoc.nome}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadFile(previewDoc.url, previewDoc.nome)}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <DownloadCloud size={13} />
+                  Descargar
+                </button>
+                <button
+                  onClick={() => setPreviewDoc(null)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 flex items-center justify-center bg-slate-950/40 overflow-auto min-h-[300px]">
+              {previewDoc.url.startsWith('data:application/pdf') || previewDoc.url.endsWith('.pdf') ? (
+                <iframe src={previewDoc.url} className="w-full h-[65vh] rounded-lg border border-slate-700" title="PDF Preview" />
+              ) : (
+                <img src={previewDoc.url} alt={previewDoc.nome} className="max-h-[70vh] object-contain rounded-lg shadow-lg" />
+              )}
             </div>
           </div>
         </div>
@@ -1419,7 +1625,7 @@ export const ContratosList: React.FC = () => {
                       onClick={e => handleOpenFianzaModal(viewingContrato, e)}
                       className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold transition-colors"
                     >
-                      Abrir Control de Vistoria
+                      Abrir Control de Vistoria & Fotos
                     </button>
                   )}
                 </div>
