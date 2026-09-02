@@ -123,6 +123,23 @@ export function ProspectingPage() {
   const [emailRequired, setEmailRequired] = useState(true);
   const [sectorFilter, setSectorFilter] = useState('industrial');
 
+  // Mission filtering state
+  const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
+  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES'>('FR');
+  const [isSpainSummaryModalOpen, setIsSpainSummaryModalOpen] = useState(false);
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+
+  // Staging table selections & filters
+  const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
+  const [filterEmailOnly, setFilterEmailOnly] = useState(false);
+  const [filterCorporateDomainOnly, setFilterCorporateDomainOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
+  const [stagingSearchTerm, setStagingSearchTerm] = useState('');
+  const [stagingCountryFilter, setStagingCountryFilter] = useState<string>('all');
+  const [stagingSectorFilter, setStagingSectorFilter] = useState<string>('all');
+  const [stagingCurrentPage, setStagingCurrentPage] = useState<number>(1);
+  const [stagingPageSize, setStagingPageSize] = useState<number>(50);
+
   // Import modal state (Tagging, Sector & Custom Notes for Audience Segmentation)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [audienceTag, setAudienceTag] = useState('');
@@ -340,12 +357,6 @@ export function ProspectingPage() {
     }
   };
 
-  // Mission filtering state
-  const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
-  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES'>('FR');
-  const [isSpainSummaryModalOpen, setIsSpainSummaryModalOpen] = useState(false);
-  const [jobSearchTerm, setJobSearchTerm] = useState('');
-
   const jobCounts = {
     total: jobs.length,
     processing: jobs.filter((j) => j.status === 'processing').length,
@@ -373,17 +384,6 @@ export function ProspectingPage() {
       (j.keywords && j.keywords.toLowerCase().includes(term))
     );
   });
-
-  // Staging table selections & filters
-  const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
-  const [filterEmailOnly, setFilterEmailOnly] = useState(false);
-  const [filterCorporateDomainOnly, setFilterCorporateDomainOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'raw' | 'imported'>('all');
-  const [stagingSearchTerm, setStagingSearchTerm] = useState('');
-  const [stagingCountryFilter, setStagingCountryFilter] = useState<string>('all');
-  const [stagingSectorFilter, setStagingSectorFilter] = useState<string>('all');
-  const [stagingCurrentPage, setStagingCurrentPage] = useState<number>(1);
-  const [stagingPageSize, setStagingPageSize] = useState<number>(50);
 
   const jobMap = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs]);
 
