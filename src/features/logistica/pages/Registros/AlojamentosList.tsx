@@ -349,22 +349,6 @@ export const AlojamentosList: React.FC = () => {
     return Array.from(list).sort();
   }, [alojamentos]);
 
-  // KPIs de Topo
-  const kpis = useMemo(() => {
-    const totalAlojamentos = alojamentos.length;
-    const activos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo').length;
-    const alojamentosActivos = alojamentos.filter(a => a.ativo !== false && a.status !== 'Inactivo');
-    const totalPlazas = alojamentosActivos.reduce((acc, a) => acc + (a.capacidade_pessoas || a.total_camas || 0), 0);
-    // Somente contratos fixos de arrendamento ativo
-    const totalAlquilerFijo = alojamentosActivos
-      .filter(a => a.tipo_alojamento !== 'Temporal')
-      .reduce((acc, a) => acc + Math.max(0, Number(a.valor_mensal) || 0), 0);
-    const totalProveedores = provedores.length;
-    const totalOcupantes = alocacoes.filter(a => a.status !== 'Checkout' && a.status !== 'Alojamiento Propio').length;
-
-    return { totalAlojamentos, activos, totalPlazas, totalAlquiler: totalAlquilerFijo, totalProveedores, totalOcupantes };
-  }, [alojamentos, provedores, alocacoes]);
-
   // Contagem de Alojamientos por Provedor
   const alojamentosCountPorProvedor = useMemo(() => {
     const map = new Map<string, number>();
@@ -525,6 +509,62 @@ export const AlojamentosList: React.FC = () => {
     });
   }, [provedores, searchTerm, sortField, sortOrder]);
 
+  // KPIs Dinâmicos de Topo (Atualizados em Tempo Real com base nos Filtros Ativos)
+  const kpis = useMemo(() => {
+    const currentList = filteredAlojamentos;
+    const isFiltered = currentList.length !== alojamentos.length || 
+                       searchTerm.trim() !== '' || 
+                       statusFilter !== 'todos' || 
+                       tipoFilter !== 'todos' || 
+                       ocupacaoFilter !== 'todos' || 
+                       selectedMunicipio !== 'todos' || 
+                       createdDateFilter !== 'todos' || 
+                       alojamentoCategoryFilter !== 'todos';
+
+    const totalAlojamentos = currentList.length;
+    const totalGeralAlojamentos = alojamentos.length;
+    const activos = currentList.filter(a => a.ativo !== false && a.status !== 'Inactivo').length;
+    
+    // Plazas totais dos alojamentos exibidos
+    const totalPlazas = currentList.reduce((acc, a) => acc + (a.capacidade_pessoas || a.total_camas || 0), 0);
+
+    // Ocupantes alocados nos alojamentos exibidos no filtro
+    const currentAlojIds = new Set(currentList.map(a => a.id));
+    const currentAlojCodigos = new Set(currentList.map(a => a.codigo).filter(Boolean));
+    const currentAlojNomes = new Set(currentList.map(a => a.nome?.trim().toLowerCase()).filter(Boolean));
+
+    const ocupantesFiltrados = alocacoes.filter(a => {
+      if (a.status === 'Checkout' || a.status === 'Alojamiento Propio') return false;
+      if (a.alojamento_id && currentAlojIds.has(a.alojamento_id)) return true;
+      if (a.alojamento_codigo && currentAlojCodigos.has(a.alojamento_codigo)) return true;
+      if (a.alojamento_nome && currentAlojNomes.has(a.alojamento_nome.trim().toLowerCase())) return true;
+      return false;
+    });
+
+    const totalOcupantes = ocupantesFiltrados.length;
+
+    // Alquiler mensal dos alojamentos exibidos no filtro
+    const totalAlquiler = currentList
+      .reduce((acc, a) => acc + Math.max(0, Number(a.valor_mensal) || 0), 0);
+
+    // Provedores associados aos alojamentos exibidos no filtro
+    const provedoresIds = new Set(currentList.map(a => a.provedor_id || a.provedor?.id).filter(Boolean));
+    const totalProveedores = isFiltered && activeTab === 'alojamentos'
+      ? provedoresIds.size
+      : (activeTab === 'provedores' ? filteredProvedores.length : provedores.length);
+
+    return {
+      totalAlojamentos,
+      totalGeralAlojamentos,
+      activos,
+      totalPlazas,
+      totalAlquiler,
+      totalProveedores,
+      totalOcupantes,
+      isFiltered
+    };
+  }, [filteredAlojamentos, alojamentos, provedores, alocacoes, filteredProvedores, activeTab, searchTerm, statusFilter, tipoFilter, ocupacaoFilter, selectedMunicipio, createdDateFilter, alojamentoCategoryFilter]);
+
   return (
     <div className="w-full px-8 py-6 space-y-6">
       
@@ -535,7 +575,7 @@ export const AlojamentosList: React.FC = () => {
             <Building2 className="text-blue-600" size={26} />
             Registros de Alojamientos & Proveedores
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-xs text-slate-500">
             Gestión completa de inmuebles, modalidades de alquiler, plazas, ocupación de trabajadores y proveedores.
           </p>
         </div>
@@ -543,9 +583,9 @@ export const AlojamentosList: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-xl text-xs font-bold transition-colors border border-emerald-200 dark:border-emerald-800 shadow-2xs"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-colors shadow-xs"
           >
-            <Upload size={14} />
+            <Upload size={15} />
             Importar Plantilla
           </button>
 
@@ -567,71 +607,98 @@ export const AlojamentosList: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid de KPIs de Topo */}
+      {/* Grid de KPIs de Topo (Atualizados Dinamicamente pelo Filtro) */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+        {/* Total Alojamientos */}
+        <div 
+          onClick={() => { setStatusFilter('todos'); setAlojamentoCategoryFilter('todos'); }}
+          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1 cursor-pointer hover:border-blue-300 transition-colors group"
+        >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Alojamientos</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+              {kpis.isFiltered ? 'Alojamientos Filtrados' : 'Total Alojamientos'}
+            </span>
             <Home size={16} className="text-blue-600" />
           </div>
           <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
             {kpis.totalAlojamentos}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            {kpis.activos} activos en curso
+            {kpis.isFiltered ? `${kpis.activos} activos (${kpis.totalAlojamentos} de ${kpis.totalGeralAlojamentos} total)` : `${kpis.activos} activos en curso`}
           </span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+        {/* Trabajadores Alojados */}
+        <div 
+          onClick={() => { setOcupacaoFilter('ocupados'); }}
+          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1 cursor-pointer hover:border-emerald-300 transition-colors group"
+        >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Trabajadores Alojados</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-emerald-600 transition-colors">
+              Trabajadores Alojados
+            </span>
             <Users size={16} className="text-emerald-600" />
           </div>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
             {kpis.totalOcupantes}
           </p>
           <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block">
-            {Math.round((kpis.totalOcupantes / (kpis.totalPlazas || 1)) * 100)}% de ocupación
+            {kpis.totalPlazas > 0 ? Math.round((kpis.totalOcupantes / kpis.totalPlazas) * 100) : 0}% de ocupación
           </span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+        {/* Capacidad Total / Plazas */}
+        <div 
+          onClick={() => { setAlojamentoCategoryFilter('com_vagas'); }}
+          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1 cursor-pointer hover:border-indigo-300 transition-colors group"
+        >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Capacidad Total</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+              Capacidad / Plazas
+            </span>
             <Bed size={16} className="text-indigo-600" />
           </div>
           <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
             {kpis.totalPlazas} <span className="text-xs font-semibold text-slate-400">plazas</span>
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            {kpis.totalPlazas - kpis.totalOcupantes} plazas libres
+            {Math.max(0, kpis.totalPlazas - kpis.totalOcupantes)} plazas libres
           </span>
         </div>
 
+        {/* Alquiler Mensual */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Alquiler Fijo Mensual</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {kpis.isFiltered ? 'Alquiler Filtrado' : 'Alquiler Mensual'}
+            </span>
             <DollarSign size={16} className="text-amber-500" />
           </div>
           <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
             € {kpis.totalAlquiler.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            Contratos fijos activos
+            {kpis.isFiltered ? `${kpis.totalAlojamentos} alojamientos en el filtro` : 'Contratos activos'}
           </span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+        {/* Proveedores */}
+        <div 
+          onClick={() => { setActiveTab('provedores'); }}
+          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1 cursor-pointer hover:border-purple-300 transition-colors group"
+        >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Proveedores</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-purple-600 transition-colors">
+              Proveedores
+            </span>
             <Building size={16} className="text-purple-600" />
           </div>
           <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
             {kpis.totalProveedores}
           </p>
           <span className="text-[10px] text-slate-400 font-medium block">
-            Inmobiliarias & Propietarios
+            {kpis.isFiltered ? 'Vinculados al filtro' : 'Inmobiliarias & Propietarios'}
           </span>
         </div>
 
