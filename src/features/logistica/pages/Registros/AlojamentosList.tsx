@@ -386,8 +386,11 @@ export const AlojamentosList: React.FC = () => {
       // Modalidade
       if (tipoFilter !== 'todos') {
         const tipo = (a.tipo_alojamento || 'Fijo').toLowerCase();
-        if (tipoFilter === 'fijo' && !tipo.includes('fijo')) return false;
-        if (tipoFilter === 'temporal' && !tipo.includes('temporal') && !tipo.includes('airbnb') && !tipo.includes('hotel')) return false;
+        const nome = (a.nome || '').toLowerCase();
+        if (tipoFilter === 'fijo' && (!tipo.includes('fijo') || tipo.includes('cliente'))) return false;
+        if (tipoFilter === 'habitacion' && (!tipo.includes('habita') && !tipo.includes('plaza') && !tipo.includes('compartido') && !nome.includes('negrals') && !nome.includes('zelai') && !nome.includes('navarra 92') && !nome.includes('monzòn') && !nome.includes('agudes'))) return false;
+        if (tipoFilter === 'temporal' && !tipo.includes('temporal') && !tipo.includes('airbnb') && !tipo.includes('hotel') && !tipo.includes('pension')) return false;
+        if (tipoFilter === 'cliente' && !tipo.includes('cliente') && !nome.includes('cliente')) return false;
       }
 
       // Ocupação
@@ -813,8 +816,10 @@ export const AlojamentosList: React.FC = () => {
                   className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
                 >
                   <option value="todos">Modalidad: Todas</option>
-                  <option value="fijo">Fijo (Larga duración)</option>
-                  <option value="temporal">Temporal / Airbnb / Hotel</option>
+                  <option value="fijo">🏠 Fijo (Piso Completo)</option>
+                  <option value="habitacion">🛏️ Por Habitación / Plaza</option>
+                  <option value="temporal">🏨 Temporal / Hotel / Airbnb</option>
+                  <option value="cliente">🏢 Cliente (Alojamiento Cedido)</option>
                 </select>
 
                 {/* Filtro Cidade */}

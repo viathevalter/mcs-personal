@@ -19,6 +19,7 @@ import html2canvas from 'html2canvas';
 import { getBillingCycleDays } from './FaturasPendentes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QRCodeSVG } from 'qrcode.react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 
 // Helper to calculate expected due date and remaining/overdue days
@@ -183,30 +184,13 @@ export function FaturasTracking() {
             toast.error('Erro ao gerar PDF do Informe.', { id: toastId });
           }
         } else {
-          const elementId = `pdf-render-${pdfRenderData.type}-sheet-${pdfRenderData.fatura.id}`;
-          const element = document.getElementById(elementId);
-          if (!element) {
-            toast.error('Erro ao localizar o elemento visual para geração do PDF.', { id: toastId });
-            setPdfRenderData(null);
-            return;
+          const pdf = await generateFacturaPDFProgrammaticallyTracking(pdfRenderData.fatura, pdfRenderData.hours, clientName);
+          if (pdf) {
+            pdf.save(`factura-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+            toast.success(`PDF gerado com sucesso!`, { id: toastId });
+          } else {
+            toast.error('Erro ao gerar PDF da Fatura.', { id: toastId });
           }
-          const canvas = await html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            width: 800,
-            windowWidth: 800
-          });
-          
-          const imgData = canvas.toDataURL('image/jpeg', 0.85);
-          const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-          });
-          
-          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-          pdf.save(`factura-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
-          toast.success(`PDF gerado com sucesso!`, { id: toastId });
         }
       } catch (err: any) {
         console.error('Erro ao gerar PDF em background:', err);
@@ -214,7 +198,7 @@ export function FaturasTracking() {
       } finally {
         setPdfRenderData(null);
       }
-    }, 400); // 400ms delay to let React fully render the sheet in the DOM if needed
+    }, 100);
     
     return () => clearTimeout(timer);
   }, [pdfRenderData]);
@@ -711,6 +695,304 @@ export function FaturasTracking() {
     }
   };
 
+  const generateFacturaPDFProgrammaticallyTracking = async (fat: any, hours: any[], clientName: string): Promise<jsPDF | null> => {
+    const targetEmpresa = empresas.find(e => e.id === fat.empresa_id) || empresas.find(e => e.id === selectedEmpresaId) || empresas[0];
+    
+    const adj = fat.ajustes_json || fat.ajustesJson || {};
+    const disputedHoursObj = adj.disputed_hours || {};
+
+    let totalHorasCalculadas = 0;
+    let totalBaseVal = 0;
+
+    // Group raw hours by worker and date key first to handle duplicate records on the same day
+    const groupedHoursMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
+    hours.forEach((h: any) => {
+      const wId = h.worker_id;
+      if (!wId) return;
+      const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+      const key = `${wId}_${dateKey}`;
+      
+      if (!groupedHoursMap.has(key)) {
+        groupedHoursMap.set(key, {
+          wId,
+          dateKey,
+          hours: 0,
+          rate: Number(h.tarifa_faturada || 27)
+        });
+      }
+      groupedHoursMap.get(key)!.hours += Number(h.horas_totais || 0);
+    });
+
+    // Populate using groupedHoursMap
+    groupedHoursMap.forEach((gVal) => {
+      const proposed = disputedHoursObj[gVal.wId]?.[gVal.dateKey];
+      const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
+      totalHorasCalculadas += hoursVal;
+      totalBaseVal += hoursVal * gVal.rate;
+    });
+
+    // Also include any newly added dates in disputedHoursObj not in original hours
+    Object.keys(disputedHoursObj).forEach(wId => {
+      const dates = disputedHoursObj[wId] || {};
+      Object.keys(dates).forEach(dateKey => {
+        const hoursVal = Number(dates[dateKey] || 0);
+        if (hoursVal > 0) {
+          const alreadyProcessed = hours.some((h: any) => h.worker_id === wId && (h.data_trabalho?.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) === dateKey);
+          if (!alreadyProcessed) {
+            const sample = hours.find((h: any) => h.worker_id === wId);
+            const rate = Number(sample?.tarifa_faturada || 27);
+            totalHorasCalculadas += hoursVal;
+            totalBaseVal += hoursVal * rate;
+          }
+        }
+      });
+    });
+
+    const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
+    const vencimentoDateStr = fat.data_vencimento
+      ? new Date(fat.data_vencimento + 'T00:00:00').toLocaleDateString('pt-PT')
+      : (() => {
+          const emission = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00');
+          emission.setDate(emission.getDate() + (fat.client?.paymentTermDays || 30));
+          return emission.toLocaleDateString('pt-PT');
+        })();
+
+    let qrSvgString = '';
+    try {
+      qrSvgString = renderToStaticMarkup(
+        <QRCodeSVG
+          value={`${window.location.origin}/aprovacao-cliente/${fat.magic_link_token || 'draft'}`}
+          size={80}
+          level="H"
+          includeMargin={false}
+        />
+      );
+    } catch {
+      qrSvgString = `
+        <div style="width: 80px; height: 80px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #64748b; font-weight: bold;">
+          QR CODE
+        </div>
+      `;
+    }
+
+    const incrementos = Number(adj.incrementos || 0);
+    const incrementosDesc = adj.incrementos_desc || adj.incrementosDesc || 'Incremento Adicional';
+    const reducoes = Number(adj.reducoes || 0);
+    const reducoesDesc = adj.reducoes_desc || adj.reducoesDesc || 'Redução Comercial';
+    const ivaPct = Number(adj.iva_pct !== undefined ? adj.iva_pct : (adj.ivaPct || 0));
+    
+    const subtotal = totalBaseVal + incrementos - reducoes;
+    const ivaVal = subtotal * (ivaPct / 100);
+    const finalTotal = subtotal + ivaVal;
+
+    const iban = adj.iban || targetEmpresa?.iban || targetEmpresa?.bank_details || '';
+    const descricaoServico = adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços';
+
+    const clientLegalName = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
+    const clientAddress = fat.client?.address_line || 'N/A';
+    const clientPostalCity = [fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ') || '';
+    const clientCountry = fat.client?.province || fat.client?.country || 'Espanha';
+    const clientTaxId = fat.client?.tax_id || fat.client?.taxId || fat.client?.cif_nif || 'N/A';
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.zIndex = '-9999';
+    container.style.background = '#ffffff';
+    container.style.color = '#000000';
+    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+
+    const facturaHtml = `
+      <div style="width: 800px; min-height: 1130px; height: 1130px; background-color: #ffffff; padding: 40px; box-sizing: border-box; color: #1e293b; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+        <!-- TOP SECTION -->
+        <div style="flex: 1;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
+            <div>
+              <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.025em;">
+                ${fat.fatura_numero || `Factura nº${targetEmpresa?.invoice_series || '1'} ${new Date().getFullYear()}/${targetEmpresa?.next_invoice_number || 1}`}
+              </h3>
+              <p style="font-size: 11px; font-weight: 700; color: #0f172a; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">ORIGINAL</p>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+              <span style="font-size: 9px; font-weight: 700; color: #475569;">
+                ATCUD: ${fat.atcud || `${targetEmpresa?.atcud_prefix || 'J6XBVVRV'}-${fat.fatura_numero || 1}`}
+              </span>
+              <div style="border: 1px solid #e2e8f0; padding: 4px; background-color: #ffffff; border-radius: 4px;">
+                ${qrSvgString}
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 COLUMNS: De, ATCUD/Datas, Para -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 11px; line-height: 1.45; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">De</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.nome || 'MCS'}</p>
+              <p style="color: #475569; margin: 0;">${targetEmpresa?.address_line || 'N/A'}</p>
+              <p style="color: #475569; margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>
+              <p style="color: #475569; margin: 0;">${targetEmpresa?.province || 'Portugal'}</p>
+              ${targetEmpresa?.email ? `<p style="color: #475569; margin: 0;">${targetEmpresa.email}</p>` : ''}
+              <p style="color: #475569; margin: 0;">Nº Contribuinte: ${targetEmpresa?.tax_id || 'N/A'}</p>
+              ${targetEmpresa?.capital_social ? `<p style="color: #475569; margin: 0;">Capital Social: ${targetEmpresa.capital_social}</p>` : ''}
+              ${targetEmpresa?.conservatoria ? `<p style="color: #475569; margin: 0;">Cons. Reg. Com.: ${targetEmpresa.conservatoria}</p>` : ''}
+              ${targetEmpresa?.matricula ? `<p style="color: #475569; margin: 0;">Matrícula: ${targetEmpresa.matricula}</p>` : ''}
+            </div>
+
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">ATCUD</p>
+              <p style="font-weight: 600; color: #0f172a; margin: 0;">${fat.atcud || `${targetEmpresa?.atcud_prefix || 'J6XBVVRV'}-${fat.fatura_numero || 1}`}</p>
+              
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 12px 0 2px 0;">Data de Emissão</p>
+              <p style="color: #334155; margin: 0;">${emissionDateStr}</p>
+              
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 12px 0 2px 0;">Data de Vencimento</p>
+              <p style="color: #334155; margin: 0;">${vencimentoDateStr}</p>
+            </div>
+
+            <div>
+              <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">Para</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${clientLegalName}</p>
+              <p style="color: #475569; margin: 0;">${clientAddress}</p>
+              <p style="color: #475569; margin: 0;">${clientPostalCity}</p>
+              <p style="color: #475569; margin: 0;">${clientCountry}</p>
+              <p style="color: #475569; margin: 6px 0 0 0;">Nº Contribuinte: ${clientTaxId}</p>
+            </div>
+          </div>
+
+          <!-- TABELA LISTA DE ARTIGOS -->
+          <div style="background-color: #ec8a5e; color: #ffffff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 12px; text-align: center; border-top-left-radius: 4px; border-top-right-radius: 4px;">
+            Lista de Artigos
+          </div>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid rgba(236, 138, 94, 0.4); font-size: 11px; margin-bottom: 24px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f2a87a; color: #ffffff; border-bottom: 1px solid rgba(236, 138, 94, 0.4);">
+                <th style="font-weight: 700; color: #ffffff; padding: 6px 12px; text-align: left;">DESCRIÇÃO DO ARTIGO</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 80px; padding: 6px 8px;">QUANT.</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 90px; padding: 6px 8px;">PREÇO</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 60px; padding: 6px 8px;">DESC.</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 70px; padding: 6px 8px;">IVA (%)</th>
+                <th style="text-align: right; font-weight: 700; color: #ffffff; width: 100px; padding: 6px 12px;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">${descricaoServico}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalHorasCalculadas.toFixed(2)}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace; color: #0f172a;">${totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              ${incrementos > 0 ? `
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #047857;">
+                <td style="padding: 6px 12px;">${incrementosDesc}</td>
+                <td style="text-align: right; padding: 6px 8px;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px;">${incrementos.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px;">${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">${incrementos.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${reducoes > 0 ? `
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #be123c;">
+                <td style="padding: 6px 12px;">${reducoesDesc}</td>
+                <td style="text-align: right; padding: 6px 8px;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px;">-${reducoes.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px;">0,00</td>
+                <td style="text-align: right; padding: 6px 8px;">${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">-${reducoes.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+            </tbody>
+          </table>
+
+          <!-- TABELA RESUMO -->
+          <div style="background-color: #ec8a5e; color: #ffffff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 12px; text-align: center; border-top-left-radius: 4px; border-top-right-radius: 4px;">
+            Resumo
+          </div>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid rgba(236, 138, 94, 0.4); font-size: 11px; margin-bottom: 24px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; overflow: hidden;">
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">Subtotal da Factura</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${subtotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
+                <td style="padding: 6px 12px; color: #1e293b;">IVA ${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: ${subtotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${ivaVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.4); background-color: #fff7ed;">
+                <td style="font-weight: 800; color: #0f172a; padding: 8px 12px; font-size: 12px;">Total da Factura</td>
+                <td style="text-align: right; font-weight: 800; color: #0f172a; font-size: 13px; padding: 8px 12px; font-family: monospace;">
+                  ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.4;">
+            Condições de Enquadramento de IVA:<br/>
+            (1) ${ivaPct === 0 ? 'M40-IVA - autoliquidação' : 'Regime Geral'}
+          </div>
+        </div>
+
+        <!-- BOTTOM SECTION / FOOTER -->
+        <div style="margin-top: 20px;">
+          <div style="text-align: center; font-size: 10px; color: #475569; font-style: italic; font-weight: 600; margin-bottom: 12px;">
+            ${targetEmpresa?.certified_software_text || 'Dclm - Processado por Programa Certificado nº 1137/AT'}
+          </div>
+
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: grid; grid-template-columns: 1fr 1.2fr 1fr; font-size: 9px; color: #64748b; line-height: 1.4;">
+            <div>
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Local de Carga</p>
+              <p style="margin: 0;">${targetEmpresa?.address_line || 'N/ Morada'}</p>
+              <p style="margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>
+            </div>
+            ${iban ? `
+            <div style="text-align: center;">
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Informações de Pagamento</p>
+              <div style="font-family: monospace; font-size: 9px; white-space: pre-line; line-height: 1.2;">${iban}</div>
+            </div>` : '<div></div>'}
+            <div style="text-align: right;">
+              <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Local de Descarga</p>
+              <p style="margin: 0;">${clientAddress || 'V/ Morada'}</p>
+              <p style="margin: 0;">${[clientPostalCity, clientCountry].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = facturaHtml;
+    document.body.appendChild(container);
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2.0,
+        useCORS: true,
+        width: 800,
+        windowWidth: 800
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.90);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      document.body.removeChild(container);
+      return pdf;
+    } catch (err) {
+      console.error("Error generating Factura PDF programmatically:", err);
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+      return null;
+    }
+  };
+
   const handleExportA4PDFTracking = async (faturaId: string, clientName: string, type: 'informe' | 'factura') => {
     if (type === 'informe') {
       // If modal is open with target fatura, we can use loaded state!
@@ -811,29 +1093,18 @@ export function FaturasTracking() {
       return;
     }
 
-    // For type === 'factura', standard single-page capture from DOM
-    const elementId = `${type}-sheet-${faturaId}`;
-    const element = document.getElementById(elementId);
-    
-    if (element) {
+    // For type === 'factura', standard programmatic generation
+    if (selectedDispute && selectedDispute.id === faturaId && disputeHours && disputeHours.length > 0) {
       toast.info(`Aguarde, gerando PDF da Fatura Pró-forma...`);
       try {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          width: 800,
-          windowWidth: 800
-        });
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-        const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
-        pdf.save(filename);
-        toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
+        const pdf = await generateFacturaPDFProgrammaticallyTracking(selectedDispute, disputeHours, clientName);
+        if (pdf) {
+          const filename = `factura-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+          pdf.save(filename);
+          toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
+        } else {
+          toast.error("Erro ao gerar o arquivo PDF.");
+        }
       } catch (error: any) {
         console.error("Erro ao gerar PDF:", error);
         toast.error("Erro ao gerar o arquivo PDF: " + error.message);
@@ -909,11 +1180,15 @@ export function FaturasTracking() {
       }));
 
       toast.dismiss(toastId);
-      setPdfRenderData({
-        fatura: targetFatura,
-        hours: mappedHours,
-        type
-      });
+      toast.info("Aguarde, gerando PDF da Fatura Pró-forma...");
+      const pdf = await generateFacturaPDFProgrammaticallyTracking(targetFatura, mappedHours, clientName);
+      if (pdf) {
+        const filename = `factura-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+        pdf.save(filename);
+        toast.success(`PDF da Fatura Pró-forma gerado com sucesso!`);
+      } else {
+        toast.error("Erro ao gerar o arquivo PDF.");
+      }
     } catch (err: any) {
       console.error(err);
       toast.dismiss(toastId);
@@ -1219,56 +1494,18 @@ export function FaturasTracking() {
   };
 
   const generatePDFAttachmentTracking = async (faturaId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+    if (!emailData || !emailData.fatura) {
+      console.warn("emailData or emailData.fatura is empty for tracking attachment");
+      return null;
+    }
+
     if (type === 'factura') {
-      const elementId = `${type}-sheet-tracking-${faturaId}`;
-      let element = document.getElementById(elementId);
-      if (!element) {
-        console.warn(`Element not found for PDF capture: ${elementId}`);
-        return null;
-      }
-
-      const parentWrapper = element.closest('.hidden');
-      const wasHidden = !!parentWrapper;
-
-      if (wasHidden && parentWrapper) {
-        parentWrapper.classList.remove('hidden');
-        parentWrapper.classList.add('block');
-        (parentWrapper as HTMLElement).style.position = 'absolute';
-        (parentWrapper as HTMLElement).style.left = '-9999px';
-        (parentWrapper as HTMLElement).style.top = '0';
-        (parentWrapper as HTMLElement).style.width = '800px';
-      }
-
       try {
-        const canvas = await html2canvas(element, {
-          scale: 1.5,
-          useCORS: true,
-          width: 800,
-          windowWidth: 800
-        });
-        
-        const imgData = canvas.toDataURL('image/jpeg', 0.82);
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-          compress: true
-        });
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+        const pdf = await generateFacturaPDFProgrammaticallyTracking(emailData.fatura, emailHours, clientName);
+        if (!pdf) return null;
         
         const pdfBase64 = pdf.output('datauristring').split(',')[1];
         const filename = 'Factura_Pro-forma.pdf';
-
-        if (wasHidden && parentWrapper) {
-          parentWrapper.classList.remove('block');
-          parentWrapper.classList.add('hidden');
-          (parentWrapper as HTMLElement).style.position = '';
-          (parentWrapper as HTMLElement).style.left = '';
-          (parentWrapper as HTMLElement).style.top = '';
-          (parentWrapper as HTMLElement).style.width = '';
-        }
 
         return {
           name: filename,
@@ -1276,25 +1513,12 @@ export function FaturasTracking() {
           contentBytes: pdfBase64
         };
       } catch (err) {
-        console.error(`Error generating ${type} PDF:`, err);
-        if (wasHidden && parentWrapper) {
-          parentWrapper.classList.remove('block');
-          parentWrapper.classList.add('hidden');
-          (parentWrapper as HTMLElement).style.position = '';
-          (parentWrapper as HTMLElement).style.left = '';
-          (parentWrapper as HTMLElement).style.top = '';
-          (parentWrapper as HTMLElement).style.width = '';
-        }
+        console.error(`Error generating factura PDF:`, err);
         return null;
       }
     }
 
     // For type === 'informe', we do programmatic chunked pagination!
-    if (!emailData || !emailData.fatura) {
-      console.warn("emailData or emailData.fatura is empty for tracking attachment");
-      return null;
-    }
-
     try {
       const pdf = await generateInformePDFProgrammatically(emailData.fatura, emailHours, clientName);
       if (!pdf) return null;
