@@ -646,7 +646,7 @@ export function CampaignsPage() {
     {
       id: 'aud_mailing_alex_0209',
       name: '🎯 Mailing Alex - Base Nova 02/09 (Álava & Euskadi)',
-      leadCount: 359,
+      leadCount: 613,
       filters: {
         stageId: '',
         origin: '',
@@ -669,7 +669,7 @@ export function CampaignsPage() {
     {
       id: 'aud_mailing_alex',
       name: '🎯 Mailing Alex - Geral & Oficinas Espanha',
-      leadCount: 3050,
+      leadCount: 3289,
       filters: {
         stageId: '',
         origin: '',
