@@ -644,9 +644,32 @@ export function CampaignsPage() {
       created_at: new Date().toISOString()
     },
     {
+      id: 'aud_mailing_alex_0209',
+      name: '🎯 Mailing Alex - Base Nova 02/09 (Álava & Euskadi)',
+      leadCount: 359,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Mailing Alex 02-09',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
       id: 'aud_mailing_alex',
-      name: '🎯 Mailing Alex - Novos Contatos & Oficinas',
-      leadCount: 2691,
+      name: '🎯 Mailing Alex - Geral & Oficinas Espanha',
+      leadCount: 3050,
       filters: {
         stageId: '',
         origin: '',
