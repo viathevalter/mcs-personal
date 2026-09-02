@@ -67,6 +67,8 @@ import {
   Factory,
   BarChart3,
   Building2,
+  Zap,
+  PhoneCall,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
