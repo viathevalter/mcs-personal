@@ -11,7 +11,8 @@ import {
     Mail,
     Zap,
     BarChart3,
-    Award
+    Award,
+    PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -49,8 +50,9 @@ export function ComercialSidebar() {
         },
         {
             titleKey: 'comercial.sidebar.marketing',
-            titleDefault: 'Marketing',
+            titleDefault: 'Marketing & Prospecção',
             links: [
+                { to: '/comercial/discador', label: 'Cockpit Discador (Power Dialer)', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial', 'rh'] },

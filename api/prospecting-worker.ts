@@ -224,9 +224,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             phone: c.phone || null,
             website: c.website || null,
             address: c.address || null,
-            city: c.city || 'Espanha',
-            province: c.province || 'Espanha',
-            country: 'Espanha',
+            city: c.city || (job.location.includes('Fran') ? 'France' : 'España'),
+            province: c.province || job.location,
+            country: job.location.includes('Fran') ? 'França' : 'Espanha',
             confidence_score: 95,
             status: 'raw',
           });

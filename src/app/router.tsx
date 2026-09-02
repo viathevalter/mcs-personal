@@ -94,6 +94,7 @@ import { EstimacionDetailPage } from '../features/comercial/estimaciones/Estimac
 import { NewEstimacionPage } from '../features/comercial/estimaciones/NewEstimacionPage';
 import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
 import { LeadsPage } from '../features/comercial/leads/LeadsPage';
+import { PowerDialerPage } from '../features/comercial/leads/PowerDialerPage';
 import { KanbanPage } from '../features/comercial/leads/KanbanPage';
 import { CampaignsPage } from '../features/comercial/leads/CampaignsPage';
 import { ProspectingPage } from '../features/comercial/leads/ProspectingPage';
@@ -269,6 +270,8 @@ export const router = createBrowserRouter([
                 element: <ComercialLayout />,
                 children: [
                     { index: true, element: <Navigate to="/comercial/estimaciones" replace /> },
+                    { path: 'discador', element: <PowerDialerPage /> },
+                    { path: 'discador/:campaignId', element: <PowerDialerPage /> },
                     { path: 'tarefas', element: <ComercialTasksPage /> },
                     { path: 'leads', element: <LeadsPage /> },
                     { path: 'prospector', element: <ProspectingPage /> },

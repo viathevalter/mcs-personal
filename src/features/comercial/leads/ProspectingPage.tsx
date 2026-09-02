@@ -357,12 +357,22 @@ export function ProspectingPage() {
     }
   };
 
+  const countryFilteredJobsList = useMemo(() => {
+    if (jobCountryFilter === 'FR') {
+      return jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷')));
+    }
+    if (jobCountryFilter === 'ES') {
+      return jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷')));
+    }
+    return jobs;
+  }, [jobs, jobCountryFilter]);
+
   const jobCounts = {
-    total: jobs.length,
-    processing: jobs.filter((j) => j.status === 'processing').length,
-    pending: jobs.filter((j) => j.status === 'pending').length,
-    completed: jobs.filter((j) => j.status === 'completed').length,
-    paused: jobs.filter((j) => j.status === 'paused').length,
+    total: countryFilteredJobsList.length,
+    processing: countryFilteredJobsList.filter((j) => j.status === 'processing').length,
+    pending: countryFilteredJobsList.filter((j) => j.status === 'pending').length,
+    completed: countryFilteredJobsList.filter((j) => j.status === 'completed').length,
+    paused: countryFilteredJobsList.filter((j) => j.status === 'paused').length,
     france: jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷'))).length,
     spain: jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷'))).length,
   };

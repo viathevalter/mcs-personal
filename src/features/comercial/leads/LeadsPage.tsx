@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useLeads, useMutateLead } from './hooks/useLeads';
@@ -7,6 +8,7 @@ import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
+import { CreateCampaignModal } from './components/CreateCampaignModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -84,6 +86,7 @@ const ensureAbsoluteUrl = (url?: string | null): string => {
 };
 
 export function LeadsPage() {
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { empresas, selectedEmpresaId } = useEmpresa();
@@ -99,6 +102,10 @@ export function LeadsPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // Power Dialer Selection State
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [isDialerModalOpen, setIsDialerModalOpen] = useState(false);
 
   // ETL Import State
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -950,6 +957,31 @@ export function LeadsPage() {
     });
   };
 
+  const toggleSelectLead = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedLeadIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectFirstN = (n: number) => {
+    const validLeads = filteredLeads.filter(l => !l.do_not_call);
+    const subset = validLeads.slice(0, n).map(l => l.id);
+    setSelectedLeadIds(subset);
+    toast.info(`${subset.length} leads selecionados para a fila de discagem`);
+  };
+
+  const handleSelectAllFiltered = () => {
+    const validLeads = filteredLeads.filter(l => !l.do_not_call);
+    const allIds = validLeads.map(l => l.id);
+    setSelectedLeadIds(allIds);
+    toast.info(`${allIds.length} leads selecionados para a fila de discagem`);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLeadIds([]);
+  };
+
   return (
     <div className="flex flex-col space-y-6 p-4">
       {/* Header */}
@@ -964,6 +996,25 @@ export function LeadsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Power Dialer Main Action */}
+          <Button 
+            onClick={() => navigate('/comercial/discador')}
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-blue-900/30 gap-2 border-0"
+          >
+            <Phone className="h-4 w-4" />
+            Cockpit Discador (Power Dialer)
+          </Button>
+
+          {selectedLeadIds.length > 0 && (
+            <Button 
+              onClick={() => setIsDialerModalOpen(true)}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-lg shadow-emerald-900/40 gap-2 animate-pulse"
+            >
+              <Zap className="h-4 w-4" />
+              Criar Fila de Discagem ({selectedLeadIds.length})
+            </Button>
+          )}
+
           <Button onClick={handleExportExcel} variant="outline" className="border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm">
             <Download className="mr-2 h-4 w-4" />
             Exportar Excel ({filteredLeads.length})
@@ -984,6 +1035,62 @@ export function LeadsPage() {
             <Plus className="mr-2 h-4 w-4" />
             {t('comercial.leads.btnNew')}
           </Button>
+        </div>
+      </div>
+
+      {/* Bulk Selection Quick Toolbar (When filtering leads) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/60 dark:bg-slate-900/90 border border-slate-800 rounded-xl">
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <Phone className="w-4 h-4 text-blue-400 shrink-0" />
+          <span className="font-semibold">Seleção Rápida para Prospecção:</span>
+          {selectedLeadIds.length > 0 ? (
+            <span className="font-bold text-emerald-400">
+              {selectedLeadIds.length} selecionados
+            </span>
+          ) : (
+            <span className="text-slate-400">Nenhum selecionado</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleSelectFirstN(50)}
+            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
+          >
+            Selecionar 50
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleSelectFirstN(100)}
+            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
+          >
+            Selecionar 100
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSelectAllFiltered}
+            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
+          >
+            Selecionar Todos ({filteredLeads.length})
+          </Button>
+          {selectedLeadIds.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleClearSelection}
+              className="h-7 text-xs text-slate-400 hover:text-red-400"
+            >
+              Limpar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1255,6 +1362,22 @@ export function LeadsPage() {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
                 <tr>
+                  <th className="py-3 px-3 text-center align-middle w-10 sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                    <input
+                      type="checkbox"
+                      checked={paginatedSortedLeads.length > 0 && paginatedSortedLeads.every(l => selectedLeadIds.includes(l.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const newIds = Array.from(new Set([...selectedLeadIds, ...paginatedSortedLeads.map(l => l.id)]));
+                          setSelectedLeadIds(newIds);
+                        } else {
+                          const pageIds = paginatedSortedLeads.map(l => l.id);
+                          setSelectedLeadIds(selectedLeadIds.filter(id => !pageIds.includes(id)));
+                        }
+                      }}
+                      className="rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
                     {renderSortHeader('company_name', t('comercial.leads.table.company'))}
                   </th>
@@ -1280,6 +1403,7 @@ export function LeadsPage() {
               </thead>
               <tbody className="[&_tr:last-child]:border-0 bg-card">
                 {paginatedSortedLeads.map((lead) => {
+                  const isSelected = selectedLeadIds.includes(lead.id);
                   const cCode = detectLeadCountry(lead);
                   const cInfo = countryLabels[cCode] || countryLabels.ES;
 
@@ -1287,8 +1411,20 @@ export function LeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => handleOpenDetails(lead)}
-                      className="border-b transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer group"
+                      className={`border-b transition-colors cursor-pointer group ${
+                        isSelected 
+                          ? 'bg-blue-500/10 hover:bg-blue-500/15' 
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
                     >
+                      <td className="p-3 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => toggleSelectLead(lead.id)}
+                          className="rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="p-4 align-middle font-medium text-foreground">
                         {lead.company_name ? (
                           <div className="space-y-1">
@@ -2383,6 +2519,15 @@ export function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Power Dialer Campaign Creation Modal */}
+      <CreateCampaignModal
+        isOpen={isDialerModalOpen}
+        onClose={() => setIsDialerModalOpen(false)}
+        selectedLeadIds={selectedLeadIds}
+        selectedCount={selectedLeadIds.length}
+      />
     </div>
   );
 }
+
